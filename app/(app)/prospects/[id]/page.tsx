@@ -3,12 +3,13 @@ import { notFound } from "next/navigation";
 
 import { ActivityTimeline } from "@/components/activities/activity-timeline";
 import { QuickLogActivity } from "@/components/activities/quick-log-activity";
+import { ClickToCall } from "@/components/call/click-to-call";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badge";
 import { buttonVariants } from "@/components/ui/button";
-import { formatDateLong, formatPhone } from "@/lib/format";
+import { formatDateLong } from "@/lib/format";
 import {
   getProspectSecteurLabel,
   getProspectSourceLabel,
@@ -105,12 +106,11 @@ export default async function ProspectDetailPage({ params }: PageProps) {
 
             <Field label="Téléphone">
               {prospect.telephone ? (
-                <a
-                  href={`tel:${prospect.telephone.replace(/\s/g, "")}`}
-                  className="text-primary hover:underline"
-                >
-                  {formatPhone(prospect.telephone)}
-                </a>
+                <ClickToCall
+                  prospectId={prospect.id}
+                  prospectRaisonSociale={prospect.raisonSociale}
+                  numero={prospect.telephone}
+                />
               ) : (
                 "—"
               )}
@@ -118,12 +118,11 @@ export default async function ProspectDetailPage({ params }: PageProps) {
 
             <Field label="Mobile">
               {prospect.telephoneMobile ? (
-                <a
-                  href={`tel:${prospect.telephoneMobile.replace(/\s/g, "")}`}
-                  className="text-primary hover:underline"
-                >
-                  {formatPhone(prospect.telephoneMobile)}
-                </a>
+                <ClickToCall
+                  prospectId={prospect.id}
+                  prospectRaisonSociale={prospect.raisonSociale}
+                  numero={prospect.telephoneMobile}
+                />
               ) : (
                 "—"
               )}

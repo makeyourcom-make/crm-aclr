@@ -1,3 +1,6 @@
+import { CallInProgressWidget } from "@/components/call/call-in-progress-widget";
+import { CallResultModal } from "@/components/call/call-result-modal";
+import { CallSessionProvider } from "@/components/call/call-session-provider";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +16,10 @@ import { requireUser } from "@/lib/session";
  *
  * requireUser() est défensif : le proxy.ts a déjà filtré, mais on garantit
  * ici aussi qu'un utilisateur valide existe.
+ *
+ * CallSessionProvider enveloppe TOUT pour que le widget d'appel survive aux
+ * navigations internes (la commerciale peut continuer à naviguer pendant
+ * que l'appel est en cours).
  */
 export default async function AppLayout({
   children,
@@ -23,22 +30,28 @@ export default async function AppLayout({
 
   return (
     <TooltipProvider delay={200}>
-      <div className="flex min-h-screen w-full">
-        {/* Sidebar — fixée à gauche sur desktop, drawer mobile via Topbar */}
-        <aside className="hidden w-64 shrink-0 border-r border-sidebar-border md:block">
-          <div className="sticky top-0 h-screen">
-            <Sidebar role={user.role} />
+      <CallSessionProvider>
+        <div className="flex min-h-screen w-full">
+          {/* Sidebar — fixée à gauche sur desktop, drawer mobile via Topbar */}
+          <aside className="hidden w-64 shrink-0 border-r border-sidebar-border md:block">
+            <div className="sticky top-0 h-screen">
+              <Sidebar role={user.role} />
+            </div>
+          </aside>
+
+          {/* Zone principale */}
+          <div className="flex min-w-0 flex-1 flex-col">
+            <Topbar user={user} />
+            <main className="flex-1 overflow-x-auto">{children}</main>
           </div>
-        </aside>
-
-        {/* Zone principale */}
-        <div className="flex min-w-0 flex-1 flex-col">
-          <Topbar user={user} />
-          <main className="flex-1 overflow-x-auto">{children}</main>
         </div>
-      </div>
 
-      <Toaster richColors position="top-right" />
+        {/* Widget flottant + modale de résultat (gérés par le provider) */}
+        <CallInProgressWidget />
+        <CallResultModal />
+
+        <Toaster richColors position="top-right" />
+      </CallSessionProvider>
     </TooltipProvider>
   );
 }

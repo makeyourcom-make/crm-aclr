@@ -3,10 +3,11 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 
+import { ClickToCall } from "@/components/call/click-to-call";
 import { DataTable } from "@/components/ui/data-table";
 import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badge";
 import { getProspectSecteurLabel } from "@/lib/labels";
-import { formatPhone, formatRelative } from "@/lib/format";
+import { formatRelative } from "@/lib/format";
 
 import type { Prospect } from "@prisma/client";
 
@@ -55,13 +56,13 @@ export function ProspectsTable({ rows }: ProspectsTableProps) {
             </a>
           )}
           {row.original.telephone && (
-            <a
-              href={`tel:${row.original.telephone.replace(/\s/g, "")}`}
-              className="text-muted-foreground hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {formatPhone(row.original.telephone)}
-            </a>
+            <ClickToCall
+              prospectId={row.original.id}
+              prospectRaisonSociale={row.original.raisonSociale}
+              numero={row.original.telephone}
+              inline
+              className="text-muted-foreground"
+            />
           )}
         </div>
       ),
