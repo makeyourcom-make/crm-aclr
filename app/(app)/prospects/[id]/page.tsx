@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ActivityTimeline } from "@/components/activities/activity-timeline";
+import { QuickLogActivity } from "@/components/activities/quick-log-activity";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
@@ -11,6 +13,7 @@ import {
   getProspectSecteurLabel,
   getProspectSourceLabel,
 } from "@/lib/labels";
+import { getProspectActivities } from "@/lib/queries/activities";
 import { getProspectById } from "@/lib/queries/prospects";
 import { requireUser } from "@/lib/session";
 
@@ -26,7 +29,10 @@ export async function generateMetadata({ params }: PageProps) {
 export default async function ProspectDetailPage({ params }: PageProps) {
   const user = await requireUser();
   const { id } = await params;
-  const prospect = await getProspectById(user, id);
+  const [prospect, activities] = await Promise.all([
+    getProspectById(user, id),
+    getProspectActivities(id, user),
+  ]);
 
   if (!prospect) notFound();
 
@@ -207,16 +213,22 @@ export default async function ProspectDetailPage({ params }: PageProps) {
         </Card>
       )}
 
-      {/* Timeline activités — à venir à l'étape 6 */}
+      {/* Timeline d'activités */}
       <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="text-base">Activités</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle className="text-base">
+            Activités
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              ({prospect._count.activities} total)
+            </span>
+          </CardTitle>
+          <QuickLogActivity
+            prospectId={prospect.id}
+            prospectRaisonSociale={prospect.raisonSociale}
+          />
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            La timeline d&apos;activités (appels, emails, RDV) et les actions
-            rapides (logger un appel, créer un deal) arrivent à l&apos;étape 6.
-          </p>
+          <ActivityTimeline activities={activities} showUser={user.role === "ADMIN"} />
         </CardContent>
       </Card>
     </div>
