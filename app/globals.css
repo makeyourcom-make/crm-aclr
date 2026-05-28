@@ -1,15 +1,24 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 /* ============================================================================
    Palette ACLR Sàrl / Make Your Com
    ----------------------------------------------------------------------------
    Primaire  : bleu marine #1F4E78
    Accent    : orange doux #FB923C
-   Neutres   : échelle shadcn (slate)
+   Neutres   : échelle shadcn (oklch grays)
+
+   Convention :
+   • `bg-primary-600` etc. (échelle ACLR) pour usage direct dans nos composants
+   • `bg-primary` (semantic shadcn) brancheé sur primary-600 pour cohérence
+     avec les composants shadcn (Button, etc.)
    ============================================================================ */
 
 @theme {
-  /* Bleu marine ACLR */
+  /* Bleu marine ACLR — échelle utilisable directement (bg-primary-600 etc.) */
   --color-primary-50:  #f0f6fc;
   --color-primary-100: #d9e6f2;
   --color-primary-200: #b4cde5;
@@ -31,26 +40,62 @@
   --color-accent-600: #ea580c;
   --color-accent-700: #c2410c;
 
-  /* Typographie */
   --font-sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* Variables sémantiques shadcn-style (light mode) */
+/* ============================================================================
+   Variables sémantiques shadcn (light mode)
+   `--primary` et `--accent` sont branchés sur l'identité ACLR.
+   ============================================================================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #0f172a;        /* slate-900 */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
 
-  --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
 
-  --muted: #f1f5f9;             /* slate-100 */
-  --muted-foreground: #64748b;  /* slate-500 */
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
 
-  --border: #e2e8f0;            /* slate-200 */
-  --input: #e2e8f0;
+  /* PRIMARY = bleu marine ACLR */
+  --primary: #1F4E78;
+  --primary-foreground: #ffffff;
+
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+
+  /* ACCENT = orange doux ACLR */
+  --accent: #FB923C;
+  --accent-foreground: #ffffff;
+
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+
+  --destructive: oklch(0.577 0.245 27.325);
+
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
   --ring: #1F4E78;
 
-  --radius: 0.5rem;
+  --radius: 0.625rem;
+
+  /* Graphiques (Recharts) — palette dérivée bleu + orange */
+  --chart-1: #1F4E78;
+  --chart-2: #FB923C;
+  --chart-3: #5489b8;
+  --chart-4: #fdba74;
+  --chart-5: #14334d;
+
+  /* Sidebar — fond très légèrement teinté */
+  --sidebar: #fafbfc;
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: #1F4E78;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: oklch(0.96 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: #1F4E78;
 }
 
 @theme inline {
@@ -58,24 +103,94 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
   --radius-sm: calc(var(--radius) - 0.25rem);
   --radius-md: calc(var(--radius) - 0.125rem);
   --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+
+  --font-sans: var(--font-sans);
+  --font-heading: var(--font-sans);
 }
 
-/* Lissage par défaut */
-html {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* Dark mode désactivé pour V1 (admin pourra le toggler plus tard).
+   On garde les variables pour la compat shadcn, mais .dark n'est jamais
+   appliqué à <html> dans cette V1. */
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: #5489b8;
+  --primary-foreground: #0f2638;
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: #FB923C;
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: #5489b8;
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: #5489b8;
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
+/* ============================================================================
+   Layer base — defaults sur tous les éléments
+   ============================================================================ */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
 }

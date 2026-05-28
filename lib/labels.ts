@@ -161,7 +161,7 @@ export const ACTIVITY_TYPE_ICONS: Record<ActivityType, string> = {
   RDV_VISIO: "Video",
   RDV_TELEPHONIQUE: "Phone",
   SMS: "MessageSquare",
-  LINKEDIN: "Linkedin",
+  LINKEDIN: "Globe", // lucide-react v1 a retiré les icônes de marque (LinkedIn, etc.)
   NOTE: "StickyNote",
 };
 
