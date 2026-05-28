@@ -9,7 +9,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Icon } from "@/components/icon";
-import { logoutAction } from "@/lib/auth-actions";
 import { getRoleLabel } from "@/lib/labels";
 
 import type { Role } from "@prisma/client";
@@ -62,20 +61,18 @@ export function UserMenu({ user }: UserMenuProps) {
         <DropdownMenuSeparator />
 
         {/*
-         * Logout = form action (pas onClick).
-         * Le pattern <form action={serverAction}> propage correctement la
-         * "redirect-error" levée par signOut() vers le navigateur. Un onClick
-         * sur DropdownMenuItem fire-and-forget la promesse et perd le redirect.
+         * Lien <a> classique vers /api/auth/logout (endpoint custom).
+         * On évite Server Action + form submit dans la menu base-ui qui
+         * peut intercepter le submit. Une navigation browser native est
+         * 100% fiable et arrive proprement au backend qui appelle signOut().
          */}
-        <form action={logoutAction} className="w-full">
-          <button
-            type="submit"
-            className="flex w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-          >
-            <Icon name="LogOut" className="h-4 w-4" />
-            Se déconnecter
-          </button>
-        </form>
+        <a
+          href="/api/auth/logout"
+          className="flex w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+        >
+          <Icon name="LogOut" className="h-4 w-4" />
+          Se déconnecter
+        </a>
       </DropdownMenuContent>
     </DropdownMenu>
   );
