@@ -1,0 +1,28 @@
+// ============================================================================
+// Schéma Prisma — CRM ACLR Sàrl / Make Your Com
+// ============================================================================
+// Schéma minimal de l'étape 1 (scaffolding). L'étape 2 ajoute tout le modèle
+// de données métier (User, Prospect, Activity, Deal, Contract, etc.).
+// ============================================================================
+
+generator client {
+  provider      = "prisma-client-js"
+  // Pour la prod (Linux x64) et le dev (Windows + WSL le cas échéant)
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Modèle placeholder — utilisé pour valider la connexion DB à l'étape 1.
+// Sera supprimé à l'étape 2 quand le vrai schéma sera posé.
+model HealthCheck {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  message   String   @default("CRM ACLR — connexion DB OK")
+
+  @@map("_health_check")
+}

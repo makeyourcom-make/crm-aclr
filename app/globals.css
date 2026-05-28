@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+/* ============================================================================
+   Palette ACLR Sàrl / Make Your Com
+   ----------------------------------------------------------------------------
+   Primaire  : bleu marine #1F4E78
+   Accent    : orange doux #FB923C
+   Neutres   : échelle shadcn (slate)
+   ============================================================================ */
+
+@theme {
+  /* Bleu marine ACLR */
+  --color-primary-50:  #f0f6fc;
+  --color-primary-100: #d9e6f2;
+  --color-primary-200: #b4cde5;
+  --color-primary-300: #8eb3d8;
+  --color-primary-400: #5489b8;
+  --color-primary-500: #2f6699;
+  --color-primary-600: #1F4E78;   /* couleur principale */
+  --color-primary-700: #194062;
+  --color-primary-800: #14334d;
+  --color-primary-900: #0f2638;
+
+  /* Orange doux ACLR */
+  --color-accent-50:  #fff7ed;
+  --color-accent-100: #ffedd5;
+  --color-accent-200: #fed7aa;
+  --color-accent-300: #fdba74;
+  --color-accent-400: #FB923C;   /* couleur accent */
+  --color-accent-500: #f97316;
+  --color-accent-600: #ea580c;
+  --color-accent-700: #c2410c;
+
+  /* Typographie */
+  --font-sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Variables sémantiques shadcn-style (light mode) */
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;        /* slate-900 */
+
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+
+  --muted: #f1f5f9;             /* slate-100 */
+  --muted-foreground: #64748b;  /* slate-500 */
+
+  --border: #e2e8f0;            /* slate-200 */
+  --input: #e2e8f0;
+  --ring: #1F4E78;
+
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: calc(var(--radius) - 0.125rem);
+  --radius-lg: var(--radius);
+}
+
+/* Lissage par défaut */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}

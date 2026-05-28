@@ -1,0 +1,17 @@
+# Normalisation des fins de ligne — évite les diffs parasites entre OS.
+# Tous les fichiers texte sont en LF dans le repo, peu importe l'OS du dev.
+* text=auto eol=lf
+
+# Fichiers binaires explicites
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.svg text eol=lf
+*.woff binary
+*.woff2 binary
+
+# Lockfiles : ne pas afficher les diffs sur GitHub (trop verbeux)
+package-lock.json -diff
