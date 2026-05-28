@@ -282,6 +282,11 @@ model User {
   // Signature email personnalisée (HTML pour le module Emails — étape 26)
   signatureEmailHtml String? @db.Text
 
+  // Coords personnelles (apparaissent sur la facture mensuelle PDF)
+  iban      String?
+  telephone String?
+  adresse   String?
+
   // Relations
   prospectsAssignes Prospect[]
   dealsAssignes     Deal[]

@@ -32,7 +32,7 @@ export async function GET(
     commerciale: {
       name: invoice.user.name,
       email: invoice.user.email,
-      iban: undefined, // V2 : ajouter un champ iban sur User
+      iban: invoice.user.iban ?? undefined,
     },
     emetteur: {
       raisonSociale: setting?.raisonSociale ?? "ACLR Sàrl",

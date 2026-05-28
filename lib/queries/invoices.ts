@@ -21,6 +21,7 @@ export type InvoiceDetail = Prisma.InvoiceGetPayload<{
         id: true;
         name: true;
         email: true;
+        iban: true;
         garantieMensuelle: true;
         forfaitFrais: true;
       };
@@ -155,6 +156,7 @@ export async function getInvoiceById(
           id: true,
           name: true,
           email: true,
+          iban: true,
           garantieMensuelle: true,
           forfaitFrais: true,
         },

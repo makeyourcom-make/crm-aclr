@@ -11,8 +11,19 @@
  *               vers Sophie n'a lieu qu'une fois par mois, sur cette base)
  *   - ANNULE  : annulé suite à résiliation anticipée (règle métier spec)
  *
- * Cf user request : "le paiement de Sophie n'a lieu qu'une fois par mois".
+ * Renouvellements (cf user request) :
+ *   Tous les contrats se renouvellent automatiquement. À l'anniversaire :
+ *     - 12 nouvelles ClientInvoices pour la prochaine année
+ *     - 12 CommissionPayment RENOUVELLEMENT en PREVU
+ *     - 1 Renewal record pour tracer
+ *   Quand chaque mensualité est encaissée → le CommissionPayment
+ *   RENOUVELLEMENT correspondant passe à PAYE.
  */
+import { addMonthsKeepEndOfMonth, chfToCents } from "@/lib/commissions";
+import {
+  FACTURE_CLIENT_ECHEANCE_JOURS_DEFAULT,
+  PREFIX_FACTURE_CLIENT,
+} from "@/lib/constants";
 import { prisma } from "@/lib/db";
 
 import type { PrismaClient } from "@prisma/client";
@@ -112,16 +123,17 @@ export async function processOverdueEtalements(
 }
 
 // ===========================================================================
-// TRIGGER RENEWAL COMMISSION (an 2+)
+// MATCH RENEWAL COMMISSION (mensualité encaissée an 2+)
 // ===========================================================================
 //
-// Quand une mensualité client (Payment) est encaissée pour un contrat qui a
-// déjà passé son 1er anniversaire (= dans son 2e an), un versement de
-// commission RENOUVELLEMENT au taux de 10% du montantMensuel doit être
-// versé à la commerciale.
+// Quand une mensualité client est encaissée et que le contrat est en an 2+ :
+//   - On cherche le CommissionPayment RENOUVELLEMENT PREVU le plus ancien
+//     non encore acquis (créé proactivement par processContractAnniversaries
+//     à chaque anniversaire de contrat).
+//   - On le passe à PAYE.
 //
-// Cette fonction est appelable depuis l'action `createPayment` OU
-// `markPaymentEncaisse` — au moment où un Payment passe à ENCAISSE.
+// Si aucun PREVU n'existe (anniversaire pas encore traité par le CRON),
+// on en crée un à la volée (fallback safety net).
 
 export interface TriggerRenewalParams {
   contractId: string;
@@ -140,21 +152,15 @@ export async function triggerRenewalCommissionIfApplicable(
 ): Promise<TriggerRenewalResult> {
   const db = params.tx ?? prisma;
 
-  // Charge contract + commission + user
   const contract = await db.contract.findUnique({
     where: { id: params.contractId },
     select: {
       id: true,
       dateSignature: true,
       montantMensuel: true,
-      assigneAId: true,
       statut: true,
-      assigneA: {
-        select: { tauxCommissionRenouvellement: true },
-      },
-      commissions: {
-        select: { id: true },
-      },
+      assigneA: { select: { tauxCommissionRenouvellement: true } },
+      commissions: { select: { id: true } },
     },
   });
   if (!contract) {
@@ -164,10 +170,10 @@ export async function triggerRenewalCommissionIfApplicable(
     return { created: false, amount: 0, reason: "Contrat non actif." };
   }
 
-  // Vérifie qu'on est bien en an 2+ (12 mois après dateSignature)
-  const an2Date = new Date(contract.dateSignature);
-  an2Date.setMonth(an2Date.getMonth() + 12);
-  if (params.paymentDate < an2Date) {
+  // Vérifie an 2+
+  const an2 = new Date(contract.dateSignature);
+  an2.setFullYear(an2.getFullYear() + 1);
+  if (params.paymentDate < an2) {
     return {
       created: false,
       amount: 0,
@@ -179,10 +185,29 @@ export async function triggerRenewalCommissionIfApplicable(
     return { created: false, amount: 0, reason: "Pas de commission existante." };
   }
 
-  const taux = Number(contract.assigneA.tauxCommissionRenouvellement);
-  const montantMensuel = Number(contract.montantMensuel);
-  const montantCommission = montantMensuel * taux;
+  // 1. Cherche d'abord un PREVU RENOUVELLEMENT existant (créé par
+  //    processContractAnniversaries) le plus ancien
+  const existing = await db.commissionPayment.findFirst({
+    where: {
+      commissionId: contract.commissions[0].id,
+      typePart: "RENOUVELLEMENT",
+      statut: "PREVU",
+    },
+    orderBy: { dateVersementPrevue: "asc" },
+  });
 
+  if (existing) {
+    await db.commissionPayment.update({
+      where: { id: existing.id },
+      data: { statut: "PAYE", dateVersement: params.paymentDate },
+    });
+    return { created: true, amount: Number(existing.montant) };
+  }
+
+  // 2. Fallback : pas de PREVU → on crée et marque PAYE direct
+  //    (cas où l'anniversaire n'a pas encore été traité par le CRON)
+  const taux = Number(contract.assigneA.tauxCommissionRenouvellement);
+  const montantCommission = Number(contract.montantMensuel) * taux;
   await db.commissionPayment.create({
     data: {
       commissionId: contract.commissions[0].id,
@@ -190,12 +215,196 @@ export async function triggerRenewalCommissionIfApplicable(
       montant: montantCommission,
       dateVersementPrevue: params.paymentDate,
       dateVersement: params.paymentDate,
-      statut: "PAYE", // acquis immédiatement à l'encaissement client
+      statut: "PAYE",
       numeroMois: null,
     },
   });
-
   return { created: true, amount: montantCommission };
+}
+
+// ===========================================================================
+// PROCESS CONTRACT ANNIVERSARIES → tous les contrats renouvellent auto
+// ===========================================================================
+//
+// Pour chaque contrat ACTIF qui a passé son anniversaire (signature + N ans
+// où N >= 1) et pour lequel aucun Renewal n'existe encore pour cette année :
+//   1. Crée un Renewal record (traçabilité)
+//   2. Crée 12 nouvelles ClientInvoices mensualité pour la prochaine année
+//      (numérotation ACLR-CLI-{YYYY}-{NNNN} séquentielle)
+//   3. Crée 12 CommissionPayment RENOUVELLEMENT en PREVU
+//      (passeront à PAYE quand chaque mensualité sera encaissée)
+//
+// Idempotent : skip les anniversaires déjà traités.
+
+export interface ContractRenewalResult {
+  contractId: string;
+  numero: string;
+  yearIndex: number;
+  invoicesCreated: number;
+  commissionsCreated: number;
+}
+
+export async function processContractAnniversaries(): Promise<
+  ContractRenewalResult[]
+> {
+  const now = new Date();
+  const results: ContractRenewalResult[] = [];
+
+  const contracts = await prisma.contract.findMany({
+    where: {
+      statut: "ACTIF",
+      montantMensuel: { gt: 0 },
+    },
+    include: {
+      renewals: { select: { dateRenouvellement: true } },
+      assigneA: { select: { tauxCommissionRenouvellement: true } },
+      commissions: { select: { id: true } },
+      products: {
+        select: { id: true, nom: true, prixMensuel: true },
+      },
+    },
+  });
+
+  for (const c of contracts) {
+    if (c.commissions.length === 0) continue;
+
+    // Nombre d'années écoulées depuis la signature
+    const msPerYear = 365.25 * 24 * 3600 * 1000;
+    const yearsSince = Math.floor(
+      (now.getTime() - c.dateSignature.getTime()) / msPerYear,
+    );
+    if (yearsSince < 1) continue;
+
+    // Pour chaque anniversaire écoulé (an 1 → an N), check si traité
+    for (let year = 1; year <= yearsSince; year++) {
+      const anniv = new Date(c.dateSignature);
+      anniv.setFullYear(anniv.getFullYear() + year);
+
+      const alreadyDone = c.renewals.some(
+        (r) =>
+          Math.abs(r.dateRenouvellement.getTime() - anniv.getTime()) <
+          86400_000 * 2,
+      );
+      if (alreadyDone) continue;
+
+      const res = await renewContractForYear(c.id, anniv, year);
+      if (res) results.push(res);
+    }
+  }
+
+  return results;
+}
+
+async function renewContractForYear(
+  contractId: string,
+  anniversaryDate: Date,
+  yearIndex: number,
+): Promise<ContractRenewalResult | null> {
+  return prisma.$transaction(
+    async (tx) => {
+      const contract = await tx.contract.findUnique({
+        where: { id: contractId },
+        include: {
+          products: true,
+          assigneA: { select: { tauxCommissionRenouvellement: true } },
+          commissions: { select: { id: true } },
+        },
+      });
+      if (!contract || contract.commissions.length === 0) return null;
+
+      const commissionId = contract.commissions[0].id;
+      const taux = Number(contract.assigneA.tauxCommissionRenouvellement);
+      const commissionMensuelle = Number(contract.montantMensuel) * taux;
+      const mensuelCents = chfToCents(Number(contract.montantMensuel));
+
+      // 1. Renewal record
+      await tx.renewal.create({
+        data: {
+          contractId,
+          dateRenouvellement: anniversaryDate,
+          statut: "RENOUVELE",
+          commissionAn2Mensuelle: commissionMensuelle,
+        },
+      });
+
+      // 2. 12 ClientInvoices mensualité pour la nouvelle année
+      let invoicesCreated = 0;
+      for (let m = 0; m < 12; m++) {
+        const dateEmission = addMonthsKeepEndOfMonth(anniversaryDate, m);
+        const periodeFin = new Date(dateEmission);
+        periodeFin.setMonth(periodeFin.getMonth() + 1);
+        periodeFin.setDate(periodeFin.getDate() - 1);
+        const dateEcheance = new Date(dateEmission);
+        dateEcheance.setDate(
+          dateEcheance.getDate() + FACTURE_CLIENT_ECHEANCE_JOURS_DEFAULT,
+        );
+
+        const annee = dateEmission.getFullYear();
+        const counter = await tx.counter.upsert({
+          where: { scope_year: { scope: "client_invoice", year: annee } },
+          create: { scope: "client_invoice", year: annee, value: 1 },
+          update: { value: { increment: 1 } },
+        });
+        const facNumero = `${PREFIX_FACTURE_CLIENT}-${annee}-${String(counter.value).padStart(4, "0")}`;
+
+        await tx.clientInvoice.create({
+          data: {
+            contractId,
+            numero: facNumero,
+            dateEmission,
+            dateEcheance,
+            type: "MENSUALITE",
+            periodeMoisDebut: dateEmission,
+            periodeMoisFin: periodeFin,
+            sousTotal: contract.montantMensuel,
+            totalTVA: 0,
+            total: contract.montantMensuel,
+            statut: "BROUILLON",
+            lignes: {
+              create: contract.products
+                .filter((p) => p.prixMensuel)
+                .map((p, idx) => ({
+                  designation: `${p.nom} — renouvellement an ${yearIndex + 1}, mens. ${m + 1}/12`,
+                  quantite: 1,
+                  prixUnitaire: p.prixMensuel ?? 0,
+                  montantHT: p.prixMensuel ?? 0,
+                  tauxTVA: 0,
+                  ordre: idx,
+                  productId: p.id,
+                })),
+            },
+          },
+        });
+        invoicesCreated++;
+      }
+
+      // 3. 12 CommissionPayment RENOUVELLEMENT en PREVU
+      let commissionsCreated = 0;
+      for (let m = 0; m < 12; m++) {
+        const dateVersementPrevue = addMonthsKeepEndOfMonth(anniversaryDate, m);
+        await tx.commissionPayment.create({
+          data: {
+            commissionId,
+            typePart: "RENOUVELLEMENT",
+            numeroMois: m + 1,
+            montant: commissionMensuelle,
+            dateVersementPrevue,
+            statut: "PREVU",
+          },
+        });
+        commissionsCreated++;
+      }
+
+      return {
+        contractId,
+        numero: contract.numero,
+        yearIndex,
+        invoicesCreated,
+        commissionsCreated,
+      };
+    },
+    { timeout: 30_000 },
+  );
 }
 
 // ===========================================================================
