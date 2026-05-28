@@ -124,16 +124,48 @@ CRM/
 
 ---
 
-## État d'avancement
+## État d'avancement — **30 / 30 étapes ✅**
 
-Le CRM est construit en **30 étapes** suivant l'ordre du prompt initial.
+| # | Module | État |
+|---|---|---|
+| 1 | Scaffolding Next 16 + Prisma 6 + Docker Compose | ✓ |
+| 2 | Schéma Prisma + moteur commissions + 43 tests + seed | ✓ |
+| 3 | NextAuth v5 (Credentials + role) + proxy.ts | ✓ |
+| 4 | Layout (sidebar + topbar) + 19 stubs modules | ✓ |
+| 5 | Prospects (liste filtrée + détail + édition + import CSV) | ✓ |
+| 6 | Activités + click-to-call (widget + modale résultat + rappel auto) | ✓ |
+| 7 | Vue Aujourd'hui (objectifs jour + sections temporelles) | ✓ |
+| 8 | Pipeline Kanban (drag & drop @dnd-kit + Sheet détail) | ✓ |
+| 9 | Catalogue produits (CRUD admin + édition prix in-place) | ✓ |
+| 10 | Contrats (wizard 4 étapes + cascade complète atomique) | ✓ |
+| 11 | Paiements clients (cascade commission SIGNATURE) | ✓ |
+| 12 | Moteur commissions (anniversaires + étalements échus) | ✓ |
+| 13 | Page Commissions (cockpit + calendrier 13 mois) | ✓ |
+| 14 | Factures mensuelles Sophie (génération + PDF + garantie) | ✓ |
+| 16 | Dashboard (4 KPI + chart 12 mois + pipeline + top deals) | ✓ |
+| 17 | Templates emails (CRUD + aperçu variables) | ✓ |
+| 18 | Paramètres (profil + Setting ACLR + IBAN sur PDF) | ✓ |
+| 19 | Agenda (vue semaine 7 cols + replanification J+1) | ✓ |
+| 20 | Objectifs (templates rapides + cards en cours) | ✓ |
+| 21 | Statistiques (KPI activité + conversion + funnel) | ✓ |
+| 22 | Prévisions salaire 12 mois + pipeline pondéré | ✓ |
+| 23 | Renouvellements (vue 90 jours + auto-trigger) | ✓ |
+| 24 | Factures clients dédiée + PDF (avec IBAN ACLR) | ✓ |
+| 25 | Signatures électroniques (token + page publique /sign/) | ✓ |
+| 26 | Emails (vue unifiée + envoi dry-run sans Resend) | ✓ |
+| 27 | CRON nightly endpoint + docker-compose service | ✓ |
+| 28 | Playwright config + smoke tests | ✓ |
+| 29 | Guide déploiement Hetzner ([docs/DEPLOIEMENT_HETZNER.md](docs/DEPLOIEMENT_HETZNER.md)) | ✓ |
+| 30 | Guide utilisateur Sophie ([docs/GUIDE_SOPHIE.md](docs/GUIDE_SOPHIE.md)) | ✓ |
 
-- [x] **Étape 1** — Scaffolding Next.js + Prisma + Postgres + Docker Compose
-- [ ] **Étape 2** — Schéma Prisma complet + migration + seed (2 users, 12 produits, 10 prospects)
-- [ ] **Étape 3** — Auth NextAuth + middleware
-- [ ] **Étape 4** — Layout principal (sidebar + topbar)
-- [ ] **Étape 5** — Module Prospects (liste + détail + import CSV)
-- [ ] _… 25 étapes restantes_
+**Build** : 0 erreur · **Tests unitaires** : 43/43 · **Routes** : 35+
+
+## Prochaines étapes (V2)
+
+- **Étape 26 V2** : intégration réelle Resend pour envois + webhooks inbound
+- **Étape 28 V2** : compléter les 10 tests E2E de la spec (parcours import CSV, click-to-call, signature flow, etc.)
+- **Étape 19 V2** : drag & drop sur l'agenda (étape 19) en plus du pipeline
+- **Étape 27 V2** : passer le CRON sur Inngest / Trigger.dev pour observabilité
 
 ---
 

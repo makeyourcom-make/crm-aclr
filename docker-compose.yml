@@ -72,6 +72,33 @@ services:
     networks:
       - crm_net
 
+  cron:
+    # Tâche nocturne à 02:00 (Europe/Zurich)
+    # Appelle l'endpoint /api/cron/nightly du service web pour :
+    #   - traiter les anniversaires de contrats (auto-renouvellement)
+    #   - passer à PAYE les étalements de commission échus
+    #   - créer les snapshots Stat quotidiens
+    #   - générer les factures mensuelles Sophie le 1-5 du mois
+    image: alpine:3.19
+    container_name: crm_cron
+    restart: unless-stopped
+    depends_on:
+      - web
+    environment:
+      TZ: ${TZ:-Europe/Zurich}
+      CRON_SECRET: ${CRON_SECRET}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        apk add --no-cache curl tzdata
+        echo "0 2 * * * curl -fsS -X POST -H 'x-cron-secret: $$CRON_SECRET' http://web:3000/api/cron/nightly >> /var/log/cron.log 2>&1" > /etc/crontabs/root
+        touch /var/log/cron.log
+        crond -f -d 8 &
+        tail -f /var/log/cron.log
+    networks:
+      - crm_net
+
   backup:
     image: postgres:16-alpine
     container_name: crm_backup
