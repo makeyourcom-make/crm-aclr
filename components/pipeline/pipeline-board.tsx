@@ -24,13 +24,14 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { DealCard } from "@/components/pipeline/deal-card";
 import { DealDetailSheet } from "@/components/pipeline/deal-detail-sheet";
 import { PipelineColumn } from "@/components/pipeline/pipeline-column";
 import { moveDealStage } from "@/app/(app)/pipeline/actions";
+import { DEAL_STAGE_PROBA_DEFAUT } from "@/lib/labels";
 
 import type { DealStage } from "@prisma/client";
 import type { PipelineData } from "@/lib/queries/deals";
@@ -45,6 +46,14 @@ export function PipelineBoard({ initialData, isAdmin }: PipelineBoardProps) {
   const [data, setData] = useState<PipelineData>(initialData);
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
   const [openedDealId, setOpenedDealId] = useState<string | null>(null);
+
+  // Re-synchronise le state local quand le serveur re-fetch (router.refresh)
+  // ou quand l'utilisateur change les filtres URL. Sans ça, le state initial
+  // de useState reste figé sur le premier rendu, et l'optimistic UI ne se
+  // corrige jamais avec les vraies données du serveur.
+  useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -121,10 +130,12 @@ export function PipelineBoard({ initialData, isAdmin }: PipelineBoardProps) {
       }
       if (!moved) return prev;
 
-      // Met à jour le stage et insère dans la destination
+      // Met à jour le stage ET la probabilité par défaut (cohérent avec ce
+      // que fait le serveur dans moveDealStage), insère dans la destination
       const dst = newColumns.find((c) => c.stage === targetStage);
       if (!dst) return prev;
       moved.stage = targetStage as DealStage;
+      moved.probabilite = DEAL_STAGE_PROBA_DEFAUT[targetStage as DealStage];
       dst.deals.unshift(moved);
 
       // Recalcule les totaux
