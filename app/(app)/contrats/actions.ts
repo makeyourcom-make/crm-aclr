@@ -19,7 +19,6 @@ import {
 } from "@/lib/constants";
 import {
   ContractCreateSchema,
-  MarkPaymentEncaisseSchema,
   ResilierContractSchema,
 } from "@/lib/schemas/contract";
 import { ForbiddenError, requireUser } from "@/lib/session";
@@ -322,75 +321,8 @@ export async function resilierContract(
   }
 }
 
-// ===========================================================================
-// MARQUER UN PAIEMENT CLIENT ENCAISSÉ → déclenche commission signature
-// ===========================================================================
-
-export async function markPaymentEncaisse(
-  input: unknown,
-): Promise<ContractActionResult> {
-  const user = await requireUser();
-  const parsed = MarkPaymentEncaisseSchema.safeParse(input);
-  if (!parsed.success) return zodErrorToResult(parsed.error);
-
-  const payment = await prisma.payment.findUnique({
-    where: { id: parsed.data.paymentId },
-    include: {
-      contract: { select: { id: true, assigneAId: true } },
-    },
-  });
-  if (!payment) return { ok: false, error: "Paiement introuvable." };
-  if (user.role !== "ADMIN" && payment.contract.assigneAId !== user.id) {
-    return { ok: false, error: "Pas d'accès à ce paiement." };
-  }
-  if (payment.statut === "ENCAISSE") {
-    return { ok: false, error: "Déjà encaissé." };
-  }
-
-  try {
-    await prisma.$transaction(async (tx) => {
-      // 1. Update payment
-      await tx.payment.update({
-        where: { id: payment.id },
-        data: {
-          statut: "ENCAISSE",
-          date: parsed.data.dateEncaissement ?? new Date(),
-        },
-      });
-
-      // 2. Si c'est le premier paiement encaissé du contrat,
-      //    on déclenche le versement de commission "SIGNATURE"
-      const dejaEncaisses = await tx.payment.count({
-        where: {
-          contractId: payment.contract.id,
-          statut: "ENCAISSE",
-          id: { not: payment.id },
-        },
-      });
-      if (dejaEncaisses === 0) {
-        const com = await tx.commission.findUnique({
-          where: { contractId: payment.contract.id },
-        });
-        if (com) {
-          await tx.commissionPayment.updateMany({
-            where: {
-              commissionId: com.id,
-              typePart: "SIGNATURE",
-              statut: "PREVU",
-            },
-            data: { statut: "PAYE", dateVersement: new Date() },
-          });
-        }
-      }
-    });
-
-    revalidatePath(`/contrats/${payment.contract.id}`);
-    revalidatePath("/paiements");
-    return { ok: true };
-  } catch (err) {
-    return prismaErrorToResult(err);
-  }
-}
+// markPaymentEncaisse a été déplacé dans app/(app)/paiements/actions.ts
+// (logique plus complète : marque aussi ClientInvoice PAYEE).
 
 // ===========================================================================
 // HELPERS

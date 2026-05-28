@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 
 import { ContractStatutBadge } from "@/components/contrats/contract-statut-badge";
 import { ResilierButton } from "@/components/contrats/resilier-button";
+import { MarkInvoicePaidButton } from "@/components/paiements/mark-invoice-paid-button";
+import { PaymentStatutBadge } from "@/components/paiements/payment-statut-badge";
+import { RecordPaymentButton } from "@/components/paiements/record-payment-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/icon";
@@ -75,7 +78,21 @@ export default async function ContractDetailPage({ params }: PageProps) {
         }
         actions={
           contract.statut === "ACTIF" ? (
-            <ResilierButton contractId={contract.id} />
+            <>
+              <RecordPaymentButton
+                contractId={contract.id}
+                factures={contract.clientInvoices
+                  .filter((f) => f.statut !== "PAYEE")
+                  .map((f) => ({
+                    id: f.id,
+                    numero: f.numero,
+                    type: f.type,
+                    total: f.total.toString(),
+                    statut: f.statut,
+                  }))}
+              />
+              <ResilierButton contractId={contract.id} />
+            </>
           ) : null
         }
       />
@@ -205,12 +222,13 @@ export default async function ContractDetailPage({ params }: PageProps) {
                 <Th>Type</Th>
                 <Th className="text-right">Total</Th>
                 <Th>Statut</Th>
+                <Th />
               </tr>
             </thead>
             <tbody>
               {contract.clientInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-3 py-4 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-3 py-4 text-center text-muted-foreground">
                     Aucune facture.
                   </td>
                 </tr>
@@ -240,6 +258,66 @@ export default async function ContractDetailPage({ params }: PageProps) {
                       >
                         {CLIENT_INV_LABEL[inv.statut] ?? inv.statut}
                       </Badge>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {contract.statut === "ACTIF" && (
+                        <MarkInvoicePaidButton
+                          invoiceId={inv.id}
+                          hidden={inv.statut === "PAYEE" || inv.statut === "ANNULEE"}
+                        />
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
+      {/* Paiements reçus */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="text-base">
+            Paiements reçus ({contract.payments.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="overflow-x-auto p-0">
+          <table className="w-full text-sm">
+            <thead className="border-b border-border bg-muted/30 text-left">
+              <tr>
+                <Th>Date</Th>
+                <Th>Type</Th>
+                <Th>Référence</Th>
+                <Th className="text-right">Montant</Th>
+                <Th>Statut</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {contract.payments.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-3 py-4 text-center text-muted-foreground">
+                    Aucun paiement encore enregistré.
+                  </td>
+                </tr>
+              ) : (
+                contract.payments.map((pay) => (
+                  <tr
+                    key={pay.id}
+                    className="border-b border-border last:border-0"
+                  >
+                    <td className="px-3 py-2 text-xs whitespace-nowrap">
+                      {formatDate(pay.date)}
+                    </td>
+                    <td className="px-3 py-2 text-xs">{pay.type}</td>
+                    <td className="px-3 py-2 text-xs font-mono">
+                      {pay.referenceFactureClient ?? "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                      {formatCHF(Number(pay.montant))}
+                    </td>
+                    <td className="px-3 py-2">
+                      <PaymentStatutBadge statut={pay.statut} />
                     </td>
                   </tr>
                 ))
