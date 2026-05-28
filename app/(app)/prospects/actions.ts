@@ -302,15 +302,28 @@ function zodErrorToResult(err: import("zod").ZodError): ProspectActionResult {
 
 function prismaErrorToResult(err: unknown): ProspectActionResult {
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    // Log complet en console serveur pour debug
+    console.error("[prospect action] PrismaClientKnownRequestError", {
+      code: err.code,
+      message: err.message,
+      meta: err.meta,
+    });
     if (err.code === "P2002") {
       return {
         ok: false,
         error: "Un prospect avec ces informations existe déjà.",
       };
     }
+    if (err.code === "P2022") {
+      const column = (err.meta as { column?: string } | undefined)?.column;
+      return {
+        ok: false,
+        error: `Colonne BDD manquante : ${column ?? "?"} (P2022). Le client Prisma n'est pas synchronisé avec le schéma. Restart du dev server requis.`,
+      };
+    }
     return {
       ok: false,
-      error: `Erreur base de données (${err.code}).`,
+      error: `Erreur base de données (${err.code}). ${err.message.slice(0, 200)}`,
     };
   }
   if (err instanceof ForbiddenError) {

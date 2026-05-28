@@ -80,24 +80,26 @@ export async function getProspectById(user: SessionUser, id: string) {
 
 /**
  * Stats globales sur les prospects (pour les bandeaux de la liste).
+ * Sépare actifs (en cours de prospection) et signés (migrés vers /contrats).
  */
 export async function getProspectStats(user: SessionUser) {
-  const where = user.role === "ADMIN" ? {} : { assigneAId: user.id };
+  const scopeWhere = user.role === "ADMIN" ? {} : { assigneAId: user.id };
 
-  const [total, parStatut] = await Promise.all([
-    prisma.prospect.count({ where }),
-    prisma.prospect.groupBy({
-      by: ["statut"],
-      where,
-      _count: true,
-    }),
-  ]);
+  const parStatut = await prisma.prospect.groupBy({
+    by: ["statut"],
+    where: scopeWhere,
+    _count: true,
+  });
 
   const byStatut = Object.fromEntries(
     parStatut.map((s) => [s.statut, s._count]),
   );
 
-  return { total, byStatut };
+  const total = parStatut.reduce((sum, s) => sum + s._count, 0);
+  const nbSignes = byStatut.SIGNE ?? 0;
+  const nbActifs = total - nbSignes;
+
+  return { total, byStatut, nbActifs, nbSignes };
 }
 
 // ===========================================================================
@@ -116,7 +118,14 @@ function buildProspectWhere(
   }
 
   // Filtres
-  if (params.statut) conditions.push({ statut: params.statut });
+  if (params.statut) {
+    // L'utilisateur a explicitement choisi un statut → on respecte
+    conditions.push({ statut: params.statut });
+  } else {
+    // Par défaut on masque les contrats signés (qui vivent dans /contrats).
+    // Les "Perdus" restent visibles pour relance ultérieure.
+    conditions.push({ statut: { not: "SIGNE" } });
+  }
   if (params.secteur) conditions.push({ secteur: params.secteur });
   if (params.canton) conditions.push({ canton: params.canton });
   if (params.assigneAId) conditions.push({ assigneAId: params.assigneAId });

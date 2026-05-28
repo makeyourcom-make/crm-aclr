@@ -35,9 +35,9 @@ export default async function ProspectsPage({ searchParams }: PageProps) {
       <PageHeader
         title="Prospects"
         description={
-          user.role === "ADMIN"
-            ? `${stats.total} prospects au total dans l'agence.`
-            : `${stats.total} prospects t'appartiennent.`
+          stats.nbSignes > 0
+            ? `${stats.nbActifs} prospect(s) en cours de prospection — ${stats.nbSignes} déjà signé(s) (voir /contrats).`
+            : `${stats.nbActifs} prospect(s) en cours de prospection.`
         }
         actions={
           <>
@@ -73,6 +73,19 @@ export default async function ProspectsPage({ searchParams }: PageProps) {
           pageSize={pageSize}
         />
       </div>
+
+      {/* Lien rapide vers les signés si pas déjà filtré */}
+      {stats.nbSignes > 0 && !params.statut && (
+        <p className="mt-6 text-center text-xs text-muted-foreground">
+          {stats.nbSignes} prospect(s) signé(s) sont masqué(s) de cette liste.{" "}
+          <Link
+            href="/prospects?statut=SIGNE"
+            className="underline-offset-2 hover:underline text-foreground"
+          >
+            Les afficher quand même →
+          </Link>
+        </p>
+      )}
     </div>
   );
 }
