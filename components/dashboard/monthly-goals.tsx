@@ -30,14 +30,16 @@ export function MonthlyGoals({
           <p className="mt-1 text-xs text-muted-foreground">
             {isAdmin
               ? "Crée-en un depuis Objectifs (templates rapides Démarrage / Croisière / Performance disponibles)."
-              : "Demande à Arthur de t'en fixer un, ou crée-le toi-même depuis Objectifs."}
+              : "Demande à Arthur de t'en fixer un."}
           </p>
-          <Link
-            href="/objectifs"
-            className="mt-3 inline-block text-xs font-medium text-primary underline-offset-2 hover:underline"
-          >
-            Aller dans Objectifs →
-          </Link>
+          {isAdmin && (
+            <Link
+              href="/objectifs"
+              className="mt-3 inline-block text-xs font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Aller dans Objectifs →
+            </Link>
+          )}
         </CardContent>
       </Card>
     );
@@ -87,12 +89,14 @@ export function MonthlyGoals({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3">
         <CardTitle className="text-base">Objectifs du mois</CardTitle>
-        <Link
-          href="/objectifs"
-          className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-        >
-          Gérer →
-        </Link>
+        {isAdmin && (
+          <Link
+            href="/objectifs"
+            className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+          >
+            Gérer →
+          </Link>
+        )}
       </CardHeader>
       <CardContent>
         {items.length === 0 ? (
