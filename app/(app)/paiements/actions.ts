@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
+import { triggerRenewalCommissionIfApplicable } from "@/lib/commissions-engine";
 import { PaymentCreateSchema } from "@/lib/schemas/payment";
 import { MarkPaymentEncaisseSchema } from "@/lib/schemas/contract";
 import { ForbiddenError, requireUser } from "@/lib/session";
@@ -96,6 +97,16 @@ export async function createPayment(
             });
           }
         }
+
+        // 4. Si c'est une mensualité encaissée et qu'on est en an 2+ →
+        //    commission RENOUVELLEMENT (10 % du mensuel) acquise
+        if (parsed.data.type === "MENSUALITE") {
+          await triggerRenewalCommissionIfApplicable({
+            contractId: contract.id,
+            paymentDate: parsed.data.date,
+            tx,
+          });
+        }
       }
 
       return created;
@@ -173,6 +184,15 @@ export async function markPaymentEncaisse(
             data: { statut: "PAYE", dateVersement: new Date() },
           });
         }
+      }
+
+      // Si mensualité encaissée + contrat en an 2+ → RENOUVELLEMENT acquis
+      if (payment.type === "MENSUALITE") {
+        await triggerRenewalCommissionIfApplicable({
+          contractId: payment.contract.id,
+          paymentDate: date,
+          tx,
+        });
       }
     });
 

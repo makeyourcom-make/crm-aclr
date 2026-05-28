@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { RecomputeButton } from "@/components/commissions/recompute-button";
 import { ContractStatutBadge } from "@/components/contrats/contract-statut-badge";
 import { ResilierButton } from "@/components/contrats/resilier-button";
 import { MarkInvoicePaidButton } from "@/components/paiements/mark-invoice-paid-button";
@@ -35,6 +36,12 @@ const PAY_STATUT_BADGE: Record<string, string> = {
   PREVU: "bg-slate-100 text-slate-600",
   PAYE: "bg-emerald-100 text-emerald-700",
   ANNULE: "bg-red-100 text-red-700",
+};
+
+const COMMISSION_STATUT_LABEL: Record<string, string> = {
+  PREVU: "À venir",
+  PAYE: "Acquise",
+  ANNULE: "Annulée",
 };
 
 const CLIENT_INV_BADGE: Record<string, string> = {
@@ -330,13 +337,20 @@ export default async function ContractDetailPage({ params }: PageProps) {
       {/* Planning commissions */}
       {commission && (
         <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="text-base">
-              Planning commissions ({commission.payments.length})
-              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                Total {formatCHF(Number(commission.montantTotal))}
-              </span>
-            </CardTitle>
+          <CardHeader className="flex flex-row items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-base">
+                Planning commissions ({commission.payments.length})
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  Total {formatCHF(Number(commission.montantTotal))}
+                </span>
+              </CardTitle>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                « Acquise » = revenu déjà gagné. Le versement effectif a lieu
+                une fois par mois via la facture mensuelle (étape 14).
+              </p>
+            </div>
+            {user.role === "ADMIN" && <RecomputeButton />}
           </CardHeader>
           <CardContent className="overflow-x-auto p-0">
             <table className="w-full text-sm">
@@ -347,7 +361,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                   <Th>Date prévue</Th>
                   <Th className="text-right">Montant</Th>
                   <Th>Statut</Th>
-                  <Th>Versé le</Th>
+                  <Th>Acquise le</Th>
                 </tr>
               </thead>
               <tbody>
@@ -373,11 +387,13 @@ export default async function ContractDetailPage({ params }: PageProps) {
                         variant="secondary"
                         className={`font-normal ${PAY_STATUT_BADGE[p.statut] ?? ""}`}
                       >
-                        {p.statut}
+                        {COMMISSION_STATUT_LABEL[p.statut] ?? p.statut}
                       </Badge>
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {p.dateVersement ? formatDate(p.dateVersement) : "—"}
+                      {p.dateVersement
+                        ? `acquise ${formatDate(p.dateVersement)}`
+                        : "—"}
                     </td>
                   </tr>
                 ))}
