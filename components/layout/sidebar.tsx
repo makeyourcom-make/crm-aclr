@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { Logo } from "@/components/brand/logo";
 import { Icon } from "@/components/icon";
 import { cn } from "@/lib/utils";
 import {
@@ -32,11 +33,7 @@ export function Sidebar({ role, onNavigate }: SidebarProps) {
     >
       {/* Marque */}
       <div className="mb-4 flex items-center gap-2.5 px-2">
-        <div
-          className="h-8 w-8 rounded-md"
-          style={{ backgroundColor: "#1F4E78" }}
-          aria-hidden
-        />
+        <Logo variant="mark" size={36} className="rounded-md" />
         <div>
           <p className="text-sm font-semibold leading-tight">Make Your Com</p>
           <p className="text-[11px] leading-tight text-muted-foreground">

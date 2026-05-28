@@ -5,40 +5,35 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================================================
-   Palette ACLR Sàrl / Make Your Com
+   Palette Make Your Com (ACLR Sàrl)
    ----------------------------------------------------------------------------
-   Primaire  : bleu marine #1F4E78
-   Accent    : orange doux #FB923C
+   Primaire  : navy profond #0E1936 (couleur du fond du logo)
+   Accent    : coral #F47174 (couleur du "C" dans COM)
    Neutres   : échelle shadcn (oklch grays)
-
-   Convention :
-   • `bg-primary-600` etc. (échelle ACLR) pour usage direct dans nos composants
-   • `bg-primary` (semantic shadcn) brancheé sur primary-600 pour cohérence
-     avec les composants shadcn (Button, etc.)
    ============================================================================ */
 
 @theme {
-  /* Bleu marine ACLR — échelle utilisable directement (bg-primary-600 etc.) */
-  --color-primary-50:  #f0f6fc;
-  --color-primary-100: #d9e6f2;
-  --color-primary-200: #b4cde5;
-  --color-primary-300: #8eb3d8;
-  --color-primary-400: #5489b8;
-  --color-primary-500: #2f6699;
-  --color-primary-600: #1F4E78;   /* couleur principale */
-  --color-primary-700: #194062;
-  --color-primary-800: #14334d;
-  --color-primary-900: #0f2638;
+  /* Navy profond MYC */
+  --color-primary-50:  #eef0f6;
+  --color-primary-100: #d1d6e3;
+  --color-primary-200: #a3adc8;
+  --color-primary-300: #7484ac;
+  --color-primary-400: #4a5d8d;
+  --color-primary-500: #2f4470;
+  --color-primary-600: #1c2f55;
+  --color-primary-700: #0E1936;   /* couleur principale — fond du logo */
+  --color-primary-800: #0a1228;
+  --color-primary-900: #060a18;
 
-  /* Orange doux ACLR */
-  --color-accent-50:  #fff7ed;
-  --color-accent-100: #ffedd5;
-  --color-accent-200: #fed7aa;
-  --color-accent-300: #fdba74;
-  --color-accent-400: #FB923C;   /* couleur accent */
-  --color-accent-500: #f97316;
-  --color-accent-600: #ea580c;
-  --color-accent-700: #c2410c;
+  /* Coral MYC */
+  --color-accent-50:  #fff1f1;
+  --color-accent-100: #ffe0e1;
+  --color-accent-200: #ffc6c8;
+  --color-accent-300: #ff9fa3;
+  --color-accent-400: #F47174;   /* couleur accent — "C" de COM */
+  --color-accent-500: #e95256;
+  --color-accent-600: #d33a3f;
+  --color-accent-700: #b22d32;
 
   --font-sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
@@ -58,15 +53,15 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
 
-  /* PRIMARY = bleu marine ACLR */
-  --primary: #1F4E78;
+  /* PRIMARY = navy MYC */
+  --primary: #0E1936;
   --primary-foreground: #ffffff;
 
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
 
-  /* ACCENT = orange doux ACLR */
-  --accent: #FB923C;
+  /* ACCENT = coral MYC */
+  --accent: #F47174;
   --accent-foreground: #ffffff;
 
   --muted: oklch(0.97 0 0);
@@ -76,26 +71,26 @@
 
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: #1F4E78;
+  --ring: #0E1936;
 
   --radius: 0.625rem;
 
-  /* Graphiques (Recharts) — palette dérivée bleu + orange */
-  --chart-1: #1F4E78;
-  --chart-2: #FB923C;
-  --chart-3: #5489b8;
-  --chart-4: #fdba74;
-  --chart-5: #14334d;
+  /* Graphiques (Recharts) — palette dérivée navy + coral */
+  --chart-1: #0E1936;
+  --chart-2: #F47174;
+  --chart-3: #4a5d8d;
+  --chart-4: #ff9fa3;
+  --chart-5: #2f4470;
 
   /* Sidebar — fond très légèrement teinté */
   --sidebar: #fafbfc;
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #1F4E78;
+  --sidebar-primary: #0E1936;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: oklch(0.96 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: #1F4E78;
+  --sidebar-ring: #0E1936;
 }
 
 @theme inline {
@@ -153,21 +148,21 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: #5489b8;
-  --primary-foreground: #0f2638;
+  --primary: #4a5d8d;
+  --primary-foreground: #060a18;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: #FB923C;
+  --accent: #F47174;
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: #5489b8;
+  --ring: #4a5d8d;
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: #5489b8;
+  --sidebar-primary: #4a5d8d;
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);

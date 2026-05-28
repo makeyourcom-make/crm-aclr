@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { Logo } from "@/components/brand/logo";
 import { LoginForm } from "./form";
 
 export const metadata: Metadata = {
@@ -10,19 +11,10 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 px-4">
       <div className="w-full max-w-md">
-        {/* En-tête de marque */}
-        <div className="mb-8 flex items-center justify-center gap-3">
-          <div
-            className="h-12 w-12 rounded-md shadow-sm"
-            style={{ backgroundColor: "#1F4E78" }}
-            aria-hidden
-          />
-          <div>
-            <p className="text-lg font-semibold tracking-tight text-slate-900">
-              Make Your Com
-            </p>
-            <p className="text-xs text-slate-500">CRM — ACLR Sàrl</p>
-          </div>
+        {/* En-tête de marque — logo complet centré */}
+        <div className="mb-8 flex flex-col items-center gap-2">
+          <Logo variant="full" size={56} />
+          <p className="text-xs text-slate-500">CRM — ACLR Sàrl</p>
         </div>
 
         {/* Carte de login */}

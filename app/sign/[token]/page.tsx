@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { SignForm } from "./form";
+import { Logo } from "@/components/brand/logo";
 import { prisma } from "@/lib/db";
 import { formatCHF, formatDateLong } from "@/lib/format";
 
@@ -52,11 +53,7 @@ export default async function SignPage({ params }: PageProps) {
       <div className="mx-auto max-w-2xl">
         {/* Header */}
         <div className="mb-8 flex items-center gap-3">
-          <div
-            className="h-12 w-12 rounded-md shadow-sm"
-            style={{ backgroundColor: "#1F4E78" }}
-            aria-hidden
-          />
+          <Logo variant="mark" size={48} className="rounded-md shadow-sm" />
           <div>
             <p className="text-lg font-semibold text-slate-900">
               Make Your Com

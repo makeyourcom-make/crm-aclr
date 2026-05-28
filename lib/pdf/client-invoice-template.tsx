@@ -43,7 +43,7 @@ export interface ClientInvoicePdfData {
 }
 
 const c = {
-  primary: "#1F4E78",
+  primary: "#0E1936",
   border: "#E2E8F0",
   muted: "#64748B",
 };

@@ -23,8 +23,8 @@ export function CommissionsChart({ data }: CommissionsChartProps) {
         <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="commGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#1F4E78" stopOpacity={0.5} />
-              <stop offset="100%" stopColor="#1F4E78" stopOpacity={0} />
+              <stop offset="0%" stopColor="#0E1936" stopOpacity={0.5} />
+              <stop offset="100%" stopColor="#0E1936" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
@@ -50,7 +50,7 @@ export function CommissionsChart({ data }: CommissionsChartProps) {
           <Area
             type="monotone"
             dataKey="montant"
-            stroke="#1F4E78"
+            stroke="#0E1936"
             strokeWidth={2}
             fill="url(#commGrad)"
           />
