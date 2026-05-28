@@ -1,13 +1,114 @@
-import { EnConstruction } from "@/components/layout/en-construction";
+import { GenerateInvoiceButton } from "@/components/factures/invoice-actions";
+import { InvoicesTable } from "@/components/factures/invoices-table";
+import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
+import { Pagination } from "@/components/pagination";
+import { prisma } from "@/lib/db";
+import { formatCHF } from "@/lib/format";
+import { getInvoices, getInvoiceStats } from "@/lib/queries/invoices";
+import { InvoiceListParamsSchema } from "@/lib/schemas/invoice";
+import { requireUser } from "@/lib/session";
 
 export const metadata = { title: "Mes factures" };
+export const dynamic = "force-dynamic";
 
-export default function Page() {
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function FacturesPage({ searchParams }: PageProps) {
+  const user = await requireUser();
+  const raw = await searchParams;
+  const params = InvoiceListParamsSchema.parse(raw);
+
+  const [{ items, total, page, pageSize, totalPages }, stats, users] =
+    await Promise.all([
+      getInvoices(user, params),
+      getInvoiceStats(user),
+      user.role === "ADMIN"
+        ? prisma.user.findMany({
+            where: { isActive: true },
+            select: { id: true, name: true },
+            orderBy: { name: "asc" },
+          })
+        : Promise.resolve([]),
+    ]);
+
+  const aPayer = stats.byStatut.ENVOYEE;
+  const enBrouillon = stats.byStatut.BROUILLON;
+
   return (
-    <EnConstruction
-      etape={14}
-      titre="Mes factures"
-      description="Factures mensuelles d'Arthur vers la commerciale, générées automatiquement avec garantie absorbable + forfait frais."
-    />
+    <div className="px-6 py-6 lg:px-8">
+      <PageHeader
+        title={user.role === "ADMIN" ? "Factures Sophie" : "Mes factures"}
+        description={
+          user.role === "ADMIN"
+            ? "Factures mensuelles que tu dois verser aux commerciales (commissions + garantie + frais)."
+            : "Tes factures mensuelles. Le total = commissions acquises + garantie absorbée + forfait frais."
+        }
+        actions={
+          user.role === "ADMIN" && users.length > 0 ? (
+            <GenerateInvoiceButton users={users} />
+          ) : null
+        }
+      />
+
+      {/* KPIs */}
+      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+        <Card>
+          <CardContent className="py-4">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">
+              Total versé YTD
+            </p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-700">
+              {formatCHF(stats.ytdTotal)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              dont {formatCHF(stats.ytdCommissions)} de commissions
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">
+              En attente de paiement
+            </p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">
+              {formatCHF(Number(aPayer?._sum.montantTotal ?? 0))}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {aPayer?._count ?? 0} facture(s) envoyée(s)
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">
+              Brouillons
+            </p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">
+              {formatCHF(Number(enBrouillon?._sum.montantTotal ?? 0))}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {enBrouillon?._count ?? 0} à envoyer
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <InvoicesTable
+        rows={items}
+        showCommerciale={user.role === "ADMIN"}
+      />
+
+      <div className="mt-4">
+        <Pagination
+          current={page}
+          totalPages={totalPages}
+          total={total}
+          pageSize={pageSize}
+        />
+      </div>
+    </div>
   );
 }
