@@ -4,7 +4,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -62,13 +61,21 @@ export function UserMenu({ user }: UserMenuProps) {
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem
-          onClick={() => logoutAction()}
-          className="cursor-pointer gap-2"
-        >
-          <Icon name="LogOut" className="h-4 w-4" />
-          Se déconnecter
-        </DropdownMenuItem>
+        {/*
+         * Logout = form action (pas onClick).
+         * Le pattern <form action={serverAction}> propage correctement la
+         * "redirect-error" levée par signOut() vers le navigateur. Un onClick
+         * sur DropdownMenuItem fire-and-forget la promesse et perd le redirect.
+         */}
+        <form action={logoutAction} className="w-full">
+          <button
+            type="submit"
+            className="flex w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+          >
+            <Icon name="LogOut" className="h-4 w-4" />
+            Se déconnecter
+          </button>
+        </form>
       </DropdownMenuContent>
     </DropdownMenu>
   );
