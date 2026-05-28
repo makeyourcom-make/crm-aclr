@@ -5,13 +5,13 @@ import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { formatCHF, formatDate, formatPercent } from "@/lib/format";
 import { getForecast } from "@/lib/queries/previsions";
-import { requireUser } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 
 export const metadata = { title: "Prévisions" };
 export const dynamic = "force-dynamic";
 
 export default async function PrevisionsPage() {
-  const user = await requireUser();
+  const user = await requireAdmin();
   const data = await getForecast(user);
 
   const moisCourant = data.mois12[0];

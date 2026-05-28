@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/db";
 import { formatCHF, formatDate } from "@/lib/format";
-import { requireUser } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 
 export const metadata = { title: "Objectifs" };
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ const PERIODE_LABEL: Record<string, string> = {
 };
 
 export default async function ObjectifsPage() {
-  const user = await requireUser();
+  const user = await requireAdmin();
 
   const [objectives, users] = await Promise.all([
     prisma.objective.findMany({

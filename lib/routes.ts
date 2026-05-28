@@ -154,6 +154,7 @@ export const ROUTES: RouteDef[] = [
     icon: "TrendingUp",
     group: "finance",
     etape: 22,
+    adminOnly: true, // Sophie n'en a pas besoin (vue Arthur uniquement)
   },
   {
     href: "/stats",
@@ -168,6 +169,8 @@ export const ROUTES: RouteDef[] = [
     icon: "Target",
     group: "finance",
     etape: 20,
+    adminOnly: true, // Arthur fixe les objectifs ; Sophie voit la progression
+                     // dans le bloc 'Objectifs du mois' du dashboard
   },
 
   // ---- CONFIGURATION ----
