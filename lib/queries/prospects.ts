@@ -120,9 +120,6 @@ function buildProspectWhere(
   if (params.secteur) conditions.push({ secteur: params.secteur });
   if (params.canton) conditions.push({ canton: params.canton });
   if (params.assigneAId) conditions.push({ assigneAId: params.assigneAId });
-  if (params.scoreMin) {
-    conditions.push({ scoreInteret: { gte: params.scoreMin } });
-  }
 
   // Recherche full-text simple (LIKE multi-champs, insensible à la casse)
   if (params.q && params.q.length > 0) {

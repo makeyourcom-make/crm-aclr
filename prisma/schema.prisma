@@ -331,8 +331,7 @@ model Prospect {
   noga     String? // code NOGA suisse
   source   ProspectSource?
 
-  statut       ProspectStatut @default(NOUVEAU)
-  scoreInteret Int            @default(3) // 1-5
+  statut ProspectStatut @default(NOUVEAU)
 
   assigneA   User?   @relation(fields: [assigneAId], references: [id], onDelete: SetNull)
   assigneAId String?

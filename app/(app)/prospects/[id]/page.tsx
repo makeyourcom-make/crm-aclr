@@ -4,10 +4,7 @@ import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
-import {
-  ProspectStatutBadge,
-  ScoreStars,
-} from "@/components/prospects/prospect-statut-badge";
+import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { formatDateLong, formatPhone } from "@/lib/format";
 import {
@@ -68,7 +65,6 @@ export default async function ProspectDetailPage({ params }: PageProps) {
       {/* Ligne en-tête */}
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <ProspectStatutBadge statut={prospect.statut} />
-        <ScoreStars score={prospect.scoreInteret} />
         {prospect.secteur && (
           <span className="text-xs text-muted-foreground">
             · {getProspectSecteurLabel(prospect.secteur)}

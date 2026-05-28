@@ -77,7 +77,6 @@ export function ProspectFilters({ params }: ProspectFiltersProps) {
     !!params.statut ||
     !!params.secteur ||
     !!params.canton ||
-    !!params.scoreMin ||
     !!params.q;
 
   const clearAll = () => {
@@ -122,18 +121,6 @@ export function ProspectFilters({ params }: ProspectFiltersProps) {
         value={params.canton ?? ""}
         onChange={(v) => handleSelectChange("canton", v)}
         options={CANTONS_SUISSES}
-      />
-
-      <FilterSelect
-        label="Score min."
-        value={params.scoreMin ? String(params.scoreMin) : ""}
-        onChange={(v) => handleSelectChange("scoreMin", v)}
-        options={[
-          { value: "5", label: "★★★★★" },
-          { value: "4", label: "★★★★+" },
-          { value: "3", label: "★★★+" },
-          { value: "2", label: "★★+" },
-        ]}
       />
 
       {hasFilters && (

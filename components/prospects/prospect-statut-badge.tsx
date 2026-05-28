@@ -17,22 +17,3 @@ export function ProspectStatutBadge({ statut }: { statut: ProspectStatut }) {
     </Badge>
   );
 }
-
-/**
- * Affiche un score 1-5 sous forme d'étoiles pleines/vides.
- */
-export function ScoreStars({ score }: { score: number }) {
-  const safe = Math.max(0, Math.min(5, score));
-  return (
-    <span
-      className="inline-flex gap-0.5 text-amber-500"
-      aria-label={`Score ${safe} sur 5`}
-    >
-      {[1, 2, 3, 4, 5].map((i) => (
-        <span key={i} className={i <= safe ? "" : "text-muted-foreground/30"}>
-          ★
-        </span>
-      ))}
-    </span>
-  );
-}

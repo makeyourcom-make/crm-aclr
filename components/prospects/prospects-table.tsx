@@ -4,10 +4,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 
 import { DataTable } from "@/components/ui/data-table";
-import {
-  ProspectStatutBadge,
-  ScoreStars,
-} from "@/components/prospects/prospect-statut-badge";
+import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badge";
 import { getProspectSecteurLabel } from "@/lib/labels";
 import { formatPhone, formatRelative } from "@/lib/format";
 
@@ -91,12 +88,6 @@ export function ProspectsTable({ rows }: ProspectsTableProps) {
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         ),
-    },
-    {
-      id: "score",
-      header: "Score",
-      cell: ({ row }) => <ScoreStars score={row.original.scoreInteret} />,
-      size: 110,
     },
     {
       id: "statut",

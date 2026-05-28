@@ -91,7 +91,6 @@ export const ProspectCreateSchema = z.object({
   source: z.nativeEnum(ProspectSource).optional(),
 
   statut: z.nativeEnum(ProspectStatut).default("NOUVEAU"),
-  scoreInteret: z.coerce.number().int().min(1).max(5).default(3),
 
   assigneAId: stringOptional,
   notesGenerales: stringOptional,
@@ -115,7 +114,6 @@ export const ProspectSortFieldSchema = z.enum([
   "ville",
   "secteur",
   "statut",
-  "scoreInteret",
   "createdAt",
   "updatedAt",
 ]);
@@ -127,7 +125,6 @@ export const ProspectListParamsSchema = z.object({
   secteur: z.nativeEnum(ProspectSecteur).optional(),
   canton: stringOptional,
   assigneAId: stringOptional,
-  scoreMin: z.coerce.number().int().min(1).max(5).optional(),
   sortBy: ProspectSortFieldSchema.default("createdAt"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
   page: z.coerce.number().int().min(1).default(1),

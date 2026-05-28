@@ -50,7 +50,6 @@ export default async function EditProspectPage({ params }: PageProps) {
     noga: prospect.noga ?? undefined,
     source: prospect.source ?? undefined,
     statut: prospect.statut,
-    scoreInteret: prospect.scoreInteret,
     assigneAId: prospect.assigneAId ?? undefined,
     notesGenerales: prospect.notesGenerales ?? undefined,
   };

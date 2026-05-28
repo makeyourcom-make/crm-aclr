@@ -9,7 +9,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import type { z } from "zod";
 
@@ -61,7 +61,6 @@ export function ProspectForm({
     defaultValues: {
       pays: "Suisse",
       statut: "NOUVEAU",
-      scoreInteret: 3,
       ...initialValues,
     },
   });
@@ -69,7 +68,6 @@ export function ProspectForm({
   const {
     register,
     handleSubmit,
-    control,
     formState: { errors, isSubmitting },
     setError,
   } = form;
@@ -274,39 +272,6 @@ export function ProspectForm({
                 </option>
               ))}
             </NativeSelect>
-          </Field>
-
-          <Field
-            label="Score d'intérêt (1 à 5)"
-            error={errors.scoreInteret?.message}
-          >
-            <Controller
-              control={control}
-              name="scoreInteret"
-              render={({ field }) => {
-                const current = Number(field.value ?? 3);
-                return (
-                  <div className="flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => field.onChange(n)}
-                        className={cn(
-                          "text-2xl transition-colors",
-                          n <= current
-                            ? "text-amber-500"
-                            : "text-muted-foreground/30 hover:text-amber-300",
-                        )}
-                        aria-label={`Score ${n} sur 5`}
-                      >
-                        ★
-                      </button>
-                    ))}
-                  </div>
-                );
-              }}
-            />
           </Field>
 
           <Field
