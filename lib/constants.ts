@@ -75,6 +75,30 @@ export const TVA_TAUX_DEFAULT = 0;
 // CATALOGUE — PRIX TARIF STANDARD (à seeder en BDD à l'étape 2)
 // ============================================================================
 
+// ============================================================================
+// OBJECTIFS QUOTIDIENS PAR DÉFAUT (utilisés tant que /objectifs - étape 20
+// - n'est pas en place ; remplaçables par utilisateur ensuite)
+// ============================================================================
+
+export const DEFAULT_DAILY_GOALS = {
+  appels: 20,
+  emails: 15,
+  rdv: 3,
+  propositions: 1,
+} as const;
+
+// Compteurs hebdomadaires (5 jours ouvrés × objectifs quotidiens)
+export const DEFAULT_WEEKLY_GOALS = {
+  appels: 100,
+  emails: 75,
+  rdv: 15,
+  signatures: 2,
+} as const;
+
+// ============================================================================
+// CATALOGUE — PRIX TARIF STANDARD (à seeder en BDD à l'étape 2)
+// ============================================================================
+
 export const CATALOGUE_PRIX = {
   SITE_SIMPLE_ONESHOT: 400,
   SITE_SIMPLE_MENSUEL: 39,
