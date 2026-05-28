@@ -1,0 +1,316 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import { toast } from "sonner";
+
+import { createProduct, updateProduct } from "@/app/(app)/catalogue/actions";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+
+import type { Product, ProductCategorie, ProductType } from "@prisma/client";
+
+const TYPE_OPTIONS: { value: ProductType; label: string }[] = [
+  { value: "ONE_SHOT", label: "One-shot" },
+  { value: "RECURRENT_MENSUEL", label: "Mensuel" },
+  { value: "RECURRENT_ANNUEL", label: "Annuel" },
+  { value: "PACK", label: "Pack" },
+];
+
+const CATEGORIE_OPTIONS: { value: ProductCategorie; label: string }[] = [
+  { value: "SITE", label: "Site web" },
+  { value: "RS", label: "Réseaux sociaux" },
+  { value: "SEO", label: "SEO" },
+  { value: "ADS", label: "Ads" },
+  { value: "CMO", label: "CMO fractionné" },
+  { value: "METRICOOL", label: "Metricool" },
+  { value: "PACK", label: "Pack" },
+];
+
+interface ProductFormProps {
+  initial?: Product;
+  /** Liste des produits unitaires disponibles pour composer un pack. */
+  unitaires: Pick<Product, "id" | "nom" | "type">[];
+}
+
+export function ProductForm({ initial, unitaires }: ProductFormProps) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  const [nom, setNom] = useState(initial?.nom ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [type, setType] = useState<ProductType>(initial?.type ?? "ONE_SHOT");
+  const [categorie, setCategorie] = useState<ProductCategorie>(
+    initial?.categorie ?? "SITE",
+  );
+  const [prixOneShot, setPrixOneShot] = useState(
+    initial?.prixOneShot?.toString() ?? "",
+  );
+  const [prixMensuel, setPrixMensuel] = useState(
+    initial?.prixMensuel?.toString() ?? "",
+  );
+  const [prixAnnuel, setPrixAnnuel] = useState(
+    initial?.prixAnnuel?.toString() ?? "",
+  );
+
+  // composantsIds pour les packs
+  const initialComposants =
+    initial && Array.isArray(initial.composantsIds)
+      ? (initial.composantsIds as string[])
+      : [];
+  const [composantsIds, setComposantsIds] = useState<string[]>(initialComposants);
+
+  const isPack = type === "PACK";
+  const isOneShot = type === "ONE_SHOT";
+  const isMensuel = type === "RECURRENT_MENSUEL";
+  const isAnnuel = type === "RECURRENT_ANNUEL";
+
+  // Le PACK peut avoir oneShot ET mensuel (rare mais possible)
+  const showOneShot = isOneShot || isPack;
+  const showMensuel = isMensuel || isPack;
+  const showAnnuel = isAnnuel;
+
+  const toggleComposant = (id: string) => {
+    setComposantsIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nom.trim()) {
+      toast.error("Le nom est obligatoire.");
+      return;
+    }
+    if (isPack && composantsIds.length === 0) {
+      toast.error("Un pack doit contenir au moins un composant.");
+      return;
+    }
+
+    const payload = {
+      nom: nom.trim(),
+      description: description.trim() || undefined,
+      type,
+      categorie,
+      prixOneShot: prixOneShot ? Number(prixOneShot) : undefined,
+      prixMensuel: prixMensuel ? Number(prixMensuel) : undefined,
+      prixAnnuel: prixAnnuel ? Number(prixAnnuel) : undefined,
+      composantsIds: isPack ? composantsIds : undefined,
+      isActive: initial?.isActive ?? true,
+    };
+
+    startTransition(async () => {
+      const res = initial
+        ? await updateProduct(initial.id, payload)
+        : await createProduct(payload);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success(initial ? "Produit mis à jour." : "Produit créé.");
+      router.push("/catalogue");
+      router.refresh();
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Identité</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="nom">
+              Nom <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="nom"
+              value={nom}
+              onChange={(e) => setNom(e.target.value)}
+              placeholder="Ex. Site web simple"
+              required
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="description">Description</Label>
+            <textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              placeholder="Ce qui est inclus, livraison, …"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Classification</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label>Type</Label>
+            <div className="grid grid-cols-2 gap-1.5">
+              {TYPE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setType(opt.value)}
+                  className={cn(
+                    "rounded-md border px-2 py-1.5 text-xs",
+                    type === opt.value
+                      ? "border-primary bg-primary/10 text-primary font-medium"
+                      : "border-border bg-background hover:bg-muted",
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="categorie">Catégorie</Label>
+            <select
+              id="categorie"
+              value={categorie}
+              onChange={(e) =>
+                setCategorie(e.target.value as ProductCategorie)
+              }
+              className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+            >
+              {CATEGORIE_OPTIONS.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Tarification</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <PrixField
+            label="Prix one-shot (CHF)"
+            id="prixOneShot"
+            value={prixOneShot}
+            onChange={setPrixOneShot}
+            disabled={!showOneShot}
+          />
+          <PrixField
+            label="Prix mensuel (CHF)"
+            id="prixMensuel"
+            value={prixMensuel}
+            onChange={setPrixMensuel}
+            disabled={!showMensuel}
+          />
+          <PrixField
+            label="Prix annuel (CHF)"
+            id="prixAnnuel"
+            value={prixAnnuel}
+            onChange={setPrixAnnuel}
+            disabled={!showAnnuel}
+          />
+        </CardContent>
+      </Card>
+
+      {isPack && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              Composition du pack ({composantsIds.length} sélectionné·s)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {unitaires.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Aucun produit unitaire disponible. Crée d&apos;abord les
+                composants individuels.
+              </p>
+            ) : (
+              <div className="grid gap-1.5 sm:grid-cols-2">
+                {unitaires.map((u) => {
+                  const checked = composantsIds.includes(u.id);
+                  return (
+                    <label
+                      key={u.id}
+                      className={cn(
+                        "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors",
+                        checked
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:bg-muted",
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleComposant(u.id)}
+                        className="h-4 w-4"
+                      />
+                      <span>{u.nom}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => router.back()}
+          disabled={pending}
+        >
+          Annuler
+        </Button>
+        <Button type="submit" disabled={pending}>
+          {pending ? "Enregistrement…" : initial ? "Enregistrer" : "Créer"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function PrixField({
+  id,
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className={cn("space-y-1.5", disabled && "opacity-50")}>
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type="number"
+        min={0}
+        step="0.01"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        placeholder="0.00"
+      />
+    </div>
+  );
+}
