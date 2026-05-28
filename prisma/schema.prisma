@@ -1,13 +1,17 @@
 // ============================================================================
 // Schéma Prisma — CRM ACLR Sàrl / Make Your Com
 // ============================================================================
-// Schéma minimal de l'étape 1 (scaffolding). L'étape 2 ajoute tout le modèle
-// de données métier (User, Prospect, Activity, Deal, Contract, etc.).
+// Convention :
+//   • Modèles en PascalCase singulier, tables SQL snake_case pluriel (@@map)
+//   • Enums en SCREAMING_SNAKE_CASE — labels FR dans lib/labels.ts
+//   • Montants : Decimal(12,2) — précision largement suffisante pour CHF
+//   • Pourcentages : Decimal(5,4) — ex. 0.2500 pour 25 %
+//   • Toutes les FK : onDelete par défaut Restrict (sécurité). Cascade pour
+//     les rares cas où un enfant ne doit pas survivre à son parent.
 // ============================================================================
 
 generator client {
   provider      = "prisma-client-js"
-  // Pour la prod (Linux x64) et le dev (Windows + WSL le cas échéant)
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
@@ -17,12 +21,1015 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// Modèle placeholder — utilisé pour valider la connexion DB à l'étape 1.
-// Sera supprimé à l'étape 2 quand le vrai schéma sera posé.
-model HealthCheck {
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum Role {
+  ADMIN
+  COMMERCIAL
+}
+
+enum ProspectStatut {
+  NOUVEAU
+  CONTACTE
+  QUALIFIE
+  RDV_PRIS
+  PROPOSITION_ENVOYEE
+  SIGNE
+  PERDU
+  NE_PAS_RAPPELER
+}
+
+enum ProspectSecteur {
+  RESTO_HOTEL
+  E_COMMERCE
+  PME_B2B
+  ARTISAN
+  CABINET_LIBERAL
+  TOURISME
+  IMMOBILIER
+  AUTRE
+}
+
+enum ProspectSource {
+  FICHIER_IMPORT
+  LINKEDIN
+  REFERRAL
+  WEB
+  AUTRE
+}
+
+enum ActivityType {
+  APPEL_SORTANT
+  APPEL_ENTRANT
+  EMAIL_ENVOYE
+  EMAIL_RECU
+  RDV_PHYSIQUE
+  RDV_VISIO
+  RDV_TELEPHONIQUE
+  SMS
+  LINKEDIN
+  NOTE
+}
+
+enum ActivityStatut {
+  PLANIFIE
+  EN_COURS
+  FAIT
+  MANQUE
+  REPLANIFIE
+  ANNULE
+}
+
+enum ActivityResultat {
+  RDV_PRIS
+  REFUS_POLI
+  REFUS_FERME
+  COMBOX
+  NE_DECROCHE_PAS
+  INVALIDE
+  DEJA_CLIENT
+  A_RAPPELER
+  MAUVAISE_PERSONNE
+  INTERESSE_PAS_PRET
+  AUTRE
+}
+
+enum DealStage {
+  DECOUVERTE
+  PROPOSITION
+  NEGOCIATION
+  SIGNE
+  PERDU
+}
+
+enum ProductType {
+  ONE_SHOT
+  RECURRENT_MENSUEL
+  RECURRENT_ANNUEL
+  PACK
+}
+
+enum ProductCategorie {
+  SITE
+  RS
+  SEO
+  ADS
+  CMO
+  METRICOOL
+  PACK
+}
+
+enum ContractStatut {
+  ACTIF
+  SUSPENDU
+  RESILIE
+  EXPIRE
+}
+
+enum ModalitePaiement {
+  CINQUANTE_CINQUANTE // 50/50 : acompte + solde
+  CENT_AU_SIGNING // 100% à la signature
+  MENSUEL // mensualités sur la durée
+}
+
+enum PaymentType {
+  ACOMPTE
+  SOLDE
+  MENSUALITE
+}
+
+enum PaymentStatut {
+  EN_ATTENTE
+  ENCAISSE
+  EN_RETARD
+}
+
+enum CommissionStatut {
+  DUE
+  PARTIELLEMENT_VERSEE
+  INTEGRALEMENT_VERSEE
+  ANNULEE
+}
+
+/// Type de versement d'une commission individuelle.
+/// Pour étalement, le numéro du mois (1-11) est dans CommissionPayment.numeroMois.
+enum CommissionPaymentTypePart {
+  SIGNATURE
+  ETALEMENT
+  RENOUVELLEMENT
+}
+
+enum CommissionPaymentStatut {
+  PREVU
+  PAYE
+  ANNULE
+}
+
+enum RenewalStatut {
+  A_VENIR
+  RENOUVELE
+  NON_RENOUVELE
+}
+
+enum InvoiceStatut {
+  BROUILLON
+  ENVOYEE
+  PAYEE
+}
+
+enum EmailDirection {
+  SORTANT
+  ENTRANT
+}
+
+enum EmailStatut {
+  BROUILLON
+  ENVOYE
+  LIVRE
+  OUVERT
+  CLIQUE
+  REPONDU
+  REBOND
+  ERREUR
+}
+
+enum ClientInvoiceType {
+  ACOMPTE
+  SOLDE
+  MENSUALITE
+  ANNUELLE
+  PONCTUELLE
+}
+
+enum ClientInvoiceStatut {
+  BROUILLON
+  ENVOYEE
+  PAYEE
+  EN_RETARD
+  ANNULEE
+}
+
+enum ModeReglement {
+  VIREMENT
+  TWINT
+  CARTE
+  ESPECES
+}
+
+enum ContractOptionType {
+  ONE_SHOT
+  RECURRENT_MENSUEL
+  RECURRENT_ANNUEL
+}
+
+enum SignatureType {
+  SIGNATURE_ELECTRONIQUE
+  SIGNATURE_MANUELLE_PDF
+}
+
+enum SignatureStatut {
+  BROUILLON
+  ENVOYEE
+  SIGNEE_CLIENT
+  SIGNEE_ACLR
+  COMPLETEE
+  REFUSEE
+  EXPIREE
+}
+
+enum ObjectivePeriode {
+  HEBDOMADAIRE
+  MENSUEL
+  TRIMESTRIEL
+  ANNUEL
+}
+
+enum EmailTemplateType {
+  COLD_1
+  COLD_2_RELANCE
+  COLD_3_RELANCE
+  POST_RDV
+  POST_PROPOSITION
+  RELANCE_PROPOSITION
+  RELANCE_FACTURE
+  RENOUVELLEMENT
+  AUTRE
+}
+
+// ============================================================================
+// USER
+// ============================================================================
+
+model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
-  message   String   @default("CRM ACLR — connexion DB OK")
+  updatedAt DateTime @updatedAt
 
-  @@map("_health_check")
+  email        String  @unique
+  name         String
+  passwordHash String
+  role         Role    @default(COMMERCIAL)
+  isActive     Boolean @default(true)
+
+  // Paramètres rémunération — surchargent les défauts globaux
+  tauxCommissionSignature      Decimal @default("0.25") @db.Decimal(5, 4)
+  tauxCommissionRenouvellement Decimal @default("0.10") @db.Decimal(5, 4)
+  garantieMensuelle            Decimal @default("2500.00") @db.Decimal(12, 2)
+  forfaitFrais                 Decimal @default("250.00") @db.Decimal(12, 2)
+
+  // Signature email personnalisée (HTML pour le module Emails — étape 26)
+  signatureEmailHtml String? @db.Text
+
+  // Relations
+  prospectsAssignes Prospect[]
+  dealsAssignes     Deal[]
+  contratsAssignes  Contract[]
+  activities        Activity[]
+  commissions       Commission[]
+  invoices          Invoice[]
+  emails            Email[]
+  stats             Stat[]
+  objectives        Objective[]
+
+  @@index([email])
+  @@map("users")
+}
+
+// ============================================================================
+// PROSPECT
+// ============================================================================
+
+model Prospect {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  raisonSociale   String
+  contactNom      String?
+  contactPrenom   String?
+  contactFonction String?
+
+  email           String?
+  telephone       String?
+  telephoneMobile String?
+
+  adresse    String?
+  codePostal String?
+  ville      String?
+  canton     String? // code canton 2 lettres (VD, GE, VS, …) — libre pour souplesse
+  pays       String  @default("Suisse")
+
+  siteWeb   String?
+  linkedIn  String?
+  facebook  String?
+  instagram String?
+
+  secteur  ProspectSecteur?
+  effectif Int?
+  noga     String? // code NOGA suisse
+  source   ProspectSource?
+
+  statut       ProspectStatut @default(NOUVEAU)
+  scoreInteret Int            @default(3) // 1-5
+
+  assigneA   User?   @relation(fields: [assigneAId], references: [id], onDelete: SetNull)
+  assigneAId String?
+
+  notesGenerales String? @db.Text
+
+  // Relations
+  activities Activity[]
+  deals      Deal[]
+  contracts  Contract[]
+  emails     Email[]
+
+  @@index([statut])
+  @@index([assigneAId])
+  @@index([secteur])
+  @@index([canton])
+  @@index([raisonSociale]) // recherche par nom
+  @@map("prospects")
+}
+
+// ============================================================================
+// ACTIVITY — appels, emails, RDV, notes
+// ============================================================================
+
+model Activity {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prospect   Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  prospectId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userId String
+
+  type   ActivityType
+  date   DateTime // créneau planifié OU effectif
+  duree  Int? // durée déclarée en minutes
+  duree2 Int? // durée RÉELLE en secondes (widget click-to-call)
+
+  sujet   String
+  contenu String? @db.Text
+
+  statut        ActivityStatut    @default(PLANIFIE)
+  resultat      ActivityResultat? // valide pour APPEL_* et RDV_*
+  notesResultat String?           @db.Text // qualitatif libre saisi après l'appel
+
+  // Self-relations pour la chaîne de relances :
+  //   - rappelLeDeId : l'activité parente qui a généré CE rappel auto
+  //   - prochaineActivityId : le rappel auto déclenché APRÈS celle-ci
+  rappelLeDe   Activity?  @relation("ActivityRappel", fields: [rappelLeDeId], references: [id], onDelete: SetNull)
+  rappelLeDeId String?
+  rappels      Activity[] @relation("ActivityRappel")
+
+  prochaineActivity   Activity?  @relation("ActivityProchaine", fields: [prochaineActivityId], references: [id], onDelete: SetNull)
+  prochaineActivityId String?    @unique
+  precedente          Activity[] @relation("ActivityProchaine")
+
+  // Liens optionnels vers d'autres entités du CRM
+  email   Email?  @relation(fields: [emailId], references: [id], onDelete: SetNull)
+  emailId String?
+
+  @@index([prospectId, date])
+  @@index([userId, date])
+  @@index([statut, date])
+  @@index([type])
+  @@map("activities")
+}
+
+// ============================================================================
+// DEAL — opportunité commerciale dans le pipeline
+// ============================================================================
+
+model Deal {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prospect   Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  prospectId String
+
+  assigneA   User   @relation(fields: [assigneAId], references: [id], onDelete: Restrict)
+  assigneAId String
+
+  titre       String
+  description String? @db.Text
+
+  montantPrevu Decimal   @db.Decimal(12, 2) // valeur 1 an attendue
+  stage        DealStage @default(DECOUVERTE)
+  probabilite  Int       @default(20) // 0-100
+
+  closeAttenduLe DateTime?
+  closeReelLe    DateTime?
+  raisonPerte    String?   @db.Text
+
+  // Produits envisagés / proposés (m2m implicite)
+  productsProposes Product[]  @relation("DealProducts")
+  contracts        Contract[]
+
+  @@index([stage])
+  @@index([assigneAId, stage])
+  @@index([prospectId])
+  @@map("deals")
+}
+
+// ============================================================================
+// PRODUCT — catalogue
+// ============================================================================
+
+model Product {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  nom         String
+  description String? @db.Text
+
+  type      ProductType
+  categorie ProductCategorie
+
+  prixOneShot Decimal? @db.Decimal(12, 2)
+  prixMensuel Decimal? @db.Decimal(12, 2)
+  prixAnnuel  Decimal? @db.Decimal(12, 2)
+
+  /// Pour les packs : IDs des produits composants (JSON array de Product.id)
+  composantsIds Json?
+
+  isActive Boolean @default(true)
+
+  // Relations
+  deals              Deal[]              @relation("DealProducts")
+  contracts          Contract[]          @relation("ContractProducts")
+  clientInvoiceLines ClientInvoiceLine[]
+
+  @@index([categorie, type])
+  @@map("products")
+}
+
+// ============================================================================
+// CONTRACT — contrat signé
+// ============================================================================
+
+model Contract {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prospect   Prospect @relation(fields: [prospectId], references: [id], onDelete: Restrict)
+  prospectId String
+
+  deal   Deal?   @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  dealId String?
+
+  assigneA   User   @relation(fields: [assigneAId], references: [id], onDelete: Restrict)
+  assigneAId String
+
+  /// Format : ACLR-{YYYY}-{NNNN} séquentiel par année
+  numero String @unique
+
+  dateSignature DateTime
+  dateDebut     DateTime
+  dureeMois     Int      @default(12)
+
+  statut           ContractStatut   @default(ACTIF)
+  modalitePaiement ModalitePaiement
+
+  montantOneShot Decimal @db.Decimal(12, 2)
+  montantMensuel Decimal @db.Decimal(12, 2)
+
+  /// valeurAn1 = montantOneShot + montantMensuel * 12
+  /// Stockée pour permettre les agrégations efficaces. Recalculée par l'app
+  /// à chaque update — invariant testé.
+  valeurAn1 Decimal @db.Decimal(12, 2)
+
+  dateResiliation   DateTime?
+  raisonResiliation String?   @db.Text
+
+  // Relations
+  products       Product[]        @relation("ContractProducts")
+  payments       Payment[]
+  commissions    Commission[]
+  renewals       Renewal[]
+  clientInvoices ClientInvoice[]
+  options        ContractOption[]
+  signatures     Signature[]
+  emails         Email[]
+
+  @@index([statut])
+  @@index([dateSignature])
+  @@index([assigneAId, statut])
+  @@map("contracts")
+}
+
+// ============================================================================
+// PAYMENT — encaissement client → déclencheur des commissions
+// ============================================================================
+
+model Payment {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contractId String
+
+  date    DateTime
+  montant Decimal       @db.Decimal(12, 2)
+  type    PaymentType
+  statut  PaymentStatut @default(EN_ATTENTE)
+
+  referenceFactureClient String?
+
+  // Lien optionnel vers la facture client à laquelle ce paiement correspond
+  clientInvoice   ClientInvoice? @relation(fields: [clientInvoiceId], references: [id], onDelete: SetNull)
+  clientInvoiceId String?
+
+  @@index([contractId, date])
+  @@index([statut])
+  @@map("payments")
+}
+
+// ============================================================================
+// COMMISSION — l'enveloppe globale (1 par contrat)
+// ============================================================================
+
+model Commission {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contractId String   @unique
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userId String
+
+  /// = contract.valeurAn1 * user.tauxCommissionSignature
+  montantTotal Decimal @db.Decimal(12, 2)
+  /// = montantTotal / 2 (versement à la signature)
+  montantPart1 Decimal @db.Decimal(12, 2)
+  /// = montantTotal / 2 (étalé sur 11 mois)
+  montantPart2 Decimal @db.Decimal(12, 2)
+
+  statut CommissionStatut @default(DUE)
+
+  // 12 CommissionPayment liés (1 signature + 11 étalements) + N renouvellement
+  payments CommissionPayment[]
+
+  @@index([userId, statut])
+  @@map("commissions")
+}
+
+// ============================================================================
+// COMMISSION_PAYMENT — versements individuels
+// ============================================================================
+
+model CommissionPayment {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  commission   Commission @relation(fields: [commissionId], references: [id], onDelete: Cascade)
+  commissionId String
+
+  /// Numéro du mois (1-11) pour les versements ETALEMENT.
+  /// Pour SIGNATURE et RENOUVELLEMENT : null (pour RENOUVELLEMENT, le mois
+  /// est porté par dateVersementPrevue uniquement).
+  numeroMois Int?
+
+  typePart CommissionPaymentTypePart
+  montant  Decimal                   @db.Decimal(12, 2)
+
+  /// Date à laquelle ce versement DOIT être versé (planifié).
+  dateVersementPrevue DateTime
+  /// Date réelle de versement (quand statut passe à PAYE).
+  dateVersement       DateTime?
+
+  statut CommissionPaymentStatut @default(PREVU)
+
+  /// Une fois payé, lié à l'Invoice mensuelle qui l'a intégré.
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  invoiceId String?
+
+  @@index([commissionId])
+  @@index([statut, dateVersementPrevue])
+  @@index([invoiceId])
+  @@map("commission_payments")
+}
+
+// ============================================================================
+// RENEWAL — renouvellement à l'échéance d'un contrat
+// ============================================================================
+
+model Renewal {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contractId String
+
+  dateRenouvellement DateTime
+  statut             RenewalStatut @default(A_VENIR)
+
+  /// = contract.montantMensuel * user.tauxCommissionRenouvellement (= 10 %/mois)
+  commissionAn2Mensuelle Decimal @db.Decimal(12, 2)
+
+  raisonNonRenouvellement String? @db.Text
+
+  @@index([contractId])
+  @@index([dateRenouvellement, statut])
+  @@map("renewals")
+}
+
+// ============================================================================
+// INVOICE — facture INTERNE de la commerciale à ACLR Sàrl
+// ============================================================================
+
+model Invoice {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userId String
+
+  /// 1er du mois facturé
+  mois DateTime
+
+  montantCommissions      Decimal @db.Decimal(12, 2)
+  montantGarantieAbsorbee Decimal @db.Decimal(12, 2)
+  montantFrais            Decimal @db.Decimal(12, 2)
+  /// = MAX(montantCommissions, garantieMensuelle) + montantFrais
+  montantTotal            Decimal @db.Decimal(12, 2)
+
+  statut           InvoiceStatut @default(BROUILLON)
+  /// Format : SOPHIE-{YYYY}-{NN} séquentiel par année
+  referenceFacture String        @unique
+
+  // Les versements de commissions intégrés dans cette facture
+  commissionPayments CommissionPayment[]
+
+  @@unique([userId, mois])
+  @@index([statut])
+  @@map("invoices")
+}
+
+// ============================================================================
+// EMAIL_TEMPLATE
+// ============================================================================
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  nom     String
+  type    EmailTemplateType
+  objet   String
+  /// Contenu avec variables {{prenomContact}}, {{raisonSociale}}, {{ville}}, etc.
+  contenu String            @db.Text
+
+  isActive Boolean @default(true)
+
+  // Emails ayant utilisé ce template
+  emails Email[]
+
+  @@index([type])
+  @@map("email_templates")
+}
+
+// ============================================================================
+// EMAIL — boîte unifiée vision 360 (sortants + entrants)
+// ============================================================================
+
+model Email {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prospect   Prospect? @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+  prospectId String?
+
+  contract   Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  contractId String?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userId String
+
+  direction EmailDirection
+  /// Identifiant de conversation pour grouper les échanges
+  threadId  String
+  /// RFC 5322 Message-ID — unique
+  messageId String         @unique
+  /// Message-ID du parent pour reconstituer le fil
+  inReplyTo String?
+
+  expediteurEmail   String
+  expediteurNom     String?
+  /// Peut contenir plusieurs adresses séparées par virgule
+  destinataireEmail String
+  cc                String?
+  bcc               String?
+
+  objet        String
+  contenuHtml  String @db.Text
+  contenuTexte String @db.Text
+
+  statut   EmailStatut @default(BROUILLON)
+  envoyeLe DateTime?
+  livreLe  DateTime?
+  ouvertLe DateTime?
+  cliqueLe DateTime?
+
+  templateUtilise   EmailTemplate? @relation(fields: [templateUtiliseId], references: [id], onDelete: SetNull)
+  templateUtiliseId String?
+
+  /// Labels libres pour filtrage (ex. ["cold-1", "relance"])
+  labels String[]
+
+  attachments EmailAttachment[]
+  activities  Activity[]
+
+  @@index([prospectId, createdAt])
+  @@index([threadId])
+  @@index([userId, direction])
+  @@index([statut])
+  @@map("emails")
+}
+
+model EmailAttachment {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  email   Email  @relation(fields: [emailId], references: [id], onDelete: Cascade)
+  emailId String
+
+  nom      String
+  taille   Int // bytes
+  mimeType String
+  /// Chemin local (storage/...) ou URL S3 selon STORAGE_MODE
+  url      String
+
+  @@index([emailId])
+  @@map("email_attachments")
+}
+
+// ============================================================================
+// CLIENT_INVOICE — facture émise par ACLR Sàrl vers le client
+// ============================================================================
+
+model ClientInvoice {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  contractId String
+
+  /// Format : ACLR-CLI-{YYYY}-{NNNN} séquentiel par année
+  numero       String   @unique
+  dateEmission DateTime
+  dateEcheance DateTime
+
+  type             ClientInvoiceType
+  /// Pour les récurrents : période couverte (1er du mois début → fin du mois fin)
+  periodeMoisDebut DateTime?
+  periodeMoisFin   DateTime?
+
+  sousTotal Decimal @db.Decimal(12, 2)
+  totalTVA  Decimal @db.Decimal(12, 2)
+  total     Decimal @db.Decimal(12, 2)
+
+  statut            ClientInvoiceStatut @default(BROUILLON)
+  datePaiement      DateTime?
+  referenceVirement String?
+  modeReglement     ModeReglement?
+
+  notesClient String? @db.Text
+
+  lignes   ClientInvoiceLine[]
+  payments Payment[]
+
+  @@index([contractId])
+  @@index([statut, dateEcheance])
+  @@map("client_invoices")
+}
+
+model ClientInvoiceLine {
+  id String @id @default(cuid())
+
+  clientInvoice   ClientInvoice @relation(fields: [clientInvoiceId], references: [id], onDelete: Cascade)
+  clientInvoiceId String
+
+  designation  String
+  quantite     Decimal @default("1") @db.Decimal(10, 2)
+  prixUnitaire Decimal @db.Decimal(12, 2)
+  /// = quantite * prixUnitaire (stocké pour requêtes/exports)
+  montantHT    Decimal @db.Decimal(12, 2)
+  /// Taux TVA appliqué sur cette ligne (0 si non assujetti)
+  tauxTVA      Decimal @default("0") @db.Decimal(5, 4)
+
+  ordre Int @default(0)
+
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productId String?
+
+  @@index([clientInvoiceId, ordre])
+  @@map("client_invoice_lines")
+}
+
+// ============================================================================
+// CONTRACT_OPTION — options et add-ons sur un contrat
+// ============================================================================
+
+model ContractOption {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contractId String
+
+  designation String
+  type        ContractOptionType
+  montant     Decimal            @db.Decimal(12, 2)
+  actif       Boolean            @default(true)
+
+  dateDebut DateTime?
+  dateFin   DateTime?
+
+  @@index([contractId, actif])
+  @@map("contract_options")
+}
+
+// ============================================================================
+// SIGNATURE — workflow de signature électronique d'un contrat
+// ============================================================================
+
+model Signature {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contractId String
+
+  type   SignatureType   @default(SIGNATURE_ELECTRONIQUE)
+  statut SignatureStatut @default(BROUILLON)
+
+  /// URL unique tokenisée pour la page publique /sign/{token}
+  lienSignature String @unique
+
+  signeParClient      Boolean   @default(false)
+  dateSignatureClient DateTime?
+  signeParAclr        Boolean   @default(false)
+  dateSignatureAclr   DateTime?
+
+  /// IP capturée au moment de la signature client (audit)
+  ipClient String?
+
+  /// PDF du contrat envoyé (généré par @react-pdf/renderer)
+  documentPdfUrl   String
+  /// PDF avec signatures apposées (post-completion)
+  documentSigneUrl String?
+
+  /// Expiration de l'invitation (default : emission + 14 jours)
+  expireA DateTime
+
+  @@index([statut])
+  @@index([contractId])
+  @@map("signatures")
+}
+
+// ============================================================================
+// STAT — snapshot quotidien des KPIs par commerciale
+// ============================================================================
+
+model Stat {
+  id   String   @id @default(cuid())
+  date DateTime @db.Date
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  nbAppelsSortants Int @default(0)
+  nbAppelsEntrants Int @default(0)
+  nbAppelsTotal    Int @default(0)
+
+  nbEmailsEnvoyes Int @default(0)
+  nbEmailsRecus   Int @default(0)
+
+  nbRdvPlanifies Int @default(0)
+  nbRdvHonores   Int @default(0)
+  nbRdvManques   Int @default(0)
+
+  nbPropositionsEnvoyees Int @default(0)
+
+  nbContratsSignes      Int     @default(0)
+  montantContratsSignes Decimal @default("0") @db.Decimal(12, 2)
+
+  nbProspectsNouveaux  Int @default(0)
+  nbProspectsContactes Int @default(0)
+
+  montantRenouvellementsEncaisses Decimal @default("0") @db.Decimal(12, 2)
+
+  tauxConversionAppelRdv     Decimal @default("0") @db.Decimal(5, 4)
+  tauxConversionRdvSignature Decimal @default("0") @db.Decimal(5, 4)
+
+  @@unique([userId, date])
+  @@index([date])
+  @@map("stats")
+}
+
+// ============================================================================
+// OBJECTIVE — objectifs commerciaux par commerciale
+// ============================================================================
+
+model Objective {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  periode   ObjectivePeriode
+  dateDebut DateTime
+  dateFin   DateTime
+
+  nbAppelsObjectif       Int?
+  nbEmailsObjectif       Int?
+  nbRdvObjectif          Int?
+  nbPropositionsObjectif Int?
+  nbSignaturesObjectif   Int?
+  caObjectif             Decimal? @db.Decimal(12, 2)
+  commissionObjectif     Decimal? @db.Decimal(12, 2)
+
+  notes   String? @db.Text
+  isActif Boolean @default(true)
+
+  @@index([userId, periode, dateDebut])
+  @@map("objectives")
+}
+
+// ============================================================================
+// SETTING — paramètres globaux ACLR Sàrl (singleton)
+// ============================================================================
+/// Une seule ligne attendue. La logique applicative force singleton(id=1).
+model Setting {
+  id        Int      @id @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Coordonnées émetteur pour les factures clients
+  raisonSociale String  @default("ACLR Sàrl")
+  marque        String  @default("Make Your Com")
+  adresse       String?
+  codePostal    String?
+  ville         String?
+  pays          String  @default("Suisse")
+  numeroIDE     String? // CHE-XXX.XXX.XXX
+  numeroTVA     String? // CHE-XXX.XXX.XXX TVA, si assujetti
+  iban          String?
+  bicSwift      String?
+  nomBanque     String?
+
+  emailContact String?
+  telephone    String?
+  siteWeb      String?
+
+  logoUrl           String?
+  signatureAdminUrl String?
+
+  // Défauts métier — surchargent les constantes lib/constants.ts
+  tauxCommissionSignatureDefault      Decimal @default("0.25") @db.Decimal(5, 4)
+  tauxCommissionRenouvellementDefault Decimal @default("0.10") @db.Decimal(5, 4)
+  garantieMensuelleDefault            Decimal @default("2500.00") @db.Decimal(12, 2)
+  forfaitFraisDefault                 Decimal @default("250.00") @db.Decimal(12, 2)
+
+  // TVA : 0 par défaut tant que ACLR n'est pas assujetti
+  tvaActive Boolean @default(false)
+  tauxTVA   Decimal @default("0.081") @db.Decimal(5, 4)
+
+  @@map("settings")
+}
+
+// ============================================================================
+// COUNTER — compteurs séquentiels par année pour la numérotation
+// ============================================================================
+/// Garantit l'unicité et la séquentialité des numéros sans recourir à un
+/// SELECT MAX() qui n'est pas atomique en concurrent.
+/// scope : "contract" | "client_invoice" | "sophie_invoice"
+model Counter {
+  scope String
+  year  Int
+  value Int    @default(0)
+
+  @@id([scope, year])
+  @@map("counters")
 }
