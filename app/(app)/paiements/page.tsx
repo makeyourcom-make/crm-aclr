@@ -5,7 +5,7 @@ import { Pagination } from "@/components/pagination";
 import { formatCHF } from "@/lib/format";
 import { getPayments, getPaymentStats } from "@/lib/queries/payments";
 import { PaymentListParamsSchema } from "@/lib/schemas/payment";
-import { requireUser } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 
 export const metadata = { title: "Paiements clients" };
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ interface PageProps {
 }
 
 export default async function PaymentsPage({ searchParams }: PageProps) {
-  const user = await requireUser();
+  const user = await requireAdmin();
   const raw = await searchParams;
   const params = PaymentListParamsSchema.parse(raw);
 

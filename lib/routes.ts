@@ -19,6 +19,8 @@ export type RouteGroup = "operationnel" | "vente" | "finance" | "config";
 export interface RouteDef {
   href: string;
   label: string;
+  /** Libellé alternatif quand l'utilisateur est COMMERCIAL (ex. "Mes salaires"). */
+  commercialLabel?: string;
   /** Nom de l'icône Lucide (string pour éviter d'importer Lucide ici). */
   icon: string;
   group: RouteGroup;
@@ -121,6 +123,7 @@ export const ROUTES: RouteDef[] = [
     icon: "Banknote",
     group: "finance",
     etape: 11,
+    adminOnly: true, // Sophie voit l'info via la fiche client uniquement
   },
   {
     href: "/factures-clients",
@@ -128,6 +131,7 @@ export const ROUTES: RouteDef[] = [
     icon: "FileSpreadsheet",
     group: "finance",
     etape: 24,
+    adminOnly: true, // Sophie voit l'info via la fiche client uniquement
   },
   {
     href: "/commissions",
@@ -138,7 +142,8 @@ export const ROUTES: RouteDef[] = [
   },
   {
     href: "/factures",
-    label: "Mes factures",
+    label: "Factures Sophie",
+    commercialLabel: "Mes salaires",
     icon: "Receipt",
     group: "finance",
     etape: 14,

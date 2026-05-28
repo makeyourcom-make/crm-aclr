@@ -7,7 +7,7 @@ import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
 import { formatCHF, formatDate } from "@/lib/format";
-import { requireUser } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 
 export const metadata = { title: "Factures clients" };
 export const dynamic = "force-dynamic";
@@ -32,7 +32,7 @@ interface PageProps {
 }
 
 export default async function FacturesClientsPage({ searchParams }: PageProps) {
-  const user = await requireUser();
+  const user = await requireAdmin();
   const raw = await searchParams;
   const filterStatut = typeof raw.statut === "string" ? raw.statut : undefined;
   const now = new Date();

@@ -64,6 +64,13 @@ export function DealCard({ deal, onOpen }: DealCardProps) {
         {deal.prospect.raisonSociale}
       </p>
 
+      {/* Badge "En attente validation" si stage SIGNE */}
+      {deal.stage === "SIGNE" && (
+        <p className="mt-1 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+          ⏳ En attente validation admin
+        </p>
+      )}
+
       {/* Montant + probabilité */}
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="text-sm font-semibold tabular-nums">

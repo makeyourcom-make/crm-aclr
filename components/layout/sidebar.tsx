@@ -57,6 +57,7 @@ export function Sidebar({ role, onNavigate }: SidebarProps) {
                   key={item.href}
                   item={item}
                   isActive={active?.href === item.href}
+                  isAdmin={role === "ADMIN"}
                   onClick={onNavigate}
                 />
               ))}
@@ -71,12 +72,16 @@ export function Sidebar({ role, onNavigate }: SidebarProps) {
 function SidebarLink({
   item,
   isActive,
+  isAdmin,
   onClick,
 }: {
   item: RouteDef;
   isActive: boolean;
+  isAdmin: boolean;
   onClick?: () => void;
 }) {
+  const label =
+    !isAdmin && item.commercialLabel ? item.commercialLabel : item.label;
   return (
     <li>
       <Link
@@ -90,7 +95,7 @@ function SidebarLink({
         )}
       >
         <Icon name={item.icon} className="h-4 w-4 shrink-0" />
-        <span className="flex-1 truncate">{item.label}</span>
+        <span className="flex-1 truncate">{label}</span>
       </Link>
     </li>
   );

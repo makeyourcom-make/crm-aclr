@@ -46,6 +46,7 @@ export type ContractDetail = Prisma.ContractGetPayload<{
       };
     };
     clientInvoices: { orderBy: { dateEmission: "asc" } };
+    signatures: { orderBy: { createdAt: "desc" } };
   };
 }>;
 
@@ -157,6 +158,7 @@ export async function getContractById(
         },
       },
       clientInvoices: { orderBy: { dateEmission: "asc" } },
+      signatures: { orderBy: { createdAt: "desc" } },
     },
   });
   if (!contract) return null;

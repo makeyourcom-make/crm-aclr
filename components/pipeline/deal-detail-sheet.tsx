@@ -52,7 +52,7 @@ interface DealDetailSheetProps {
   isAdmin: boolean;
 }
 
-export function DealDetailSheet({ dealId, onClose }: DealDetailSheetProps) {
+export function DealDetailSheet({ dealId, onClose, isAdmin }: DealDetailSheetProps) {
   const [deal, setDeal] = useState<DealDetailLite | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,6 +189,33 @@ export function DealDetailSheet({ dealId, onClose }: DealDetailSheetProps) {
             <div className="border-t pt-3 text-xs text-muted-foreground">
               {deal.assigneA && <p>Assigné à {deal.assigneA.name}</p>}
             </div>
+
+            {/* Workflow validation admin pour les deals SIGNÉ */}
+            {deal.stage === "SIGNE" && isAdmin && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-medium text-amber-900">
+                  ⏳ En attente de ta validation
+                </p>
+                <p className="mt-1 text-xs text-amber-800">
+                  Sophie a marqué ce deal comme signé. Valide-le en créant
+                  officiellement le contrat — cascade automatique :
+                  commission, factures clients, statut prospect.
+                </p>
+                <Link
+                  href={`/contrats/nouveau?dealId=${deal.id}`}
+                  className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  Valider & créer le contrat
+                </Link>
+              </div>
+            )}
+
+            {deal.stage === "SIGNE" && !isAdmin && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                ⏳ Ce deal attend la validation d&apos;Arthur. Une fois
+                validé, il passe dans la section <strong>Contrats</strong>.
+              </div>
+            )}
 
             {/* Lien vers la fiche prospect complète */}
             <Link

@@ -74,6 +74,10 @@ export async function getPipeline(
     conditions.push({ assigneAId: user.id });
   }
 
+  // Une fois qu'un deal a été converti en contrat (validation admin), il
+  // sort du pipeline. Le détail du client suit dans /contrats.
+  conditions.push({ contracts: { none: {} } });
+
   if (params.assigneAId) {
     conditions.push({ assigneAId: params.assigneAId });
   }

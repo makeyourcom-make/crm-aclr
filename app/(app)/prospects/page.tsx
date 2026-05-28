@@ -41,6 +41,18 @@ export default async function ProspectsPage({ searchParams }: PageProps) {
         }
         actions={
           <>
+            <a
+              href={`/api/prospects/export?${new URLSearchParams(
+                Object.entries(params)
+                  .filter(([, v]) => v !== undefined && v !== "" && v !== null)
+                  .map(([k, v]) => [k, String(v)]),
+              ).toString()}`}
+              download
+              className={buttonVariants({ variant: "outline" })}
+            >
+              <Icon name="FileSpreadsheet" className="mr-1.5 h-4 w-4" />
+              Export CSV
+            </a>
             <Link
               href="/prospects/import"
               className={buttonVariants({ variant: "outline" })}

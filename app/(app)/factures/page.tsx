@@ -40,11 +40,11 @@ export default async function FacturesPage({ searchParams }: PageProps) {
   return (
     <div className="px-6 py-6 lg:px-8">
       <PageHeader
-        title={user.role === "ADMIN" ? "Factures Sophie" : "Mes factures"}
+        title={user.role === "ADMIN" ? "Factures Sophie" : "Mes salaires"}
         description={
           user.role === "ADMIN"
             ? "Factures mensuelles que tu dois verser aux commerciales (commissions + garantie + frais)."
-            : "Tes factures mensuelles. Le total = commissions acquises + garantie absorbée + forfait frais."
+            : "Tes fiches de salaire mensuelles. Pour le détail des commissions acquises, va dans l'onglet « Commissions »."
         }
         actions={
           user.role === "ADMIN" && users.length > 0 ? (
@@ -53,48 +53,50 @@ export default async function FacturesPage({ searchParams }: PageProps) {
         }
       />
 
-      {/* KPIs */}
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <Card>
-          <CardContent className="py-4">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              Total versé YTD
-            </p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-700">
-              {formatCHF(stats.ytdTotal)}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              dont {formatCHF(stats.ytdCommissions)} de commissions
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-4">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              En attente de paiement
-            </p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">
-              {formatCHF(Number(aPayer?._sum.montantTotal ?? 0))}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {aPayer?._count ?? 0} facture(s) envoyée(s)
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-4">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              Brouillons
-            </p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">
-              {formatCHF(Number(enBrouillon?._sum.montantTotal ?? 0))}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {enBrouillon?._count ?? 0} à envoyer
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* KPIs — visibles uniquement côté admin (Sophie a déjà ces infos dans /commissions) */}
+      {user.role === "ADMIN" && (
+        <div className="mb-6 grid gap-3 sm:grid-cols-3">
+          <Card>
+            <CardContent className="py-4">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                Total versé YTD
+              </p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-700">
+                {formatCHF(stats.ytdTotal)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                dont {formatCHF(stats.ytdCommissions)} de commissions
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="py-4">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                En attente de paiement
+              </p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">
+                {formatCHF(Number(aPayer?._sum.montantTotal ?? 0))}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {aPayer?._count ?? 0} facture(s) envoyée(s)
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="py-4">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                Brouillons
+              </p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">
+                {formatCHF(Number(enBrouillon?._sum.montantTotal ?? 0))}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {enBrouillon?._count ?? 0} à envoyer
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <InvoicesTable
         rows={items}

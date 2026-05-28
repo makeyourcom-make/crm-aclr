@@ -7,6 +7,7 @@ import { ResilierButton } from "@/components/contrats/resilier-button";
 import { MarkInvoicePaidButton } from "@/components/paiements/mark-invoice-paid-button";
 import { PaymentStatutBadge } from "@/components/paiements/payment-statut-badge";
 import { RecordPaymentButton } from "@/components/paiements/record-payment-button";
+import { SignInPersonButton } from "@/components/signatures/sign-in-person-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/icon";
@@ -86,18 +87,28 @@ export default async function ContractDetailPage({ params }: PageProps) {
         actions={
           contract.statut === "ACTIF" ? (
             <>
-              <RecordPaymentButton
+              <SignInPersonButton
                 contractId={contract.id}
-                factures={contract.clientInvoices
-                  .filter((f) => f.statut !== "PAYEE")
-                  .map((f) => ({
-                    id: f.id,
-                    numero: f.numero,
-                    type: f.type,
-                    total: f.total.toString(),
-                    statut: f.statut,
-                  }))}
+                existingToken={
+                  contract.signatures.find(
+                    (s) => s.statut !== "COMPLETEE" && s.expireA > new Date(),
+                  )?.lienSignature ?? null
+                }
               />
+              {user.role === "ADMIN" && (
+                <RecordPaymentButton
+                  contractId={contract.id}
+                  factures={contract.clientInvoices
+                    .filter((f) => f.statut !== "PAYEE")
+                    .map((f) => ({
+                      id: f.id,
+                      numero: f.numero,
+                      type: f.type,
+                      total: f.total.toString(),
+                      statut: f.statut,
+                    }))}
+                />
+              )}
               <ResilierButton contractId={contract.id} />
             </>
           ) : null
@@ -267,7 +278,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                       </Badge>
                     </td>
                     <td className="px-3 py-2 text-right">
-                      {contract.statut === "ACTIF" && (
+                      {contract.statut === "ACTIF" && user.role === "ADMIN" && (
                         <MarkInvoicePaidButton
                           invoiceId={inv.id}
                           hidden={inv.statut === "PAYEE" || inv.statut === "ANNULEE"}
