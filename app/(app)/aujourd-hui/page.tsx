@@ -2,6 +2,7 @@ import { DailyGoalsBanner } from "@/components/today/daily-goals-banner";
 import { TodayList } from "@/components/today/today-list";
 import { TodayShortcuts } from "@/components/today/today-shortcuts";
 import { WeekSidebar } from "@/components/today/week-sidebar";
+import { DEFAULT_DAILY_GOALS } from "@/lib/constants";
 import { getTodayCockpit } from "@/lib/queries/today";
 import { requireUser } from "@/lib/session";
 
@@ -38,7 +39,11 @@ export default async function AujourdhuiPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
           {/* Colonne principale — la liste d'actions */}
           <div>
-            <TodayList sections={cockpit.sections} />
+            <TodayList
+              sections={cockpit.sections}
+              counters={cockpit.jour}
+              goals={DEFAULT_DAILY_GOALS}
+            />
           </div>
 
           {/* Sidebar droite — compteurs hebdo */}

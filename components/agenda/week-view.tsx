@@ -9,6 +9,7 @@ import {
   rescheduleActivity,
 } from "@/app/(app)/activites/actions";
 import { ActivityIcon } from "@/components/activities/activity-icon";
+import { AddActivityDialog } from "@/components/agenda/add-activity-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatTime } from "@/lib/format";
 import { getActivityTypeLabel } from "@/lib/labels";
@@ -18,12 +19,24 @@ import type { AgendaActivity } from "@/lib/queries/agenda";
 
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
+interface ProspectOption {
+  id: string;
+  raisonSociale: string;
+  ville: string | null;
+}
+
 interface WeekViewProps {
   weekStart: Date;
   activities: AgendaActivity[];
+  prospects: ProspectOption[];
 }
 
-export function WeekView({ weekStart, activities }: WeekViewProps) {
+function toIso(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+export function WeekView({ weekStart, activities, prospects }: WeekViewProps) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -80,6 +93,14 @@ export function WeekView({ weekStart, activities }: WeekViewProps) {
                   ))}
                 </div>
               )}
+
+              {/* Bouton "+ Ajouter" pré-réglé sur ce jour */}
+              <AddActivityDialog
+                prospects={prospects}
+                defaultDate={toIso(dayDate)}
+                defaultTime="09:00"
+                triggerMode="day"
+              />
             </CardContent>
           </Card>
         );

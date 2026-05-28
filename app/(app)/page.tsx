@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { CommissionsChart } from "@/components/dashboard/commissions-chart";
+import { MonthlyGoals } from "@/components/dashboard/monthly-goals";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
 import { formatCHF, formatCHFCompact, formatDate } from "@/lib/format";
@@ -93,6 +94,14 @@ export default async function DashboardPage() {
           />
         </div>
       )}
+
+      {/* Objectifs du mois — progress bars pilotables depuis /objectifs */}
+      <div className="mt-6">
+        <MonthlyGoals
+          progress={data.monthlyProgress}
+          isAdmin={user.role === "ADMIN"}
+        />
+      </div>
 
       <Card className="mt-6">
         <CardHeader>

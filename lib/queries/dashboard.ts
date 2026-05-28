@@ -4,6 +4,23 @@
 import { prisma } from "@/lib/db";
 import { type SessionUser } from "@/lib/session";
 
+export interface MonthlyObjectiveProgress {
+  hasObjective: boolean;
+  objectiveId?: string;
+  // Objectifs fixés (vide si pas d'Objective MENSUEL actif)
+  nbAppelsObjectif: number | null;
+  nbContactsObjectif: number | null; // = nbEmailsObjectif (emails + RS)
+  nbRdvObjectif: number | null;
+  nbSignaturesObjectif: number | null;
+  caObjectif: number | null;
+  // Réalisé ce mois (toujours calculé)
+  nbAppelsRealise: number;
+  nbContactsRealise: number; // emails + LinkedIn + SMS
+  nbRdvRealise: number;
+  nbSignaturesRealise: number;
+  caRealise: number;
+}
+
 export interface DashboardData {
   // KPI du mois
   signaturesMois: { count: number; montant: number };
@@ -11,6 +28,9 @@ export interface DashboardData {
   /** = MAX(commissions du mois, garantie) + frais */
   salairePrevuMois: number;
   garantieActiveMois: boolean;
+
+  // Objectifs du mois (étape 20)
+  monthlyProgress: MonthlyObjectiveProgress;
 
   // Évolution 12 mois (commissions acquises par mois)
   evolutionCommissions: Array<{ label: string; montant: number }>;
@@ -90,6 +110,14 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
   const comMois = Number(comAcquisesMois._sum.montant ?? 0);
   const salairePrevuMois = Math.max(comMois, garantieMensuelle) + forfaitFrais;
   const garantieActiveMois = comMois < garantieMensuelle;
+
+  // 3.b Objectif mensuel actif (pour la commerciale ou le user filtré admin)
+  const monthlyProgress = await computeMonthlyProgress(
+    user,
+    startMonth,
+    endMonth,
+    signaturesMoisRaw,
+  );
 
   // 4. Évolution 12 mois en arrière (en passant par groupBy mois)
   const start12 = new Date(now.getFullYear(), now.getMonth() - 11, 1);
@@ -230,6 +258,7 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     commissionsAcquisesMois: comMois,
     salairePrevuMois,
     garantieActiveMois,
+    monthlyProgress,
     evolutionCommissions,
     pipelineParStage,
     topDeals,
@@ -237,5 +266,93 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     caAgenceMois,
     montantAVerserCommerciales,
     caRecurrentTotalMensuel,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// HELPER — Progression objectifs du mois
+// ---------------------------------------------------------------------------
+
+async function computeMonthlyProgress(
+  user: SessionUser,
+  startMonth: Date,
+  endMonth: Date,
+  signaturesMoisRaw: {
+    _count: number;
+    _sum: { valeurAn1: import("@prisma/client").Prisma.Decimal | null };
+  },
+): Promise<MonthlyObjectiveProgress> {
+  // L'admin n'a pas d'objectif personnel par défaut (sauf s'il en a fixé un).
+  // On cherche son Objective MENSUEL actif qui couvre la date du jour.
+  const userId = user.id;
+
+  const objective = await prisma.objective.findFirst({
+    where: {
+      userId,
+      periode: "MENSUEL",
+      isActif: true,
+      dateDebut: { lte: endMonth },
+      dateFin: { gte: startMonth },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // Activités réalisées ce mois
+  const userScope = { userId };
+
+  const [
+    nbAppelsRealise,
+    nbEmailsRealise,
+    nbRsRealise,
+    nbRdvRealise,
+  ] = await Promise.all([
+    prisma.activity.count({
+      where: {
+        ...userScope,
+        type: "APPEL_SORTANT",
+        date: { gte: startMonth, lte: endMonth },
+        statut: { in: ["FAIT", "EN_COURS"] },
+      },
+    }),
+    prisma.activity.count({
+      where: {
+        ...userScope,
+        type: "EMAIL_ENVOYE",
+        date: { gte: startMonth, lte: endMonth },
+      },
+    }),
+    prisma.activity.count({
+      where: {
+        ...userScope,
+        type: { in: ["LINKEDIN", "SMS"] },
+        date: { gte: startMonth, lte: endMonth },
+      },
+    }),
+    prisma.activity.count({
+      where: {
+        ...userScope,
+        type: { in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"] },
+        date: { gte: startMonth, lte: endMonth },
+        statut: "FAIT",
+      },
+    }),
+  ]);
+
+  return {
+    hasObjective: !!objective,
+    objectiveId: objective?.id,
+    nbAppelsObjectif: objective?.nbAppelsObjectif ?? null,
+    // L'utilisateur souhaite suivre "contacts" = emails + RS.
+    // On utilise le champ nbEmailsObjectif comme objectif "contacts asynchrones".
+    nbContactsObjectif: objective?.nbEmailsObjectif ?? null,
+    nbRdvObjectif: objective?.nbRdvObjectif ?? null,
+    nbSignaturesObjectif: objective?.nbSignaturesObjectif ?? null,
+    caObjectif:
+      objective?.caObjectif != null ? Number(objective.caObjectif) : null,
+    nbAppelsRealise,
+    nbContactsRealise: nbEmailsRealise + nbRsRealise,
+    nbRdvRealise,
+    nbSignaturesRealise: signaturesMoisRaw._count,
+    caRealise: Number(signaturesMoisRaw._sum.valeurAn1 ?? 0),
   };
 }
