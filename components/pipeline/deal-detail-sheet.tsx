@@ -297,15 +297,32 @@ export function DealDetailSheet({ dealId, onClose, isAdmin }: DealDetailSheetPro
                     <p className="mt-1 text-xs text-blue-800">
                       Lien envoyé. Expire le {formatDateLong(sig.expireA)}.
                     </p>
-                    <div className="mt-3">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       <a
                         href={`/sign/${sig.lienSignature}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
                       >
+                        <Icon name="PenLine" className="h-3.5 w-3.5" />
                         Rouvrir la page de signature
                       </a>
+                      <a
+                        href={`/api/contrats/${contract.id}/pdf`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-blue-300 bg-white px-3 text-sm font-medium text-blue-900 hover:bg-blue-100"
+                      >
+                        <Icon name="Download" className="h-3.5 w-3.5" />
+                        Télécharger le PDF
+                      </a>
+                      <Link
+                        href={`/contrats/${contract.id}`}
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-blue-300 bg-white px-3 text-sm font-medium text-blue-900 hover:bg-blue-100"
+                      >
+                        <Icon name="Pencil" className="h-3.5 w-3.5" />
+                        Modifier le contrat
+                      </Link>
                     </div>
                   </div>
                 );
