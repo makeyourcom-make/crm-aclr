@@ -76,3 +76,7 @@ next-env.d.ts
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
+
+# PDFs de test ponctuels
+cgv-test.pdf
+*-test.pdf

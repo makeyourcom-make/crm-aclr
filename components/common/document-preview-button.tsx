@@ -295,7 +295,7 @@ function PdfRender({
 
   const { Document: PdfDoc, Page: PdfPage } = Doc;
   return (
-    <div className="flex h-full flex-col items-center overflow-auto p-4">
+    <div className="relative flex h-full flex-col items-center overflow-auto bg-muted/30 p-4">
       <PdfDoc
         file={url}
         onLoadSuccess={({ numPages }: { numPages: number }) => setPageCount(numPages)}
@@ -307,7 +307,13 @@ function PdfRender({
         }
       >
         {Array.from({ length: pageCount }, (_, i) => (
-          <div key={i} className="mb-3 shadow-md">
+          <div
+            key={i}
+            className="mb-6 overflow-hidden rounded shadow-lg ring-1 ring-black/10"
+          >
+            <div className="border-b border-border bg-white px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+              Page {i + 1} / {pageCount}
+            </div>
             <PdfPage
               pageNumber={i + 1}
               width={containerWidth}
@@ -317,9 +323,9 @@ function PdfRender({
           </div>
         ))}
       </PdfDoc>
-      {pageCount > 1 && (
-        <div className="sticky bottom-2 rounded-full bg-black/70 px-3 py-1 text-xs text-white">
-          {pageCount} pages
+      {pageCount > 0 && (
+        <div className="sticky bottom-2 rounded-full bg-black/80 px-3 py-1 text-xs font-medium text-white shadow-lg">
+          {pageCount} page{pageCount > 1 ? "s" : ""} au total
         </div>
       )}
     </div>
