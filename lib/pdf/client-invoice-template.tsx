@@ -75,6 +75,8 @@ export interface ClientInvoicePdfData {
 
 const c = {
   primary: "#0E1936",
+  /** Couleur exacte extraite du fond du logo PNG (Make Your Com) */
+  logoBg: "#070F33",
   accent: "#F87171", // coral
   border: "#E2E8F0",
   muted: "#64748B",
@@ -84,19 +86,20 @@ const styles = StyleSheet.create({
   page: { padding: 0, fontFamily: "Helvetica", fontSize: 9, color: "#0F172A" },
   pageInner: { paddingHorizontal: 40, paddingTop: 20, paddingBottom: 40 },
 
-  // En-tête : bandeau navy plein, logo à gauche, identité ACLR en blanc à droite
+  // En-tête : bandeau navy plein (couleur EXACTE du logo), logo à gauche,
+  // identité ACLR en blanc à droite
   header: {
-    backgroundColor: c.primary,
+    backgroundColor: c.logoBg,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 40,
-    paddingVertical: 22,
+    paddingVertical: 18,
     marginBottom: 28,
   },
   logoImage: {
-    width: 110,
-    height: 110,
+    width: 160,
+    height: 160,
     objectFit: "contain",
   },
   logoBlock: {
