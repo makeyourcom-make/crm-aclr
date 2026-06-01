@@ -84,8 +84,8 @@ export async function generateQrBillPdfBuffer(
     doc.on("error", reject);
   });
 
-  // Attache le QR-bill au PDF (positionné en bas par défaut)
-  new SwissQRBill(data).attachTo(doc);
+  // Attache le QR-bill au PDF (positionné en bas par défaut) — langue française
+  new SwissQRBill(data, { language: "FR" }).attachTo(doc);
   doc.end();
 
   return done;
