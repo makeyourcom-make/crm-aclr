@@ -53,6 +53,9 @@ import {
   Pause,
   Play,
   Trash,
+  Eye,
+  ExternalLink,
+  X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -104,6 +107,9 @@ const ICONS = {
   Pause,
   Play,
   Trash,
+  Eye,
+  ExternalLink,
+  X,
 } as const satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

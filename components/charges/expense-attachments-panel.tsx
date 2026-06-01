@@ -14,6 +14,7 @@ import {
   addExpenseAttachment,
   deleteExpenseAttachment,
 } from "@/app/(app)/charges/actions";
+import { DocumentPreviewButton } from "@/components/common/document-preview-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
@@ -115,14 +116,12 @@ export function ExpenseAttachmentsPanel({
                 Ticket principal
               </p>
             </div>
-            <a
-              href={ticketUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-md border border-border bg-background px-2 py-1 text-[10px] hover:bg-muted"
-            >
-              Ouvrir
-            </a>
+            <DocumentPreviewButton
+              url={ticketUrl}
+              filename={ticketName ?? undefined}
+              label="Voir"
+              icon="Eye"
+            />
           </div>
         ) : (
           <p className="rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
@@ -146,14 +145,12 @@ export function ExpenseAttachmentsPanel({
                 {a.fileSize ? ` · ${Math.round(a.fileSize / 1024)} KB` : ""}
               </p>
             </div>
-            <a
-              href={a.fileUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-md border border-border bg-background px-2 py-1 text-[10px] hover:bg-muted"
-            >
-              Ouvrir
-            </a>
+            <DocumentPreviewButton
+              url={a.fileUrl}
+              filename={a.fileName}
+              label="Voir"
+              icon="Eye"
+            />
             <button
               type="button"
               onClick={() => del(a.id)}

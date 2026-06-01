@@ -7,6 +7,7 @@ import {
   deleteEmployeeDocument,
   uploadEmployeeDocument,
 } from "@/app/(app)/rh/actions";
+import { DocumentPreviewButton } from "@/components/common/document-preview-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -136,14 +137,13 @@ export function EmployeeDocuments({
                     )}
                   </p>
                 </div>
-                <a
-                  href={d.fileUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-7 items-center rounded-md border border-border bg-background px-2 text-[11px] hover:bg-muted"
-                >
-                  Ouvrir
-                </a>
+                <DocumentPreviewButton
+                  url={d.fileUrl}
+                  filename={d.titre}
+                  label="Voir"
+                  icon="Eye"
+                  className="h-7 px-2 text-[11px]"
+                />
                 <button
                   type="button"
                   onClick={() => handleDelete(d.id)}

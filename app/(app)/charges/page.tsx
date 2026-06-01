@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { ExpenseFilters } from "@/components/charges/expense-filters";
 import { MarkPaidButton } from "@/components/charges/mark-paid-button";
+import { DocumentPreviewButton } from "@/components/common/document-preview-button";
 import { SortableHeader } from "@/components/common/sortable-header";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -363,22 +364,19 @@ export default async function ChargesPage({ searchParams }: PageProps) {
                     <td className="px-3 py-2">
                       {e.ticketUrl ? (
                         <div className="inline-flex items-center gap-1">
-                          <a
-                            href={e.ticketUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] hover:bg-muted"
-                          >
-                            <Icon name="Image" className="h-3 w-3" />
-                            {e.ocrUtilise && (
-                              <Icon
-                                name="Sparkles"
-                                className="h-3 w-3 text-primary"
-                                aria-label="OCR"
-                              />
-                            )}
-                            Voir
-                          </a>
+                          <DocumentPreviewButton
+                            url={e.ticketUrl}
+                            filename={e.ticketName ?? undefined}
+                            label="Voir"
+                            icon="Eye"
+                          />
+                          {e.ocrUtilise && (
+                            <Icon
+                              name="Sparkles"
+                              className="h-3 w-3 text-primary"
+                              aria-label="OCR pré-rempli"
+                            />
+                          )}
                           {e.attachments.length > 0 && (
                             <span
                               className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary"

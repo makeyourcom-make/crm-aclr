@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { RecomputeButton } from "@/components/commissions/recompute-button";
+import { DocumentPreviewButton } from "@/components/common/document-preview-button";
 import { ContractStatutBadge } from "@/components/contrats/contract-statut-badge";
 import { ResilierButton } from "@/components/contrats/resilier-button";
 import { MarkInvoicePaidButton } from "@/components/paiements/mark-invoice-paid-button";
@@ -107,14 +108,23 @@ export default async function ContractDetailPage({ params }: PageProps) {
         }
         actions={
           <>
+            <DocumentPreviewButton
+              url={`/api/contrats/${contract.id}/pdf`}
+              filename={`${contract.numero}.pdf`}
+              label="Aperçu PDF (avec CGV)"
+              icon="Eye"
+              className="h-9 px-3 text-sm font-medium"
+            />
+            {/* Lien direct conservé pour utilisateurs qui veulent ouvrir dans un onglet */}
             <a
               href={`/api/contrats/${contract.id}/pdf`}
               target="_blank"
               rel="noreferrer"
               className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
+              title="Ouvrir dans un nouvel onglet"
             >
-              <Icon name="FileText" className="h-4 w-4" />
-              PDF (avec CGV)
+              <Icon name="ExternalLink" className="h-4 w-4" />
+              Onglet
             </a>
             {/* Upload du PDF signé — visible tant qu'aucune signature client n'est faite */}
             {contract.statut === "ACTIF" &&
@@ -342,15 +352,15 @@ export default async function ContractDetailPage({ params }: PageProps) {
                           </div>
                         )}
                         {sig.documentSigneUrl && (
-                          <a
-                            href={sig.documentSigneUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-2 inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] hover:bg-muted"
-                          >
-                            <Icon name="FileText" className="h-3.5 w-3.5" />
-                            Voir le PDF signé reçu
-                          </a>
+                          <div className="mt-2">
+                            <DocumentPreviewButton
+                              url={sig.documentSigneUrl}
+                              filename={`${contract.numero}-signe.pdf`}
+                              label="Voir le PDF signé reçu"
+                              icon="Eye"
+                              className="h-7 px-2 text-[11px]"
+                            />
+                          </div>
                         )}
                       </>
                     ) : (

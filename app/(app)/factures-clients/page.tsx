@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DocumentPreviewButton } from "@/components/common/document-preview-button";
 import { SortableHeader } from "@/components/common/sortable-header";
 import { ClientInvoiceFilters } from "@/components/factures-clients/client-invoice-filters";
 import { MarkInvoicePaidButton } from "@/components/paiements/mark-invoice-paid-button";
@@ -332,15 +333,12 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                       </td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          <a
-                            href={`/api/factures-clients/${inv.id}/pdf`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex h-6 items-center rounded-md border border-border bg-background px-2 text-[11px] hover:bg-muted"
-                          >
-                            <Icon name="Receipt" className="mr-1 h-3 w-3" />
-                            PDF
-                          </a>
+                          <DocumentPreviewButton
+                            url={`/api/factures-clients/${inv.id}/pdf`}
+                            filename={`${inv.numero}.pdf`}
+                            label="Aperçu"
+                            icon="Eye"
+                          />
                           {(inv.statut === "BROUILLON" ||
                             inv.statut === "ENVOYEE") && (
                             <MarkInvoicePaidButton invoiceId={inv.id} />
