@@ -230,6 +230,20 @@ export function ProspectForm({
           <Field label="Pays" error={errors.pays?.message}>
             <Input {...register("pays")} placeholder="Suisse" />
           </Field>
+
+          <Field label="N° IDE / SIRET" error={errors.numeroIDE?.message}>
+            <Input
+              {...register("numeroIDE")}
+              placeholder="CHE-XXX.XXX.XXX (Suisse) ou SIRET (FR)"
+            />
+          </Field>
+
+          <Field label="N° TVA" error={errors.numeroTVA?.message}>
+            <Input
+              {...register("numeroTVA")}
+              placeholder="CHE-XXX.XXX.XXX TVA ou FR-XX-XXXXXXXXX"
+            />
+          </Field>
         </CardContent>
       </Card>
 

@@ -80,6 +80,9 @@ export const ProspectCreateSchema = z.object({
   canton: stringOptional,
   pays: z.string().trim().default("Suisse"),
 
+  numeroIDE: stringOptional,
+  numeroTVA: stringOptional,
+
   siteWeb: urlOptional,
   linkedIn: urlOptional,
   facebook: urlOptional,
