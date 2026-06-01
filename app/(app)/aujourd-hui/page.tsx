@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 import { DailyGoalsBanner } from "@/components/today/daily-goals-banner";
 import { TodayList } from "@/components/today/today-list";
 import { TodayShortcuts } from "@/components/today/today-shortcuts";
@@ -11,6 +13,11 @@ export const dynamic = "force-dynamic";
 
 export default async function AujourdhuiPage() {
   const user = await requireUser();
+  // Page strictement terrain : Arthur n'a pas à voir les tâches de Sophie
+  // ni des objectifs personnels. Redirige vers son dashboard.
+  if (user.role === "ADMIN") {
+    redirect("/");
+  }
   const cockpit = await getTodayCockpit(user);
 
   const todayLabel = new Date().toLocaleDateString("fr-CH", {

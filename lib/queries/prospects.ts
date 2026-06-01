@@ -119,13 +119,11 @@ function buildProspectWhere(
 
   // Filtres
   if (params.statut) {
-    // L'utilisateur a explicitement choisi un statut → on respecte
     conditions.push({ statut: params.statut });
-  } else {
-    // Par défaut on masque les contrats signés (qui vivent dans /contrats).
-    // Les "Perdus" restent visibles pour relance ultérieure.
-    conditions.push({ statut: { not: "SIGNE" } });
   }
+  // Par défaut : toutes les entreprises (prospects + clients signés). Sophie
+  // / Arthur ont une vue unifiée "fichier entreprises" — les détails par
+  // statut sont gérés via le filtre.
   if (params.secteur) conditions.push({ secteur: params.secteur });
   if (params.canton) conditions.push({ canton: params.canton });
   if (params.assigneAId) conditions.push({ assigneAId: params.assigneAId });

@@ -14,9 +14,14 @@ import { formatCHFCompact } from "@/lib/format";
 
 interface CommissionsChartProps {
   data: Array<{ label: string; montant: number }>;
+  /** Libellé affiché dans le tooltip (ex: "CA signé", "Commissions"). */
+  tooltipLabel?: string;
 }
 
-export function CommissionsChart({ data }: CommissionsChartProps) {
+export function CommissionsChart({
+  data,
+  tooltipLabel = "CA signé",
+}: CommissionsChartProps) {
   return (
     <div className="h-56 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -40,7 +45,7 @@ export function CommissionsChart({ data }: CommissionsChartProps) {
             width={56}
           />
           <Tooltip
-            formatter={(value) => [formatCHFCompact(Number(value)), "Acquise"]}
+            formatter={(value) => [formatCHFCompact(Number(value)), tooltipLabel]}
             contentStyle={{
               fontSize: 12,
               borderRadius: 6,

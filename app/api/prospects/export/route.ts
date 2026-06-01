@@ -59,6 +59,10 @@ function escapeCsv(value: unknown): string {
 export async function GET(req: Request) {
   const user = await getSessionUser();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
+  // RBAC : seul l'admin peut exporter les données.
+  if (user.role !== "ADMIN") {
+    return new NextResponse("Forbidden", { status: 403 });
+  }
 
   // Récupère les filtres depuis l'URL pour exporter la même sélection que
   // la page /prospects affichée à l'utilisateur

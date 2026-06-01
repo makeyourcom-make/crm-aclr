@@ -1,11 +1,27 @@
 import Link from "next/link";
 
+import { CallTimeChart } from "@/components/stats/call-time-chart";
+import { RankingList } from "@/components/stats/ranking-list";
+import { StatsViewSwitcher } from "@/components/stats/stats-view-switcher";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
-import { formatCHF, formatPercent } from "@/lib/format";
-import { getStats } from "@/lib/queries/stats";
+import { prisma } from "@/lib/db";
+import {
+  formatCHF,
+  formatDate,
+  formatDuration,
+  formatPercent,
+} from "@/lib/format";
+import { getProspectSecteurLabel } from "@/lib/labels";
+import {
+  getCallProductivity,
+  getStats,
+  getTopRankings,
+} from "@/lib/queries/stats";
 import { requireUser } from "@/lib/session";
+
+import type { ProspectSecteur } from "@prisma/client";
 
 export const metadata = { title: "Statistiques" };
 export const dynamic = "force-dynamic";
@@ -25,29 +41,77 @@ export default async function StatsPage({ searchParams }: PageProps) {
   const user = await requireUser();
   const raw = await searchParams;
   const rangeJours = Number(raw.range ?? 30) || 30;
-  const data = await getStats(user, rangeJours);
+  const isAdmin = user.role === "ADMIN";
+
+  // Filtre par utilisateur (admin uniquement) — la matrice "Arthur voit Sophie"
+  const viewAsUserId =
+    isAdmin && typeof raw.user === "string" ? raw.user : undefined;
+
+  const [data, callProd, rankings] = await Promise.all([
+    getStats(user, rangeJours, viewAsUserId),
+    isAdmin ? getCallProductivity(rangeJours, viewAsUserId) : null,
+    getTopRankings(user, rangeJours, viewAsUserId),
+  ]);
+
+  // Liste des users pour le switcher (admin uniquement)
+  const teamUsers = isAdmin
+    ? await prisma.user.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      })
+    : [];
+
+  // Libellé descriptif de la vue active
+  const viewedUser =
+    viewAsUserId && viewAsUserId !== user.id
+      ? teamUsers.find((u) => u.id === viewAsUserId)
+      : null;
+  const viewLabel = isAdmin
+    ? viewAsUserId === user.id
+      ? "Mes résultats"
+      : viewedUser
+        ? `Résultats de ${viewedUser.name}`
+        : "Toute l'équipe"
+    : "Mes résultats";
 
   return (
     <div className="px-6 py-6 lg:px-8">
       <PageHeader
         title="Statistiques"
-        description={`Analyse sur les ${rangeJours} derniers jours.`}
+        description={`${viewLabel} · Analyse sur les ${rangeJours} derniers jours.`}
       />
+
+      {/* Switcher commerciale (admin uniquement) */}
+      {isAdmin && teamUsers.length > 1 && (
+        <div className="mb-4">
+          <StatsViewSwitcher
+            users={teamUsers}
+            currentUserId={user.id}
+            activeUserId={viewAsUserId}
+          />
+        </div>
+      )}
 
       {/* Switcher période */}
       <div className="mb-6 flex flex-wrap gap-2">
-        {RANGES.map((r) => (
-          <Link
-            key={r.value}
-            href={`/stats?range=${r.value}`}
-            className={buttonVariants({
-              variant: rangeJours === r.value ? "default" : "outline",
-              size: "sm",
-            })}
-          >
-            {r.label}
-          </Link>
-        ))}
+        {RANGES.map((r) => {
+          const href = new URLSearchParams();
+          href.set("range", String(r.value));
+          if (viewAsUserId) href.set("user", viewAsUserId);
+          return (
+            <Link
+              key={r.value}
+              href={`/stats?${href.toString()}`}
+              className={buttonVariants({
+                variant: rangeJours === r.value ? "default" : "outline",
+                size: "sm",
+              })}
+            >
+              {r.label}
+            </Link>
+          );
+        })}
       </div>
 
       {/* Activité KPI */}
@@ -113,6 +177,197 @@ export default async function StatsPage({ searchParams }: PageProps) {
         />
       </div>
 
+      {/* ====================================================================
+          Productivité téléphone — ADMIN ONLY
+          Sophie ne voit RIEN de cette section.
+      ==================================================================== */}
+      {isAdmin && callProd && (
+        <section className="mt-12">
+          <div className="mb-4 flex items-center gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Productivité téléphone
+            </h2>
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={{ backgroundColor: "#F4717419", color: "#F47174" }}
+            >
+              Admin only
+            </span>
+          </div>
+
+          {/* KPIs */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Kpi
+              label="Temps total téléphone"
+              value={formatDuration(callProd.totalSeconds)}
+              subtitle={`${callProd.nbAppelsWithDuration} appel(s) chronométrés`}
+              tone="emerald"
+            />
+            <Kpi
+              label="Durée moyenne / appel"
+              value={formatDuration(Math.round(callProd.avgSeconds))}
+            />
+            <Kpi
+              label="Plus long appel"
+              value={formatDuration(callProd.maxSeconds)}
+            />
+            <Kpi
+              label="Cadence"
+              value={
+                callProd.nbAppelsWithDuration > 0
+                  ? `${(callProd.nbAppelsWithDuration / rangeJours).toFixed(1)}/jour`
+                  : "—"
+              }
+              subtitle={`sur ${rangeJours} j`}
+            />
+          </div>
+
+          {/* Graph temps par jour */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-base">
+                Temps téléphone par jour
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CallTimeChart data={callProd.parJour} />
+            </CardContent>
+          </Card>
+
+          {/* Conversion par bucket */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-base">
+                Conversion selon la durée d&apos;appel
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {callProd.parBucket.map((b) => {
+                  const max = Math.max(
+                    ...callProd.parBucket.map((x) => x.tauxConversion),
+                    0.01,
+                  );
+                  const pct = b.tauxConversion;
+                  const widthPct = (pct / max) * 100;
+                  return (
+                    <div key={b.bucket}>
+                      <div className="mb-1 flex items-baseline justify-between text-sm">
+                        <span className="font-medium">{b.label}</span>
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {b.nbRdvPris}/{b.nbAppels} ={" "}
+                          <span className="font-semibold text-foreground">
+                            {formatPercent(pct)}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className={
+                            b.bucket === "long"
+                              ? "h-full bg-emerald-500"
+                              : b.bucket === "moyen"
+                                ? "h-full bg-amber-500"
+                                : "h-full bg-slate-400"
+                          }
+                          style={{ width: `${widthPct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-[11px] text-muted-foreground">
+                Conversion = appel ayant obtenu un RDV, une proposition, ou un
+                rappel intéressé. Insight clé : si les appels longs convertissent
+                bien mieux, ça vaut la peine d&apos;investir le temps dans le
+                discovery au lieu de pitcher vite.
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Décomposition par commerciale (si plus d'une) */}
+          {callProd.parUser.length > 1 && (
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="text-base">Par commerciale</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <table className="w-full text-sm">
+                  <thead className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-2">Commerciale</th>
+                      <th className="px-3 py-2 text-right">Nb appels</th>
+                      <th className="px-3 py-2 text-right">Temps total</th>
+                      <th className="px-3 py-2 text-right">ø / appel</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {callProd.parUser.map((u) => (
+                      <tr
+                        key={u.userId}
+                        className="border-b border-border last:border-0"
+                      >
+                        <td className="px-3 py-2 font-medium">{u.name}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {u.nbAppels}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {formatDuration(u.totalSeconds)}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {formatDuration(Math.round(u.avgSeconds))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Top 5 plus longs appels */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-base">
+                Top 5 plus longs appels
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {callProd.topLongs.length === 0 ? (
+                <p className="px-3 py-4 text-sm text-muted-foreground">
+                  Aucun appel chronométré sur la période.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {callProd.topLongs.map((c) => (
+                    <li
+                      key={c.activityId}
+                      className="flex items-center gap-3 px-3 py-2.5"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={`/prospects/${c.prospectId}`}
+                          className="text-sm font-medium hover:underline"
+                        >
+                          {c.prospectName}
+                        </Link>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {c.sujet} · {formatDate(c.date)}
+                        </p>
+                      </div>
+                      <span className="text-sm font-semibold tabular-nums text-primary">
+                        {formatDuration(c.secondes)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
       {/* Funnel */}
       <Card className="mt-8">
         <CardHeader>
@@ -155,6 +410,83 @@ export default async function StatsPage({ searchParams }: PageProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* ====================================================================
+          CLASSEMENTS — produits / secteurs B2B / cantons
+          Visibles pour tous (Sophie voit ses propres rankings).
+      ==================================================================== */}
+      <h2 className="mt-12 mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Classements — sur la période ({rangeJours} j)
+      </h2>
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Top produits */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              Produits les plus vendus
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RankingList
+              items={rankings.produits.map((p) => ({
+                key: p.productId,
+                label: p.nom,
+                sublabel: p.categorie,
+                count: p.nbContrats,
+                ca: p.ca,
+                pct: p.pct,
+              }))}
+              emptyMessage="Aucun produit vendu sur cette période."
+              hint="% = part des contrats signés contenant ce produit. CA = part de valeur an 1 attribuée."
+            />
+          </CardContent>
+        </Card>
+
+        {/* Top secteurs B2B */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Secteurs B2B</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RankingList
+              items={rankings.secteurs.map((s) => ({
+                key: s.secteur,
+                label:
+                  s.secteur === "INCONNU"
+                    ? "—"
+                    : getProspectSecteurLabel(s.secteur as ProspectSecteur),
+                count: s.nbContrats,
+                ca: s.ca,
+                pct: s.pct,
+              }))}
+              emptyMessage="Aucun contrat signé sur cette période."
+              hint="% = part des signatures dans ce secteur d'activité."
+            />
+          </CardContent>
+        </Card>
+
+        {/* Top cantons */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              Couverture géographique
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RankingList
+              items={rankings.cantons.map((c) => ({
+                key: c.canton,
+                label: c.canton,
+                count: c.nbContrats,
+                ca: c.ca,
+                pct: c.pct,
+              }))}
+              emptyMessage="Aucune signature sur cette période."
+              hint="% = part des signatures dans ce canton (le code postal du prospect)."
+            />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

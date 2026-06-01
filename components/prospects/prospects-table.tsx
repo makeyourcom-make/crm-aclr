@@ -2,7 +2,9 @@
 
 import { type ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
+import { useState } from "react";
 
+import { BulkReassignBar } from "@/components/prospects/bulk-reassign-bar";
 import { ClickToCall } from "@/components/call/click-to-call";
 import { DataTable } from "@/components/ui/data-table";
 import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badge";
@@ -13,10 +15,66 @@ import type { Prospect } from "@prisma/client";
 
 interface ProspectsTableProps {
   rows: Prospect[];
+  /** Si fourni : active la sélection multiple + barre d'action admin. */
+  teamUsers?: Array<{ id: string; name: string }>;
+  /** Si true, affiche les checkboxes de sélection. */
+  showBulkActions?: boolean;
 }
 
-export function ProspectsTable({ rows }: ProspectsTableProps) {
+export function ProspectsTable({
+  rows,
+  teamUsers = [],
+  showBulkActions = false,
+}: ProspectsTableProps) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  const allRowsIds = rows.map((r) => r.id);
+  const allChecked =
+    rows.length > 0 && allRowsIds.every((id) => selectedIds.includes(id));
+  const someChecked = selectedIds.length > 0 && !allChecked;
+
+  const toggleAll = (checked: boolean) => {
+    setSelectedIds(checked ? allRowsIds : []);
+  };
+
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelectedIds((prev) =>
+      checked ? [...prev, id] : prev.filter((x) => x !== id),
+    );
+  };
+
   const columns: ColumnDef<Prospect>[] = [
+    ...(showBulkActions
+      ? [
+          {
+            id: "select",
+            header: () => (
+              <input
+                type="checkbox"
+                checked={allChecked}
+                ref={(el) => {
+                  if (el) el.indeterminate = someChecked;
+                }}
+                onChange={(e) => toggleAll(e.target.checked)}
+                onClick={(e) => e.stopPropagation()}
+                className="h-4 w-4 cursor-pointer"
+                aria-label="Tout sélectionner"
+              />
+            ),
+            size: 36,
+            cell: ({ row }) => (
+              <input
+                type="checkbox"
+                checked={selectedIds.includes(row.original.id)}
+                onChange={(e) => toggleOne(row.original.id, e.target.checked)}
+                onClick={(e) => e.stopPropagation()}
+                className="h-4 w-4 cursor-pointer"
+                aria-label={`Sélectionner ${row.original.raisonSociale}`}
+              />
+            ),
+          } as ColumnDef<Prospect>,
+        ]
+      : []),
     {
       id: "raisonSociale",
       header: "Raison sociale",
@@ -108,11 +166,21 @@ export function ProspectsTable({ rows }: ProspectsTableProps) {
   ];
 
   return (
-    <DataTable
-      columns={columns}
-      data={rows}
-      emptyMessage="Aucun prospect ne correspond aux filtres. Importe un CSV ou crée un prospect manuellement."
-      getRowHref={(p) => `/prospects/${p.id}`}
-    />
+    <>
+      {showBulkActions && (
+        <BulkReassignBar
+          selectedIds={selectedIds}
+          teamUsers={teamUsers}
+          onCancel={() => setSelectedIds([])}
+          onSuccess={() => setSelectedIds([])}
+        />
+      )}
+      <DataTable
+        columns={columns}
+        data={rows}
+        emptyMessage="Aucune entreprise ne correspond aux filtres. Importe un CSV ou crée-en une manuellement."
+        getRowHref={(p) => `/prospects/${p.id}`}
+      />
+    </>
   );
 }

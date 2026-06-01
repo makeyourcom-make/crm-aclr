@@ -1,11 +1,13 @@
 import Link from "next/link";
 
+import { ContractFilters } from "@/components/contrats/contract-filters";
 import { ContractsTable } from "@/components/contrats/contracts-table";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
+import { prisma } from "@/lib/db";
 import { formatCHF } from "@/lib/format";
 import { getContracts, getContractStats } from "@/lib/queries/contracts";
 import { ContractListParamsSchema } from "@/lib/schemas/contract";
@@ -23,10 +25,18 @@ export default async function ContractsPage({ searchParams }: PageProps) {
   const raw = await searchParams;
   const params = ContractListParamsSchema.parse(raw);
 
-  const [{ items, total, page, pageSize, totalPages }, stats] =
+  const isAdmin = user.role === "ADMIN";
+  const [{ items, total, page, pageSize, totalPages }, stats, teamUsers] =
     await Promise.all([
       getContracts(user, params),
       getContractStats(user),
+      isAdmin
+        ? prisma.user.findMany({
+            where: { isActive: true },
+            select: { id: true, name: true },
+            orderBy: { name: "asc" },
+          })
+        : Promise.resolve([]),
     ]);
 
   const nbActifs = stats.byStatut.ACTIF ?? 0;
@@ -81,6 +91,14 @@ export default async function ContractsPage({ searchParams }: PageProps) {
             </p>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="mb-4">
+        <ContractFilters
+          params={params}
+          users={teamUsers}
+          currentUserId={user.id}
+        />
       </div>
 
       <ContractsTable

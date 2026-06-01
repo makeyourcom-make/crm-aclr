@@ -42,10 +42,22 @@ export const ContractCreateSchema = z.object({
 });
 export type ContractCreateInput = z.infer<typeof ContractCreateSchema>;
 
+export const ContractSortFieldSchema = z.enum([
+  "numero",
+  "raisonSociale",
+  "valeurAn1",
+  "montantMensuel",
+  "dateSignature",
+  "statut",
+]);
+export type ContractSortField = z.infer<typeof ContractSortFieldSchema>;
+
 export const ContractListParamsSchema = z.object({
   q: stringOptional,
   statut: z.nativeEnum(ContractStatut).optional(),
   assigneAId: stringOptional,
+  sortBy: ContractSortFieldSchema.default("dateSignature"),
+  sortDir: z.enum(["asc", "desc"]).default("desc"),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(10).max(200).default(50),
 });

@@ -68,6 +68,26 @@ export async function getContracts(
 ): Promise<ContractListResult> {
   const where = buildWhere(user, params);
 
+  // Mapping sortBy → orderBy Prisma. "raisonSociale" est sur Prospect,
+  // donc on utilise la syntaxe imbriquée { prospect: { raisonSociale: dir } }.
+  const orderBy: Prisma.ContractOrderByWithRelationInput = (() => {
+    switch (params.sortBy) {
+      case "raisonSociale":
+        return { prospect: { raisonSociale: params.sortDir } };
+      case "numero":
+        return { numero: params.sortDir };
+      case "valeurAn1":
+        return { valeurAn1: params.sortDir };
+      case "montantMensuel":
+        return { montantMensuel: params.sortDir };
+      case "statut":
+        return { statut: params.sortDir };
+      case "dateSignature":
+      default:
+        return { dateSignature: params.sortDir };
+    }
+  })();
+
   const [items, total] = await Promise.all([
     prisma.contract.findMany({
       where,
@@ -77,7 +97,7 @@ export async function getContracts(
         },
         assigneA: { select: { id: true, name: true } },
       },
-      orderBy: { dateSignature: "desc" },
+      orderBy,
       skip: (params.page - 1) * params.pageSize,
       take: params.pageSize,
     }),

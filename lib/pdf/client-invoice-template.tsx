@@ -3,6 +3,7 @@
  */
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 
+import { CgvPages } from "@/lib/pdf/cgv-pages";
 import { formatCHF, formatDateLong } from "@/lib/format";
 
 export interface ClientInvoicePdfData {
@@ -193,9 +194,16 @@ export function ClientInvoicePdf({ data }: { data: ClientInvoicePdfData }) {
         )}
 
         <View style={styles.footer}>
-          <Text>Merci de votre confiance. Tout retard de paiement &gt; 30 jours déclenche une relance automatique.</Text>
+          <Text>
+            Merci de votre confiance. Conditions Générales de Vente annexées
+            ci-après. Tout retard de paiement &gt; 30 jours déclenche une
+            relance automatique.
+          </Text>
         </View>
       </Page>
+
+      {/* Annexe : Conditions Générales de Vente */}
+      <CgvPages />
     </Document>
   );
 }

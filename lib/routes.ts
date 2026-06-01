@@ -14,7 +14,12 @@
  */
 import type { Role } from "@prisma/client";
 
-export type RouteGroup = "operationnel" | "vente" | "finance" | "config";
+export type RouteGroup =
+  | "operationnel"
+  | "vente"
+  | "finance"
+  | "admin"
+  | "config";
 
 export interface RouteDef {
   href: string;
@@ -27,6 +32,8 @@ export interface RouteDef {
   /** Étape (1-30) qui implémente la page — sert au stub d'attente. */
   etape: number;
   adminOnly?: boolean;
+  /** Si true, masqué pour les ADMIN (page strictement terrain commerciale). */
+  commercialOnly?: boolean;
   /** Raccourci clavier `g x` après `g` initial (single letter ou string). */
   kbd?: string;
 }
@@ -35,6 +42,7 @@ export const ROUTE_GROUPS: { id: RouteGroup; label: string }[] = [
   { id: "operationnel", label: "Opérationnel" },
   { id: "vente", label: "Vente" },
   { id: "finance", label: "Finance" },
+  { id: "admin", label: "Administration" },
   { id: "config", label: "Configuration" },
 ];
 
@@ -55,6 +63,9 @@ export const ROUTES: RouteDef[] = [
     group: "operationnel",
     etape: 7,
     kbd: "a",
+    // Écran terrain (tâches du jour + objectifs perso) : utile uniquement
+    // pour la commerciale. Arthur a son dashboard de pilotage.
+    commercialOnly: true,
   },
   {
     href: "/agenda",
@@ -81,7 +92,7 @@ export const ROUTES: RouteDef[] = [
   // ---- VENTE ----
   {
     href: "/prospects",
-    label: "Prospects",
+    label: "Entreprises",
     icon: "Users",
     group: "vente",
     etape: 5,
@@ -117,14 +128,11 @@ export const ROUTES: RouteDef[] = [
   },
 
   // ---- FINANCE ----
-  {
-    href: "/paiements",
-    label: "Paiements clients",
-    icon: "Banknote",
-    group: "finance",
-    etape: 11,
-    adminOnly: true, // Sophie voit l'info via la fiche client uniquement
-  },
+  // /paiements a été retiré du menu : doublon avec /factures-clients.
+  // Le bouton "Marquer payée" sur une facture crée déjà automatiquement
+  // le Payment ENCAISSE en arrière-plan (déclencheur de commission Sophie).
+  // Le modèle Payment reste en DB pour la cascade comptable, mais l'admin
+  // pilote tout depuis /factures-clients.
   {
     href: "/factures-clients",
     label: "Factures clients",
@@ -142,26 +150,28 @@ export const ROUTES: RouteDef[] = [
   },
   {
     href: "/factures",
-    label: "Factures Sophie",
+    label: "Salaires commerciales",
     commercialLabel: "Mes salaires",
     icon: "Receipt",
     group: "finance",
     etape: 14,
   },
-  {
-    href: "/previsions",
-    label: "Prévisions",
-    icon: "TrendingUp",
-    group: "finance",
-    etape: 22,
-    adminOnly: true, // Sophie n'en a pas besoin (vue Arthur uniquement)
-  },
+  // /previsions retiré du menu : info redondante avec /stats et le calendrier
+  // commissions. La page existe encore mais n'est plus exposée nulle part.
   {
     href: "/stats",
     label: "Statistiques",
     icon: "BarChart3",
     group: "finance",
     etape: 21,
+  },
+  {
+    href: "/rentabilite",
+    label: "Rentabilité clients",
+    icon: "TrendingUp",
+    group: "finance",
+    etape: 32,
+    adminOnly: true,
   },
   {
     href: "/objectifs",
@@ -171,6 +181,40 @@ export const ROUTES: RouteDef[] = [
     etape: 20,
     adminOnly: true, // Arthur fixe les objectifs ; Sophie voit la progression
                      // dans le bloc 'Objectifs du mois' du dashboard
+  },
+
+  // ---- ADMINISTRATION (RH, charges, comptabilité) ----
+  {
+    href: "/comptabilite",
+    label: "Comptabilité",
+    icon: "Calculator",
+    group: "admin",
+    etape: 33,
+    adminOnly: true,
+  },
+  {
+    href: "/rh",
+    label: "Collaborateurs",
+    icon: "Users",
+    group: "admin",
+    etape: 31,
+    adminOnly: true,
+  },
+  {
+    href: "/charges",
+    label: "Charges",
+    icon: "Receipt",
+    group: "admin",
+    etape: 32,
+    adminOnly: true,
+  },
+  {
+    href: "/charges/recurrences",
+    label: "Charges récurrentes",
+    icon: "Repeat",
+    group: "admin",
+    etape: 32,
+    adminOnly: true,
   },
 
   // ---- CONFIGURATION ----
@@ -202,7 +246,7 @@ export const ROUTES: RouteDef[] = [
 
 /** Filtre les routes accessibles pour un rôle donné. */
 export function getAccessibleRoutes(role: Role): RouteDef[] {
-  if (role === "ADMIN") return ROUTES;
+  if (role === "ADMIN") return ROUTES.filter((r) => !r.commercialOnly);
   return ROUTES.filter((r) => !r.adminOnly);
 }
 

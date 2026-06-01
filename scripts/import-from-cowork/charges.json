@@ -1,0 +1,612 @@
+[
+  {
+    "categorie": "AUTRE",
+    "categorieSource": "Outils",
+    "description": "Shotstack",
+    "fournisseur": "",
+    "montantCHF": 1788.0,
+    "montantMensuelCHF": 149.0,
+    "date": "",
+    "notes": ""
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "makeyourcom.com",
+    "fournisseur": "",
+    "montantCHF": 13.99,
+    "montantMensuelCHF": 1.17,
+    "date": "",
+    "notes": ""
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "Hébergement WIX",
+    "fournisseur": "",
+    "montantCHF": 129.72,
+    "montantMensuelCHF": 10.81,
+    "date": "",
+    "notes": ""
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "LWS Nom de domaine",
+    "fournisseur": "",
+    "montantCHF": 201.79,
+    "montantMensuelCHF": 16.82,
+    "date": "",
+    "notes": ""
+  },
+  {
+    "categorie": "SOFTWARE_SAAS",
+    "categorieSource": "IA",
+    "description": "Claude IA Max Plan (mars 2026)",
+    "fournisseur": "",
+    "montantCHF": 71.18,
+    "montantMensuelCHF": 5.93,
+    "date": "2026-03-15",
+    "notes": "Facture JWBLWCBD 0002 - 86.67 USD = 71.18 CHF - Charge unique mars 2026"
+  },
+  {
+    "categorie": "AUTRE",
+    "categorieSource": "Outils",
+    "description": "Métricool (15 licences)",
+    "fournisseur": "",
+    "montantCHF": 561.6,
+    "montantMensuelCHF": 46.8,
+    "date": "",
+    "notes": ""
+  },
+  {
+    "categorie": "AUTRE",
+    "categorieSource": "Outils",
+    "description": "Canva",
+    "fournisseur": "",
+    "montantCHF": 139.9,
+    "montantMensuelCHF": 11.66,
+    "date": "",
+    "notes": ""
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Google Workspace",
+    "fournisseur": "",
+    "montantCHF": 338.52,
+    "montantMensuelCHF": 28.21,
+    "date": "",
+    "notes": ""
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Banque",
+    "fournisseur": "",
+    "montantCHF": 128.0,
+    "montantMensuelCHF": 10.67,
+    "date": "",
+    "notes": ""
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Fiduciaire - Bilan FR",
+    "fournisseur": "",
+    "montantCHF": 650.0,
+    "montantMensuelCHF": 54.17,
+    "date": "",
+    "notes": ""
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Fiduciaire - Bilan CHF",
+    "fournisseur": "",
+    "montantCHF": 1297.2,
+    "montantMensuelCHF": 108.1,
+    "date": "",
+    "notes": ""
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "Nom de domaine Frakaxessoires",
+    "fournisseur": "",
+    "montantCHF": 23.07,
+    "montantMensuelCHF": 1.92,
+    "date": "2027-02-11",
+    "notes": "Renouvellement 11.02.2027 - RÉSILIER en janvier 2027"
+  },
+  {
+    "categorie": "SOFTWARE_SAAS",
+    "categorieSource": "IA",
+    "description": "Claude Pro (mars 2026)",
+    "fournisseur": "",
+    "montantCHF": 18.41,
+    "montantMensuelCHF": 1.53,
+    "date": "2026-03-15",
+    "notes": "Facture JWBLWCBD 0001 - 21.62 USD = 18.41 CHF - Charge unique mars 2026"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "Elementor Pro Essential (TournemainConsult)",
+    "fournisseur": "",
+    "montantCHF": 68.27,
+    "montantMensuelCHF": 5.69,
+    "date": "2026-04-14",
+    "notes": "Facture INVCY2600097763 - 71.86 EUR × 0.95 = 68.27 CHF - Payée 14.04.2026 - Période 19.03.2026 au 18.03.2027 - Renouvellement 19.03.2027"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "Netlify (mars 2026)",
+    "fournisseur": "",
+    "montantCHF": 10.44,
+    "montantMensuelCHF": 0.87,
+    "date": "2026-03-30",
+    "notes": "Facture n°GJYLUZ-00005 - 13.03 USD = 10.44 CHF - Payée le 30.03.2026"
+  },
+  {
+    "categorie": "AUTRE",
+    "categorieSource": "Transport",
+    "description": "Abonnement CFF mensuel (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 292.0,
+    "montantMensuelCHF": 24.33,
+    "date": "2026-04-06",
+    "notes": "Evian-les-Bains - Lausanne - Payé le 06.04.2026 - Valable 07.04.2026 au 06.05.2026"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Frais bancaires UBS (février 2026)",
+    "fournisseur": "",
+    "montantCHF": 1.6,
+    "montantMensuelCHF": 0.13,
+    "date": "2026-02-27",
+    "notes": "Solde décompte des prix prestations - 27.02.2026"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Frais bancaires UBS (mars 2026)",
+    "fournisseur": "",
+    "montantCHF": 24.0,
+    "montantMensuelCHF": 2.0,
+    "date": "2026-03-31",
+    "notes": "Solde décompte des prix prestations - 31.03.2026"
+  },
+  {
+    "categorie": "AUTRE",
+    "categorieSource": "Personnel",
+    "description": "Lucas - Community Manager (Mars 2026)",
+    "fournisseur": "",
+    "montantCHF": 544.08,
+    "montantMensuelCHF": 45.34,
+    "date": "2026-03-31",
+    "notes": "Facture n°145 - Lucas Carlin (EI) - 31.03.2026 - Réf libellé : zvam06y2 - 580.00 EUR converti à 544.08 CHF (taux 0.9381) - Répartition par projet : Sp Industriel 200€ (187.62 CHF, Forfait) + Hôtel de Torgon 20€ (18.76 CHF, 1 post) + LocFactory 100€ (93.81 CHF, 4 reels) + Passeport Beauté 260€ (243.90 CHF, 4 reels + 4 carrousels + 4 stories) - Débit UBS réel 09.04.2026 : 544.71 CHF"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Google Workspace Business Standard (Mars 2026)",
+    "fournisseur": "",
+    "montantCHF": 36.94,
+    "montantMensuelCHF": 3.08,
+    "date": "2026-03-15",
+    "notes": "Facture GCFRD0012266710 - 38.88 EUR × 0.95 = 36.94 CHF - 2 licences make-marketing.ch - 19.44 EUR refacturé à M A K E & Beyond (26-72) → coût net ACLR ~17.50 CHF"
+  },
+  {
+    "categorie": "SOFTWARE_SAAS",
+    "categorieSource": "IA",
+    "description": "Claude IA Max Plan 5x (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 96.75,
+    "montantMensuelCHF": 8.06,
+    "date": "2026-04-13",
+    "notes": "Facture JWBLWCBD-0004 - 108.10 USD × 0.895 = 96.75 CHF - Période 13.04.2026 au 13.05.2026 - Charge mensuelle avril 2026"
+  },
+  {
+    "categorie": "SOFTWARE_SAAS",
+    "categorieSource": "IA",
+    "description": "Claude API - Auto-recharge credits (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 9.67,
+    "montantMensuelCHF": 0.81,
+    "date": "2026-04-14",
+    "notes": "Facture 9BF0758D-827964 - 10.81 USD × 0.895 = 9.67 CHF - 14.04.2026 - chazellearthur@gmail.com"
+  },
+  {
+    "categorie": "SOFTWARE_SAAS",
+    "categorieSource": "IA",
+    "description": "Claude API - Crédit ponctuel (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 4.84,
+    "montantMensuelCHF": 0.4,
+    "date": "2026-04-14",
+    "notes": "Facture 9BF0758D-827827 - 5.41 USD × 0.895 = 4.84 CHF - 14.04.2026 - chazellearthur@gmail.com"
+  },
+  {
+    "categorie": "SOFTWARE_SAAS",
+    "categorieSource": "IA",
+    "description": "Claude IA Max Plan 20x - Upgrade (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 102.62,
+    "montantMensuelCHF": 8.55,
+    "date": "2026-04-15",
+    "notes": "Facture JWBLWCBD-0005 - 114.66 USD × 0.895 = 102.62 CHF - 15.04.2026 - Upgrade 5x→20x - Période 15.04 au 15.05.2026 (crédit -93.93 USD pour temps non utilisé 5x inclus)"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "Netlify - Crédit achat (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 8.95,
+    "montantMensuelCHF": 0.75,
+    "date": "2026-04-28",
+    "notes": "Facture GJYLUZ-00008 - Netlify Inc. - 28.04.2026 - 1500 crédits achat - 10.00 USD × 0.895 = 8.95 CHF - Payée le 28.04.2026"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "Netlify - Crédit achat (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 8.95,
+    "montantMensuelCHF": 0.75,
+    "date": "2026-04-23",
+    "notes": "Facture GJYLUZ-00007 - Netlify Inc. - 23.04.2026 - 1500 crédits achat - 10.00 USD × 0.895 = 8.95 CHF - Payée le 23.04.2026"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "LWS - Transfert domaine physio-montreux.ch (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 7.4,
+    "montantMensuelCHF": 0.62,
+    "date": "2026-04-23",
+    "notes": "Facture FC-2676651 - LWS - 23.04.2026 - Transfert domaine physio-montreux.ch 12 mois - 7.79 EUR × 0.95 = 7.40 CHF - Payée le 23.04.2026 - Inclus dans contrat Lionel Briquet 317 CHF/an (réduit la rentabilité)"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "LWS - Nom de domaine srt-formation.fr (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 4.74,
+    "montantMensuelCHF": 0.4,
+    "date": "2026-04-23",
+    "notes": "Facture FC-2676531 - LWS - 23.04.2026 - Domaine srt-formation.fr 12 mois - 4.99 EUR × 0.95 = 4.74 CHF - Payée le 23.04.2026"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "LWS - Noms de domaine Laverie Nevers x3 (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 18.02,
+    "montantMensuelCHF": 1.5,
+    "date": "2026-04-23",
+    "notes": "Facture FC-2676531 - LWS - 23.04.2026 - Domaines laverie-nevers.com (6.99) + laverienevers.com (6.99) + laverie-nevers.fr (4.99) = 18.97 EUR × 0.95 = 18.02 CHF - À RÉTROFACTURER client Laverie Nevers"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "LWS - Nom de domaine cmo-suisse.ch (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 11.39,
+    "montantMensuelCHF": 0.95,
+    "date": "2026-04-23",
+    "notes": "Facture FC-2676514 - LWS Ligne Web Services - 23.04.2026 - Hébergement + nom de domaine cmo-suisse.ch 12 mois - 11.99 EUR × 0.95 = 11.39 CHF - Payée le 23.04.2026"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Case postale Standard - La Poste (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 120.0,
+    "montantMensuelCHF": 10.0,
+    "date": "2026-04-14",
+    "notes": "Facture n°1510711667 - Poste CH SA - 14.04.2026 - Case postale Standard 1898 St-Gingolph - Période 14.04.2026 au 13.04.2027 - 120.00 CHF - Payée le 20.04.2026"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Sunrise - Mobile + Internet/TV (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 164.45,
+    "montantMensuelCHF": 13.7,
+    "date": "2026-04-07",
+    "notes": "Facture n°1611904506 - Sunrise Sàrl - 07.04.2026 - Mobile 83.12 CHF + Internet/réseau fixe/TV 81.34 CHF - Payée le 20.04.2026"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "Make - Extra opérations (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 8.95,
+    "montantMensuelCHF": 0.75,
+    "date": "2026-04-19",
+    "notes": "Facture D3W2X1RN-0003 - Make (Celonis Inc.) - 19.04.2026 - 10x 1000 extra operations (org. ID: 5400249) - 10.00 USD × 0.895 = 8.95 CHF"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Restaurant - Fratellini JV (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 26.6,
+    "montantMensuelCHF": 2.22,
+    "date": "2026-04-18",
+    "notes": "Fratellini JV - Fillière (FR) - 18.04.2026 - 1 repas complet - 28.00 EUR × 0.95 = 26.60 CHF"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Restaurant - Burger Fratellini EENK (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 19.76,
+    "montantMensuelCHF": 1.65,
+    "date": "2026-04-18",
+    "notes": "Burger Fratellini EENK - Fillière (FR) - 18.04.2026 - 1 repas complet - 20.80 EUR × 0.95 = 19.76 CHF"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Achat timbres - La Poste (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 20.0,
+    "montantMensuelCHF": 1.67,
+    "date": "2026-04-15",
+    "notes": "La Poste - Bouveret - 15.04.2026 - 2 carnets de 10 timbres à 1.00 CHF - 20.00 CHF - À REFACTURER sur prochaine facture Passeport Beauté / Sigma Consulting"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Restaurant - Invitation client (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 132.53,
+    "montantMensuelCHF": 11.04,
+    "date": "2026-04-14",
+    "notes": "Bistrot Le 120 (libellé bancaire : SO'FRED), Evians-les-Bains - 14.04.2026 - 2 couverts (invitation client) - 139.50 EUR × 0.95 = 132.53 CHF - Débit UBS réel 133.57 CHF (écart 1.04 CHF taux UBS)"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Restaurant - Burger King Publier (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 26.36,
+    "montantMensuelCHF": 2.2,
+    "date": "2026-04-26",
+    "notes": "Burger King Publier - Zone Commerciale du Cartheray, 74500 Publier (FR) - Ticket T15-012881 - 26.04.2026 - 1 MU Big King + 2 Menu King Junior + 1 Menu Krispper - TVA 10% 2.47€ + TVA 20% 0.09€ - 27.75 EUR × 0.95 = 26.36 CHF - Payée par CB Visa"
+  },
+  {
+    "categorie": "AUTRE",
+    "categorieSource": "Personnel",
+    "description": "Lucas - Community Manager (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 475.0,
+    "montantMensuelCHF": 39.58,
+    "date": "2026-04-28",
+    "notes": "Facture n°150 - Lucas Carlin (EI) - 28.04.2026 - Répartition projets : Sp Industriel 200€ (Forfait) + LocFactory 50€ (2 reels) + Passeport Beauté 250€ (4 reels + 2 posts + 2 carrousels + 4 stories) - 500.00 EUR × 0.95 = 475.00 CHF - Réf libellé : hz3q806yc"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Frais bancaires UBS (avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 9.0,
+    "montantMensuelCHF": 0.75,
+    "date": "2026-04-30",
+    "notes": "Solde décompte des prix prestations - 30.04.2026 - Pas de ticket"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "Netlify - Crédit achat 3000 (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 17.91,
+    "montantMensuelCHF": 1.49,
+    "date": "2026-04-28",
+    "notes": "Facture GJYLUZ-00009 - Netlify Inc. - 28.04.2026 - 3000 crédits achat - 20.01 USD × 0.895 = 17.91 CHF - Débit UBS 28.04.2026 : 17.06 CHF (taux UBS)"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "Netlify - Base Plan + crédits (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 17.9,
+    "montantMensuelCHF": 1.49,
+    "date": "2026-04-30",
+    "notes": "Facture GJYLUZ-00010 - Netlify Inc. - 30.04.2026 - Base Plan 3000 crédits/mois - Période Apr 30 → May 30, 2026 - 20.00 USD × 0.895 = 17.90 CHF - Échéance paiement 01.05.2026 - Débit UBS attendu en mai"
+  },
+  {
+    "categorie": "AUTRE",
+    "categorieSource": "Outils",
+    "description": "Google ADS - Budget clients (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 1789.93,
+    "montantMensuelCHF": 149.16,
+    "date": "2026-04-15",
+    "notes": "Facture Google n°5562038676 - Période 01-30 avril 2026 - Total 1884.14 EUR × 0.95 = 1789.93 CHF (vs 1723.83 CHF de prélèvements UBS - écart 66.10 CHF, probablement débit final début mai). Répartition réelle par client : SOS Pneus 1470.65 EUR / 1397.12 CHF (Urgences 652.92 + Saisonnier 496.08 + Flottes 321.65) + La Dent Byantse 296.83 EUR / 281.99 CHF + Coiffure St Honoré 106.11 EUR / 100.80 CHF + Frais réglementaires 10.67 EUR / 10.14 CHF + Service Adjustment -0.12 EUR. Prélèvements UBS avril : 01.04 -316.44 + 10.04 -471.14 + 17.04 -468.19 + 23.04 -468.06 = 1723.83 CHF"
+  },
+  {
+    "categorie": "AUTRE",
+    "categorieSource": "Transport",
+    "description": "Abonnement CFF mensuel (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 292.0,
+    "montantMensuelCHF": 24.33,
+    "date": "2026-05-04",
+    "notes": "Quittance CFF n°151446334570 - Abonnement de parcours mensuel Adulte 2ème classe - Evian-les-Bains (lac) → Lausanne (Chauderon) - Payé 04.05.2026 par CB Visa - Valable 07.05.2026 au 06.06.2026 - TVA 8.10% incluse - Titulaire : Chazelle Marie"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Google Workspace Business Standard (Avril 2026)",
+    "fournisseur": "",
+    "montantCHF": 36.94,
+    "montantMensuelCHF": 3.08,
+    "date": "2026-04-30",
+    "notes": "Facture GCFRD0012643051 - Google Cloud France SARL - 30.04.2026 - Période 01-30 avril 2026 - 2 licences Business Standard make-marketing.ch - 32.40 EUR HT + 6.48 EUR TVA 20% = 38.88 EUR × 0.95 = 36.94 CHF - 19.44 EUR refacturé à M A K E & Beyond (facture 26-88) → coût net ACLR ~17.50 CHF - Débit automatique à venir (pas encore visible sur UBS au 30.04.2026)"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Remboursement trop-perçu Frakaxessoires (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 600.0,
+    "montantMensuelCHF": 50.0,
+    "date": "2026-05-06",
+    "notes": "Remboursement effectué le 06.05.2026 par virement bancaire à Frakaxessoires - Trop-perçu identifié sur la facture 26-39 (Création Site Internet 600 CHF) - Le client avait payé 2 fois (paiements du 17.03 puis 04-05.05.2026). Remboursement direct préféré au crédit sur factures futures."
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Impôts CFE/IFER 2025 - DGFiP France (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 148.2,
+    "montantMensuelCHF": 12.35,
+    "date": "2025-12-15",
+    "notes": "Cotisation Foncière des Entreprises (CFE) / Imposition Forfaitaire sur les Entreprises de Réseaux 2025 - SIE Thonon-les-Bains - Référence 25 74 0380421 38 - Numéro fiscal 922871330 00028 - Échéance initiale 15.12.2025 - Lettre de relance reçue 02.03.2026 - Montant impôt 149.00 EUR + Majoration 5% retard 7.00 EUR = 156.00 EUR × 0.95 = 148.20 CHF - Réglé le 08.05.2026"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Sunrise - Mobile + Internet/TV (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 164.45,
+    "montantMensuelCHF": 13.7,
+    "date": "2026-05-08",
+    "notes": "Sunrise Sàrl - QR-Référence 00 00008 11003 85770 00000 00004 - Mobile + Internet/réseau fixe/TV - Mai 2026 - Payée par virement le 08.05.2026 - IBAN Sunrise CH49 3000 0007 8750 3770 0"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "LWS - Nom de domaine cmo-suisse.com (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 15.95,
+    "montantMensuelCHF": 1.33,
+    "date": "2026-05-17",
+    "notes": "Facture LWS FC-2697688 - LIGNE WEB SERVICES - Hébergement + Redevance nom de domaine cmo-suisse.com 12 mois - 13.99 EUR HT + 2.80 EUR TVA 20% = 16.79 EUR × 0.95 = 15.95 CHF - Payée le 17.05.2026 par CB - Réf 77c025240d1e465285e7ff4bfc04d8e2 - Renouvellement annuel domaine .com (complémentaire au .ch déjà saisi en avril)"
+  },
+  {
+    "categorie": "SOFTWARE_SAAS",
+    "categorieSource": "IA",
+    "description": "Claude IA Max Plan 20x (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 193.5,
+    "montantMensuelCHF": 16.12,
+    "date": "2026-05-15",
+    "notes": "Facture JWBLWCBD-0006 - Anthropic PBC - 15.05.2026 - Max Plan 20x - Période 15.05.2026 au 15.06.2026 - 200.00 USD + 16.20 USD TVA Suisse 8.1% = 216.20 USD × 0.895 = 193.50 CHF - Abonnement mensuel Claude IA"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "LWS - Nom de domaine make-marketing.ch (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 11.39,
+    "montantMensuelCHF": 0.95,
+    "date": "2026-05-17",
+    "notes": "Facture LWS FC-2697695 - LIGNE WEB SERVICES - Hébergement + Redevance nom de domaine make-marketing.ch 12 mois - 9.99 EUR HT + 2.00 EUR TVA 20% = 11.99 EUR × 0.95 = 11.39 CHF - Payée le 17.05.2026 par CB - Réf 8111ff562fbc4397aa2ff70bbb3bf889 - Domaine make-marketing.ch (Laëtitia Rigolot / M A K E & Beyond)"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Restaurant - McDonald's Anthy-sur-Léman (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 53.19,
+    "montantMensuelCHF": 4.43,
+    "date": "2026-05-18",
+    "notes": "Restaurant McDonald's Anthy-sur-Léman (FR) - 18.05.2026 à 19:44 - Ticket #CDE 204 / POS 3 - SIRET 40540357700027 - 55.99 EUR TVA 10% inclus (5.09 EUR) × 0.95 = 53.19 CHF - Payée par CB Visa - Drive à emporter"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "LWS - Nom de domaine qerkini.ch (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 11.39,
+    "montantMensuelCHF": 0.95,
+    "date": "2026-05-20",
+    "notes": "Facture LWS FC-2700594 - LIGNE WEB SERVICES - Hébergement + Redevance nom de domaine qerkini.ch 12 mois - 9.99 EUR HT + 2.00 EUR TVA 20% = 11.99 EUR × 0.95 = 11.39 CHF - Payée le 20.05.2026 par CB - Réf 1f85b00f77e04d09baa32073e150368c - Inclus dans contrat annuel Qerkini Sàrl C07 (530.44 CHF/an - facture 26-82)"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "LWS - Nom de domaine responsable-marketing.ch (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 11.39,
+    "montantMensuelCHF": 0.95,
+    "date": "2026-05-20",
+    "notes": "Facture LWS FC-2700800 - LIGNE WEB SERVICES - Hébergement + Redevance nom de domaine responsable-marketing.ch 12 mois - 9.99 EUR HT + 2.00 EUR TVA 20% = 11.99 EUR × 0.95 = 11.39 CHF - Payée le 20.05.2026 par CB - Réf a7762571572445b49db5702ed03582e6 - Domaine interne MakeYourCom (pas de refacturation client)"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "LWS - Nom de domaine marketing-externe.ch (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 11.39,
+    "montantMensuelCHF": 0.95,
+    "date": "2026-05-20",
+    "notes": "Facture LWS FC-2700801 - LIGNE WEB SERVICES - Hébergement + Redevance nom de domaine marketing-externe.ch 12 mois - 9.99 EUR HT + 2.00 EUR TVA 20% = 11.99 EUR × 0.95 = 11.39 CHF - Payée le 20.05.2026 par CB - Réf 36b4bea425774f25866b2d4bc05975d3 - Domaine interne MakeYourCom (pas de refacturation client)"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "LWS - Nom de domaine responsable-marketing.com (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 15.95,
+    "montantMensuelCHF": 1.33,
+    "date": "2026-05-21",
+    "notes": "Facture LWS FC-2701668 - LIGNE WEB SERVICES - Hébergement + Redevance nom de domaine responsable-marketing.com 12 mois - 13.99 EUR HT + 2.80 EUR TVA 20% = 16.79 EUR × 0.95 = 15.95 CHF - Payée le 21.05.2026 par CB - Réf 491d690093db4f8781e5c58dd6396f10 - Domaine interne MakeYourCom (extension .com complémentaire au .ch, pas de refacturation client)"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "LWS - Nom de domaine marketing-externe.fr (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 10.25,
+    "montantMensuelCHF": 0.85,
+    "date": "2026-05-21",
+    "notes": "Facture LWS FC-2701669 - LIGNE WEB SERVICES - Hébergement + Redevance nom de domaine marketing-externe.fr 12 mois - 8.99 EUR HT + 1.80 EUR TVA 20% = 10.79 EUR × 0.95 = 10.25 CHF - Payée le 21.05.2026 par CB - Réf 5aadcac6e0be42b2a804f90578ed252b - Domaine interne MakeYourCom (extension .fr complémentaire au .ch, pas de refacturation client)"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "LWS - Nom de domaine marketing-externe.com (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 15.95,
+    "montantMensuelCHF": 1.33,
+    "date": "2026-05-21",
+    "notes": "Facture LWS FC-2701672 - LIGNE WEB SERVICES - Hébergement + Redevance nom de domaine marketing-externe.com 12 mois - 13.99 EUR HT + 2.80 EUR TVA 20% = 16.79 EUR × 0.95 = 15.95 CHF - Payée le 21.05.2026 par CB - Réf d15aa74954794ea0b730251e1edf1d21 - Domaine interne MakeYourCom (extension .com complémentaire au .ch, pas de refacturation client)"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "Emelia - Cold mailing ARCOZ AG (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 35.15,
+    "montantMensuelCHF": 2.93,
+    "date": "2026-05-26",
+    "notes": "Facture EML-29704 - Emelia (Bridgers SAS) - 26.05.2026 - Outil cold mailing Start - Période 26.05.2026 au 26.06.2026 - 37.00 EUR TTC × 0.95 = 35.15 CHF - Payée 26.05.2026 par CB - SIREN 882679749 - Outil utilisé pour ARCOZ AG (inclus dans contrat annuel, pas de refacturation en sus)"
+  },
+  {
+    "categorie": "WEB_HOSTING",
+    "categorieSource": "Web",
+    "description": "Infomaniak - Domaine + Mail arcoz-ag.ch (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 27.36,
+    "montantMensuelCHF": 2.28,
+    "date": "2026-05-26",
+    "notes": "Facture Infomaniak 7818010 - Infomaniak Network SA - 26.05.2026 - Domaine arcoz-ag.ch 7.20 EUR + Pack email 5 boîtes arcoz-ag.ch 21.60 EUR - Période 26.05.2026 au 25.05.2027 (annuel) - Total 28.80 EUR TTC × 0.95 = 27.36 CHF - Payée 26.05.2026 par CB 1885 - Compte client 613660 - Inclus dans contrat annuel ARCOZ AG (pas de refacturation en sus)"
+  },
+  {
+    "categorie": "ADMIN_FRAIS",
+    "categorieSource": "Admin",
+    "description": "Frais représentation - RDV recrutement commerciale Noville (Mai 2026)",
+    "fournisseur": "",
+    "montantCHF": 9.8,
+    "montantMensuelCHF": 0.82,
+    "date": "2026-05-27",
+    "notes": "Pâtisserie Moutarlier - Route du Simplon 33, 1845 Noville (CH) - 27.05.2026 - 2 tickets : NOTE 000132/1 à 10:33 (1 Valser Gaz 33cl 4.90 CHF) + NOTE 000015/1 à 11:19 (1 Valser Gaz 33cl 4.90 CHF) - Total 9.80 CHF en espèces - TVA Boiss 8.10% : 0.74 CHF - RDV professionnel pour recrutement d'une commerciale (développement de l'activité MakeYourCom) - CHE-385.119.705 TVA"
+  }
+]

@@ -9,7 +9,7 @@ import { getInvoices, getInvoiceStats } from "@/lib/queries/invoices";
 import { InvoiceListParamsSchema } from "@/lib/schemas/invoice";
 import { requireUser } from "@/lib/session";
 
-export const metadata = { title: "Mes factures" };
+export const metadata = { title: "Salaires" };
 export const dynamic = "force-dynamic";
 
 interface PageProps {
@@ -40,10 +40,10 @@ export default async function FacturesPage({ searchParams }: PageProps) {
   return (
     <div className="px-6 py-6 lg:px-8">
       <PageHeader
-        title={user.role === "ADMIN" ? "Factures Sophie" : "Mes salaires"}
+        title={user.role === "ADMIN" ? "Salaires commerciales" : "Mes salaires"}
         description={
           user.role === "ADMIN"
-            ? "Factures mensuelles que tu dois verser aux commerciales (commissions + garantie + frais)."
+            ? "Salaires mensuels versés aux commerciales (commissions + garantie + frais)."
             : "Tes fiches de salaire mensuelles. Pour le détail des commissions acquises, va dans l'onglet « Commissions »."
         }
         actions={

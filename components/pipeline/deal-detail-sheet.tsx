@@ -10,6 +10,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Icon } from "@/components/icon";
+import { SignDealInPersonButton } from "@/components/pipeline/sign-deal-in-person-button";
+import { SignAclrButton } from "@/components/signatures/sign-aclr-button";
 import {
   Sheet,
   SheetContent,
@@ -17,7 +19,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { formatCHF, formatDate } from "@/lib/format";
+import { formatCHF, formatDate, formatDateLong } from "@/lib/format";
 import { getDealStageLabel } from "@/lib/labels";
 
 interface DealDetailLite {
@@ -43,6 +45,20 @@ interface DealDetailLite {
     nom: string;
     prixOneShot: string | null;
     prixMensuel: string | null;
+  }>;
+  contracts: Array<{
+    id: string;
+    numero: string;
+    signatures: Array<{
+      id: string;
+      signeParClient: boolean;
+      signeParAclr: boolean;
+      dateSignatureClient: string | null;
+      dateSignatureAclr: string | null;
+      statut: string;
+      lienSignature: string;
+      expireA: string;
+    }>;
   }>;
 }
 
@@ -95,6 +111,17 @@ export function DealDetailSheet({ dealId, onClose, isAdmin }: DealDetailSheetPro
               {deal.prospect.ville && ` · ${deal.prospect.ville}`}
             </SheetDescription>
           )}
+          {deal && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Link
+                href={`/pipeline/${deal.id}/modifier`}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium hover:bg-muted"
+              >
+                <Icon name="Pencil" className="h-3.5 w-3.5" />
+                Modifier
+              </Link>
+            </div>
+          )}
         </SheetHeader>
 
         {loading && (
@@ -140,11 +167,26 @@ export function DealDetailSheet({ dealId, onClose, isAdmin }: DealDetailSheetPro
             )}
 
             {/* Produits */}
-            {deal.productsProposes.length > 0 && (
-              <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   Produits proposés ({deal.productsProposes.length})
                 </p>
+                <Link
+                  href={`/pipeline/${deal.id}/modifier`}
+                  className="text-xs text-primary hover:underline"
+                >
+                  {deal.productsProposes.length === 0
+                    ? "+ Ajouter"
+                    : "Modifier"}
+                </Link>
+              </div>
+              {deal.productsProposes.length === 0 ? (
+                <p className="rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  ⚠ Aucun produit. Tu dois en ajouter au moins un avant de
+                  pouvoir faire signer le contrat.
+                </p>
+              ) : (
                 <ul className="space-y-1.5">
                   {deal.productsProposes.map((p) => (
                     <li
@@ -162,8 +204,8 @@ export function DealDetailSheet({ dealId, onClose, isAdmin }: DealDetailSheetPro
                     </li>
                   ))}
                 </ul>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Contact prospect */}
             <div>
@@ -190,32 +232,119 @@ export function DealDetailSheet({ dealId, onClose, isAdmin }: DealDetailSheetPro
               {deal.assigneA && <p>Assigné à {deal.assigneA.name}</p>}
             </div>
 
-            {/* Workflow validation admin pour les deals SIGNÉ */}
-            {deal.stage === "SIGNE" && isAdmin && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                <p className="text-sm font-medium text-amber-900">
-                  ⏳ En attente de ta validation
-                </p>
-                <p className="mt-1 text-xs text-amber-800">
-                  Sophie a marqué ce deal comme signé. Valide-le en créant
-                  officiellement le contrat — cascade automatique :
-                  commission, factures clients, statut prospect.
-                </p>
-                <Link
-                  href={`/contrats/nouveau?dealId=${deal.id}`}
-                  className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                >
-                  Valider & créer le contrat
-                </Link>
-              </div>
-            )}
+            {/* Workflow signature — 3 états possibles */}
+            {(() => {
+              const contract = deal.contracts[0];
+              const sig = contract?.signatures[0];
+              const isSignedByClientOnly =
+                !!sig && sig.signeParClient && !sig.signeParAclr;
+              const isFullySigned =
+                !!sig && sig.signeParClient && sig.signeParAclr;
+              const hasContractNoSig = !!contract && !sig?.signeParClient;
 
-            {deal.stage === "SIGNE" && !isAdmin && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                ⏳ Ce deal attend la validation d&apos;Arthur. Une fois
-                validé, il passe dans la section <strong>Contrats</strong>.
-              </div>
-            )}
+              // État 3 — Contre-signé : ne devrait normalement pas être
+              // visible (le deal sort du pipeline), mais par sécurité on
+              // affiche un message neutre.
+              if (isFullySigned) {
+                return (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                    ✅ Contrat <strong>{contract.numero}</strong> entièrement
+                    signé. Ce deal sera retiré du pipeline au prochain rafraîchissement.
+                  </div>
+                );
+              }
+
+              // État 2 — Signé client, attend Arthur
+              if (isSignedByClientOnly) {
+                return (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                    <p className="text-sm font-medium text-emerald-900">
+                      ✓ Contrat {contract.numero} signé par le client
+                    </p>
+                    <p className="mt-1 text-xs text-emerald-800">
+                      Signé le{" "}
+                      {sig.dateSignatureClient
+                        ? formatDateLong(sig.dateSignatureClient)
+                        : "—"}
+                      . {isAdmin
+                        ? "Vérifie le contrat, puis contre-signe pour valider et clore le deal."
+                        : "Le contrat attend la validation d'Arthur."}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Link
+                        href={`/contrats/${contract.id}`}
+                        className="inline-flex h-9 items-center rounded-md border border-emerald-300 bg-white px-3 text-xs font-medium text-emerald-900 hover:bg-emerald-100"
+                      >
+                        Voir le contrat
+                      </Link>
+                      {isAdmin && (
+                        <SignAclrButton signatureId={sig.id} />
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              // État 1b — Contrat créé mais client n'a pas encore signé
+              // (Sophie a démarré la signature mais le client n'a pas validé)
+              if (hasContractNoSig && sig) {
+                return (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <p className="text-sm font-medium text-blue-900">
+                      📝 Contrat {contract.numero} prêt — en attente signature
+                      client
+                    </p>
+                    <p className="mt-1 text-xs text-blue-800">
+                      Lien envoyé. Expire le {formatDateLong(sig.expireA)}.
+                    </p>
+                    <div className="mt-3">
+                      <a
+                        href={`/sign/${sig.lienSignature}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                      >
+                        Rouvrir la page de signature
+                      </a>
+                    </div>
+                  </div>
+                );
+              }
+
+              // État 1a — Pas encore de contrat : proposer la signature en RDV
+              if (deal.stage !== "PERDU") {
+                const noProducts = deal.productsProposes.length === 0;
+                return (
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+                    <p className="text-sm font-medium text-foreground">
+                      📱 Tu es face client en RDV ?
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Génère le contrat + ouvre la page de signature sur la
+                      tablette en un clic. Une fois signé par le client,
+                      Arthur contre-signera pour valider définitivement.
+                    </p>
+                    {noProducts ? (
+                      <div className="mt-3">
+                        <Link
+                          href={`/pipeline/${deal.id}/modifier`}
+                          className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 text-sm font-medium text-amber-900 hover:bg-amber-100"
+                        >
+                          <Icon name="Pencil" className="h-4 w-4" />
+                          Ajoute d&apos;abord un produit
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="mt-3">
+                        <SignDealInPersonButton dealId={deal.id} />
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              return null;
+            })()}
 
             {/* Lien vers la fiche prospect complète */}
             <Link

@@ -287,6 +287,18 @@ model User {
   telephone String?
   adresse   String?
 
+  // ========== Fiche RH (admin uniquement) ==========
+  dateNaissance       DateTime?
+  numeroAVS           String?    // 756.XXXX.XXXX.XX (Suisse)
+  contactUrgenceNom   String?
+  contactUrgenceTel   String?
+  typeContrat         TypeContrat?
+  dateEntree          DateTime?  // date d'embauche
+  dateSortie          DateTime?  // si l'employé est parti
+  pourcentageActivite Int?       @default(100) // 100, 80, 50, etc.
+  salaireBase         Decimal?   @db.Decimal(12, 2)
+  notesRH             String?    @db.Text
+
   // Relations
   prospectsAssignes Prospect[]
   dealsAssignes     Deal[]
@@ -297,9 +309,251 @@ model User {
   emails            Email[]
   stats             Stat[]
   objectives        Objective[]
+  documentsRH       EmployeeDocument[]
+  expensesCreated   Expense[]
 
   @@index([email])
   @@map("users")
+}
+
+enum TypeContrat {
+  CDI
+  CDD
+  MANDAT
+  STAGE
+  ESSAI
+}
+
+// ============================================================================
+// EMPLOYEE DOCUMENT — contrat de travail, certificats, fiches de paie…
+// ============================================================================
+
+model EmployeeDocument {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  type       EmployeeDocumentType
+  titre      String
+  fileUrl    String // chemin /uploads/rh/{userId}/{file}
+  fileSize   Int?
+  uploadedBy String? // userId qui a uploadé
+
+  @@index([userId])
+  @@map("employee_documents")
+}
+
+enum EmployeeDocumentType {
+  CONTRAT_TRAVAIL
+  AVENANT
+  FICHE_SALAIRE
+  CERTIFICAT_TRAVAIL
+  DIPLOME
+  PIECE_IDENTITE
+  AUTRE
+}
+
+// ============================================================================
+// EXPENSE — charge de l'entreprise (ticket scanné + OCR)
+// ============================================================================
+
+model Expense {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  date          DateTime         // date du ticket (facture/quittance)
+  dateReglement DateTime?        // date à laquelle la charge a été débitée du compte (réconciliation bancaire)
+  categorie     ExpenseCategorie
+  fournisseur   String?
+  description   String?
+  reference     String?          // numéro de ticket / facture du fournisseur
+
+  /// Statut de paiement (pour la réconciliation mensuelle avec le relevé bancaire)
+  statutPaiement ExpenseStatutPaiement @default(EN_ATTENTE)
+
+  /// Montants (HT = hors taxes, TVA, TTC = total)
+  montantHT  Decimal @db.Decimal(12, 2)
+  tauxTVA    Decimal @default("0.077") @db.Decimal(5, 4) // 7.7% standard suisse
+  montantTVA Decimal @db.Decimal(12, 2)
+  montantTTC Decimal @db.Decimal(12, 2)
+
+  /// TVA récupérable (par défaut oui pour B2B)
+  tvaRecuperable Boolean @default(true)
+
+  methodPaiement MethodPaiement?
+
+  /// Ticket scanné (URL du fichier dans /public/expenses)
+  ticketUrl  String?
+  ticketName String? // nom de fichier d'origine
+
+  /// Trace OCR : payload brut renvoyé par le modèle vision (audit)
+  ocrRawJson String? @db.Text
+  /// Indique si les champs ont été pré-remplis par OCR (vs saisis à la main)
+  ocrUtilise Boolean @default(false)
+
+  createdBy   User?  @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+
+  /// Lien vers un client (Prospect) pour les charges directement attribuables :
+  /// hosting d'un client, sous-traitance, etc. NULL = charge interne ou
+  /// multi-clients (voir `allocations` pour le split).
+  prospect   Prospect? @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+  prospectId String?
+
+  /// Pièces justificatives multiples (preuves de paiement complémentaires,
+  /// 2e facture liée au même mouvement, etc.). Le ticket "principal" reste
+  /// dans ticketUrl/ticketName ci-dessus.
+  attachments ExpenseAttachment[]
+
+  /// Pour les charges multi-clients (ex. Google Ads, Lucas) : ventilation
+  /// par prospect. Si vide, la charge entière est imputée à `prospect` (ou
+  /// considérée interne si `prospectId` est NULL).
+  allocations ExpenseAllocation[]
+
+  /// Si cette charge a été générée automatiquement par une récurrence, lien
+  /// vers le template parent (pour retracer / suspendre la série).
+  recurrence   ExpenseRecurrence? @relation(fields: [recurrenceId], references: [id], onDelete: SetNull)
+  recurrenceId String?
+
+  @@index([date])
+  @@index([dateReglement])
+  @@index([statutPaiement])
+  @@index([categorie])
+  @@index([prospectId])
+  @@index([recurrenceId])
+  @@map("expenses")
+}
+
+enum ExpenseStatutPaiement {
+  EN_ATTENTE     // charge enregistrée, pas encore débitée du compte
+  PAYE           // débit confirmé sur relevé bancaire (dateReglement renseignée)
+  LITIGE         // débit contesté (ex. doublon LWS)
+  REMBOURSE      // débit récupéré (annulation, remboursement)
+}
+
+/// Template de charge récurrente. Permet de générer automatiquement chaque mois
+/// (ou autre fréquence) une charge en EN_ATTENTE qu'il suffit ensuite d'attacher
+/// au ticket réel reçu. Utile pour Sunrise, Workspace, Lucas, LWS, etc.
+model ExpenseRecurrence {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  label       String           // nom du template (ex. "Sunrise mobile + internet")
+  categorie   ExpenseCategorie
+  fournisseur String?
+  description String?
+
+  /// Montant moyen estimé (TTC). Sert à pré-remplir la charge générée.
+  montantEstime Decimal @db.Decimal(12, 2)
+  tauxTVA       Decimal @default("0.077") @db.Decimal(5, 4)
+
+  /// Fréquence : MENSUEL = chaque 1er du mois, TRIMESTRIEL = 1er jan/avr/juil/oct, ANNUEL = 1er jan
+  frequence ExpenseRecurrenceFrequence @default(MENSUEL)
+
+  /// Jour du mois où la charge est attendue (1-28). NULL = 1er.
+  jourMois Int?
+
+  /// Si rattachée à un client : la charge générée sera pré-liée à ce prospect.
+  prospect   Prospect? @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+  prospectId String?
+
+  /// Si false, plus de génération automatique (série suspendue).
+  actif Boolean @default(true)
+
+  /// Date de fin (exclue) — passé cette date, plus de génération.
+  dateFin DateTime?
+
+  /// Charges générées par ce template
+  expenses Expense[]
+
+  @@index([actif, frequence])
+  @@index([prospectId])
+  @@map("expense_recurrences")
+}
+
+enum ExpenseRecurrenceFrequence {
+  MENSUEL
+  BIMESTRIEL
+  TRIMESTRIEL
+  SEMESTRIEL
+  ANNUEL
+}
+
+/// Ventilation d'une charge sur plusieurs clients (P&L par client).
+/// Ex. Google Ads 1789.93 CHF = 600 SP Industriel + 800 LocFactory + 389.93 Passeport.
+/// La somme des montantHT des allocations doit (idéalement) égaler le montantHT
+/// de l'Expense parente — non contraint en DB pour permettre des allocations
+/// partielles.
+model ExpenseAllocation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  expenseId String
+
+  prospect   Prospect @relation(fields: [prospectId], references: [id], onDelete: Restrict)
+  prospectId String
+
+  /// Montant HT alloué à ce client (en CHF, devise déjà convertie)
+  montantHT Decimal @db.Decimal(12, 2)
+
+  /// Note libre (ex: "Forfait Torgon 1 post" extrait de la facture Lucas)
+  note String?
+
+  @@index([expenseId])
+  @@index([prospectId])
+  @@map("expense_allocations")
+}
+
+model ExpenseAttachment {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  expenseId String
+
+  fileUrl  String // /expenses/{expenseId}/{filename}
+  fileName String
+  fileSize Int?
+  /// Type libre pour distinguer "facture", "reçu carte", "ordre de virement", etc.
+  kind     String? // FACTURE | RECU_CARTE | PREUVE_VIREMENT | AUTRE
+
+  uploadedBy String? // userId
+
+  @@index([expenseId])
+  @@map("expense_attachments")
+}
+
+enum ExpenseCategorie {
+  LOYER
+  SOFTWARE_SAAS
+  MARKETING
+  PUBLICITE
+  DEPLACEMENTS
+  RESTAURATION
+  MATERIEL_BUREAU
+  ASSURANCES
+  TELECOM
+  FORMATION
+  HONORAIRES
+  IMPOTS
+  BANQUE_FRAIS
+  AUTRE
+}
+
+enum MethodPaiement {
+  CARTE_BANCAIRE
+  VIREMENT
+  ESPECES
+  TWINT
+  PAYPAL
+  PRELEVEMENT
+  AUTRE
 }
 
 // ============================================================================
@@ -344,10 +598,13 @@ model Prospect {
   notesGenerales String? @db.Text
 
   // Relations
-  activities Activity[]
-  deals      Deal[]
-  contracts  Contract[]
-  emails     Email[]
+  activities          Activity[]
+  deals               Deal[]
+  contracts           Contract[]
+  emails              Email[]
+  expenses            Expense[] // charges directement attribuables au client
+  expenseAllocations  ExpenseAllocation[] // parts de charges multi-clients
+  expenseRecurrences  ExpenseRecurrence[] // templates de charges récurrentes liées
 
   @@index([statut])
   @@index([assigneAId])
@@ -460,6 +717,13 @@ model Product {
   prixOneShot Decimal? @db.Decimal(12, 2)
   prixMensuel Decimal? @db.Decimal(12, 2)
   prixAnnuel  Decimal? @db.Decimal(12, 2)
+
+  /// Coût direct de livraison du service (interne, pas affiché au client).
+  /// Utilisé pour calculer la marge réelle par contrat.
+  ///   - coutOneShot : setup, intégration, licences à l'install
+  ///   - coutMensuel : hébergement, SaaS récurrent, ad spend mensuel, etc.
+  coutOneShot Decimal? @db.Decimal(12, 2) @default(0)
+  coutMensuel Decimal? @db.Decimal(12, 2) @default(0)
 
   /// Pour les packs : IDs des produits composants (JSON array de Product.id)
   composantsIds Json?
@@ -894,6 +1158,13 @@ model Signature {
   signeParAclr        Boolean   @default(false)
   dateSignatureAclr   DateTime?
 
+  /// Nom complet tapé par le client au moment de la signature (audit)
+  nomClient String?
+
+  /// Signature manuscrite (PNG base64 data URL) tracée par le client
+  /// à la souris/doigt/stylet sur la tablette.
+  signatureClientDataUrl String?
+
   /// IP capturée au moment de la signature client (audit)
   ipClient String?
 
@@ -1019,6 +1290,10 @@ model Setting {
   // TVA : 0 par défaut tant que ACLR n'est pas assujetti
   tvaActive Boolean @default(false)
   tauxTVA   Decimal @default("0.081") @db.Decimal(5, 4)
+
+  /// Taux d'impôts provisionnés sur la marge brute (IBC + AVS/AI + prévoyance).
+  /// Default 25 % — vision réaliste PME Suisse romande pour préparer la déclaration.
+  tauxImpotsProvisionne Decimal @default("0.25") @db.Decimal(5, 4)
 
   @@map("settings")
 }

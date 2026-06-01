@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { signByClient } from "@/app/(app)/signatures/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+import { SignaturePad, type SignaturePadHandle } from "./signature-pad";
 
 export function SignForm({
   token,
@@ -19,6 +21,8 @@ export function SignForm({
   const [name, setName] = useState("");
   const [accept, setAccept] = useState(false);
   const [signed, setSigned] = useState(false);
+  const [hasInk, setHasInk] = useState(false);
+  const padRef = useRef<SignaturePadHandle>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,11 +31,20 @@ export function SignForm({
       return;
     }
     if (name.trim().length < 3) {
-      toast.error("Saisis ton nom complet (signature dactylographiée).");
+      toast.error("Saisis ton nom complet.");
+      return;
+    }
+    const dataUrl = padRef.current?.getDataUrl();
+    if (!dataUrl) {
+      toast.error("Trace ta signature manuscrite dans la zone prévue.");
       return;
     }
     startTransition(async () => {
-      const res = await signByClient(token, ipClient);
+      const res = await signByClient(token, {
+        nomClient: name.trim(),
+        signatureDataUrl: dataUrl,
+        ipClient,
+      });
       if (!res.ok) {
         toast.error(res.error ?? "Échec.");
         return;
@@ -56,7 +69,7 @@ export function SignForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-1.5">
         <Label htmlFor="name">
           Ton nom complet (signature dactylographiée){" "}
@@ -71,9 +84,15 @@ export function SignForm({
           autoFocus
         />
         <p className="text-[11px] text-muted-foreground">
-          En signant, tu acceptes les termes du contrat. Ton IP, ta date et
-          ce nom sont enregistrés pour la valeur juridique.
+          Ton IP, la date et ce nom sont enregistrés pour la valeur juridique.
         </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>
+          Signature manuscrite <span className="text-red-500">*</span>
+        </Label>
+        <SignaturePad ref={padRef} height={180} onInkChange={setHasInk} />
       </div>
 
       <label className="flex items-start gap-2 text-sm">
@@ -85,14 +104,17 @@ export function SignForm({
         />
         <span>
           J&apos;accepte les{" "}
-          <strong>conditions générales de vente</strong> et m&apos;engage à
-          régler les montants ci-dessus selon les modalités convenues.
+          <strong>conditions générales de vente</strong>
+          {" "}et m&apos;engage à régler les montants ci-dessus selon les
+          modalités convenues.
         </span>
       </label>
 
       <Button
         type="submit"
-        disabled={pending || !accept || name.trim().length < 3}
+        disabled={
+          pending || !accept || name.trim().length < 3 || !hasInk
+        }
         className="w-full"
       >
         {pending ? "Signature en cours…" : "Signer le contrat"}

@@ -45,6 +45,10 @@ interface ProspectFormProps {
   submitLabel?: string;
   /** Si fourni, navigue après succès (default : /prospects/{newId}). */
   onSuccess?: (prospectId: string) => void;
+  /** Liste des collaborateurs pour le champ "Assignée à" — admin uniquement. */
+  teamUsers?: Array<{ id: string; name: string }>;
+  /** Si true, affiche le champ "Assignée à". */
+  isAdmin?: boolean;
 }
 
 export function ProspectForm({
@@ -52,6 +56,8 @@ export function ProspectForm({
   action,
   submitLabel = "Créer le prospect",
   onSuccess,
+  teamUsers = [],
+  isAdmin = false,
 }: ProspectFormProps) {
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -273,6 +279,22 @@ export function ProspectForm({
               ))}
             </NativeSelect>
           </Field>
+
+          {isAdmin && teamUsers.length > 0 && (
+            <Field
+              label="Assignée à (commerciale)"
+              error={errors.assigneAId?.message}
+            >
+              <NativeSelect {...register("assigneAId")}>
+                <option value="">— Non assignée —</option>
+                {teamUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </Field>
+          )}
 
           <Field
             label="Notes générales"

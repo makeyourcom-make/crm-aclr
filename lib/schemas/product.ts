@@ -31,6 +31,9 @@ export const ProductCreateSchema = z.object({
   prixOneShot: prixOptional,
   prixMensuel: prixOptional,
   prixAnnuel: prixOptional,
+  /** Coûts internes (interne, jamais affiché client) — rentabilité projet */
+  coutOneShot: prixOptional,
+  coutMensuel: prixOptional,
   /** Pour les PACK : tableau d'IDs des produits composants */
   composantsIds: z.array(z.string()).optional(),
   isActive: z.coerce.boolean().default(true),

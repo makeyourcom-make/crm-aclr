@@ -38,6 +38,13 @@ yarn-error.log*
 .env*
 !.env.example
 
+# Notes locales (credentials, scratch)
+A C C E S*
+ACCES*
+*-credentials.txt
+NOTES.md
+SCRATCH.md
+
 # vercel
 .vercel
 
@@ -52,6 +59,13 @@ next-env.d.ts
 # Stockage local (pièces jointes emails, PDFs contrats)
 /storage
 /uploads
+# PDFs signés uploadés par les clients (servis via /public mais NE doivent
+# PAS partir dans git)
+/public/signed-contracts
+# Documents RH (contrats, fiches de paie, etc.)
+/public/rh
+# Tickets de charges (photos, factures fournisseurs)
+/public/expenses
 
 # Backups Postgres
 /backups

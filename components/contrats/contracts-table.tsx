@@ -3,8 +3,10 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 
+import { SortableHeader } from "@/components/common/sortable-header";
 import { ContractStatutBadge } from "@/components/contrats/contract-statut-badge";
 import { DataTable } from "@/components/ui/data-table";
+import { getNextRenewalDate, relativeDays } from "@/lib/contract-renewal";
 import { formatCHF, formatDate } from "@/lib/format";
 
 import type { ContractListItem } from "@/lib/queries/contracts";
@@ -18,7 +20,13 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
   const columns: ColumnDef<ContractListItem>[] = [
     {
       id: "numero",
-      header: "N° contrat",
+      header: () => (
+        <SortableHeader
+          label="N° contrat"
+          field="numero"
+          defaultSortBy="dateSignature"
+        />
+      ),
       cell: ({ row }) => (
         <Link
           href={`/contrats/${row.original.id}`}
@@ -30,7 +38,13 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
     },
     {
       id: "prospect",
-      header: "Client",
+      header: () => (
+        <SortableHeader
+          label="Client"
+          field="raisonSociale"
+          defaultSortBy="dateSignature"
+        />
+      ),
       cell: ({ row }) => (
         <div>
           <Link
@@ -49,7 +63,14 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
     },
     {
       id: "valeurAn1",
-      header: "Valeur an 1",
+      header: () => (
+        <SortableHeader
+          label="Valeur an 1"
+          field="valeurAn1"
+          defaultSortBy="dateSignature"
+          defaultDir="desc"
+        />
+      ),
       cell: ({ row }) => (
         <span className="font-semibold tabular-nums">
           {formatCHF(Number(row.original.valeurAn1))}
@@ -58,7 +79,14 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
     },
     {
       id: "mensuel",
-      header: "Mensuel",
+      header: () => (
+        <SortableHeader
+          label="Mensuel"
+          field="montantMensuel"
+          defaultSortBy="dateSignature"
+          defaultDir="desc"
+        />
+      ),
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground tabular-nums">
           {Number(row.original.montantMensuel) > 0
@@ -69,7 +97,14 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
     },
     {
       id: "dateSignature",
-      header: "Signé le",
+      header: () => (
+        <SortableHeader
+          label="Signé le"
+          field="dateSignature"
+          defaultSortBy="dateSignature"
+          defaultDir="desc"
+        />
+      ),
       cell: ({ row }) => (
         <span className="whitespace-nowrap text-xs">
           {formatDate(row.original.dateSignature)}
@@ -77,8 +112,43 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
       ),
     },
     {
+      id: "renewal",
+      header: () => (
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Prochain renouvel.
+        </span>
+      ),
+      cell: ({ row }) => {
+        const renewal = getNextRenewalDate({
+          dateDebut: row.original.dateDebut,
+          dureeMois: row.original.dureeMois,
+          statut: row.original.statut,
+        });
+        if (!renewal) return <span className="text-xs text-muted-foreground">—</span>;
+        const rel = relativeDays(renewal);
+        const tone =
+          rel.days < 30
+            ? "text-amber-700 font-medium"
+            : rel.days < 90
+              ? "text-foreground"
+              : "text-muted-foreground";
+        return (
+          <span className={`whitespace-nowrap text-xs ${tone}`}>
+            {formatDate(renewal)}
+            <span className="ml-1 opacity-70">({rel.label})</span>
+          </span>
+        );
+      },
+    },
+    {
       id: "statut",
-      header: "Statut",
+      header: () => (
+        <SortableHeader
+          label="Statut"
+          field="statut"
+          defaultSortBy="dateSignature"
+        />
+      ),
       cell: ({ row }) => <ContractStatutBadge statut={row.original.statut} />,
     },
     ...(showCommerciale

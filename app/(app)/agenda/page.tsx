@@ -1,4 +1,5 @@
 import { AddActivityDialog } from "@/components/agenda/add-activity-dialog";
+import { AgendaViewSwitcher } from "@/components/agenda/agenda-view-switcher";
 import { WeekNav } from "@/components/agenda/week-nav";
 import { WeekView } from "@/components/agenda/week-view";
 import { PageHeader } from "@/components/page-header";
@@ -29,8 +30,22 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   );
   const hideDone = raw.hideDone === "1";
 
+  // Vue admin : "mine" (défaut), "all", ou userId d'une commerciale précise.
+  // Ignorée pour les commerciaux (scope verrouillé côté query).
+  const view = typeof raw.view === "string" ? raw.view : "mine";
+  const isAdmin = user.role === "ADMIN";
+
+  // Pour le switcher : liste des users actifs (admin uniquement)
+  const teamUsers = isAdmin
+    ? await prisma.user.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      })
+    : [];
+
   const [activities, prospects] = await Promise.all([
-    getAgendaWeek(user, weekStart, hideDone),
+    getAgendaWeek(user, weekStart, hideDone, view),
     prisma.prospect.findMany({
       where: {
         ...scopedWhere(user, {}),
@@ -43,11 +58,25 @@ export default async function AgendaPage({ searchParams }: PageProps) {
 
   const today = new Date();
 
+  // Description dynamique selon la vue active
+  const viewedUser =
+    view !== "mine" && view !== "all"
+      ? teamUsers.find((u) => u.id === view)
+      : null;
+  const viewLabel = isAdmin
+    ? view === "all"
+      ? "Toute l'équipe"
+      : viewedUser
+        ? `Agenda de ${viewedUser.name}`
+        : "Mon agenda"
+    : "Mon agenda";
+  const description = `${activities.length} activité(s) sur la semaine · ${viewLabel}.`;
+
   return (
     <div className="px-6 py-6 lg:px-8">
       <PageHeader
         title="Agenda"
-        description={`${activities.length} activité(s) sur la semaine.`}
+        description={description}
         actions={
           <AddActivityDialog
             prospects={prospects}
@@ -58,6 +87,16 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         }
       />
 
+      {isAdmin && teamUsers.length > 1 && (
+        <div className="mb-3">
+          <AgendaViewSwitcher
+            users={teamUsers}
+            currentUserId={user.id}
+            activeView={view}
+          />
+        </div>
+      )}
+
       <div className="mb-4">
         <WeekNav weekStart={weekStart} hideDone={hideDone} />
       </div>
@@ -66,6 +105,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         weekStart={weekStart}
         activities={activities}
         prospects={prospects}
+        showUserBadge={isAdmin && view === "all"}
       />
 
       <p className="mt-4 text-center text-xs text-muted-foreground">

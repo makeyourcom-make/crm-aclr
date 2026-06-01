@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { SortableHeader } from "@/components/common/sortable-header";
+import { ClientInvoiceFilters } from "@/components/factures-clients/client-invoice-filters";
 import { MarkInvoicePaidButton } from "@/components/paiements/mark-invoice-paid-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,6 +10,8 @@ import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
 import { formatCHF, formatDate } from "@/lib/format";
 import { requireAdmin } from "@/lib/session";
+
+import type { Prisma } from "@prisma/client";
 
 export const metadata = { title: "Factures clients" };
 export const dynamic = "force-dynamic";
@@ -34,15 +38,74 @@ interface PageProps {
 export default async function FacturesClientsPage({ searchParams }: PageProps) {
   const user = await requireAdmin();
   const raw = await searchParams;
+
+  // --- Lecture des query params ---
   const filterStatut = typeof raw.statut === "string" ? raw.statut : undefined;
+  const filterType = typeof raw.type === "string" ? raw.type : undefined;
+  const filterProspectId =
+    typeof raw.prospectId === "string" ? raw.prospectId : undefined;
+  const q = typeof raw.q === "string" ? raw.q.trim() : undefined;
+  const sortBy = typeof raw.sortBy === "string" ? raw.sortBy : "dateEmission";
+  const sortDir =
+    typeof raw.sortDir === "string" && raw.sortDir === "asc" ? "asc" : "desc";
+
   const now = new Date();
 
-  const where = {
-    ...(user.role === "ADMIN" ? {} : { contract: { assigneAId: user.id } }),
-    ...(filterStatut ? { statut: filterStatut as never } : {}),
-  };
+  // --- Construction du WHERE ---
+  const whereConditions: Prisma.ClientInvoiceWhereInput[] = [];
+  if (user.role !== "ADMIN") {
+    whereConditions.push({ contract: { assigneAId: user.id } });
+  }
+  if (filterStatut) {
+    whereConditions.push({ statut: filterStatut as never });
+  }
+  if (filterType) {
+    whereConditions.push({ type: filterType as never });
+  }
+  if (filterProspectId) {
+    whereConditions.push({ contract: { prospectId: filterProspectId } });
+  }
+  if (q) {
+    whereConditions.push({
+      OR: [
+        { numero: { contains: q, mode: "insensitive" } },
+        { notesClient: { contains: q, mode: "insensitive" } },
+        {
+          contract: {
+            prospect: { raisonSociale: { contains: q, mode: "insensitive" } },
+          },
+        },
+        {
+          contract: { numero: { contains: q, mode: "insensitive" } },
+        },
+      ],
+    });
+  }
+  const where: Prisma.ClientInvoiceWhereInput =
+    whereConditions.length > 0 ? { AND: whereConditions } : {};
 
-  const [invoices, stats] = await Promise.all([
+  // --- orderBy dynamique ---
+  const orderBy: Prisma.ClientInvoiceOrderByWithRelationInput = (() => {
+    switch (sortBy) {
+      case "numero":
+        return { numero: sortDir };
+      case "dateEcheance":
+        return { dateEcheance: sortDir };
+      case "type":
+        return { type: sortDir };
+      case "total":
+        return { total: sortDir };
+      case "statut":
+        return { statut: sortDir };
+      case "raisonSociale":
+        return { contract: { prospect: { raisonSociale: sortDir } } };
+      case "dateEmission":
+      default:
+        return { dateEmission: sortDir };
+    }
+  })();
+
+  const [invoices, stats, prospectsList] = await Promise.all([
     prisma.clientInvoice.findMany({
       where,
       include: {
@@ -55,7 +118,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
           },
         },
       },
-      orderBy: [{ dateEmission: "desc" }],
+      orderBy,
       take: 200,
     }),
     prisma.clientInvoice.groupBy({
@@ -63,6 +126,15 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
       where: user.role === "ADMIN" ? {} : { contract: { assigneAId: user.id } },
       _count: true,
       _sum: { total: true },
+    }),
+    // Liste des clients pour le dropdown du filtre (uniquement ceux qui
+    // ont des factures pour éviter le bruit)
+    prisma.prospect.findMany({
+      where: {
+        contracts: { some: { clientInvoices: { some: {} } } },
+      },
+      select: { id: true, raisonSociale: true },
+      orderBy: { raisonSociale: "asc" },
     }),
   ]);
 
@@ -113,8 +185,8 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
         />
       </div>
 
-      {/* Filtres rapides */}
-      <div className="mb-4 flex flex-wrap gap-2 text-xs">
+      {/* Onglets statut */}
+      <div className="mb-3 flex flex-wrap gap-2 text-xs">
         <Link
           href="/factures-clients"
           className={`rounded-md border border-border px-2.5 py-1 ${!filterStatut ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
@@ -132,19 +204,69 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
         ))}
       </div>
 
+      {/* Filtres avancés : recherche + type + client */}
+      <div className="mb-4">
+        <ClientInvoiceFilters prospects={prospectsList} />
+      </div>
+
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b border-border bg-muted/50">
                 <tr>
-                  <Th>N°</Th>
-                  <Th>Émise le</Th>
-                  <Th>Échéance</Th>
-                  <Th>Client</Th>
-                  <Th>Type</Th>
-                  <Th className="text-right">Total</Th>
-                  <Th>Statut</Th>
+                  <Th>
+                    <SortableHeader
+                      label="N°"
+                      field="numero"
+                      defaultSortBy="dateEmission"
+                    />
+                  </Th>
+                  <Th>
+                    <SortableHeader
+                      label="Émise le"
+                      field="dateEmission"
+                      defaultSortBy="dateEmission"
+                      defaultDir="desc"
+                    />
+                  </Th>
+                  <Th>
+                    <SortableHeader
+                      label="Échéance"
+                      field="dateEcheance"
+                      defaultSortBy="dateEmission"
+                      defaultDir="asc"
+                    />
+                  </Th>
+                  <Th>
+                    <SortableHeader
+                      label="Client"
+                      field="raisonSociale"
+                      defaultSortBy="dateEmission"
+                    />
+                  </Th>
+                  <Th>
+                    <SortableHeader
+                      label="Type"
+                      field="type"
+                      defaultSortBy="dateEmission"
+                    />
+                  </Th>
+                  <Th className="text-right">
+                    <SortableHeader
+                      label="Total"
+                      field="total"
+                      defaultSortBy="dateEmission"
+                      defaultDir="desc"
+                    />
+                  </Th>
+                  <Th>
+                    <SortableHeader
+                      label="Statut"
+                      field="statut"
+                      defaultSortBy="dateEmission"
+                    />
+                  </Th>
                   <Th />
                 </tr>
               </thead>

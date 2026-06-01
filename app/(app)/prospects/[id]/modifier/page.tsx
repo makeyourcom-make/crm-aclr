@@ -20,12 +20,21 @@ export const metadata = { title: "Modifier le prospect" };
 export default async function EditProspectPage({ params }: PageProps) {
   const user = await requireUser();
   const { id } = await params;
+  const isAdmin = user.role === "ADMIN";
 
   // Lookup avec scoping (un commercial ne peut pas éditer un prospect non-assigné)
   const prospect = await prisma.prospect.findFirst({
     where: { id, ...scopedWhere(user, {}) },
   });
   if (!prospect) notFound();
+
+  const teamUsers = isAdmin
+    ? await prisma.user.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      })
+    : [];
 
   // Pré-remplit le formulaire avec les valeurs actuelles
   const initialValues: Partial<ProspectCreateInput> = {
@@ -113,6 +122,8 @@ export default async function EditProspectPage({ params }: PageProps) {
         initialValues={initialValues}
         action={action}
         submitLabel="Enregistrer les modifications"
+        teamUsers={teamUsers}
+        isAdmin={isAdmin}
       />
     </div>
   );

@@ -36,6 +36,15 @@ export function DealCard({ deal, onOpen }: DealCardProps) {
     deal.stage !== "SIGNE" &&
     deal.stage !== "PERDU";
 
+  // État signature : on dérive du premier contrat lié (généralement 1 seul
+  // car le deal ne sort du pipeline qu'à la contre-signature admin).
+  const contract = deal.contracts[0];
+  const sig = contract?.signatures[0];
+  const isSignedByClientOnly =
+    !!sig && sig.signeParClient && !sig.signeParAclr;
+  const hasContractButNoSignature =
+    !!contract && (!sig || (!sig.signeParClient && !sig.signeParAclr));
+
   return (
     <div
       ref={setNodeRef}
@@ -64,11 +73,21 @@ export function DealCard({ deal, onOpen }: DealCardProps) {
         {deal.prospect.raisonSociale}
       </p>
 
-      {/* Badge "En attente validation" si stage SIGNE */}
-      {deal.stage === "SIGNE" && (
-        <p className="mt-1 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
-          ⏳ En attente validation admin
+      {/* Badge de statut signature — précis selon l'avancement */}
+      {isSignedByClientOnly ? (
+        <p className="mt-1 inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800">
+          ✓ Signé client · attend validation Arthur
         </p>
+      ) : hasContractButNoSignature ? (
+        <p className="mt-1 inline-flex items-center rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-800">
+          📝 Contrat prêt — en attente signature client
+        </p>
+      ) : (
+        deal.stage === "SIGNE" && (
+          <p className="mt-1 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+            ⏳ Marqué signé — créer le contrat
+          </p>
+        )
       )}
 
       {/* Montant + probabilité */}

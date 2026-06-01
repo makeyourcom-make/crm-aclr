@@ -16,36 +16,48 @@ export const dynamic = "force-dynamic";
 
 export default async function CommissionsPage() {
   const user = await requireUser();
+  const isAdmin = user.role === "ADMIN";
   const [cockpit, teamRows] = await Promise.all([
     getCommissionsCockpit(user),
-    user.role === "ADMIN" ? getCommissionsByUser() : Promise.resolve([]),
+    isAdmin ? getCommissionsByUser() : Promise.resolve([]),
   ]);
+
+  // Vocabulaire selon le point de vue :
+  //  - Sophie : "acquises" = ce qu'elle a gagné, prêt à lui être versé
+  //  - Arthur : "versées" = ce qu'il a déjà / doit verser à la commerciale
+  const labelGagneCetteAnnee = isAdmin
+    ? "Versées cette année"
+    : "Acquis cette année";
+  const labelGagneCeMois = isAdmin ? "À verser ce mois" : "Acquis ce mois";
+  const subtitleCeMois = isAdmin
+    ? "→ via le salaire mensuel"
+    : "→ prochain salaire";
 
   return (
     <div className="px-6 py-6 lg:px-8">
       <PageHeader
         title="Commissions"
         description={
-          user.role === "ADMIN"
-            ? "Vue agrégée de toutes les commissions de l'équipe."
+          isAdmin
+            ? "Vue agrégée de toutes les commissions versées et à verser."
             : "Tes commissions acquises, à venir et le calendrier des versements."
         }
-        actions={user.role === "ADMIN" ? <RecomputeButton /> : null}
+        actions={isAdmin ? <RecomputeButton /> : null}
       />
 
       {/* KPIs */}
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi
-          label="Acquis cette année"
+          label={labelGagneCetteAnnee}
           value={formatCHF(cockpit.acquisYTD)}
           tone="emerald"
           subtitle="Total YTD"
         />
         <Kpi
-          label="Acquis ce mois"
+          label={labelGagneCeMois}
           value={formatCHF(cockpit.acquisMoisCourant)}
           tone="emerald"
-          subtitle="→ prochaine facture"
+          subtitle={subtitleCeMois}
         />
         <Kpi
           label="À venir"
@@ -67,8 +79,9 @@ export default async function CommissionsPage() {
         </h2>
         <MonthlyCalendar parMois={cockpit.parMois} />
         <p className="mt-2 text-xs text-muted-foreground">
-          💡 Les revenus « acquis » sont déjà gagnés. Ils sont versés à
-          Sophie une fois par mois via la facture mensuelle (étape 14).
+          💡 {isAdmin
+            ? "Les commissions « versées » sont déjà payées à la commerciale via son salaire mensuel."
+            : "Les revenus « acquis » sont déjà gagnés. Ils te sont versés une fois par mois via ton salaire (étape 14)."}
         </p>
       </section>
 

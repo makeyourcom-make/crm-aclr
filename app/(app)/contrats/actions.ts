@@ -2,8 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
+import { z } from "zod";
 
+import { createSignatureRequest } from "@/app/(app)/signatures/actions";
 import { prisma } from "@/lib/db";
+import { uploadFile } from "@/lib/file-storage";
 import {
   buildSignaturePaymentPlan,
   centsToChf,
@@ -157,23 +160,16 @@ export async function createContractFromDeal(
         },
       });
 
-      // ---- 3. Update Deal si fourni ----
-      if (parsed.data.dealId) {
-        await tx.deal.update({
-          where: { id: parsed.data.dealId },
-          data: {
-            stage: "SIGNE",
-            probabilite: 100,
-            closeReelLe: parsed.data.dateSignature,
-          },
-        });
-      }
-
-      // ---- 4. Update Prospect → SIGNE ----
-      await tx.prospect.update({
-        where: { id: parsed.data.prospectId },
-        data: { statut: "SIGNE" },
-      });
+      // ---- 3. Deal / Prospect : pas de changement de statut à ce stade ----
+      // Le contrat existe mais n'est pas encore signé par le client.
+      // Le passage du deal en SIGNE et du prospect en SIGNE se fera dans
+      // signByClient() au moment où le client appose effectivement sa
+      // signature manuscrite (cf. app/(app)/signatures/actions.ts).
+      //
+      // Conséquence : tant que le client n'a pas signé, le deal reste
+      // visible dans sa colonne d'origine (typiquement NEGOCIATION) avec
+      // le badge "📝 Contrat prêt — en attente signature client", et le
+      // prospect reste dans la liste /prospects.
 
       // ---- 5. Commission + 12 versements ----
       const commissionRecord = await tx.commission.create({
@@ -323,6 +319,442 @@ export async function resilierContract(
 
 // markPaymentEncaisse a été déplacé dans app/(app)/paiements/actions.ts
 // (logique plus complète : marque aussi ClientInvoice PAYEE).
+
+// ===========================================================================
+// SIGNER UN DEAL EN RDV CLIENT (Sophie autonome)
+// ===========================================================================
+//
+// Use-case : Sophie est en RDV face client, le client est OK pour signer.
+// Elle clique "Signer en direct" sur le panneau du deal → l'action :
+//   1. Crée le contrat à partir du deal (réutilise productsProposes, défauts
+//      raisonnables pour modalité/durée/date)
+//   2. Crée immédiatement une Signature avec token unique
+//   3. Renvoie le token → l'UI ouvre /sign/{token} dans un nouvel onglet
+//   4. Sophie tend la tablette au client
+//
+// Si un contrat existe déjà pour ce deal (signature interrompue, relance),
+// on le réutilise au lieu d'en créer un nouveau.
+
+const SignDealInPersonSchema = z.object({
+  dealId: z.string().min(1),
+  modalitePaiement: z
+    .enum(["CINQUANTE_CINQUANTE", "CENT_AU_SIGNING", "MENSUEL"])
+    .default("CINQUANTE_CINQUANTE"),
+  dureeMois: z.coerce.number().int().min(1).max(60).default(12),
+  dateDebut: z.coerce.date().optional(),
+});
+
+export interface SignDealInPersonResult {
+  ok: boolean;
+  contractId?: string;
+  numero?: string;
+  lienSignature?: string;
+  error?: string;
+}
+
+export async function signDealInPerson(
+  input: unknown,
+): Promise<SignDealInPersonResult> {
+  const user = await requireUser();
+  const parsed = SignDealInPersonSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: "Paramètres invalides." };
+  }
+
+  // Charge le deal avec son contexte
+  const deal = await prisma.deal.findUnique({
+    where: { id: parsed.data.dealId },
+    include: {
+      productsProposes: { select: { id: true } },
+      contracts: {
+        select: { id: true, numero: true },
+        take: 1,
+      },
+    },
+  });
+  if (!deal) return { ok: false, error: "Deal introuvable." };
+  if (user.role !== "ADMIN" && deal.assigneAId !== user.id) {
+    return { ok: false, error: "Ce deal ne t'appartient pas." };
+  }
+
+  let contractId: string;
+  let numero: string | undefined;
+
+  // Cas 1 : un contrat existe déjà → on le réutilise (signature relancée)
+  if (deal.contracts.length > 0) {
+    contractId = deal.contracts[0].id;
+    numero = deal.contracts[0].numero;
+  } else {
+    // Cas 2 : on crée le contrat depuis le deal
+    if (deal.productsProposes.length === 0) {
+      return {
+        ok: false,
+        error:
+          "Le deal n'a aucun produit. Ajoute au moins un produit avant de signer.",
+      };
+    }
+    const today = parsed.data.dateDebut ?? new Date();
+    const res = await createContractFromDeal({
+      prospectId: deal.prospectId,
+      dealId: deal.id,
+      dateSignature: today,
+      dateDebut: today,
+      dureeMois: parsed.data.dureeMois,
+      modalitePaiement: parsed.data.modalitePaiement,
+      lines: deal.productsProposes.map((p) => ({
+        productId: p.id,
+        quantite: 1,
+      })),
+    });
+    if (!res.ok || !res.contractId) {
+      return {
+        ok: false,
+        error: res.error ?? "Échec de la création du contrat.",
+      };
+    }
+    contractId = res.contractId;
+    numero = res.numero;
+  }
+
+  // Crée (ou récupère) la signature et le token
+  const sigRes = await createSignatureRequest(contractId);
+  if (!sigRes.ok || !sigRes.lienSignature) {
+    return {
+      ok: false,
+      contractId,
+      numero,
+      error: sigRes.error ?? "Échec de la création du lien de signature.",
+    };
+  }
+
+  // TODO (étape mail) : envoyer à l'admin un récap "Sophie a déclenché une
+  // signature RDV chez {prospect}" via lib/email.ts dès que Resend est câblé.
+  console.log(
+    `[signDealInPerson] ${user.name} déclenche une signature RDV deal=${deal.id} contract=${contractId}`,
+  );
+
+  revalidatePath("/pipeline");
+  revalidatePath("/contrats");
+  revalidatePath(`/contrats/${contractId}`);
+
+  return {
+    ok: true,
+    contractId,
+    numero,
+    lienSignature: sigRes.lienSignature,
+  };
+}
+
+// ===========================================================================
+// ENVOYER LE LIEN DE SIGNATURE PAR EMAIL
+// ===========================================================================
+//
+// Variante "à distance" de signDealInPerson : on prépare le contrat + le
+// lien de signature et on envoie un mail au prospect. Le client clique sur
+// le lien quand il veut, signe sur son téléphone/PC, on récupère tout.
+//
+// V1 : on enregistre l'Email en DB (table Email) et on log côté serveur.
+// V2 : intégration Resend réelle (cf. /emails/actions.ts).
+
+const SendSignatureByEmailSchema = z.object({
+  dealId: z.string().min(1),
+  modalitePaiement: z
+    .enum(["CINQUANTE_CINQUANTE", "CENT_AU_SIGNING", "MENSUEL"])
+    .default("CINQUANTE_CINQUANTE"),
+  dureeMois: z.coerce.number().int().min(1).max(60).default(12),
+  dateDebut: z.coerce.date().optional(),
+});
+
+export interface SendSignatureByEmailResult {
+  ok: boolean;
+  contractId?: string;
+  numero?: string;
+  lienSignature?: string;
+  emailDest?: string;
+  dryRun?: boolean;
+  error?: string;
+}
+
+export async function sendSignatureByEmail(
+  input: unknown,
+): Promise<SendSignatureByEmailResult> {
+  const user = await requireUser();
+  const parsed = SendSignatureByEmailSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Paramètres invalides." };
+
+  // Réutilise signDealInPerson pour créer contrat + signature
+  const inPersonRes = await signDealInPerson(parsed.data);
+  if (!inPersonRes.ok || !inPersonRes.lienSignature || !inPersonRes.contractId) {
+    return { ok: false, error: inPersonRes.error ?? "Échec." };
+  }
+
+  // Charge le prospect pour avoir l'email
+  const contract = await prisma.contract.findUnique({
+    where: { id: inPersonRes.contractId },
+    select: {
+      numero: true,
+      valeurAn1: true,
+      prospect: {
+        select: {
+          id: true,
+          email: true,
+          raisonSociale: true,
+          contactPrenom: true,
+          contactNom: true,
+        },
+      },
+    },
+  });
+  if (!contract) return { ok: false, error: "Contrat introuvable." };
+  if (!contract.prospect.email) {
+    return {
+      ok: false,
+      error:
+        "Pas d'email connu pour ce prospect. Ajoute-le sur sa fiche avant d'envoyer.",
+    };
+  }
+
+  // Construction de l'email
+  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+  const signUrl = `${appUrl}/sign/${inPersonRes.lienSignature}`;
+  const pdfUrl = `${appUrl}/api/contrats/${inPersonRes.contractId}/pdf?token=${inPersonRes.lienSignature}`;
+  const greeting = contract.prospect.contactPrenom
+    ? `Bonjour ${contract.prospect.contactPrenom},`
+    : `Bonjour,`;
+  const objet = `Votre contrat ${contract.numero} — Make Your Com`;
+  const contenuTexte = [
+    greeting,
+    "",
+    `Merci pour notre échange. Vous trouverez ci-joint le récapitulatif de votre contrat (${contract.numero}, valeur 12 mois : CHF ${Number(contract.valeurAn1).toLocaleString("fr-CH")}).`,
+    "",
+    "Pour le signer en ligne en 2 minutes :",
+    signUrl,
+    "",
+    "Vous pouvez aussi télécharger le PDF du contrat ici :",
+    pdfUrl,
+    "",
+    "Si vous préférez l'imprimer, le signer à la main et nous le renvoyer scanné, c'est tout à fait possible — répondez simplement à cet email avec le PDF signé.",
+    "",
+    "Bien cordialement,",
+    user.name,
+    "ACLR Sàrl — Make Your Com",
+  ].join("\n");
+  const contenuHtml = `
+    <p>${greeting}</p>
+    <p>Merci pour notre échange. Vous trouverez ci-joint le récapitulatif de votre contrat <strong>${contract.numero}</strong> (valeur 12 mois : CHF ${Number(contract.valeurAn1).toLocaleString("fr-CH")}).</p>
+    <p><strong>Pour le signer en ligne en 2 minutes :</strong><br>
+    <a href="${signUrl}" style="display:inline-block;background:#0E1936;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;margin-top:8px;">Signer le contrat ✍</a></p>
+    <p>Vous pouvez aussi <a href="${pdfUrl}">télécharger le PDF du contrat</a> pour le consulter, l'imprimer, le signer à la main et nous le renvoyer scanné par retour d'email.</p>
+    <p>Bien cordialement,<br>
+    ${user.name}<br>
+    <em>ACLR Sàrl — Make Your Com</em></p>
+  `;
+
+  // Récupère l'email expéditeur
+  const userFull = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { email: true, name: true },
+  });
+
+  const isDryRun = process.env.EMAIL_MODE !== "live";
+  const { randomBytes } = await import("node:crypto");
+  const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@aclr.ch>`;
+  const threadId = randomBytes(8).toString("hex");
+
+  if (isDryRun) {
+    console.log("📧 [DRY-RUN] Lien de signature envoyé", {
+      to: contract.prospect.email,
+      objet,
+      signUrl,
+    });
+  } else {
+    // V2 : appel Resend ici
+    console.log("📧 [LIVE] Envoi Resend non implémenté en V1");
+  }
+
+  // Enregistre l'email
+  await prisma.email.create({
+    data: {
+      prospectId: contract.prospect.id,
+      userId: user.id,
+      direction: "SORTANT",
+      threadId,
+      messageId,
+      expediteurEmail: userFull?.email ?? "noreply@aclr.ch",
+      expediteurNom: userFull?.name ?? "",
+      destinataireEmail: contract.prospect.email,
+      objet,
+      contenuHtml,
+      contenuTexte,
+      statut: "ENVOYE",
+      envoyeLe: new Date(),
+      labels: ["signature"],
+    },
+  });
+
+  // Activity
+  await prisma.activity.create({
+    data: {
+      prospectId: contract.prospect.id,
+      userId: user.id,
+      type: "EMAIL_ENVOYE",
+      date: new Date(),
+      sujet: `Lien de signature contrat ${contract.numero}`,
+      contenu: `Lien envoyé à ${contract.prospect.email}`,
+      statut: "FAIT",
+    },
+  });
+
+  revalidatePath(`/prospects/${contract.prospect.id}`);
+  revalidatePath(`/contrats/${inPersonRes.contractId}`);
+
+  return {
+    ok: true,
+    contractId: inPersonRes.contractId,
+    numero: inPersonRes.numero,
+    lienSignature: inPersonRes.lienSignature,
+    emailDest: contract.prospect.email,
+    dryRun: isDryRun,
+  };
+}
+
+// ===========================================================================
+// UPLOAD MANUEL DU CONTRAT SIGNÉ (PDF retourné par le client)
+// ===========================================================================
+//
+// Workflow papier / signature manuscrite scannée :
+//   1. Sophie envoie le PDF par mail au client
+//   2. Le client imprime, signe à la main, scanne, renvoie le PDF signé
+//   3. Sophie (ou Arthur) clique "Joindre le PDF signé" sur la page contrat
+//   4. Le PDF est stocké, la signature passe en SIGNEE_CLIENT type=MANUEL,
+//      et la cascade habituelle se déclenche (deal SIGNE, prospect SIGNE).
+
+const UploadSignedContractSchema = z.object({
+  contractId: z.string().min(1),
+  /** Data URL base64 du PDF retourné par le client (max ~5 MB). */
+  fileDataUrl: z
+    .string()
+    .min(1)
+    .refine((v) => v.startsWith("data:application/pdf"), {
+      message: "Le fichier doit être un PDF.",
+    }),
+  /** Nom du fichier d'origine (pour traçabilité). */
+  fileName: z.string().trim().max(200).optional(),
+  /** Nom du client signataire (audit légal). */
+  nomClient: z.string().trim().min(2).max(200),
+});
+
+export interface UploadSignedContractResult {
+  ok: boolean;
+  signatureId?: string;
+  error?: string;
+}
+
+export async function uploadSignedContract(
+  input: unknown,
+): Promise<UploadSignedContractResult> {
+  const user = await requireUser();
+  const parsed = UploadSignedContractSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalide." };
+  }
+
+  // Vérification d'accès au contrat
+  const contract = await prisma.contract.findUnique({
+    where: { id: parsed.data.contractId },
+    select: {
+      id: true,
+      numero: true,
+      assigneAId: true,
+      dealId: true,
+      prospectId: true,
+    },
+  });
+  if (!contract) return { ok: false, error: "Contrat introuvable." };
+  if (user.role !== "ADMIN" && contract.assigneAId !== user.id) {
+    return { ok: false, error: "Pas d'accès à ce contrat." };
+  }
+
+  // Garde-fou taille : 5 MB max sur la data URL (~3.75 MB de PDF réel)
+  if (parsed.data.fileDataUrl.length > 5_500_000) {
+    return {
+      ok: false,
+      error: "PDF trop volumineux (max 4 MB).",
+    };
+  }
+
+  // Décodage du base64 → upload via l'abstraction de stockage (local dev / Vercel Blob prod)
+  const base64 = parsed.data.fileDataUrl.split(",")[1] ?? "";
+  if (!base64) return { ok: false, error: "PDF illisible." };
+  const buffer = Buffer.from(base64, "base64");
+
+  const upload = await uploadFile({
+    prefix: `signed-contracts/${contract.id}`,
+    filename: "signed.pdf",
+    buffer,
+    contentType: "application/pdf",
+  });
+  const publicUrl = upload.url;
+
+  // Trouve la signature existante ou en crée une nouvelle pour ce contrat
+  const existingSig = await prisma.signature.findFirst({
+    where: { contractId: contract.id, signeParClient: false },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const now = new Date();
+  const sigData = {
+    type: "SIGNATURE_MANUELLE_PDF" as const,
+    statut: "SIGNEE_CLIENT" as const,
+    signeParClient: true,
+    dateSignatureClient: now,
+    nomClient: parsed.data.nomClient,
+    documentSigneUrl: publicUrl,
+  };
+
+  let signatureId: string;
+  await prisma.$transaction(async (tx) => {
+    if (existingSig) {
+      const updated = await tx.signature.update({
+        where: { id: existingSig.id },
+        data: sigData,
+      });
+      signatureId = updated.id;
+    } else {
+      const { randomBytes } = await import("node:crypto");
+      const created = await tx.signature.create({
+        data: {
+          contractId: contract.id,
+          ...sigData,
+          // Champs requis pour une signature manuelle (pas de lien public)
+          lienSignature: randomBytes(16).toString("base64url"),
+          documentPdfUrl: `/api/contrats/${contract.id}/pdf`,
+          expireA: new Date(now.getFullYear() + 1, now.getMonth(), now.getDate()),
+        },
+      });
+      signatureId = created.id;
+    }
+
+    // Cascade : deal → SIGNE + prospect → SIGNE (idem signature digitale)
+    if (contract.dealId) {
+      await tx.deal.update({
+        where: { id: contract.dealId },
+        data: { stage: "SIGNE", probabilite: 100, closeReelLe: now },
+      });
+    }
+    await tx.prospect.update({
+      where: { id: contract.prospectId },
+      data: { statut: "SIGNE" },
+    });
+  });
+
+  revalidatePath("/pipeline");
+  revalidatePath("/contrats");
+  revalidatePath(`/contrats/${contract.id}`);
+  revalidatePath("/signatures");
+
+  return { ok: true, signatureId: signatureId! };
+}
 
 // ===========================================================================
 // HELPERS

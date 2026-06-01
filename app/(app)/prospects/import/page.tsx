@@ -3,12 +3,14 @@ import Link from "next/link";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { ProspectImportWizard } from "@/components/prospects/prospect-import-wizard";
-import { requireUser } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 
 export const metadata = { title: "Import de prospects" };
 
 export default async function ImportProspectsPage() {
-  await requireUser();
+  // RBAC : import réservé à l'admin (Sophie ne doit pas pouvoir injecter
+  // ou modifier en masse des données).
+  await requireAdmin();
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-6 lg:px-8">

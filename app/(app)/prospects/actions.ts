@@ -180,6 +180,41 @@ export async function deleteProspect(id: string): Promise<ProspectActionResult> 
 }
 
 // ===========================================================================
+// BULK — réassignation en masse (admin uniquement)
+// ===========================================================================
+
+export async function bulkReassignProspects(input: {
+  prospectIds: string[];
+  newAssigneeId: string | null;
+}): Promise<{ ok: boolean; count?: number; error?: string }> {
+  await requireAdmin();
+  if (!Array.isArray(input.prospectIds) || input.prospectIds.length === 0) {
+    return { ok: false, error: "Aucune entreprise sélectionnée." };
+  }
+  // Validation du nouvel assigné si non-null
+  if (input.newAssigneeId) {
+    const exists = await prisma.user.findUnique({
+      where: { id: input.newAssigneeId },
+      select: { id: true, isActive: true },
+    });
+    if (!exists || !exists.isActive) {
+      return { ok: false, error: "Commerciale introuvable ou inactive." };
+    }
+  }
+  try {
+    const res = await prisma.prospect.updateMany({
+      where: { id: { in: input.prospectIds } },
+      data: { assigneAId: input.newAssigneeId },
+    });
+    revalidatePath("/prospects");
+    return { ok: true, count: res.count };
+  } catch (err) {
+    console.error("[bulkReassignProspects]", err);
+    return { ok: false, error: "Erreur lors de la réassignation." };
+  }
+}
+
+// ===========================================================================
 // IMPORT CSV — batch transactionnel
 // ===========================================================================
 
@@ -194,7 +229,9 @@ export async function deleteProspect(id: string): Promise<ProspectActionResult> 
 export async function importProspects(
   rows: unknown[],
 ): Promise<ProspectImportResult> {
-  const user = await requireUser();
+  // RBAC : import réservé à l'admin. requireAdmin() jette si le user
+  // n'est pas ADMIN, ce qui bloque l'action même si appelée à la main.
+  const user = await requireAdmin();
   const errors: ProspectImportResult["errors"] = [];
   const valides: ProspectImportRow[] = [];
 

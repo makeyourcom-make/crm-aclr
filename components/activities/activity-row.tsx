@@ -39,13 +39,26 @@ interface ActivityRowProps {
   activity: ActivityWithRefs;
   /** Affiche le nom de la commerciale (vue admin). */
   showUser?: boolean;
+  /**
+   * ID du user connecté. Utilisé pour masquer "Marquer fait" sur les
+   * activités appartenant à quelqu'un d'autre (Arthur n'a pas à clore
+   * un appel planifié de Sophie).
+   */
+  currentUserId?: string;
 }
 
-export function ActivityRow({ activity: a, showUser }: ActivityRowProps) {
+export function ActivityRow({
+  activity: a,
+  showUser,
+  currentUserId,
+}: ActivityRowProps) {
   const [pending, startTransition] = useTransition();
   const isPlanifiable = a.statut === "PLANIFIE" || a.statut === "EN_COURS";
   const isOverdue =
     isPlanifiable && a.date < new Date();
+  // On affiche "Marquer fait" seulement si l'activité m'appartient
+  // (ou si on n'a pas l'info — fallback sûr pour la fiche prospect).
+  const isMine = !currentUserId || a.userId === currentUserId;
 
   const handleMarkDone = () => {
     startTransition(async () => {
@@ -109,7 +122,7 @@ export function ActivityRow({ activity: a, showUser }: ActivityRowProps) {
         </div>
       </div>
 
-      {isPlanifiable && (
+      {isPlanifiable && isMine && (
         <button
           type="button"
           onClick={handleMarkDone}

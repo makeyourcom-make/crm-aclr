@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { CommissionsChart } from "@/components/dashboard/commissions-chart";
 import { MonthlyGoals } from "@/components/dashboard/monthly-goals";
+import { SignAclrButton } from "@/components/signatures/sign-aclr-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
 import { formatCHF, formatCHFCompact, formatDate } from "@/lib/format";
@@ -45,37 +46,18 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi
-          label="Signatures du mois"
-          value={`${data.signaturesMois.count}`}
-          subtitle={formatCHF(data.signaturesMois.montant)}
-        />
-        <Kpi
-          label="Commissions acquises"
-          value={formatCHF(data.commissionsAcquisesMois)}
-          subtitle="versées dans la facture mensuelle"
-          tone="emerald"
-        />
-        <Kpi
-          label="Salaire prévu"
-          value={formatCHF(data.salairePrevuMois)}
-          subtitle={
-            data.garantieActiveMois ? "Garantie active" : "Performance pure"
-          }
-          tone={data.garantieActiveMois ? "amber" : "emerald"}
-        />
-        <Kpi
-          label="Pipeline pondéré"
-          value={formatCHF(
-            data.topDeals.reduce((s, d) => s + d.montantPondere, 0),
-          )}
-          subtitle={`${data.topDeals.length} deals chauds`}
-        />
-      </div>
-
-      {user.role === "ADMIN" && (
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+      {user.role === "ADMIN" ? (
+        // ====================================================================
+        // VUE ADMIN — KPIs agence uniquement (pas de "Commissions acquises"
+        // ni "Salaire prévu" perso : c'est la rémunération des commerciales,
+        // pas pertinent au niveau direction).
+        // ====================================================================
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Kpi
+            label="Signatures du mois"
+            value={`${data.signaturesMois.count}`}
+            subtitle={formatCHF(data.signaturesMois.montant)}
+          />
           <Kpi
             label="CA agence du mois"
             value={formatCHF(data.caAgenceMois ?? 0)}
@@ -84,6 +66,7 @@ export default async function DashboardPage() {
           <Kpi
             label="À verser aux commerciales"
             value={formatCHF(data.montantAVerserCommerciales ?? 0)}
+            subtitle="commissions du mois"
             tone="primary"
           />
           <Kpi
@@ -93,7 +76,88 @@ export default async function DashboardPage() {
             tone="primary"
           />
         </div>
+      ) : (
+        // ====================================================================
+        // VUE COMMERCIAL — KPIs personnels (signatures, commissions, salaire,
+        // pipeline pondéré perso).
+        // ====================================================================
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Kpi
+            label="Signatures du mois"
+            value={`${data.signaturesMois.count}`}
+            subtitle={formatCHF(data.signaturesMois.montant)}
+          />
+          <Kpi
+            label="Commissions acquises"
+            value={formatCHF(data.commissionsAcquisesMois)}
+            subtitle="versées via ton salaire mensuel"
+            tone="emerald"
+          />
+          <Kpi
+            label="Salaire prévu"
+            value={formatCHF(data.salairePrevuMois)}
+            subtitle={
+              data.garantieActiveMois ? "Garantie active" : "Performance pure"
+            }
+            tone={data.garantieActiveMois ? "amber" : "emerald"}
+          />
+          <Kpi
+            label="Pipeline pondéré"
+            value={formatCHF(
+              data.topDeals.reduce((s, d) => s + d.montantPondere, 0),
+            )}
+            subtitle={`${data.topDeals.length} deals chauds`}
+          />
+        </div>
       )}
+
+      {/* Contrats en attente de contre-signature ACLR (admin uniquement) */}
+      {user.role === "ADMIN" &&
+        data.contratsAValider &&
+        data.contratsAValider.length > 0 && (
+          <Card className="mt-6 border-emerald-300 bg-emerald-50/40">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-emerald-600 px-2 text-xs font-bold text-white">
+                  {data.contratsAValider.length}
+                </span>
+                Contrats signés client — à contre-signer
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ul className="divide-y divide-emerald-200">
+                {data.contratsAValider.map((c) => (
+                  <li
+                    key={c.contractId}
+                    className="flex flex-wrap items-center gap-3 px-4 py-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">
+                        <Link
+                          href={`/contrats/${c.contractId}`}
+                          className="hover:underline"
+                        >
+                          {c.numero} · {c.raisonSociale}
+                        </Link>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Signé par le client le{" "}
+                        {c.dateSignatureClient
+                          ? formatDate(c.dateSignatureClient)
+                          : "—"}{" "}
+                        · Commerciale : {c.commercialeName}
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold tabular-nums text-emerald-700">
+                      {formatCHF(c.valeurAn1)}
+                    </p>
+                    <SignAclrButton signatureId={c.signatureId} />
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
 
       {/* Objectifs du mois — progress bars pilotables depuis /objectifs */}
       <div className="mt-6">
@@ -106,11 +170,14 @@ export default async function DashboardPage() {
       <Card className="mt-6">
         <CardHeader>
           <CardTitle className="text-base">
-            Évolution commissions — 12 derniers mois
+            Évolution du CA — signatures (12 derniers mois)
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <CommissionsChart data={data.evolutionCommissions} />
+          <CommissionsChart
+            data={data.evolutionCASignatures}
+            tooltipLabel="CA signé"
+          />
         </CardContent>
       </Card>
 
@@ -186,13 +253,13 @@ export default async function DashboardPage() {
       <Card className="mt-6">
         <CardHeader>
           <CardTitle className="text-base">
-            Renouvellements (60 prochains jours)
+            Renouvellements (90 prochains jours)
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {data.renouvellementsAVenir.length === 0 ? (
             <p className="px-3 py-4 text-sm text-muted-foreground">
-              Aucun anniversaire de contrat dans les 60 prochains jours.
+              Aucun anniversaire de contrat dans les 90 prochains jours.
             </p>
           ) : (
             <ul className="divide-y divide-border">

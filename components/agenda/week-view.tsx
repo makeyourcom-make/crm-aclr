@@ -29,6 +29,8 @@ interface WeekViewProps {
   weekStart: Date;
   activities: AgendaActivity[];
   prospects: ProspectOption[];
+  /** Affiche le prénom du propriétaire sur chaque activité (vue admin "Toute l'équipe"). */
+  showUserBadge?: boolean;
 }
 
 function toIso(d: Date): string {
@@ -36,7 +38,12 @@ function toIso(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function WeekView({ weekStart, activities, prospects }: WeekViewProps) {
+export function WeekView({
+  weekStart,
+  activities,
+  prospects,
+  showUserBadge = false,
+}: WeekViewProps) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -89,7 +96,11 @@ export function WeekView({ weekStart, activities, prospects }: WeekViewProps) {
               ) : (
                 <div className="space-y-1.5">
                   {grouped[idx].map((a) => (
-                    <ActivityRow key={a.id} activity={a} />
+                    <ActivityRow
+                      key={a.id}
+                      activity={a}
+                      showUserBadge={showUserBadge}
+                    />
                   ))}
                 </div>
               )}
@@ -118,7 +129,30 @@ const STATUT_CLASSES: Record<string, string> = {
   ANNULE: "bg-slate-50 border-slate-200 text-slate-400 line-through",
 };
 
-function ActivityRow({ activity: a }: { activity: AgendaActivity }) {
+// Palette par utilisateur (déterministe) pour distinguer Arthur vs Sophie
+// dans la vue "Toute l'équipe". Couleur ≠ statut → on garde les couleurs
+// de statut, on ajoute juste une pastille à côté du nom.
+const USER_DOT_COLORS = [
+  "#0E1936", // navy
+  "#F47174", // coral
+  "#2563eb",
+  "#10b981",
+  "#a855f7",
+];
+function colorForUser(userId: string): string {
+  // Hash simple basé sur le userId pour assigner une couleur stable
+  let h = 0;
+  for (let i = 0; i < userId.length; i++) h = (h * 31 + userId.charCodeAt(i)) | 0;
+  return USER_DOT_COLORS[Math.abs(h) % USER_DOT_COLORS.length];
+}
+
+function ActivityRow({
+  activity: a,
+  showUserBadge = false,
+}: {
+  activity: AgendaActivity;
+  showUserBadge?: boolean;
+}) {
   const [pending, startTransition] = useTransition();
 
   const markDone = () =>
@@ -156,6 +190,15 @@ function ActivityRow({ activity: a }: { activity: AgendaActivity }) {
           {formatTime(a.date)}
         </span>
         <span className="opacity-70">{getActivityTypeLabel(a.type)}</span>
+        {showUserBadge && a.user && (
+          <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-white/70 px-1.5 py-0.5 text-[9px] font-medium">
+            <span
+              className="inline-block h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: colorForUser(a.user.id) }}
+            />
+            {a.user.name.split(" ")[0]}
+          </span>
+        )}
       </div>
       <Link
         href={`/prospects/${a.prospect.id}`}

@@ -32,8 +32,8 @@ export interface DashboardData {
   // Objectifs du mois (étape 20)
   monthlyProgress: MonthlyObjectiveProgress;
 
-  // Évolution 12 mois (commissions acquises par mois)
-  evolutionCommissions: Array<{ label: string; montant: number }>;
+  // Évolution 12 mois (CA signé par mois — somme valeurAn1 des contrats signés)
+  evolutionCASignatures: Array<{ label: string; montant: number }>;
 
   // Pipeline résumé
   pipelineParStage: Array<{ stage: string; count: number; montant: number }>;
@@ -48,7 +48,7 @@ export interface DashboardData {
     montantPondere: number;
   }>;
 
-  // Renouvellements à venir (60 jours)
+  // Renouvellements à venir (90 jours)
   renouvellementsAVenir: Array<{
     contractId: string;
     numero: string;
@@ -61,6 +61,16 @@ export interface DashboardData {
   caAgenceMois?: number;
   montantAVerserCommerciales?: number;
   caRecurrentTotalMensuel?: number;
+  /** Contrats signés par le client en attente de contre-signature ACLR. */
+  contratsAValider?: Array<{
+    contractId: string;
+    numero: string;
+    raisonSociale: string;
+    signatureId: string;
+    dateSignatureClient: Date | null;
+    valeurAn1: number;
+    commercialeName: string;
+  }>;
 }
 
 export async function getDashboard(user: SessionUser): Promise<DashboardData> {
@@ -119,15 +129,14 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     signaturesMoisRaw,
   );
 
-  // 4. Évolution 12 mois en arrière (en passant par groupBy mois)
+  // 4. Évolution 12 mois en arrière — CA signé (somme valeurAn1 par mois de signature)
   const start12 = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-  const allPaye = await prisma.commissionPayment.findMany({
+  const contractsLast12 = await prisma.contract.findMany({
     where: {
-      ...scopeCommission,
-      statut: "PAYE",
-      dateVersement: { gte: start12 },
+      ...scopeContract,
+      dateSignature: { gte: start12 },
     },
-    select: { dateVersement: true, montant: true },
+    select: { dateSignature: true, valeurAn1: true },
   });
   const monthMap = new Map<string, number>();
   for (let i = 0; i < 12; i++) {
@@ -135,16 +144,16 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     const key = `${d.getFullYear()}-${d.getMonth()}`;
     monthMap.set(key, 0);
   }
-  for (const p of allPaye) {
-    if (!p.dateVersement) continue;
-    const key = `${p.dateVersement.getFullYear()}-${p.dateVersement.getMonth()}`;
-    monthMap.set(key, (monthMap.get(key) ?? 0) + Number(p.montant));
+  for (const c of contractsLast12) {
+    if (!c.dateSignature) continue;
+    const key = `${c.dateSignature.getFullYear()}-${c.dateSignature.getMonth()}`;
+    monthMap.set(key, (monthMap.get(key) ?? 0) + Number(c.valeurAn1));
   }
-  const evolutionCommissions: DashboardData["evolutionCommissions"] = [];
+  const evolutionCASignatures: DashboardData["evolutionCASignatures"] = [];
   for (let i = 0; i < 12; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
     const key = `${d.getFullYear()}-${d.getMonth()}`;
-    evolutionCommissions.push({
+    evolutionCASignatures.push({
       label: d.toLocaleDateString("fr-CH", { month: "short" }).replace(".", ""),
       montant: monthMap.get(key) ?? 0,
     });
@@ -189,9 +198,11 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     .sort((a, b) => b.montantPondere - a.montantPondere)
     .slice(0, 5);
 
-  // 7. Renouvellements à venir 60 jours (anniversaires de contrats actifs)
-  const in60Days = new Date(now);
-  in60Days.setDate(in60Days.getDate() + 60);
+  // 7. Renouvellements à venir 90 jours (anniversaires de contrats actifs)
+  // Fenêtre alignée sur le préavis de 30 jours des CGV (art. 3.2) +
+  // 60 j d'anticipation commerciale → 90 j total.
+  const in90Days = new Date(now);
+  in90Days.setDate(in90Days.getDate() + 90);
   const contractsForRenewal = await prisma.contract.findMany({
     where: { ...scopeContract, statut: "ACTIF", montantMensuel: { gt: 0 } },
     select: {
@@ -219,13 +230,14 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
         commissionMensuelle: Number(c.montantMensuel) * taux,
       };
     })
-    .filter((r) => r.dateAnniversaire <= in60Days)
+    .filter((r) => r.dateAnniversaire <= in90Days)
     .sort((a, b) => a.dateAnniversaire.getTime() - b.dateAnniversaire.getTime());
 
   // 8. Vue admin
   let caAgenceMois: number | undefined;
   let montantAVerserCommerciales: number | undefined;
   let caRecurrentTotalMensuel: number | undefined;
+  let contratsAValider: DashboardData["contratsAValider"];
 
   if (user.role === "ADMIN") {
     const allSignaturesMois = await prisma.contract.aggregate({
@@ -248,6 +260,32 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
       _sum: { montantMensuel: true },
     });
     caRecurrentTotalMensuel = Number(allActiveContracts._sum.montantMensuel ?? 0);
+
+    // Contrats signés par le client mais pas encore contre-signés par ACLR
+    const sigsAValider = await prisma.signature.findMany({
+      where: { signeParClient: true, signeParAclr: false },
+      include: {
+        contract: {
+          select: {
+            id: true,
+            numero: true,
+            valeurAn1: true,
+            assigneA: { select: { name: true } },
+            prospect: { select: { raisonSociale: true } },
+          },
+        },
+      },
+      orderBy: { dateSignatureClient: "asc" },
+    });
+    contratsAValider = sigsAValider.map((s) => ({
+      contractId: s.contract.id,
+      numero: s.contract.numero,
+      raisonSociale: s.contract.prospect.raisonSociale,
+      signatureId: s.id,
+      dateSignatureClient: s.dateSignatureClient,
+      valeurAn1: Number(s.contract.valeurAn1),
+      commercialeName: s.contract.assigneA?.name ?? "—",
+    }));
   }
 
   return {
@@ -259,13 +297,14 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     salairePrevuMois,
     garantieActiveMois,
     monthlyProgress,
-    evolutionCommissions,
+    evolutionCASignatures,
     pipelineParStage,
     topDeals,
     renouvellementsAVenir,
     caAgenceMois,
     montantAVerserCommerciales,
     caRecurrentTotalMensuel,
+    contratsAValider,
   };
 }
 

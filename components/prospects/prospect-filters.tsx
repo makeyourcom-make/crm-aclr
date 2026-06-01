@@ -16,6 +16,13 @@ import type { ProspectListParams } from "@/lib/schemas/prospect";
 
 interface ProspectFiltersProps {
   params: ProspectListParams;
+  /**
+   * Liste des commerciales pour le filtre "Assigné à" (admin uniquement).
+   * Si vide, le filtre n'est pas affiché.
+   */
+  users?: Array<{ id: string; name: string }>;
+  /** ID de l'utilisateur connecté — sert à libeller "Moi" dans le filtre. */
+  currentUserId?: string;
 }
 
 /**
@@ -24,7 +31,11 @@ interface ProspectFiltersProps {
  * Chaque changement met à jour les query string ; le Server Component
  * re-fetche les données et re-rend la table.
  */
-export function ProspectFilters({ params }: ProspectFiltersProps) {
+export function ProspectFilters({
+  params,
+  users,
+  currentUserId,
+}: ProspectFiltersProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -77,6 +88,7 @@ export function ProspectFilters({ params }: ProspectFiltersProps) {
     !!params.statut ||
     !!params.secteur ||
     !!params.canton ||
+    !!params.assigneAId ||
     !!params.q;
 
   const clearAll = () => {
@@ -101,6 +113,21 @@ export function ProspectFilters({ params }: ProspectFiltersProps) {
           className="pl-9"
         />
       </div>
+
+      {users && users.length > 1 && (
+        <FilterSelect
+          label="Commerciale"
+          value={params.assigneAId ?? ""}
+          onChange={(v) => handleSelectChange("assigneAId", v)}
+          options={users.map((u) => ({
+            value: u.id,
+            label:
+              currentUserId && u.id === currentUserId
+                ? `Moi (${u.name.split(" ")[0]})`
+                : u.name,
+          }))}
+        />
+      )}
 
       <FilterSelect
         label="Statut"

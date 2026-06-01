@@ -14,7 +14,7 @@ export function SignAclrButton({ signatureId }: { signatureId: string }) {
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success("Contre-signée par ACLR.");
+      toast.success("Contre-signée ✓ — deal sorti du pipeline.");
     });
   return (
     <button

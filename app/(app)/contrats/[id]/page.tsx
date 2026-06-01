@@ -7,11 +7,16 @@ import { ResilierButton } from "@/components/contrats/resilier-button";
 import { MarkInvoicePaidButton } from "@/components/paiements/mark-invoice-paid-button";
 import { PaymentStatutBadge } from "@/components/paiements/payment-statut-badge";
 import { RecordPaymentButton } from "@/components/paiements/record-payment-button";
+import { ProjectMarginBox } from "@/components/contrats/project-margin-box";
+import { SignAclrButton } from "@/components/signatures/sign-aclr-button";
 import { SignInPersonButton } from "@/components/signatures/sign-in-person-button";
+import { UploadSignedPdfButton } from "@/components/contrats/upload-signed-pdf-button";
+import { getProjectMarginForContract } from "@/lib/queries/project-profitability";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
+import { getNextRenewalDate, relativeDays } from "@/lib/contract-renewal";
 import { formatCHF, formatDate, formatDateLong } from "@/lib/format";
 import { getContractById } from "@/lib/queries/contracts";
 import { requireUser } from "@/lib/session";
@@ -68,6 +73,22 @@ export default async function ContractDetailPage({ params }: PageProps) {
 
   if (!contract) notFound();
 
+  // Rentabilité projet — admin only
+  const [margin, settingsForMargin] =
+    user.role === "ADMIN"
+      ? await Promise.all([
+          getProjectMarginForContract(id),
+          import("@/lib/db").then(({ prisma }) =>
+            prisma.setting.findFirst({
+              select: { tauxImpotsProvisionne: true },
+            }),
+          ),
+        ])
+      : [null, null];
+  const tauxImpotsProvisionne = settingsForMargin
+    ? Number(settingsForMargin.tauxImpotsProvisionne)
+    : 0.25;
+
   const commission = contract.commissions[0]; // 1 commission par contrat
 
   return (
@@ -85,33 +106,50 @@ export default async function ContractDetailPage({ params }: PageProps) {
           </Link>
         }
         actions={
-          contract.statut === "ACTIF" ? (
-            <>
-              <SignInPersonButton
-                contractId={contract.id}
-                existingToken={
-                  contract.signatures.find(
-                    (s) => s.statut !== "COMPLETEE" && s.expireA > new Date(),
-                  )?.lienSignature ?? null
-                }
-              />
-              {user.role === "ADMIN" && (
-                <RecordPaymentButton
-                  contractId={contract.id}
-                  factures={contract.clientInvoices
-                    .filter((f) => f.statut !== "PAYEE")
-                    .map((f) => ({
-                      id: f.id,
-                      numero: f.numero,
-                      type: f.type,
-                      total: f.total.toString(),
-                      statut: f.statut,
-                    }))}
-                />
+          <>
+            <a
+              href={`/api/contrats/${contract.id}/pdf`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
+            >
+              <Icon name="FileText" className="h-4 w-4" />
+              PDF (avec CGV)
+            </a>
+            {/* Upload du PDF signé — visible tant qu'aucune signature client n'est faite */}
+            {contract.statut === "ACTIF" &&
+              !contract.signatures.some((s) => s.signeParClient) && (
+                <UploadSignedPdfButton contractId={contract.id} />
               )}
-              <ResilierButton contractId={contract.id} />
-            </>
-          ) : null
+            {contract.statut === "ACTIF" && (
+              <>
+                <SignInPersonButton
+                  contractId={contract.id}
+                  existingToken={
+                    contract.signatures.find(
+                      (s) =>
+                        s.statut !== "COMPLETEE" && s.expireA > new Date(),
+                    )?.lienSignature ?? null
+                  }
+                />
+                {user.role === "ADMIN" && (
+                  <RecordPaymentButton
+                    contractId={contract.id}
+                    factures={contract.clientInvoices
+                      .filter((f) => f.statut !== "PAYEE")
+                      .map((f) => ({
+                        id: f.id,
+                        numero: f.numero,
+                        type: f.type,
+                        total: f.total.toString(),
+                        statut: f.statut,
+                      }))}
+                  />
+                )}
+                <ResilierButton contractId={contract.id} />
+              </>
+            )}
+          </>
         }
       />
 
@@ -146,6 +184,16 @@ export default async function ContractDetailPage({ params }: PageProps) {
         />
       </div>
 
+      {/* Rentabilité projet — admin uniquement */}
+      {user.role === "ADMIN" && margin && (
+        <div className="mt-6">
+          <ProjectMarginBox
+            margin={margin}
+            tauxImpots={tauxImpotsProvisionne}
+          />
+        </div>
+      )}
+
       {/* Infos générales */}
       <Card className="mt-6">
         <CardHeader>
@@ -159,14 +207,28 @@ export default async function ContractDetailPage({ params }: PageProps) {
           <Field label="Date de début">
             {formatDateLong(contract.dateDebut)}
           </Field>
-          <Field label="Échéance">
-            {formatDateLong(
-              new Date(
-                contract.dateDebut.getFullYear(),
-                contract.dateDebut.getMonth() + contract.dureeMois,
-                contract.dateDebut.getDate(),
-              ),
-            )}
+          <Field label="Prochain renouvellement">
+            {(() => {
+              const renewal = getNextRenewalDate({
+                dateDebut: contract.dateDebut,
+                dureeMois: contract.dureeMois,
+                statut: contract.statut,
+              });
+              if (!renewal) {
+                return (
+                  <span className="text-muted-foreground">
+                    — (pas de renouvellement prévu)
+                  </span>
+                );
+              }
+              const rel = relativeDays(renewal);
+              const isClose = rel.days < 30;
+              return (
+                <span className={isClose ? "font-semibold text-amber-700" : ""}>
+                  {formatDateLong(renewal)} ({rel.label})
+                </span>
+              );
+            })()}
           </Field>
           {contract.deal && (
             <Field label="Deal d'origine" className="sm:col-span-2">
@@ -222,6 +284,120 @@ export default async function ContractDetailPage({ params }: PageProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Signatures électroniques — audit complet */}
+      {contract.signatures.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-base">
+              Signatures ({contract.signatures.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {contract.signatures.map((sig) => (
+              <div
+                key={sig.id}
+                className="rounded-lg border border-border bg-muted/20 p-4"
+              >
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <Badge variant="secondary" className="font-normal">
+                    {sig.statut.replace(/_/g, " ")}
+                  </Badge>
+                  <span className="text-muted-foreground">
+                    Lien expire le {formatDate(sig.expireA)}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                  {/* Bloc client */}
+                  <div className="rounded-md border border-border bg-card p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Client
+                    </p>
+                    {sig.signeParClient ? (
+                      <>
+                        <p className="mt-1 text-sm font-medium">
+                          {sig.nomClient ?? "—"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Signé le{" "}
+                          {sig.dateSignatureClient
+                            ? formatDateLong(sig.dateSignatureClient)
+                            : "—"}
+                          {sig.ipClient && (
+                            <>
+                              <br />
+                              IP : <code className="font-mono">{sig.ipClient}</code>
+                            </>
+                          )}
+                        </p>
+                        {sig.signatureClientDataUrl && (
+                          <div className="mt-2 overflow-hidden rounded border border-border bg-white p-1">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={sig.signatureClientDataUrl}
+                              alt="Signature manuscrite du client"
+                              className="h-24 w-full object-contain"
+                            />
+                          </div>
+                        )}
+                        {sig.documentSigneUrl && (
+                          <a
+                            href={sig.documentSigneUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] hover:bg-muted"
+                          >
+                            <Icon name="FileText" className="h-3.5 w-3.5" />
+                            Voir le PDF signé reçu
+                          </a>
+                        )}
+                      </>
+                    ) : (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        En attente de signature client
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Bloc ACLR */}
+                  <div className="rounded-md border border-border bg-card p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      ACLR Sàrl
+                    </p>
+                    {sig.signeParAclr ? (
+                      <>
+                        <p className="mt-1 text-sm font-medium">
+                          ✓ Contre-signé
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Le{" "}
+                          {sig.dateSignatureAclr
+                            ? formatDateLong(sig.dateSignatureAclr)
+                            : "—"}
+                        </p>
+                      </>
+                    ) : sig.signeParClient && user.role === "ADMIN" ? (
+                      <>
+                        <p className="mt-1 text-sm text-amber-700">
+                          En attente de ta contre-signature
+                        </p>
+                        <div className="mt-2">
+                          <SignAclrButton signatureId={sig.id} />
+                        </div>
+                      </>
+                    ) : (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        En attente
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Factures clients */}
       <Card className="mt-6">

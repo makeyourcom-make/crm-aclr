@@ -8,6 +8,7 @@ import { notFound } from "next/navigation";
 
 import { SignForm } from "./form";
 import { Logo } from "@/components/brand/logo";
+import { CGV_ARTICLES, CGV_TITLE, CGV_VERSION } from "@/lib/cgv";
 import { prisma } from "@/lib/db";
 import { formatCHF, formatDateLong } from "@/lib/format";
 
@@ -111,16 +112,44 @@ export default async function SignPage({ params }: PageProps) {
             )}
           </div>
 
-          {/* CGV minimum */}
+          {/* CGV intégrales — repliable pour ne pas écraser l'écran tablette */}
           <details className="mt-6 rounded-md border border-border bg-card p-3 text-xs">
             <summary className="cursor-pointer font-medium">
-              Conditions générales (extrait)
+              📄 {CGV_TITLE} (version {CGV_VERSION})
             </summary>
-            <p className="mt-2 text-muted-foreground">
-              Contrat de prestations digitales avec ACLR Sàrl. Engagement
-              {" "}{sig.contract.dureeMois} mois renouvelable tacitement.
-              Résiliation possible avec préavis 30 jours. Tarifs ajustables
-              à chaque renouvellement annuel.
+            <div className="mt-3 max-h-[420px] space-y-4 overflow-y-auto pr-2 text-muted-foreground">
+              <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-900">
+                ⚠ Lis attentivement ces CGV : en signant, tu confirmes les
+                avoir acceptées sans réserve. Elles sont également annexées
+                au PDF du contrat que tu recevras.
+              </p>
+              {CGV_ARTICLES.map((article) => (
+                <div key={article.number}>
+                  <p className="font-semibold text-foreground">
+                    {article.number}. {article.title}
+                  </p>
+                  <div className="mt-1 space-y-1.5">
+                    {article.paragraphs.map((p) => (
+                      <p key={p.id}>
+                        <strong className="text-foreground">{p.id}</strong>{" "}
+                        {p.text}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              Tu peux aussi{" "}
+              <a
+                href={`/api/contrats/${sig.contract.id}/pdf?token=${token}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                télécharger le projet de contrat complet (PDF)
+              </a>
+              .
             </p>
           </details>
 

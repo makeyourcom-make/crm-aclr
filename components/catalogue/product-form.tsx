@@ -52,6 +52,12 @@ export function ProductForm({ initial, unitaires }: ProductFormProps) {
   const [prixMensuel, setPrixMensuel] = useState(
     initial?.prixMensuel?.toString() ?? "",
   );
+  const [coutOneShot, setCoutOneShot] = useState(
+    initial?.coutOneShot?.toString() ?? "",
+  );
+  const [coutMensuel, setCoutMensuel] = useState(
+    initial?.coutMensuel?.toString() ?? "",
+  );
   const [prixAnnuel, setPrixAnnuel] = useState(
     initial?.prixAnnuel?.toString() ?? "",
   );
@@ -98,6 +104,8 @@ export function ProductForm({ initial, unitaires }: ProductFormProps) {
       prixOneShot: prixOneShot ? Number(prixOneShot) : undefined,
       prixMensuel: prixMensuel ? Number(prixMensuel) : undefined,
       prixAnnuel: prixAnnuel ? Number(prixAnnuel) : undefined,
+      coutOneShot: coutOneShot ? Number(coutOneShot) : undefined,
+      coutMensuel: coutMensuel ? Number(coutMensuel) : undefined,
       composantsIds: isPack ? composantsIds : undefined,
       isActive: initial?.isActive ?? true,
     };
@@ -225,6 +233,38 @@ export function ProductForm({ initial, unitaires }: ProductFormProps) {
         </CardContent>
       </Card>
 
+      {/* Coûts internes — pour la rentabilité par projet (admin only) */}
+      <Card className="border-amber-200">
+        <CardHeader>
+          <CardTitle className="text-base">
+            Coûts internes (rentabilité)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            🔒 Information interne — jamais affichée au client. Sert à calculer
+            la marge nette par projet sur{" "}
+            <strong>Administration → Comptabilité → Rentabilité</strong>.
+          </p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <PrixField
+              label="Coût one-shot interne (CHF)"
+              id="coutOneShot"
+              value={coutOneShot}
+              onChange={setCoutOneShot}
+              helper="Setup, intégration, licences à l'install."
+            />
+            <PrixField
+              label="Coût mensuel interne (CHF)"
+              id="coutMensuel"
+              value={coutMensuel}
+              onChange={setCoutMensuel}
+              helper="Hébergement, SaaS récurrent, ad spend mensuel."
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {isPack && (
         <Card>
           <CardHeader>
@@ -291,12 +331,14 @@ function PrixField({
   value,
   onChange,
   disabled,
+  helper,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
+  helper?: string;
 }) {
   return (
     <div className={cn("space-y-1.5", disabled && "opacity-50")}>
@@ -311,6 +353,9 @@ function PrixField({
         disabled={disabled}
         placeholder="0.00"
       />
+      {helper && (
+        <p className="text-[11px] text-muted-foreground">{helper}</p>
+      )}
     </div>
   );
 }
