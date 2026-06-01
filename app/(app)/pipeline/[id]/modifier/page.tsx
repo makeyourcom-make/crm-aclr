@@ -78,6 +78,8 @@ export default async function EditDealPage({ params }: PageProps) {
           probabilite: deal.probabilite,
           closeAttenduLe: deal.closeAttenduLe,
           productIds: deal.productsProposes.map((p) => p.id),
+          productNotes:
+            (deal.productNotes as Record<string, string> | null) ?? undefined,
         }}
       />
     </div>

@@ -20,6 +20,8 @@ export const DealCreateSchema = z.object({
   closeAttenduLe: z.coerce.date().optional(),
   /** IDs de produits à associer (m2m) */
   productIds: z.array(z.string()).optional(),
+  /** Notes / descriptions libres par produit, format { productId: "..." } */
+  productNotes: z.record(z.string(), z.string()).optional(),
 });
 export type DealCreateInput = z.infer<typeof DealCreateSchema>;
 

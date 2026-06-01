@@ -114,9 +114,14 @@ export async function createContractFromDeal(
     const lineMensuel = chfToCents(mensuelUnit * line.quantite);
     oneShotCents += lineOneShot;
     mensuelCents += lineMensuel;
+    // Si une note libre est fournie, on l'ajoute au nom sous forme
+    // « Produit — détail libre » pour qu'elle apparaisse sur les
+    // designations des lignes de facture.
+    const note = (line.note ?? "").trim();
+    const nom = note ? `${prod.nom} — ${note}` : prod.nom;
     return {
       productId: line.productId,
-      nom: prod.nom,
+      nom,
       quantite: line.quantite,
       oneShotUnit,
       mensuelUnit,
@@ -237,6 +242,7 @@ export async function createContractFromDeal(
             type: inv.type,
             periodeMoisDebut: inv.periodeMoisDebut ?? null,
             periodeMoisFin: inv.periodeMoisFin ?? null,
+            devise: deviseDefault,
             sousTotal: centsToChf(inv.sousTotalCents),
             totalTVA: 0,
             total: centsToChf(inv.sousTotalCents),
@@ -384,6 +390,9 @@ export async function signDealInPerson(
       },
     },
   });
+  // productNotes est stocké en Json
+  const dealNotes =
+    (deal?.productNotes as Record<string, string> | null) ?? {};
   if (!deal) return { ok: false, error: "Deal introuvable." };
   if (user.role !== "ADMIN" && deal.assigneAId !== user.id) {
     return { ok: false, error: "Ce deal ne t'appartient pas." };
@@ -416,6 +425,7 @@ export async function signDealInPerson(
       lines: deal.productsProposes.map((p) => ({
         productId: p.id,
         quantite: 1,
+        note: dealNotes[p.id] ?? undefined,
       })),
     });
     if (!res.ok || !res.contractId) {

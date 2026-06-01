@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { getNextRenewalDate, relativeDays } from "@/lib/contract-renewal";
-import { formatCHF, formatDate, formatDateLong } from "@/lib/format";
+import { formatCHF, formatDate, formatDateLong, formatMoney } from "@/lib/format";
 import { getContractById } from "@/lib/queries/contracts";
 import { requireUser } from "@/lib/session";
 
@@ -182,15 +182,15 @@ export default async function ContractDetailPage({ params }: PageProps) {
       <div className="grid gap-4 sm:grid-cols-3">
         <Kpi
           label="Valeur an 1"
-          value={formatCHF(Number(contract.valeurAn1))}
+          value={formatMoney(Number(contract.valeurAn1), contract.devise)}
         />
         <Kpi
           label="One-shot"
-          value={formatCHF(Number(contract.montantOneShot))}
+          value={formatMoney(Number(contract.montantOneShot), contract.devise)}
         />
         <Kpi
           label="Mensuel récurrent"
-          value={`${formatCHF(Number(contract.montantMensuel))} / mois`}
+          value={`${formatMoney(Number(contract.montantMensuel), contract.devise)} / mois`}
         />
       </div>
 
@@ -453,7 +453,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                     </td>
                     <td className="px-3 py-2 text-xs">{inv.type}</td>
                     <td className="px-3 py-2 text-right tabular-nums">
-                      {formatCHF(Number(inv.total))}
+                      {formatMoney(Number(inv.total), inv.devise)}
                     </td>
                     <td className="px-3 py-2">
                       <Badge

@@ -87,7 +87,15 @@ export async function GET(
   }
 
   const setting = await prisma.setting.findFirst();
-  const currency = guessCurrency(invoice.contract.prospect.pays);
+  // La devise est désormais stockée sur la facture (héritée du contrat à
+  // la création). Fallback pays uniquement pour les anciennes factures
+  // sans devise renseignée — défaut "CHF" est sur la colonne DB.
+  const currency: "CHF" | "EUR" =
+    invoice.devise === "EUR"
+      ? "EUR"
+      : invoice.devise === "CHF"
+        ? "CHF"
+        : guessCurrency(invoice.contract.prospect.pays);
 
   const data: ClientInvoicePdfData = {
     numero: invoice.numero,

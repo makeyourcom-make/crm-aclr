@@ -695,6 +695,10 @@ model Deal {
 
   // Produits envisagés / proposés (m2m implicite)
   productsProposes Product[]  @relation("DealProducts")
+  /// Descriptions personnalisées par produit, format JSON map :
+  /// { "productId": "détail du livrable, ex: site vitrine 5 pages + WP", ... }
+  /// Affiché sur le contrat / facture comme suffixe de la désignation.
+  productNotes     Json?
   contracts        Contract[]
 
   @@index([stage])
@@ -1078,6 +1082,10 @@ model ClientInvoice {
   /// Pour les récurrents : période couverte (1er du mois début → fin du mois fin)
   periodeMoisDebut DateTime?
   periodeMoisFin   DateTime?
+
+  /// Devise dans laquelle les montants sont libellés. Héritée du contrat
+  /// au moment de la génération. CHF par défaut pour les anciennes factures.
+  devise String @default("CHF") @db.VarChar(3)
 
   sousTotal Decimal @db.Decimal(12, 2)
   totalTVA  Decimal @db.Decimal(12, 2)

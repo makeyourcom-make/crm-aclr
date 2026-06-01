@@ -39,11 +39,12 @@ export async function createDeal(input: unknown): Promise<DealActionResult> {
   }
 
   try {
-    const { productIds, ...rest } = parsed.data;
+    const { productIds, productNotes, ...rest } = parsed.data;
     const created = await prisma.deal.create({
       data: {
         ...rest,
         assigneAId: user.id,
+        productNotes: productNotes ?? undefined,
         productsProposes:
           productIds && productIds.length > 0
             ? { connect: productIds.map((id) => ({ id })) }
@@ -72,11 +73,14 @@ export async function updateDeal(
   if (!parsed.success) return zodErrorToResult(parsed.error);
 
   try {
-    const { productIds, ...rest } = parsed.data;
+    const { productIds, productNotes, ...rest } = parsed.data;
     const updated = await prisma.deal.update({
       where: { id },
       data: {
         ...rest,
+        ...(productNotes !== undefined && {
+          productNotes: productNotes,
+        }),
         ...(productIds !== undefined && {
           productsProposes: {
             set: productIds.map((pid) => ({ id: pid })),

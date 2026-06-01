@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
-import { formatCHF, formatDate } from "@/lib/format";
+import { formatCHF, formatDate, formatMoney } from "@/lib/format";
 import { requireAdmin } from "@/lib/session";
 
 import type { Prisma } from "@prisma/client";
@@ -321,7 +321,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                       </td>
                       <td className="px-3 py-2 text-xs">{inv.type}</td>
                       <td className="px-3 py-2 text-right font-semibold tabular-nums">
-                        {formatCHF(Number(inv.total))}
+                        {formatMoney(Number(inv.total), inv.devise)}
                       </td>
                       <td className="px-3 py-2">
                         <Badge

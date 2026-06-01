@@ -28,6 +28,8 @@ export const ContractLineSchema = z.object({
       z.number().min(0).max(1_000_000),
     )
     .optional(),
+  /** Description / détails libre — apparaît sur le contrat et la facture */
+  note: z.string().max(2000).optional(),
 });
 export type ContractLineInput = z.infer<typeof ContractLineSchema>;
 

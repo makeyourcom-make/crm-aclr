@@ -54,6 +54,7 @@ interface DealFormProps {
     probabilite: number;
     closeAttenduLe: Date | null;
     productIds: string[];
+    productNotes?: Record<string, string> | null;
   };
 }
 
@@ -79,6 +80,9 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
   );
   const [productIds, setProductIds] = useState<string[]>(
     initial?.productIds ?? [],
+  );
+  const [productNotes, setProductNotes] = useState<Record<string, string>>(
+    initial?.productNotes ?? {},
   );
 
   // Montant prévu = total déduit des produits sélectionnés.
@@ -127,6 +131,14 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
       return;
     }
 
+    // Ne garde les notes que pour les produits actuellement sélectionnés,
+    // et trim les valeurs vides.
+    const filteredNotes: Record<string, string> = {};
+    for (const pid of productIds) {
+      const v = (productNotes[pid] ?? "").trim();
+      if (v) filteredNotes[pid] = v;
+    }
+
     const payload = {
       prospectId,
       titre: titre.trim(),
@@ -136,6 +148,7 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
       probabilite: Number(probabilite),
       closeAttenduLe: closeAttenduLe ? new Date(closeAttenduLe) : undefined,
       productIds,
+      productNotes: filteredNotes,
     };
 
     startTransition(async () => {
@@ -306,6 +319,21 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
                                 ? `${formatCHF(Number(p.prixMensuel))}/mois`
                                 : ""}
                             </p>
+                            {isChecked && (
+                              <textarea
+                                value={productNotes[p.id] ?? ""}
+                                onChange={(e) =>
+                                  setProductNotes((prev) => ({
+                                    ...prev,
+                                    [p.id]: e.target.value,
+                                  }))
+                                }
+                                onClick={(e) => e.stopPropagation()}
+                                placeholder="Détails / livrables / spécificités (apparaîtra sur le contrat et la facture)"
+                                rows={2}
+                                className="mt-2 w-full resize-y rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                              />
+                            )}
                           </div>
                         </label>
                       );
