@@ -1,5 +1,5 @@
 import { renderToBuffer } from "@react-pdf/renderer";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { NextResponse } from "next/server";
 import { join } from "node:path";
 import { PDFDocument } from "pdf-lib";
@@ -9,7 +9,6 @@ import {
   ClientInvoicePdf,
   type ClientInvoicePdfData,
 } from "@/lib/pdf/client-invoice-template";
-import { generateQrBillPdfBuffer } from "@/lib/pdf/swiss-qr-bill";
 import { getSessionUser } from "@/lib/session";
 
 /**
@@ -149,47 +148,30 @@ export async function GET(
   // 1. Render le PDF principal de la facture (avec CGV)
   const invoicePdfBuffer = await renderToBuffer(<ClientInvoicePdf data={data} />);
 
-  // 2. Si CHF + IBAN renseigné + montant positif → générer le QR-bill suisse
-  //    et le merger en page additionnelle.
-  const canGenerateQrBill =
-    currency === "CHF" &&
-    setting?.iban &&
-    Number(invoice.total) > 0 &&
-    Number(invoice.total) <= 999999999.99;
+  // 2. Si CHF → attacher le QR-bill PDF statique (template fixe fourni par
+  //    le user, situé dans public/brand/swiss-qr-bill-template.pdf).
+  //    Le template n'est PAS personnalisé par facture — c'est volontaire :
+  //    le client remplira les champs manuellement, le code QR est générique.
+  const qrTemplatePath = join(
+    process.cwd(),
+    "public",
+    "brand",
+    "swiss-qr-bill-template.pdf",
+  );
 
   let finalPdfBytes: Uint8Array;
-  if (canGenerateQrBill) {
+  if (currency === "CHF" && existsSync(qrTemplatePath)) {
     try {
-      const qrBillBuffer = await generateQrBillPdfBuffer({
-        amount: Number(invoice.total),
-        creditor: {
-          name: setting!.raisonSociale,
-          address: setting!.adresse ?? "Route de la Jorette",
-          buildingNumber: extractBuildingNumber(setting!.adresse),
-          zip: setting!.codePostal ?? "1899",
-          city: setting!.ville ?? "Torgon",
-          account: setting!.iban!,
-          country: "CH",
-        },
-        debtor: {
-          name: invoice.contract.prospect.raisonSociale,
-          address: invoice.contract.prospect.adresse ?? undefined,
-          zip: invoice.contract.prospect.codePostal ?? undefined,
-          city: invoice.contract.prospect.ville ?? undefined,
-          country: countryCode(invoice.contract.prospect.pays),
-        },
-        additionalInformation: `Facture ${invoice.numero}`,
-      });
-
-      // Merge : on INSÈRE le QR-bill juste après la 1ère page (facture) et
-      // AVANT les pages CGV qui suivent. Index 1 = position après la facture.
+      const qrTemplateBytes = readFileSync(qrTemplatePath);
       const mainDoc = await PDFDocument.load(new Uint8Array(invoicePdfBuffer));
-      const qrDoc = await PDFDocument.load(new Uint8Array(qrBillBuffer));
-      const [qrPage] = await mainDoc.copyPages(qrDoc, [0]);
-      mainDoc.insertPage(1, qrPage); // 0 = facture, 1 = QR-bill, 2+ = CGV
+      const qrDoc = await PDFDocument.load(new Uint8Array(qrTemplateBytes));
+      // Copier toutes les pages du template QR (généralement 1)
+      const qrPages = await mainDoc.copyPages(qrDoc, qrDoc.getPageIndices());
+      // Les insérer juste après la facture (index 1), avant les CGV
+      qrPages.forEach((p, i) => mainDoc.insertPage(1 + i, p));
       finalPdfBytes = await mainDoc.save();
     } catch (err) {
-      console.error("[QR-bill generation failed, falling back to invoice only]", err);
+      console.error("[QR-bill template merge failed, fallback to invoice only]", err);
       finalPdfBytes = new Uint8Array(invoicePdfBuffer);
     }
   } else {
@@ -203,25 +185,6 @@ export async function GET(
       "Content-Disposition": `inline; filename="${invoice.numero}.pdf"`,
     },
   });
-}
-
-function extractBuildingNumber(adresse?: string | null): string {
-  if (!adresse) return "";
-  const match = adresse.match(/\d+\w?$/);
-  return match ? match[0] : "";
-}
-
-function countryCode(pays?: string | null): string {
-  if (!pays) return "CH";
-  const p = pays.toLowerCase();
-  if (p.includes("suisse") || p.includes("schweiz") || p.includes("switzerland") || p === "ch")
-    return "CH";
-  if (p.includes("france") || p === "fr") return "FR";
-  if (p.includes("allemagne") || p.includes("deutschland") || p === "de") return "DE";
-  if (p.includes("italie") || p.includes("italia") || p === "it") return "IT";
-  if (p.includes("autriche") || p === "at") return "AT";
-  if (p.includes("liechtenstein") || p === "li") return "LI";
-  return "CH";
 }
 
 export const runtime = "nodejs";
