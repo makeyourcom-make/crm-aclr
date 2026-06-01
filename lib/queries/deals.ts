@@ -250,6 +250,7 @@ export async function getDealById(
         select: {
           id: true,
           numero: true,
+          devise: true,
           signatures: {
             select: {
               id: true,

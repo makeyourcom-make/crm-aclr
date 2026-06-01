@@ -9,6 +9,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { ContractDeviseSwitch } from "@/components/contrats/contract-devise-switch";
 import { Icon } from "@/components/icon";
 import { SignDealInPersonButton } from "@/components/pipeline/sign-deal-in-person-button";
 import { SignAclrButton } from "@/components/signatures/sign-aclr-button";
@@ -49,6 +50,7 @@ interface DealDetailLite {
   contracts: Array<{
     id: string;
     numero: string;
+    devise: string;
     signatures: Array<{
       id: string;
       signeParClient: boolean;
@@ -297,6 +299,15 @@ export function DealDetailSheet({ dealId, onClose, isAdmin }: DealDetailSheetPro
                     <p className="mt-1 text-xs text-blue-800">
                       Lien envoyé. Expire le {formatDateLong(sig.expireA)}.
                     </p>
+
+                    {/* Switch devise — modifiable tant que le client n'a pas signé */}
+                    <div className="mt-3">
+                      <ContractDeviseSwitch
+                        contractId={contract.id}
+                        current={contract.devise ?? "CHF"}
+                      />
+                    </div>
+
                     <div className="mt-3 flex flex-wrap gap-2">
                       <a
                         href={`/sign/${sig.lienSignature}`}

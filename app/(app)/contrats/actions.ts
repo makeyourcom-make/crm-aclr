@@ -59,16 +59,27 @@ export async function createContractFromDeal(
   const parsed = ContractCreateSchema.safeParse(input);
   if (!parsed.success) return zodErrorToResult(parsed.error);
 
-  // RLS prospect
-  if (user.role !== "ADMIN") {
-    const p = await prisma.prospect.findUnique({
-      where: { id: parsed.data.prospectId },
-      select: { assigneAId: true },
-    });
-    if (!p || p.assigneAId !== user.id) {
-      return { ok: false, error: "Tu n'as pas accès à ce prospect." };
-    }
+  // RLS prospect + récup pays (pour défaut devise)
+  const prospectForDevise = await prisma.prospect.findUnique({
+    where: { id: parsed.data.prospectId },
+    select: { assigneAId: true, pays: true },
+  });
+  if (!prospectForDevise) {
+    return { ok: false, error: "Prospect introuvable." };
   }
+  if (user.role !== "ADMIN" && prospectForDevise.assigneAId !== user.id) {
+    return { ok: false, error: "Tu n'as pas accès à ce prospect." };
+  }
+  // Devise par défaut basée sur le pays du client
+  const paysLower = (prospectForDevise.pays ?? "").toLowerCase();
+  const deviseDefault =
+    paysLower.includes("suisse") ||
+    paysLower.includes("switzerland") ||
+    paysLower.includes("schweiz") ||
+    paysLower === "ch" ||
+    paysLower === ""
+      ? "CHF"
+      : "EUR";
 
   // Charge le taux commission de la commerciale (le créateur)
   const userFull = await prisma.user.findUnique({
@@ -150,6 +161,7 @@ export async function createContractFromDeal(
           dateDebut: parsed.data.dateDebut,
           dureeMois: parsed.data.dureeMois,
           modalitePaiement: parsed.data.modalitePaiement,
+          devise: deviseDefault,
           montantOneShot: centsToChf(oneShotCents),
           montantMensuel: centsToChf(mensuelCents),
           valeurAn1: centsToChf(valeurAn1Cents),
@@ -945,6 +957,53 @@ function zodErrorToResult(err: import("zod").ZodError): ContractActionResult {
     if (p && !fieldErrors[p]) fieldErrors[p] = issue.message;
   }
   return { ok: false, error: "Formulaire invalide.", fieldErrors };
+}
+
+/**
+ * Change la devise (CHF / EUR) d'un contrat non encore signé par le client.
+ * Admin ou commerciale assignée uniquement.
+ */
+export async function updateContractDevise(
+  contractId: string,
+  devise: string,
+): Promise<ContractActionResult> {
+  const user = await requireUser();
+  const cur = devise.toUpperCase();
+  if (cur !== "CHF" && cur !== "EUR") {
+    return { ok: false, error: "Devise non supportée (CHF / EUR uniquement)." };
+  }
+  try {
+    const contract = await prisma.contract.findUnique({
+      where: { id: contractId },
+      select: {
+        assigneAId: true,
+        signatures: { select: { dateSignatureClient: true } },
+      },
+    });
+    if (!contract) return { ok: false, error: "Contrat introuvable." };
+    if (user.role !== "ADMIN" && contract.assigneAId !== user.id) {
+      return { ok: false, error: "Accès refusé." };
+    }
+    const signedByClient = contract.signatures.some(
+      (s) => s.dateSignatureClient !== null,
+    );
+    if (signedByClient) {
+      return {
+        ok: false,
+        error:
+          "Impossible de modifier la devise : le contrat est déjà signé par le client.",
+      };
+    }
+    await prisma.contract.update({
+      where: { id: contractId },
+      data: { devise: cur },
+    });
+    revalidatePath(`/contrats/${contractId}`);
+    revalidatePath("/pipeline");
+    return { ok: true, contractId };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
 }
 
 function prismaErrorToResult(err: unknown): ContractActionResult {

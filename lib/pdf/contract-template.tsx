@@ -11,11 +11,13 @@
 import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 
 import { CGV_VERSION } from "@/lib/cgv";
-import { formatCHF, formatDateLong } from "@/lib/format";
+import { formatMoney, formatDateLong } from "@/lib/format";
 import { CgvPages } from "@/lib/pdf/cgv-pages";
 
 export interface ContractPdfData {
   numero: string;
+  /** "CHF" | "EUR" — devise dans laquelle tous les montants sont libellés */
+  devise?: string;
   dateSignature: Date;
   dateDebut: Date;
   dureeMois: number;
@@ -212,6 +214,8 @@ const MODALITE_LABELS: Record<string, string> = {
 };
 
 export function ContractPdf({ data }: { data: ContractPdfData }) {
+  const devise = data.devise ?? "CHF";
+  const fmt = (n: number | null | undefined) => formatMoney(n, devise);
   return (
     <Document
       title={`Contrat ${data.numero}`}
@@ -308,12 +312,12 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
             <Text style={styles.colNom}>{p.nom}</Text>
             <Text style={styles.colOneShot}>
               {p.prixOneShot && p.prixOneShot > 0
-                ? formatCHF(p.prixOneShot)
+                ? fmt(p.prixOneShot)
                 : "—"}
             </Text>
             <Text style={styles.colMensuel}>
               {p.prixMensuel && p.prixMensuel > 0
-                ? `${formatCHF(p.prixMensuel)}/mois`
+                ? `${fmt(p.prixMensuel)}/mois`
                 : "—"}
             </Text>
           </View>
@@ -323,13 +327,13 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Frais one-shot</Text>
             <Text style={styles.totalValue}>
-              {formatCHF(data.montantOneShot)}
+              {fmt(data.montantOneShot)}
             </Text>
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Mensuel récurrent</Text>
             <Text style={styles.totalValue}>
-              {formatCHF(data.montantMensuel)} / mois
+              {fmt(data.montantMensuel)} / mois
             </Text>
           </View>
           <View style={styles.totalFinal}>
@@ -337,7 +341,7 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
               Valeur engagée 12 mois
             </Text>
             <Text style={styles.totalFinalValue}>
-              {formatCHF(data.valeurAn1)}
+              {fmt(data.valeurAn1)}
             </Text>
           </View>
         </View>

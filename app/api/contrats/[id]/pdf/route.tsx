@@ -80,6 +80,7 @@ export async function GET(
 
   const data: ContractPdfData = {
     numero: contract.numero,
+    devise: contract.devise ?? "CHF",
     dateSignature: contract.dateSignature,
     dateDebut: contract.dateDebut,
     dureeMois: contract.dureeMois,

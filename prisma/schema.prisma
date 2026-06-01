@@ -771,6 +771,11 @@ model Contract {
   statut           ContractStatut   @default(ACTIF)
   modalitePaiement ModalitePaiement
 
+  /// Devise dans laquelle les montants sont libellés.
+  /// Par défaut : CHF (clients suisses). EUR pour les clients UE/France.
+  /// Détermine aussi la devise des factures émises sous ce contrat.
+  devise String @default("CHF") @db.VarChar(3)
+
   montantOneShot Decimal @db.Decimal(12, 2)
   montantMensuel Decimal @db.Decimal(12, 2)
 

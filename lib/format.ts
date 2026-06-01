@@ -51,6 +51,31 @@ export function formatCHF(amount: number | string | null | undefined): string {
 }
 
 /**
+ * Formate un montant dans une devise arbitraire (CHF par défaut).
+ * @example formatMoney(2500.5, "CHF") → "CHF 2'500.50"
+ * @example formatMoney(2500.5, "EUR") → "EUR 2 500,50" (FR locale)
+ */
+export function formatMoney(
+  amount: number | string | null | undefined,
+  devise?: string | null,
+): string {
+  if (amount === null || amount === undefined || amount === "") return "—";
+  const n = typeof amount === "string" ? Number(amount) : amount;
+  if (!Number.isFinite(n)) return "—";
+  const cur = (devise ?? "CHF").toUpperCase();
+  if (cur === "EUR") {
+    return new Intl.NumberFormat("fr-FR", {
+      style: "currency",
+      currency: "EUR",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(n);
+  }
+  // CHF (et fallback) : format suisse avec apostrophe
+  return chfFormatter.format(n);
+}
+
+/**
  * Variante compacte sans décimales (utile dans les KPI/dashboards).
  * @example formatCHFCompact(2500) → "CHF 2'500"
  */
