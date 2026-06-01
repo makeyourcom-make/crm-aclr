@@ -444,18 +444,13 @@ export function ClientInvoicePdf({ data }: { data: ClientInvoicePdfData }) {
           </View>
         )}
 
-        {data.notesClient && (
-          <View
-            style={{
-              marginTop: 12,
-              padding: 10,
-              backgroundColor: "#F8FAFC",
-              fontSize: 8,
-            }}
-          >
-            <Text>{data.notesClient}</Text>
-          </View>
-        )}
+        {/*
+          notesClient est intentionnellement RETIRÉ du PDF client :
+          historiquement il contient des métadonnées internes ACLR
+          (dates de paiement, refs croisées, debug, brouillons Gmail).
+          Ces infos n'ont rien à faire sur le document remis au client.
+          Le champ reste en DB pour traçabilité comptable côté ACLR.
+        */}
 
         </View>{/* fin pageInner */}
 
