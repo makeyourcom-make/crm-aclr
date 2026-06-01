@@ -20,17 +20,28 @@
 import { NextResponse } from "next/server";
 
 import {
+  processAnnualContractAnniversaries,
   processContractAnniversaries,
   processOverdueEtalements,
 } from "@/lib/commissions-engine";
 import { generateMonthlyInvoicesForAll } from "@/lib/invoices-engine";
 import { prisma } from "@/lib/db";
 
-export async function POST(req: Request) {
-  // Auth simple par header secret
+async function handler(req: Request) {
+  // Auth : accepte 2 mécanismes
+  //   1. Vercel Cron (production)        : Authorization: Bearer ${CRON_SECRET}
+  //   2. Cron self-hosted (Docker, etc.) : x-cron-secret: ${CRON_SECRET}
   const expected = process.env.CRON_SECRET;
-  const provided = req.headers.get("x-cron-secret");
-  if (!expected || provided !== expected) {
+  if (!expected) {
+    return new NextResponse("Forbidden (CRON_SECRET not configured)", {
+      status: 403,
+    });
+  }
+  const auth = req.headers.get("authorization");
+  const xCronSecret = req.headers.get("x-cron-secret");
+  const okBearer = auth === `Bearer ${expected}`;
+  const okHeader = xCronSecret === expected;
+  if (!okBearer && !okHeader) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
@@ -38,11 +49,23 @@ export async function POST(req: Request) {
   const startedAt = Date.now();
 
   try {
-    // 1. Anniversaires
+    // 1. Anniversaires (contrats mensuels)
     const renewals = await processContractAnniversaries();
     results.renewals = renewals.length;
     if (renewals.length > 0) {
       results.renewalsDetail = renewals.map((r) => r.numero);
+    }
+
+    // 1bis. Anniversaires (contrats annuels — 1 facture/an, montantMensuel=0)
+    const annualRenewals = await processAnnualContractAnniversaries();
+    results.annualInvoices = annualRenewals.length;
+    if (annualRenewals.length > 0) {
+      results.annualInvoicesDetail = annualRenewals.map((r) => ({
+        contract: r.contractNumero,
+        client: r.prospectName,
+        invoice: r.newInvoiceNumero,
+        amount: r.amount,
+      }));
     }
 
     // 2. Étalements échus
@@ -209,9 +232,13 @@ export async function POST(req: Request) {
   }
 }
 
-// Permet aussi GET pour test manuel (avec même secret)
+// Vercel Cron invoque GET avec header Authorization. On supporte aussi POST
+// pour Docker/curl manuel avec x-cron-secret.
 export async function GET(req: Request) {
-  return POST(req);
+  return handler(req);
+}
+export async function POST(req: Request) {
+  return handler(req);
 }
 
 export const runtime = "nodejs";

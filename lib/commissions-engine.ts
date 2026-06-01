@@ -244,6 +244,119 @@ export interface ContractRenewalResult {
   commissionsCreated: number;
 }
 
+/**
+ * Génère les factures annuelles récurrentes pour les contrats facturés
+ * en 1× par an (montantMensuel = 0, valeurAn1 > 0).
+ *
+ * Mécanisme :
+ *   - Cherche tous les contrats ACTIF avec montantMensuel = 0 ET au moins
+ *     une facture client existante (le contrat n'est pas vide).
+ *   - Pour chaque contrat, prend la facture la plus récente émise.
+ *   - Si dateEmission + 1 an ≤ aujourd'hui → crée une nouvelle facture
+ *     BROUILLON à la date d'anniversaire (l'admin l'émettra manuellement
+ *     ou via Resend une fois activé).
+ *   - Idempotent : vérifie qu'aucune facture n'existe déjà pour cette
+ *     anniversaire (±2 jours de tolérance).
+ *
+ * Le numéro suit le format standard ACLR-CLI-{YYYY}-{NNNN}.
+ */
+export interface AnnualInvoiceResult {
+  contractNumero: string;
+  prospectName: string;
+  newInvoiceNumero: string;
+  amount: number;
+  dateEmission: Date;
+}
+
+export async function processAnnualContractAnniversaries(): Promise<
+  AnnualInvoiceResult[]
+> {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const results: AnnualInvoiceResult[] = [];
+
+  const contracts = await prisma.contract.findMany({
+    where: {
+      statut: "ACTIF",
+      montantMensuel: { equals: 0 },
+    },
+    include: {
+      prospect: { select: { raisonSociale: true } },
+      clientInvoices: {
+        where: { total: { gt: 0 } }, // exclut les avoirs
+        orderBy: { dateEmission: "desc" },
+        take: 1,
+      },
+    },
+  });
+
+  for (const c of contracts) {
+    if (c.clientInvoices.length === 0) continue;
+    const lastFact = c.clientInvoices[0];
+
+    // Date attendue de la prochaine facture annuelle
+    const nextDue = new Date(lastFact.dateEmission);
+    nextDue.setFullYear(nextDue.getFullYear() + 1);
+    nextDue.setHours(0, 0, 0, 0);
+
+    if (nextDue > now) continue; // pas encore l'heure
+
+    // Idempotence : vérifie qu'aucune facture n'existe déjà autour de cette date
+    const dayMs = 86400_000;
+    const existing = await prisma.clientInvoice.findFirst({
+      where: {
+        contractId: c.id,
+        dateEmission: {
+          gte: new Date(nextDue.getTime() - 2 * dayMs),
+          lt: new Date(nextDue.getTime() + 2 * dayMs),
+        },
+        total: { gt: 0 },
+      },
+    });
+    if (existing) continue;
+
+    // Crée la nouvelle facture BROUILLON
+    const annee = nextDue.getFullYear();
+    const dateEcheance = new Date(nextDue);
+    dateEcheance.setDate(dateEcheance.getDate() + 30);
+
+    const created = await prisma.$transaction(async (tx) => {
+      const counter = await tx.counter.upsert({
+        where: { scope_year: { scope: "client_invoice", year: annee } },
+        create: { scope: "client_invoice", year: annee, value: 1 },
+        update: { value: { increment: 1 } },
+      });
+      const numero = `${PREFIX_FACTURE_CLIENT}-${annee}-${String(counter.value).padStart(4, "0")}`;
+
+      return tx.clientInvoice.create({
+        data: {
+          contractId: c.id,
+          numero,
+          dateEmission: nextDue,
+          dateEcheance,
+          type: "ANNUELLE",
+          sousTotal: lastFact.sousTotal,
+          totalTVA: lastFact.totalTVA,
+          total: lastFact.total,
+          statut: "BROUILLON",
+          notesClient:
+            "Facture annuelle générée automatiquement par le cron nocturne (anniversaire +1 an de la précédente).",
+        },
+      });
+    });
+
+    results.push({
+      contractNumero: c.numero,
+      prospectName: c.prospect.raisonSociale,
+      newInvoiceNumero: created.numero,
+      amount: Number(created.total),
+      dateEmission: nextDue,
+    });
+  }
+
+  return results;
+}
+
 export async function processContractAnniversaries(): Promise<
   ContractRenewalResult[]
 > {
