@@ -197,35 +197,132 @@ export function DocumentPreviewButton({
                   </div>
                 </div>
               ) : blobUrl ? (
-                <object
-                  data={blobUrl}
-                  type="application/pdf"
-                  className="h-full w-full"
-                  aria-label={displayName}
-                >
-                  <div className="flex h-full items-center justify-center p-8">
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground">
-                        Aperçu PDF non supporté par ce navigateur.
-                      </p>
-                      <a
-                        href={blobUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-3 inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background px-3 text-xs hover:bg-muted"
-                      >
-                        <Icon name="ExternalLink" className="h-3 w-3" />
-                        Ouvrir dans un onglet
-                      </a>
-                    </div>
-                  </div>
-                </object>
+                <PdfRender url={blobUrl} fallbackHref={url} title={displayName} />
               ) : null}
             </div>
           </div>
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Rendu PDF via react-pdf (PDF.js par Mozilla) — fonctionne dans tous les
+ * navigateurs même quand le visualiseur PDF natif est désactivé.
+ *
+ * Charge dynamiquement react-pdf (lourd, ~500KB) uniquement quand on ouvre
+ * la modal pour la 1ère fois.
+ */
+function PdfRender({
+  url,
+  fallbackHref,
+  title,
+}: {
+  url: string;
+  fallbackHref: string;
+  title: string;
+}) {
+  const [Doc, setDoc] = useState<null | typeof import("react-pdf")>(null);
+  const [pageCount, setPageCount] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(800);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Lazy load react-pdf + configure worker
+  useEffect(() => {
+    let canceled = false;
+    import("react-pdf")
+      .then((mod) => {
+        if (canceled) return;
+        // Worker via CDN unpkg (taille minime, déjà cache CDN)
+        mod.pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${mod.pdfjs.version}/build/pdf.worker.min.mjs`;
+        setDoc(mod);
+      })
+      .catch((e) => {
+        if (!canceled) setLoadError(e?.message ?? "Erreur chargement viewer");
+      });
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
+  // Suit la largeur du conteneur pour rendre les pages à bonne échelle
+  useEffect(() => {
+    const update = () => {
+      const w = Math.min(window.innerWidth * 0.85, 1100);
+      setContainerWidth(w);
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  if (loadError) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center">
+          <p className="text-sm text-rose-700">
+            Impossible de charger le visualiseur : {loadError}
+          </p>
+          <a
+            href={fallbackHref}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-block text-sm text-primary hover:underline"
+          >
+            Ouvrir dans un nouvel onglet
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (!Doc) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center">
+          <Icon
+            name="Loader"
+            className="mx-auto h-8 w-8 animate-spin text-muted-foreground"
+          />
+          <p className="mt-2 text-sm text-muted-foreground">
+            Initialisation du visualiseur PDF…
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const { Document: PdfDoc, Page: PdfPage } = Doc;
+  return (
+    <div className="flex h-full flex-col items-center overflow-auto p-4">
+      <PdfDoc
+        file={url}
+        onLoadSuccess={({ numPages }: { numPages: number }) => setPageCount(numPages)}
+        onLoadError={(e: Error) => setLoadError(e.message)}
+        loading={
+          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+            <Icon name="Loader" className="h-4 w-4 animate-spin" /> Chargement du PDF…
+          </div>
+        }
+      >
+        {Array.from({ length: pageCount }, (_, i) => (
+          <div key={i} className="mb-3 shadow-md">
+            <PdfPage
+              pageNumber={i + 1}
+              width={containerWidth}
+              renderAnnotationLayer={false}
+              renderTextLayer={false}
+            />
+          </div>
+        ))}
+      </PdfDoc>
+      {pageCount > 1 && (
+        <div className="sticky bottom-2 rounded-full bg-black/70 px-3 py-1 text-xs text-white">
+          {pageCount} pages
+        </div>
+      )}
+    </div>
   );
 }
 
