@@ -1,5 +1,13 @@
 /**
  * Template PDF — Facture client émise par ACLR Sàrl.
+ *
+ * Particularités :
+ *   - Logo "MAKE YOUR COM" rendu en texte stylisé en haut (pas d'image).
+ *   - Détection devise via `data.currency` ("CHF" | "EUR").
+ *   - Bloc bancaire approprié au footer (CHF avec QR-IBAN ou EUR avec IBAN/BIC).
+ *   - La QR-facture suisse (compliante Swiss QR-bill) est attachée en page
+ *     séparée par la route /api/factures-clients/[id]/pdf via swissqrbill +
+ *     pdf-lib quand devise = CHF.
  */
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 
@@ -10,17 +18,24 @@ export interface ClientInvoicePdfData {
   numero: string;
   dateEmission: Date;
   dateEcheance: Date;
+  /** Devise du montant. CHF = ajoute QR-facture suisse, EUR = bloc EUR. */
+  currency?: "CHF" | "EUR";
   emetteur: {
     raisonSociale: string;
+    marque?: string; // "Make Your Com"
     adresse?: string;
     codePostal?: string;
     ville?: string;
     pays?: string;
-    iban?: string;
+    iban?: string; // CHF
     bicSwift?: string;
     nomBanque?: string;
+    ibanEUR?: string;
+    bicSwiftEUR?: string;
     numeroIDE?: string;
     numeroTVA?: string;
+    emailContact?: string;
+    siteWeb?: string;
   };
   client: {
     raisonSociale: string;
@@ -45,22 +60,69 @@ export interface ClientInvoicePdfData {
 
 const c = {
   primary: "#0E1936",
+  accent: "#F87171", // coral
   border: "#E2E8F0",
   muted: "#64748B",
 };
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: "Helvetica", fontSize: 9, color: "#0F172A" },
-  brandBar: { height: 6, backgroundColor: c.primary, marginBottom: 24 },
-  parties: { flexDirection: "row", justifyContent: "space-between", marginBottom: 24 },
+
+  // En-tête avec logo + identité émetteur
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: c.primary,
+  },
+  logoBlock: {
+    backgroundColor: c.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 4,
+  },
+  logoMake: {
+    fontFamily: "Times-Bold",
+    fontSize: 22,
+    color: "#FFFFFF",
+    letterSpacing: 1.5,
+  },
+  logoYour: {
+    fontFamily: "Helvetica",
+    fontSize: 10,
+    color: "#FFFFFF",
+    letterSpacing: 2.5,
+    marginTop: 2,
+    textAlign: "center",
+  },
+  logoCom: { color: c.accent, fontFamily: "Helvetica-Bold" },
+  emetteurInline: { textAlign: "right", fontSize: 9 },
+  emetteurName: {
+    fontSize: 12,
+    fontFamily: "Helvetica-Bold",
+    color: c.primary,
+    marginBottom: 2,
+  },
+
+  parties: { flexDirection: "row", justifyContent: "space-between", marginBottom: 18 },
   partieBlock: { width: "48%" },
-  partieLabel: { fontSize: 7, color: c.muted, textTransform: "uppercase", marginBottom: 4 },
+  partieLabel: {
+    fontSize: 7,
+    color: c.muted,
+    textTransform: "uppercase",
+    marginBottom: 4,
+  },
   partieName: { fontSize: 11, fontFamily: "Helvetica-Bold", marginBottom: 2 },
   partieLine: { marginBottom: 1 },
+
   titre: { fontSize: 18, fontFamily: "Helvetica-Bold", color: c.primary, marginBottom: 4 },
   metaRow: { flexDirection: "row", marginBottom: 2 },
   metaLabel: { color: c.muted, width: 110, fontSize: 8 },
   metaValue: { fontSize: 9 },
+
   tableHeader: {
     flexDirection: "row",
     backgroundColor: "#F1F5F9",
@@ -83,41 +145,131 @@ const styles = StyleSheet.create({
   colQte: { width: "12%", textAlign: "center" },
   colPU: { width: "18%", textAlign: "right" },
   colHT: { width: "18%", textAlign: "right" },
-  totauxBlock: { marginTop: 20, alignSelf: "flex-end", width: "55%", padding: 12, backgroundColor: "#F8FAFC", borderRadius: 4 },
+
+  totauxBlock: {
+    marginTop: 20,
+    alignSelf: "flex-end",
+    width: "55%",
+    padding: 12,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 4,
+  },
   totalRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
   totalLabel: { fontSize: 9, color: c.muted },
   totalValue: { fontSize: 9, fontFamily: "Helvetica-Bold" },
-  totalFinal: { flexDirection: "row", justifyContent: "space-between", marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: c.primary },
+  totalFinal: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: c.primary,
+  },
   totalFinalLabel: { fontSize: 11, fontFamily: "Helvetica-Bold", color: c.primary },
   totalFinalValue: { fontSize: 13, fontFamily: "Helvetica-Bold", color: c.primary },
-  banque: { marginTop: 20, padding: 10, backgroundColor: "#F0F6FC", borderRadius: 4, fontSize: 8 },
-  footer: { position: "absolute", bottom: 30, left: 40, right: 40, fontSize: 7, color: c.muted, textAlign: "center", borderTopWidth: 0.5, borderTopColor: c.border, paddingTop: 8 },
+
+  banque: {
+    marginTop: 18,
+    padding: 12,
+    backgroundColor: "#F0F6FC",
+    borderLeftWidth: 3,
+    borderLeftColor: c.primary,
+    borderRadius: 4,
+    fontSize: 9,
+  },
+  banqueTitle: { fontFamily: "Helvetica-Bold", fontSize: 10, marginBottom: 6, color: c.primary },
+  banqueRow: { flexDirection: "row", marginBottom: 2 },
+  banqueLabel: { color: c.muted, width: 90, fontSize: 8 },
+  banqueValue: { fontSize: 9, fontFamily: "Helvetica-Bold" },
+  banqueNote: { fontSize: 8, color: c.muted, marginTop: 6, fontStyle: "italic" },
+
+  footer: {
+    position: "absolute",
+    bottom: 30,
+    left: 40,
+    right: 40,
+    fontSize: 7,
+    color: c.muted,
+    textAlign: "center",
+    borderTopWidth: 0.5,
+    borderTopColor: c.border,
+    paddingTop: 8,
+  },
 });
 
+function formatAmount(amount: number, currency: "CHF" | "EUR"): string {
+  if (currency === "EUR") {
+    return new Intl.NumberFormat("fr-CH", {
+      style: "currency",
+      currency: "EUR",
+      currencyDisplay: "symbol",
+    }).format(amount);
+  }
+  return formatCHF(amount);
+}
+
 export function ClientInvoicePdf({ data }: { data: ClientInvoicePdfData }) {
+  const currency = data.currency ?? "CHF";
+  const isCHF = currency === "CHF";
+  const isEUR = currency === "EUR";
+
   return (
     <Document title={`Facture ${data.numero}`} subject={`Facture ${data.numero}`}>
       <Page size="A4" style={styles.page}>
-        <View style={styles.brandBar} />
-
-        <View style={styles.parties}>
-          <View style={styles.partieBlock}>
-            <Text style={styles.partieLabel}>Émetteur</Text>
-            <Text style={styles.partieName}>{data.emetteur.raisonSociale}</Text>
-            {data.emetteur.adresse && <Text style={styles.partieLine}>{data.emetteur.adresse}</Text>}
-            <Text style={styles.partieLine}>
+        {/* HEADER : Logo + identité courte */}
+        <View style={styles.header}>
+          <View style={styles.logoBlock}>
+            <Text style={styles.logoMake}>MAKE</Text>
+            <Text style={styles.logoYour}>
+              YOUR <Text style={styles.logoCom}>COM</Text>
+            </Text>
+          </View>
+          <View style={styles.emetteurInline}>
+            <Text style={styles.emetteurName}>{data.emetteur.raisonSociale}</Text>
+            {data.emetteur.adresse && <Text>{data.emetteur.adresse}</Text>}
+            <Text>
               {[data.emetteur.codePostal, data.emetteur.ville].filter(Boolean).join(" ")}
             </Text>
-            {data.emetteur.pays && <Text style={styles.partieLine}>{data.emetteur.pays}</Text>}
-            {data.emetteur.numeroIDE && <Text style={styles.partieLine}>{data.emetteur.numeroIDE}</Text>}
-            {data.emetteur.numeroTVA && <Text style={styles.partieLine}>{data.emetteur.numeroTVA}</Text>}
+            {data.emetteur.pays && <Text>{data.emetteur.pays}</Text>}
+            {data.emetteur.numeroIDE && <Text>{data.emetteur.numeroIDE}</Text>}
+            {data.emetteur.numeroTVA && <Text>{data.emetteur.numeroTVA}</Text>}
+            {data.emetteur.emailContact && (
+              <Text>{data.emetteur.emailContact}</Text>
+            )}
+          </View>
+        </View>
+
+        {/* Parties : facturé à uniquement (émetteur déjà en haut) */}
+        <View style={styles.parties}>
+          <View>
+            <Text style={styles.titre}>Facture</Text>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>N° facture :</Text>
+              <Text style={styles.metaValue}>{data.numero}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Date d&apos;émission :</Text>
+              <Text style={styles.metaValue}>{formatDateLong(data.dateEmission)}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Date d&apos;échéance :</Text>
+              <Text style={styles.metaValue}>{formatDateLong(data.dateEcheance)}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Devise :</Text>
+              <Text style={styles.metaValue}>{currency}</Text>
+            </View>
           </View>
 
-          <View style={styles.partieBlock}>
+          <View style={[styles.partieBlock, { textAlign: "right" }]}>
             <Text style={styles.partieLabel}>Facturé à</Text>
             <Text style={styles.partieName}>{data.client.raisonSociale}</Text>
-            {data.client.contactNom && <Text style={styles.partieLine}>{data.client.contactNom}</Text>}
-            {data.client.adresse && <Text style={styles.partieLine}>{data.client.adresse}</Text>}
+            {data.client.contactNom && (
+              <Text style={styles.partieLine}>{data.client.contactNom}</Text>
+            )}
+            {data.client.adresse && (
+              <Text style={styles.partieLine}>{data.client.adresse}</Text>
+            )}
             <Text style={styles.partieLine}>
               {[data.client.codePostal, data.client.ville].filter(Boolean).join(" ")}
             </Text>
@@ -125,22 +277,7 @@ export function ClientInvoicePdf({ data }: { data: ClientInvoicePdfData }) {
           </View>
         </View>
 
-        <View>
-          <Text style={styles.titre}>Facture</Text>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>N° facture :</Text>
-            <Text style={styles.metaValue}>{data.numero}</Text>
-          </View>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Date d&apos;émission :</Text>
-            <Text style={styles.metaValue}>{formatDateLong(data.dateEmission)}</Text>
-          </View>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Date d&apos;échéance :</Text>
-            <Text style={styles.metaValue}>{formatDateLong(data.dateEcheance)}</Text>
-          </View>
-        </View>
-
+        {/* Lignes */}
         <View style={styles.tableHeader}>
           <Text style={styles.colDesign}>Désignation</Text>
           <Text style={styles.colQte}>Qté</Text>
@@ -151,44 +288,107 @@ export function ClientInvoicePdf({ data }: { data: ClientInvoicePdfData }) {
           <View key={i} style={styles.tableRow}>
             <Text style={styles.colDesign}>{l.designation}</Text>
             <Text style={styles.colQte}>{l.quantite}</Text>
-            <Text style={styles.colPU}>{formatCHF(l.prixUnitaire)}</Text>
-            <Text style={styles.colHT}>{formatCHF(l.montantHT)}</Text>
+            <Text style={styles.colPU}>{formatAmount(l.prixUnitaire, currency)}</Text>
+            <Text style={styles.colHT}>{formatAmount(l.montantHT, currency)}</Text>
           </View>
         ))}
 
+        {/* Totaux */}
         <View style={styles.totauxBlock}>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Sous-total HT</Text>
-            <Text style={styles.totalValue}>{formatCHF(data.sousTotal)}</Text>
+            <Text style={styles.totalValue}>{formatAmount(data.sousTotal, currency)}</Text>
           </View>
           {data.tvaActive && (
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>TVA</Text>
-              <Text style={styles.totalValue}>+ {formatCHF(data.totalTVA)}</Text>
+              <Text style={styles.totalValue}>+ {formatAmount(data.totalTVA, currency)}</Text>
             </View>
           )}
           <View style={styles.totalFinal}>
             <Text style={styles.totalFinalLabel}>Total à payer</Text>
-            <Text style={styles.totalFinalValue}>{formatCHF(data.total)}</Text>
+            <Text style={styles.totalFinalValue}>{formatAmount(data.total, currency)}</Text>
           </View>
         </View>
 
-        {data.emetteur.iban && (
+        {/* Bloc bancaire — CHF ou EUR selon devise */}
+        {isCHF && data.emetteur.iban && (
           <View style={styles.banque}>
-            <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 3 }}>
-              Coordonnées bancaires
+            <Text style={styles.banqueTitle}>Coordonnées bancaires — paiement en CHF</Text>
+            <View style={styles.banqueRow}>
+              <Text style={styles.banqueLabel}>Bénéficiaire :</Text>
+              <Text style={styles.banqueValue}>{data.emetteur.raisonSociale}</Text>
+            </View>
+            <View style={styles.banqueRow}>
+              <Text style={styles.banqueLabel}>IBAN :</Text>
+              <Text style={styles.banqueValue}>{data.emetteur.iban}</Text>
+            </View>
+            {data.emetteur.bicSwift && (
+              <View style={styles.banqueRow}>
+                <Text style={styles.banqueLabel}>BIC / SWIFT :</Text>
+                <Text style={styles.banqueValue}>{data.emetteur.bicSwift}</Text>
+              </View>
+            )}
+            {data.emetteur.nomBanque && (
+              <View style={styles.banqueRow}>
+                <Text style={styles.banqueLabel}>Banque :</Text>
+                <Text style={styles.banqueValue}>{data.emetteur.nomBanque}</Text>
+              </View>
+            )}
+            <View style={styles.banqueRow}>
+              <Text style={styles.banqueLabel}>Référence :</Text>
+              <Text style={styles.banqueValue}>{data.numero}</Text>
+            </View>
+            <Text style={styles.banqueNote}>
+              ☞ La QR-facture suisse compliante est ajoutée en page suivante
+              pour scan par bancaire mobile.
             </Text>
-            <Text>IBAN : {data.emetteur.iban}</Text>
-            {data.emetteur.bicSwift && <Text>BIC/SWIFT : {data.emetteur.bicSwift}</Text>}
-            {data.emetteur.nomBanque && <Text>Banque : {data.emetteur.nomBanque}</Text>}
-            <Text style={{ marginTop: 3 }}>
-              Référence à mentionner : <Text style={{ fontFamily: "Helvetica-Bold" }}>{data.numero}</Text>
+          </View>
+        )}
+
+        {isEUR && data.emetteur.ibanEUR && (
+          <View style={styles.banque}>
+            <Text style={styles.banqueTitle}>Coordonnées bancaires — paiement en EUR</Text>
+            <View style={styles.banqueRow}>
+              <Text style={styles.banqueLabel}>Titulaire :</Text>
+              <Text style={styles.banqueValue}>{data.emetteur.raisonSociale}</Text>
+            </View>
+            <View style={styles.banqueRow}>
+              <Text style={styles.banqueLabel}>IBAN (EUR) :</Text>
+              <Text style={styles.banqueValue}>{data.emetteur.ibanEUR}</Text>
+            </View>
+            <View style={styles.banqueRow}>
+              <Text style={styles.banqueLabel}>BIC / SWIFT :</Text>
+              <Text style={styles.banqueValue}>
+                {data.emetteur.bicSwiftEUR ?? data.emetteur.bicSwift ?? "—"}
+              </Text>
+            </View>
+            {data.emetteur.nomBanque && (
+              <View style={styles.banqueRow}>
+                <Text style={styles.banqueLabel}>Banque :</Text>
+                <Text style={styles.banqueValue}>{data.emetteur.nomBanque}</Text>
+              </View>
+            )}
+            <View style={styles.banqueRow}>
+              <Text style={styles.banqueLabel}>Référence :</Text>
+              <Text style={styles.banqueValue}>{data.numero}</Text>
+            </View>
+            <Text style={styles.banqueNote}>
+              ☞ Compte EUR multi-devises chez UBS Switzerland. Pas de frais de
+              change si le donneur d&apos;ordre paie en EUR.
             </Text>
           </View>
         )}
 
         {data.notesClient && (
-          <View style={{ marginTop: 12, padding: 10, backgroundColor: "#F8FAFC", fontSize: 8 }}>
+          <View
+            style={{
+              marginTop: 12,
+              padding: 10,
+              backgroundColor: "#F8FAFC",
+              fontSize: 8,
+            }}
+          >
             <Text>{data.notesClient}</Text>
           </View>
         )}

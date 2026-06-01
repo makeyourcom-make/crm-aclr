@@ -1270,9 +1270,12 @@ model Setting {
   pays          String  @default("Suisse")
   numeroIDE     String? // CHE-XXX.XXX.XXX
   numeroTVA     String? // CHE-XXX.XXX.XXX TVA, si assujetti
-  iban          String?
+  iban          String? // IBAN CHF principal
   bicSwift      String?
   nomBanque     String?
+  // 2e compte multi-devises (EUR) — ACLR a un compte UBS CHF et un compte UBS EUR
+  ibanEUR       String?
+  bicSwiftEUR   String?
 
   emailContact String?
   telephone    String?
