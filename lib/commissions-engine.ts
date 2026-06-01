@@ -469,6 +469,7 @@ async function renewContractForYear(
             type: "MENSUALITE",
             periodeMoisDebut: dateEmission,
             periodeMoisFin: periodeFin,
+            devise: contract.devise ?? "CHF",
             sousTotal: contract.montantMensuel,
             totalTVA: 0,
             total: contract.montantMensuel,

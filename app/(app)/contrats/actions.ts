@@ -911,39 +911,69 @@ function buildClientInvoicesForContract(params: {
       }
     }
   } else if (params.modalite === "MENSUEL") {
-    // Tout en mensuel : on lisse oneShot sur 12 mois OU on le facture mois 1
-    // Choix : on l'ajoute dans la mensualité du mois 1 ("setup")
+    // Tout en mensuel — LISSAGE :
+    //   - oneShot étalé en 12 parts égales sur les 12 mois
+    //   - mensuel récurrent ajouté à chaque mois
+    //   - Mois 13+ (renouvellement) : SEUL le mensuel récurrent est dû
+    //     (le setup est amorti sur l'année 1)
+    //
+    // Précision centimes : on calcule la part de setup par mois (entière)
+    // et on attribue le reste (modulo 12) au DERNIER mois pour que la
+    // somme des 12 factures égale exactement le total contrat.
+    const setupParCents = Math.floor(params.oneShotCents / 12);
+    const setupReste = params.oneShotCents - setupParCents * 12;
+    // Par ligne, on calcule aussi la fraction mensuelle de setup
+    const linesSetupParCents: Record<string, number> = {};
+    const linesSetupReste: Record<string, number> = {};
+    for (const l of params.lines) {
+      const part = Math.floor(l.lineOneShot / 12);
+      linesSetupParCents[l.productId ?? l.nom] = part;
+      linesSetupReste[l.productId ?? l.nom] = l.lineOneShot - part * 12;
+    }
+
     for (let i = 0; i < 12; i++) {
       const dateEmission = addMonthsKeepEndOfMonth(params.dateDebut, i);
       const periodeFin = new Date(dateEmission);
       periodeFin.setMonth(periodeFin.getMonth() + 1);
       periodeFin.setDate(periodeFin.getDate() - 1);
 
-      const lineMonth = params.lines
-        .filter((l) => l.lineMensuel > 0)
-        .map((l) => ({
-          designation: `${l.nom} — mensualité ${i + 1}/12`,
-          quantite: l.quantite,
-          prixUnitaire: l.mensuelUnit,
-          montantHT: centsToChf(l.lineMensuel),
-          productId: l.productId,
-        }));
+      const isLastMonth = i === 11;
+      const lineMonth: InvoiceLineDraft[] = [];
 
-      let monthCents = params.mensuelCents;
-      if (i === 0 && params.oneShotCents > 0) {
-        monthCents += params.oneShotCents;
-        for (const l of params.lines) {
-          if (l.lineOneShot > 0) {
+      // Lignes mensuel récurrent
+      for (const l of params.lines) {
+        if (l.lineMensuel > 0) {
+          lineMonth.push({
+            designation: `${l.nom} — mensualité ${i + 1}/12`,
+            quantite: l.quantite,
+            prixUnitaire: l.mensuelUnit,
+            montantHT: centsToChf(l.lineMensuel),
+            productId: l.productId ?? null,
+          });
+        }
+      }
+      // Lignes setup amorti (1/12 de l'one-shot — uniquement année 1)
+      for (const l of params.lines) {
+        if (l.lineOneShot > 0) {
+          const key = l.productId ?? l.nom;
+          const partCents =
+            linesSetupParCents[key] + (isLastMonth ? linesSetupReste[key] : 0);
+          if (partCents > 0) {
             lineMonth.unshift({
-              designation: `${l.nom} — setup`,
-              quantite: l.quantite,
-              prixUnitaire: l.oneShotUnit,
-              montantHT: centsToChf(l.lineOneShot),
-              productId: l.productId,
+              designation: `${l.nom} — setup amorti ${i + 1}/12`,
+              quantite: 1,
+              prixUnitaire: centsToChf(partCents),
+              montantHT: centsToChf(partCents),
+              productId: l.productId ?? null,
             });
           }
         }
       }
+
+      const monthCents =
+        params.mensuelCents +
+        setupParCents +
+        (isLastMonth ? setupReste : 0);
 
       invoices.push({
         dateEmission,
