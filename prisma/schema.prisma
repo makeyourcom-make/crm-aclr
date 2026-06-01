@@ -580,6 +580,10 @@ model Prospect {
   canton     String? // code canton 2 lettres (VD, GE, VS, …) — libre pour souplesse
   pays       String  @default("Suisse")
 
+  // Identifiants entreprise (pour affichage sur les factures)
+  numeroIDE String? // CHE-XXX.XXX.XXX (Suisse) ou SIRET/SIREN/RCS (France)
+  numeroTVA String? // CHE-XXX.XXX.XXX TVA ou FR-XX-XXXXXXXXX
+
   siteWeb   String?
   linkedIn  String?
   facebook  String?

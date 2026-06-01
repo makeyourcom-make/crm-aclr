@@ -51,8 +51,14 @@ export interface ClientInvoicePdfData {
     adresse?: string;
     codePostal?: string;
     ville?: string;
+    canton?: string;
     pays?: string;
     contactNom?: string;
+    contactFonction?: string;
+    email?: string;
+    telephone?: string;
+    numeroIDE?: string;
+    numeroTVA?: string;
   };
   lignes: Array<{
     designation: string;
@@ -75,25 +81,28 @@ const c = {
 };
 
 const styles = StyleSheet.create({
-  page: { padding: 40, fontFamily: "Helvetica", fontSize: 9, color: "#0F172A" },
+  page: { padding: 0, fontFamily: "Helvetica", fontSize: 9, color: "#0F172A" },
+  pageInner: { paddingHorizontal: 40, paddingTop: 20, paddingBottom: 40 },
 
-  // En-tête avec logo + identité émetteur
+  // En-tête : bandeau navy plein, logo à gauche, identité ACLR en blanc à droite
   header: {
+    backgroundColor: c.primary,
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: c.primary,
+    alignItems: "center",
+    paddingHorizontal: 40,
+    paddingVertical: 22,
+    marginBottom: 28,
+  },
+  logoImage: {
+    width: 110,
+    height: 110,
+    objectFit: "contain",
   },
   logoBlock: {
-    backgroundColor: c.primary,
     paddingVertical: 14,
     paddingHorizontal: 18,
-    borderRadius: 4,
   },
-  logoImage: { width: 110, height: 110, objectFit: "contain" },
   logoMake: {
     fontFamily: "Times-Bold",
     fontSize: 22,
@@ -109,13 +118,15 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   logoCom: { color: c.accent, fontFamily: "Helvetica-Bold" },
-  emetteurInline: { textAlign: "right", fontSize: 9 },
+  emetteurInline: { textAlign: "right", fontSize: 9, color: "#FFFFFF" },
   emetteurName: {
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: "Helvetica-Bold",
-    color: c.primary,
-    marginBottom: 2,
+    color: "#FFFFFF",
+    marginBottom: 4,
   },
+  emetteurLine: { color: "#E0E7FF", marginBottom: 1 },
+  emetteurId: { color: "#A5B4FC", fontSize: 8, marginTop: 4 },
 
   parties: { flexDirection: "row", justifyContent: "space-between", marginBottom: 18 },
   partieBlock: { width: "48%" },
@@ -226,7 +237,7 @@ export function ClientInvoicePdf({ data }: { data: ClientInvoicePdfData }) {
   return (
     <Document title={`Facture ${data.numero}`} subject={`Facture ${data.numero}`}>
       <Page size="A4" style={styles.page}>
-        {/* HEADER : Logo + identité courte */}
+        {/* HEADER navy : Logo à gauche + identité ACLR à droite (texte blanc) */}
         <View style={styles.header}>
           {data.emetteur.logoPath ? (
             <Image src={data.emetteur.logoPath} style={styles.logoImage} />
@@ -240,19 +251,28 @@ export function ClientInvoicePdf({ data }: { data: ClientInvoicePdfData }) {
           )}
           <View style={styles.emetteurInline}>
             <Text style={styles.emetteurName}>{data.emetteur.raisonSociale}</Text>
-            {data.emetteur.adresse && <Text>{data.emetteur.adresse}</Text>}
-            <Text>
+            {data.emetteur.adresse && (
+              <Text style={styles.emetteurLine}>{data.emetteur.adresse}</Text>
+            )}
+            <Text style={styles.emetteurLine}>
               {[data.emetteur.codePostal, data.emetteur.ville].filter(Boolean).join(" ")}
             </Text>
-            {data.emetteur.pays && <Text>{data.emetteur.pays}</Text>}
-            {data.emetteur.numeroIDE && <Text>{data.emetteur.numeroIDE}</Text>}
-            {data.emetteur.numeroTVA && <Text>{data.emetteur.numeroTVA}</Text>}
+            {data.emetteur.pays && (
+              <Text style={styles.emetteurLine}>{data.emetteur.pays}</Text>
+            )}
+            {data.emetteur.numeroIDE && (
+              <Text style={styles.emetteurId}>{data.emetteur.numeroIDE}</Text>
+            )}
+            {data.emetteur.numeroTVA && (
+              <Text style={styles.emetteurId}>{data.emetteur.numeroTVA}</Text>
+            )}
             {data.emetteur.emailContact && (
-              <Text>{data.emetteur.emailContact}</Text>
+              <Text style={styles.emetteurId}>{data.emetteur.emailContact}</Text>
             )}
           </View>
         </View>
 
+        <View style={styles.pageInner}>
         {/* Parties : facturé à uniquement (émetteur déjà en haut) */}
         <View style={styles.parties}>
           <View>
@@ -281,13 +301,43 @@ export function ClientInvoicePdf({ data }: { data: ClientInvoicePdfData }) {
             {data.client.contactNom && (
               <Text style={styles.partieLine}>{data.client.contactNom}</Text>
             )}
+            {data.client.contactFonction && (
+              <Text style={[styles.partieLine, { fontSize: 8, color: c.muted }]}>
+                {data.client.contactFonction}
+              </Text>
+            )}
             {data.client.adresse && (
               <Text style={styles.partieLine}>{data.client.adresse}</Text>
             )}
-            <Text style={styles.partieLine}>
-              {[data.client.codePostal, data.client.ville].filter(Boolean).join(" ")}
-            </Text>
-            {data.client.pays && <Text style={styles.partieLine}>{data.client.pays}</Text>}
+            {(data.client.codePostal || data.client.ville) && (
+              <Text style={styles.partieLine}>
+                {[data.client.codePostal, data.client.ville].filter(Boolean).join(" ")}
+                {data.client.canton ? ` (${data.client.canton})` : ""}
+              </Text>
+            )}
+            {data.client.pays && (
+              <Text style={styles.partieLine}>{data.client.pays}</Text>
+            )}
+            {data.client.numeroIDE && (
+              <Text style={[styles.partieLine, { fontSize: 8, marginTop: 3 }]}>
+                {data.client.numeroIDE}
+              </Text>
+            )}
+            {data.client.numeroTVA && (
+              <Text style={[styles.partieLine, { fontSize: 8 }]}>
+                {data.client.numeroTVA}
+              </Text>
+            )}
+            {data.client.email && (
+              <Text style={[styles.partieLine, { fontSize: 8, color: c.muted, marginTop: 2 }]}>
+                {data.client.email}
+              </Text>
+            )}
+            {data.client.telephone && (
+              <Text style={[styles.partieLine, { fontSize: 8, color: c.muted }]}>
+                {data.client.telephone}
+              </Text>
+            )}
           </View>
         </View>
 
@@ -354,8 +404,8 @@ export function ClientInvoicePdf({ data }: { data: ClientInvoicePdfData }) {
               <Text style={styles.banqueValue}>{data.numero}</Text>
             </View>
             <Text style={styles.banqueNote}>
-              ☞ La QR-facture suisse compliante est ajoutée en page suivante
-              pour scan par bancaire mobile.
+              ☞ QR-facture suisse compliante en page suivante (scan via bancaire mobile).
+              Conditions Générales de Vente annexées ci-après.
             </Text>
           </View>
         )}
@@ -406,6 +456,8 @@ export function ClientInvoicePdf({ data }: { data: ClientInvoicePdfData }) {
             <Text>{data.notesClient}</Text>
           </View>
         )}
+
+        </View>{/* fin pageInner */}
 
         <View style={styles.footer}>
           <Text>

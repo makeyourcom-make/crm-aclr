@@ -63,10 +63,16 @@ export async function GET(
               raisonSociale: true,
               contactPrenom: true,
               contactNom: true,
+              contactFonction: true,
+              email: true,
+              telephone: true,
               adresse: true,
               codePostal: true,
               ville: true,
+              canton: true,
               pays: true,
+              numeroIDE: true,
+              numeroTVA: true,
             },
           },
         },
@@ -109,16 +115,23 @@ export async function GET(
     },
     client: {
       raisonSociale: invoice.contract.prospect.raisonSociale,
-      contactNom: [
-        invoice.contract.prospect.contactPrenom,
-        invoice.contract.prospect.contactNom,
-      ]
-        .filter(Boolean)
-        .join(" ") || undefined,
+      contactNom:
+        [
+          invoice.contract.prospect.contactPrenom,
+          invoice.contract.prospect.contactNom,
+        ]
+          .filter(Boolean)
+          .join(" ") || undefined,
+      contactFonction: invoice.contract.prospect.contactFonction ?? undefined,
+      email: invoice.contract.prospect.email ?? undefined,
+      telephone: invoice.contract.prospect.telephone ?? undefined,
       adresse: invoice.contract.prospect.adresse ?? undefined,
       codePostal: invoice.contract.prospect.codePostal ?? undefined,
       ville: invoice.contract.prospect.ville ?? undefined,
+      canton: invoice.contract.prospect.canton ?? undefined,
       pays: invoice.contract.prospect.pays ?? undefined,
+      numeroIDE: invoice.contract.prospect.numeroIDE ?? undefined,
+      numeroTVA: invoice.contract.prospect.numeroTVA ?? undefined,
     },
     lignes: invoice.lignes.map((l) => ({
       designation: l.designation,
@@ -168,11 +181,12 @@ export async function GET(
         additionalInformation: `Facture ${invoice.numero}`,
       });
 
-      // Merge : on ajoute le QR-bill comme dernière page (après CGV)
+      // Merge : on INSÈRE le QR-bill juste après la 1ère page (facture) et
+      // AVANT les pages CGV qui suivent. Index 1 = position après la facture.
       const mainDoc = await PDFDocument.load(new Uint8Array(invoicePdfBuffer));
       const qrDoc = await PDFDocument.load(new Uint8Array(qrBillBuffer));
       const [qrPage] = await mainDoc.copyPages(qrDoc, [0]);
-      mainDoc.addPage(qrPage);
+      mainDoc.insertPage(1, qrPage); // 0 = facture, 1 = QR-bill, 2+ = CGV
       finalPdfBytes = await mainDoc.save();
     } catch (err) {
       console.error("[QR-bill generation failed, falling back to invoice only]", err);
