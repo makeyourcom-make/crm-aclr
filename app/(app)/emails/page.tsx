@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { EmailPreviewButton } from "@/components/emails/email-preview-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
@@ -83,7 +84,7 @@ export default async function EmailsPage() {
             <ul className="divide-y divide-border">
               {emails.map((e) => (
                 <li key={e.id} className="px-3 py-3 hover:bg-muted/30">
-                  <div className="flex items-baseline justify-between gap-2">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <Icon
@@ -119,6 +120,28 @@ export default async function EmailsPage() {
                         {formatRelative(e.createdAt)}
                         {user.role === "ADMIN" && ` · ${e.user.name}`}
                       </p>
+                    </div>
+                    <div className="shrink-0 pt-0.5">
+                      <EmailPreviewButton
+                        email={{
+                          objet: e.objet,
+                          expediteurEmail: e.expediteurEmail,
+                          expediteurNom: e.expediteurNom,
+                          destinataireEmail: e.destinataireEmail,
+                          cc: e.cc,
+                          bcc: e.bcc,
+                          contenuHtml: e.contenuHtml,
+                          contenuTexte: e.contenuTexte,
+                          direction: e.direction,
+                          statut: e.statut,
+                          statutLabel: STATUT_LABEL[e.statut] ?? e.statut,
+                          statutClass: STATUT_BADGE[e.statut] ?? "",
+                          envoyeLe: e.envoyeLe,
+                          createdAt: e.createdAt,
+                          prospectNom: e.prospect?.raisonSociale ?? null,
+                          userNom: e.user.name,
+                        }}
+                      />
                     </div>
                   </div>
                 </li>
