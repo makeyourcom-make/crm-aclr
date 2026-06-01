@@ -9,7 +9,14 @@
  *     séparée par la route /api/factures-clients/[id]/pdf via swissqrbill +
  *     pdf-lib quand devise = CHF.
  */
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import {
+  Document,
+  Image,
+  Page,
+  Text,
+  View,
+  StyleSheet,
+} from "@react-pdf/renderer";
 
 import { CgvPages } from "@/lib/pdf/cgv-pages";
 import { formatCHF, formatDateLong } from "@/lib/format";
@@ -36,6 +43,8 @@ export interface ClientInvoicePdfData {
     numeroTVA?: string;
     emailContact?: string;
     siteWeb?: string;
+    /** Chemin absolu disque du logo PNG côté serveur (Buffer accepté aussi par @react-pdf). */
+    logoPath?: string;
   };
   client: {
     raisonSociale: string;
@@ -84,6 +93,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: 4,
   },
+  logoImage: { width: 110, height: 110, objectFit: "contain" },
   logoMake: {
     fontFamily: "Times-Bold",
     fontSize: 22,
@@ -218,12 +228,16 @@ export function ClientInvoicePdf({ data }: { data: ClientInvoicePdfData }) {
       <Page size="A4" style={styles.page}>
         {/* HEADER : Logo + identité courte */}
         <View style={styles.header}>
-          <View style={styles.logoBlock}>
-            <Text style={styles.logoMake}>MAKE</Text>
-            <Text style={styles.logoYour}>
-              YOUR <Text style={styles.logoCom}>COM</Text>
-            </Text>
-          </View>
+          {data.emetteur.logoPath ? (
+            <Image src={data.emetteur.logoPath} style={styles.logoImage} />
+          ) : (
+            <View style={styles.logoBlock}>
+              <Text style={styles.logoMake}>MAKE</Text>
+              <Text style={styles.logoYour}>
+                YOUR <Text style={styles.logoCom}>COM</Text>
+              </Text>
+            </View>
+          )}
           <View style={styles.emetteurInline}>
             <Text style={styles.emetteurName}>{data.emetteur.raisonSociale}</Text>
             {data.emetteur.adresse && <Text>{data.emetteur.adresse}</Text>}

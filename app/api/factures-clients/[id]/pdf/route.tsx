@@ -1,5 +1,7 @@
 import { renderToBuffer } from "@react-pdf/renderer";
+import { existsSync } from "node:fs";
 import { NextResponse } from "next/server";
+import { join } from "node:path";
 import { PDFDocument } from "pdf-lib";
 
 import { prisma } from "@/lib/db";
@@ -9,6 +11,21 @@ import {
 } from "@/lib/pdf/client-invoice-template";
 import { generateQrBillPdfBuffer } from "@/lib/pdf/swiss-qr-bill";
 import { getSessionUser } from "@/lib/session";
+
+/**
+ * Résout le chemin absolu du logo PNG s'il existe dans public/brand/.
+ * @react-pdf/renderer accepte les chemins fs absolus en src.
+ */
+function resolveLogoPath(): string | undefined {
+  const candidates = [
+    join(process.cwd(), "public", "brand", "logo-full.png"),
+    join(process.cwd(), "public", "brand", "logo.png"),
+  ];
+  for (const p of candidates) {
+    if (existsSync(p)) return p;
+  }
+  return undefined;
+}
 
 /**
  * Devine la devise de la facture en se basant sur le pays du client.
@@ -88,6 +105,7 @@ export async function GET(
       numeroTVA: setting?.numeroTVA ?? undefined,
       emailContact: setting?.emailContact ?? undefined,
       siteWeb: setting?.siteWeb ?? undefined,
+      logoPath: resolveLogoPath(),
     },
     client: {
       raisonSociale: invoice.contract.prospect.raisonSociale,
