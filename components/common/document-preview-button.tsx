@@ -39,15 +39,20 @@ export function DocumentPreviewButton({
   showLabel = true,
 }: DocumentPreviewButtonProps) {
   const [open, setOpen] = useState(false);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Ferme avec Escape
+  const isImage = /\.(jpe?g|png|gif|webp|bmp|svg)(\?|$)/i.test(url);
+  const displayName = filename ?? extractFilename(url) ?? "Document";
+
+  // Ferme avec Escape + lock scroll
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
     document.addEventListener("keydown", onKey);
-    // Empêche le scroll de la page derrière la modal
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onKey);
@@ -55,8 +60,40 @@ export function DocumentPreviewButton({
     };
   }, [open]);
 
-  const isImage = /\.(jpe?g|png|gif|webp|bmp|svg)(\?|$)/i.test(url);
-  const displayName = filename ?? extractFilename(url) ?? "Document";
+  // Fetch le PDF (ou autre) en blob pour le rendre via blob: URL.
+  // Chrome refuse souvent les PDF en iframe sur URL distante (auth, sandbox)
+  // mais accepte toujours les blob: URL same-origin.
+  useEffect(() => {
+    if (!open || isImage) return;
+    let canceled = false;
+    let currentBlobUrl: string | null = null;
+    setLoading(true);
+    setError(null);
+    setBlobUrl(null);
+    fetch(url, { credentials: "include" })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        if (canceled) return;
+        currentBlobUrl = URL.createObjectURL(
+          new Blob([blob], { type: "application/pdf" }),
+        );
+        setBlobUrl(currentBlobUrl);
+      })
+      .catch((e) => {
+        if (canceled) return;
+        setError(e?.message ?? "Erreur de chargement");
+      })
+      .finally(() => {
+        if (!canceled) setLoading(false);
+      });
+    return () => {
+      canceled = true;
+      if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+    };
+  }, [open, url, isImage]);
 
   return (
     <>
@@ -133,13 +170,57 @@ export function DocumentPreviewButton({
                     className="max-h-full max-w-full object-contain"
                   />
                 </div>
-              ) : (
-                <iframe
-                  src={url}
-                  className="h-full w-full border-0"
-                  title={displayName}
-                />
-              )}
+              ) : loading ? (
+                <div className="flex h-full items-center justify-center">
+                  <div className="text-center">
+                    <Icon
+                      name="Loader"
+                      className="mx-auto h-8 w-8 animate-spin text-muted-foreground"
+                    />
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Chargement du PDF…
+                    </p>
+                  </div>
+                </div>
+              ) : error ? (
+                <div className="flex h-full items-center justify-center">
+                  <div className="text-center">
+                    <p className="text-sm text-rose-700">Erreur : {error}</p>
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-block text-sm text-primary hover:underline"
+                    >
+                      Ouvrir dans un nouvel onglet
+                    </a>
+                  </div>
+                </div>
+              ) : blobUrl ? (
+                <object
+                  data={blobUrl}
+                  type="application/pdf"
+                  className="h-full w-full"
+                  aria-label={displayName}
+                >
+                  <div className="flex h-full items-center justify-center p-8">
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">
+                        Aperçu PDF non supporté par ce navigateur.
+                      </p>
+                      <a
+                        href={blobUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-3 inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background px-3 text-xs hover:bg-muted"
+                      >
+                        <Icon name="ExternalLink" className="h-3 w-3" />
+                        Ouvrir dans un onglet
+                      </a>
+                    </div>
+                  </div>
+                </object>
+              ) : null}
             </div>
           </div>
         </div>
