@@ -38,6 +38,8 @@ export async function GET(
           codePostal: true,
           ville: true,
           pays: true,
+          numeroIDE: true,
+          numeroTVA: true,
         },
       },
       products: {
@@ -107,6 +109,8 @@ export async function GET(
       codePostal: contract.prospect.codePostal ?? undefined,
       ville: contract.prospect.ville ?? undefined,
       pays: contract.prospect.pays ?? undefined,
+      numeroIDE: contract.prospect.numeroIDE ?? undefined,
+      numeroTVA: contract.prospect.numeroTVA ?? undefined,
     },
     produits: contract.products.map((p) => ({
       nom: p.nom,

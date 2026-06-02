@@ -64,12 +64,17 @@ export function formatMoney(
   if (!Number.isFinite(n)) return "—";
   const cur = (devise ?? "CHF").toUpperCase();
   if (cur === "EUR") {
-    return new Intl.NumberFormat("fr-FR", {
+    // Intl.NumberFormat fr-FR utilise U+202F (narrow no-break space) comme
+    // séparateur de milliers, qui s'affiche en `/` dans plusieurs polices
+    // (Helvetica de @react-pdf notamment). On normalise vers espace standard.
+    const formatted = new Intl.NumberFormat("fr-FR", {
       style: "currency",
       currency: "EUR",
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(n);
+    // Remplace NBSP (U+00A0) et NNBSP (U+202F) par une espace classique
+    return formatted.replace(/[  ]/g, " ");
   }
   // CHF (et fallback) : format suisse avec apostrophe
   return chfFormatter.format(n);

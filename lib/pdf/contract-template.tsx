@@ -41,6 +41,10 @@ export interface ContractPdfData {
     codePostal?: string;
     ville?: string;
     pays?: string;
+    /** Numéro IDE (Suisse CHE-XXX) ou SIRET (FR) ou similaire. */
+    numeroIDE?: string;
+    /** Numéro TVA si différent ou si applicable. */
+    numeroTVA?: string;
   };
   produits: Array<{
     nom: string;
@@ -266,6 +270,14 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
             {data.client.pays && (
               <Text style={styles.partieLine}>{data.client.pays}</Text>
             )}
+            {data.client.numeroIDE && (
+              <Text style={[styles.partieLine, { marginTop: 3 }]}>
+                {data.client.numeroIDE}
+              </Text>
+            )}
+            {data.client.numeroTVA && (
+              <Text style={styles.partieLine}>{data.client.numeroTVA}</Text>
+            )}
           </View>
         </View>
 
@@ -275,10 +287,17 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
             <Text style={styles.metaLabel}>N° de contrat :</Text>
             <Text style={styles.metaValue}>{data.numero}</Text>
           </View>
+          {/*
+            Date de signature : affichée UNIQUEMENT si le client a
+            réellement signé le document. Sinon le PDF n'est qu'un
+            projet / aperçu en attente — on affiche un placeholder.
+          */}
           <View style={styles.metaRow}>
             <Text style={styles.metaLabel}>Date de signature :</Text>
             <Text style={styles.metaValue}>
-              {formatDateLong(data.dateSignature)}
+              {data.signature?.dateSignatureClient
+                ? formatDateLong(data.signature.dateSignatureClient)
+                : "— non signé —"}
             </Text>
           </View>
           <View style={styles.metaRow}>
