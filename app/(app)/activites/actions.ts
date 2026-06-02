@@ -47,7 +47,10 @@ export async function createActivity(
     return zodErrorToResult(parsed.error);
   }
 
-  await assertCanAccessProspect(user, parsed.data.prospectId);
+  // Garde-fou RLS sur le prospect uniquement s'il est lié
+  if (parsed.data.prospectId) {
+    await assertCanAccessProspect(user, parsed.data.prospectId);
+  }
 
   // Si admin et userId fourni → on assigne à ce user (Sophie par ex.)
   // Sinon, fallback sur l'user courant (Sophie ne peut s'assigner qu'à elle).
@@ -57,7 +60,7 @@ export async function createActivity(
   try {
     const created = await prisma.activity.create({
       data: {
-        prospectId: parsed.data.prospectId,
+        prospectId: parsed.data.prospectId ?? null,
         userId: assignToUserId,
         type: parsed.data.type,
         date: parsed.data.date,
@@ -69,8 +72,11 @@ export async function createActivity(
         notesResultat: parsed.data.notesResultat,
       },
     });
-    revalidatePath(`/prospects/${parsed.data.prospectId}`);
+    if (parsed.data.prospectId) {
+      revalidatePath(`/prospects/${parsed.data.prospectId}`);
+    }
     revalidatePath("/activites");
+    revalidatePath("/agenda");
     return { ok: true, activityId: created.id };
   } catch (err) {
     return prismaErrorToResult(err);
@@ -259,7 +265,8 @@ export async function recordCallResult(
       });
 
       // 2. Cas spécial REFUS_FERME : prospect passe en NE_PAS_RAPPELER
-      if (parsed.data.resultat === "REFUS_FERME") {
+      //    (uniquement si l'activité est rattachée à un prospect)
+      if (parsed.data.resultat === "REFUS_FERME" && updated.prospectId) {
         await tx.prospect.update({
           where: { id: updated.prospectId },
           data: { statut: "NE_PAS_RAPPELER" },
@@ -357,7 +364,13 @@ async function assertCanEditActivity(
   if (!a) {
     throw new Error("Activité introuvable.");
   }
-  if (a.userId !== user.id && a.prospect.assigneAId !== user.id) {
+  // Une activité m'appartient si :
+  //   - je l'ai créée (userId)
+  //   - OU je suis assigné au prospect lié (s'il y en a un)
+  const isOwner = a.userId === user.id;
+  const ownsProspect =
+    a.prospect !== null && a.prospect.assigneAId === user.id;
+  if (!isOwner && !ownsProspect) {
     throw new ForbiddenError("Cette activité ne t'appartient pas.");
   }
 }

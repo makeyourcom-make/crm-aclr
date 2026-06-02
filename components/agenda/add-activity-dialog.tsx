@@ -89,10 +89,6 @@ export function AddActivityDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prospectId) {
-      toast.error("Sélectionne un prospect.");
-      return;
-    }
     if (!sujet.trim()) {
       toast.error("Donne un sujet à l'activité.");
       return;
@@ -104,7 +100,8 @@ export function AddActivityDialog({
 
     startTransition(async () => {
       const res = await createActivity({
-        prospectId,
+        // prospectId optionnel — vide = note interne sans client
+        prospectId: prospectId || undefined,
         userId: isAdmin && assigneAId ? assigneAId : undefined,
         type,
         date: dateTime,
@@ -163,17 +160,14 @@ export function AddActivityDialog({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="prospect">
-              Prospect <span className="text-red-500">*</span>
-            </Label>
+            <Label htmlFor="prospect">Prospect (optionnel)</Label>
             <select
               id="prospect"
               value={prospectId}
               onChange={(e) => setProspectId(e.target.value)}
               className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-              required
             >
-              <option value="">— Sélectionner —</option>
+              <option value="">— Aucun (note interne) —</option>
               {prospects.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.raisonSociale}
@@ -181,12 +175,10 @@ export function AddActivityDialog({
                 </option>
               ))}
             </select>
-            {prospects.length === 0 && (
-              <p className="text-[11px] text-muted-foreground">
-                Aucun prospect actif. Crée-en un d&apos;abord depuis{" "}
-                <code>/prospects/nouveau</code>.
-              </p>
-            )}
+            <p className="text-[11px] text-muted-foreground">
+              Laisse vide pour une note interne / tâche d&apos;équipe sans
+              client.
+            </p>
           </div>
 
           {/* Sélecteur "Assigné à" — admin uniquement (Sophie reste sur elle-même) */}

@@ -216,12 +216,18 @@ function ActivityRow({
           </span>
         )}
       </div>
-      <Link
-        href={`/prospects/${a.prospect.id}`}
-        className="mt-1 block truncate font-medium hover:underline"
-      >
-        {a.prospect.raisonSociale}
-      </Link>
+      {a.prospect ? (
+        <Link
+          href={`/prospects/${a.prospect.id}`}
+          className="mt-1 block truncate font-medium hover:underline"
+        >
+          {a.prospect.raisonSociale}
+        </Link>
+      ) : (
+        <span className="mt-1 block truncate font-medium italic opacity-70">
+          Note interne
+        </span>
+      )}
       <p className="truncate text-[10px] opacity-70">{a.sujet}</p>
 
       {(a.statut === "PLANIFIE" || a.statut === "EN_COURS") && (

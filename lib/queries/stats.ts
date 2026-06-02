@@ -166,14 +166,15 @@ export async function getCallProductivity(
     });
   }
 
-  // Top 5 plus longs appels
+  // Top 5 plus longs appels — exclut les notes internes (sans prospect)
   const topLongs = [...withDur]
+    .filter((c) => c.prospect !== null)
     .sort((a, b) => b.secondes - a.secondes)
     .slice(0, 5)
     .map((c) => ({
       activityId: c.id,
-      prospectId: c.prospect.id,
-      prospectName: c.prospect.raisonSociale,
+      prospectId: c.prospect!.id,
+      prospectName: c.prospect!.raisonSociale,
       date: c.date,
       secondes: c.secondes,
       sujet: c.sujet,

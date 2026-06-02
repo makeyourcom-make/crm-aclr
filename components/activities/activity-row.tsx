@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import type { Activity, ActivityResultat, Prospect, User } from "@prisma/client";
 
 type ActivityWithRefs = Activity & {
-  prospect: Pick<Prospect, "id" | "raisonSociale" | "telephone">;
+  prospect: Pick<Prospect, "id" | "raisonSociale" | "telephone"> | null;
   user?: Pick<User, "id" | "name"> | null;
 };
 
@@ -83,13 +83,19 @@ export function ActivityRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <Link
-            href={`/prospects/${a.prospect.id}`}
-            className="font-medium text-foreground hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {a.prospect.raisonSociale}
-          </Link>
+          {a.prospect ? (
+            <Link
+              href={`/prospects/${a.prospect.id}`}
+              className="font-medium text-foreground hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {a.prospect.raisonSociale}
+            </Link>
+          ) : (
+            <span className="font-medium text-muted-foreground italic">
+              Note interne
+            </span>
+          )}
           <span className="text-xs text-muted-foreground">
             · {getActivityTypeLabel(a.type)}
           </span>

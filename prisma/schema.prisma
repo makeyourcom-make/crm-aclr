@@ -632,8 +632,11 @@ model Activity {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  prospect   Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
-  prospectId String
+  /// Prospect lié (optionnel) — si null, l'activité est une "note interne"
+  /// (ex: tâche d'équipe, rappel personnel) qui apparaît dans l'agenda
+  /// sans être rattachée à un client.
+  prospect   Prospect? @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  prospectId String?
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
   userId String

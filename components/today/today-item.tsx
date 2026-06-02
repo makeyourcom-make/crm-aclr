@@ -39,7 +39,7 @@ export function TodayItem({ activity: a, overdue }: TodayItemProps) {
   };
 
   const primaryPhone =
-    a.prospect.telephoneMobile ?? a.prospect.telephone ?? null;
+    a.prospect?.telephoneMobile ?? a.prospect?.telephone ?? null;
   const isCall = isCallType(a.type);
   const isMeeting = isMeetingType(a.type);
 
@@ -66,17 +66,25 @@ export function TodayItem({ activity: a, overdue }: TodayItemProps) {
           )}
         </div>
 
-        {/* Ligne principale : nom prospect + ville */}
+        {/* Ligne principale : nom prospect + ville (ou "Note interne") */}
         <div className="mt-0.5">
-          <Link
-            href={`/prospects/${a.prospect.id}`}
-            className="font-medium text-foreground hover:underline"
-          >
-            {a.prospect.raisonSociale}
-          </Link>
-          {a.prospect.ville && (
-            <span className="ml-2 text-xs text-muted-foreground">
-              · {a.prospect.ville}
+          {a.prospect ? (
+            <>
+              <Link
+                href={`/prospects/${a.prospect.id}`}
+                className="font-medium text-foreground hover:underline"
+              >
+                {a.prospect.raisonSociale}
+              </Link>
+              {a.prospect.ville && (
+                <span className="ml-2 text-xs text-muted-foreground">
+                  · {a.prospect.ville}
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="font-medium italic text-muted-foreground">
+              Note interne
             </span>
           )}
         </div>
@@ -85,7 +93,7 @@ export function TodayItem({ activity: a, overdue }: TodayItemProps) {
         <p className="mt-0.5 text-sm">{a.sujet}</p>
 
         {/* Téléphone cliquable si activité d'appel */}
-        {isCall && primaryPhone && (
+        {isCall && primaryPhone && a.prospect && (
           <div className="mt-1.5 text-xs">
             <ClickToCall
               prospectId={a.prospect.id}
@@ -100,7 +108,7 @@ export function TodayItem({ activity: a, overdue }: TodayItemProps) {
       {/* Actions */}
       <div className="flex shrink-0 flex-col gap-1.5">
         {/* Bouton primaire selon type */}
-        {isCall && primaryPhone ? (
+        {isCall && primaryPhone && a.prospect ? (
           <ClickToCall
             prospectId={a.prospect.id}
             prospectRaisonSociale={a.prospect.raisonSociale}
@@ -110,7 +118,7 @@ export function TodayItem({ activity: a, overdue }: TodayItemProps) {
             <Icon name="Phone" className="h-3 w-3" />
             Appeler
           </ClickToCall>
-        ) : isMeeting ? (
+        ) : isMeeting && a.prospect ? (
           <Link
             href={`/prospects/${a.prospect.id}`}
             className="inline-flex h-7 items-center gap-1 rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"

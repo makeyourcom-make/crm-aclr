@@ -26,7 +26,8 @@ const stringOptional = z
 // ---------------------------------------------------------------------------
 
 export const ActivityCreateSchema = z.object({
-  prospectId: z.string().min(1, "Prospect requis."),
+  /** Prospect lié — optionnel. Null = note interne sans client. */
+  prospectId: stringOptional,
   /** Si fourni (admin only), assigne l'activité à cet utilisateur. Sinon = user courant. */
   userId: stringOptional,
   type: z.nativeEnum(ActivityType),
