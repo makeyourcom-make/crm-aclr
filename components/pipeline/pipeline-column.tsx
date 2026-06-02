@@ -40,7 +40,7 @@ export function PipelineColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex h-full w-72 shrink-0 flex-col rounded-lg border border-border border-t-4 bg-muted/30 transition-colors",
+        "flex h-full w-full shrink-0 flex-col rounded-lg border border-border border-t-4 bg-muted/30 transition-colors sm:w-72",
         STAGE_ACCENTS[stage],
         isOver && "bg-primary/5 ring-2 ring-primary/30",
       )}

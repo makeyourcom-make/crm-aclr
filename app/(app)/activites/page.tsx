@@ -70,7 +70,7 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
     : "Mes activités";
 
   return (
-    <div className="px-6 py-6 lg:px-8">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title="Activités"
         description={`${viewLabel} · Aujourd'hui : ${todayStats.appelsSortants} appels sortants · ${todayStats.rdvFaits} RDV faits · ${todayStats.emailsEnvoyes} emails envoyés.`}

@@ -168,7 +168,7 @@ export default async function ChargesPage({ searchParams }: PageProps) {
   const ttcYear = Number(statsYear._sum.montantTTC ?? 0);
 
   return (
-    <div className="px-6 py-6 lg:px-8">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title="Charges"
         description="Suivi des charges de l'entreprise (tickets, factures fournisseurs)."
@@ -193,7 +193,7 @@ export default async function ChargesPage({ searchParams }: PageProps) {
       />
 
       {/* KPIs */}
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi
           label="Charges ce mois"
           value={formatCHF(Number(statsMonth._sum.montantTTC ?? 0))}
@@ -238,7 +238,7 @@ export default async function ChargesPage({ searchParams }: PageProps) {
 
       {/* Liste */}
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="overflow-x-auto p-0">
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
               <tr>
@@ -250,8 +250,8 @@ export default async function ChargesPage({ searchParams }: PageProps) {
                     defaultDir="desc"
                   />
                 </Th>
-                <Th>Statut</Th>
-                <Th>
+                <Th className="hidden md:table-cell">Statut</Th>
+                <Th className="hidden sm:table-cell">
                   <SortableHeader
                     label="Catégorie"
                     field="categorie"
@@ -265,8 +265,8 @@ export default async function ChargesPage({ searchParams }: PageProps) {
                     defaultSortBy="date"
                   />
                 </Th>
-                <Th>Client</Th>
-                <Th className="text-right">
+                <Th className="hidden lg:table-cell">Client</Th>
+                <Th className="hidden text-right md:table-cell">
                   <SortableHeader
                     label="HT"
                     field="montantHT"
@@ -282,7 +282,7 @@ export default async function ChargesPage({ searchParams }: PageProps) {
                     defaultDir="desc"
                   />
                 </Th>
-                <Th>Ticket</Th>
+                <Th className="hidden sm:table-cell">Ticket</Th>
                 <Th className="text-right">Actions</Th>
               </tr>
             </thead>
@@ -310,10 +310,10 @@ export default async function ChargesPage({ searchParams }: PageProps) {
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="hidden px-3 py-2 md:table-cell">
                       <StatutBadge statut={e.statutPaiement} />
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="hidden px-3 py-2 sm:table-cell">
                       <Badge variant="secondary" className="font-normal">
                         {CATEGORIE_LABEL[e.categorie] ?? e.categorie}
                       </Badge>
@@ -328,7 +328,7 @@ export default async function ChargesPage({ searchParams }: PageProps) {
                         </p>
                       )}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="hidden px-3 py-2 lg:table-cell">
                       {e.prospect ? (
                         <Link
                           href={`/prospects/${e.prospect.id}`}
@@ -355,13 +355,13 @@ export default async function ChargesPage({ searchParams }: PageProps) {
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs">
+                    <td className="hidden px-3 py-2 text-right tabular-nums text-xs md:table-cell">
                       {formatCHF(Number(e.montantHT))}
                     </td>
                     <td className="px-3 py-2 text-right font-semibold tabular-nums">
                       {formatCHF(Number(e.montantTTC))}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="hidden px-3 py-2 sm:table-cell">
                       {e.ticketUrl ? (
                         <div className="inline-flex items-center gap-1">
                           <DocumentPreviewButton

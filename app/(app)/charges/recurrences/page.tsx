@@ -72,7 +72,7 @@ export default async function RecurrencesPage() {
   }, 0);
 
   return (
-    <div className="px-6 py-6 lg:px-8">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title="Charges récurrentes"
         description="Templates qui génèrent automatiquement des charges en attente chaque mois. Utile pour les abonnements (Sunrise, Workspace, Lucas freelance...)."

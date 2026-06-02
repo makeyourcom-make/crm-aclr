@@ -38,7 +38,7 @@ export default async function FacturesPage({ searchParams }: PageProps) {
   const enBrouillon = stats.byStatut.BROUILLON;
 
   return (
-    <div className="px-6 py-6 lg:px-8">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title={user.role === "ADMIN" ? "Salaires commerciales" : "Mes salaires"}
         description={

@@ -39,7 +39,7 @@ export default async function ObjectifsPage() {
   ]);
 
   return (
-    <div className="px-6 py-6 lg:px-8">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title="Objectifs"
         description="Définir et suivre les cibles commerciales par période."

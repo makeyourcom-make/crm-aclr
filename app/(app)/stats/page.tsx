@@ -76,7 +76,7 @@ export default async function StatsPage({ searchParams }: PageProps) {
     : "Mes résultats";
 
   return (
-    <div className="px-6 py-6 lg:px-8">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title="Statistiques"
         description={`${viewLabel} · Analyse sur les ${rangeJours} derniers jours.`}

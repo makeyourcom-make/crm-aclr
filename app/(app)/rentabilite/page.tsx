@@ -41,7 +41,7 @@ export default async function RentabilitePage({ searchParams }: PageProps) {
   const data = await getRentabilite({ from, to });
 
   return (
-    <div className="px-6 py-6 lg:px-8">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title="Rentabilité clients"
         description={`Marge brute par client = CA facturé - charges directes/allouées. Période : ${formatPeriodeLabel(periodeParam, from, to)}.`}

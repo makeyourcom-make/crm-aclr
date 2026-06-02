@@ -33,7 +33,7 @@ export default async function AujourdhuiPage() {
 
       <DailyGoalsBanner counters={cockpit.jour} />
 
-      <div className="px-6 py-6 lg:px-8">
+      <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
         <div className="mb-6">
           <h1 className="text-2xl font-semibold tracking-tight">
             Bonjour {user.name.split(" ")[0]}

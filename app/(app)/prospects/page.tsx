@@ -43,7 +43,7 @@ export default async function ProspectsPage({ searchParams }: PageProps) {
     await Promise.all([getProspects(user, params), getProspectStats(user)]);
 
   return (
-    <div className="px-6 py-6 lg:px-8">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title="Entreprises"
         description={

@@ -19,7 +19,7 @@ export default async function CataloguePage() {
   const { unitaires, packs } = await getProducts();
 
   return (
-    <div className="px-6 py-6 lg:px-8">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title="Catalogue produits"
         description={`${unitaires.length} produit(s) unitaire(s) + ${packs.length} pack(s).`}

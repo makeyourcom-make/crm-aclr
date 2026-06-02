@@ -42,7 +42,7 @@ export default async function ContractsPage({ searchParams }: PageProps) {
   const nbActifs = stats.byStatut.ACTIF ?? 0;
 
   return (
-    <div className="px-6 py-6 lg:px-8">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title="Contrats"
         description={`${nbActifs} contrat(s) actif(s) sur ${stats.total} total.`}
@@ -57,7 +57,7 @@ export default async function ContractsPage({ searchParams }: PageProps) {
         }
       />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardContent className="py-4">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">

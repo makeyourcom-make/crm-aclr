@@ -155,13 +155,13 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
     .reduce((s, i) => s + Number(i.total), 0);
 
   return (
-    <div className="px-6 py-6 lg:px-8">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title="Factures clients"
         description={`${invoices.length} facture(s) émise(s) par ACLR Sàrl. Génération automatique à la signature et à chaque renouvellement.`}
       />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-4">
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi
           label="Encaissé"
           value={formatCHF(totalPayees)}
@@ -223,7 +223,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                       defaultSortBy="dateEmission"
                     />
                   </Th>
-                  <Th>
+                  <Th className="hidden md:table-cell">
                     <SortableHeader
                       label="Émise le"
                       field="dateEmission"
@@ -231,7 +231,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                       defaultDir="desc"
                     />
                   </Th>
-                  <Th>
+                  <Th className="hidden md:table-cell">
                     <SortableHeader
                       label="Échéance"
                       field="dateEcheance"
@@ -246,7 +246,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                       defaultSortBy="dateEmission"
                     />
                   </Th>
-                  <Th>
+                  <Th className="hidden sm:table-cell">
                     <SortableHeader
                       label="Type"
                       field="type"
@@ -297,10 +297,10 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                           {inv.numero}
                         </a>
                       </td>
-                      <td className="px-3 py-2 text-xs">
+                      <td className="hidden px-3 py-2 text-xs md:table-cell">
                         {formatDate(inv.dateEmission)}
                       </td>
-                      <td className="px-3 py-2 text-xs">
+                      <td className="hidden px-3 py-2 text-xs md:table-cell">
                         {formatDate(inv.dateEcheance)}
                         {inv.isOverdue && (
                           <span className="ml-1 text-red-600 font-semibold">
@@ -319,7 +319,9 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                           {inv.contract.numero}
                         </p>
                       </td>
-                      <td className="px-3 py-2 text-xs">{inv.type}</td>
+                      <td className="hidden px-3 py-2 text-xs sm:table-cell">
+                        {inv.type}
+                      </td>
                       <td className="px-3 py-2 text-right font-semibold tabular-nums">
                         {formatMoney(Number(inv.total), inv.devise)}
                       </td>

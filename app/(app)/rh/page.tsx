@@ -35,7 +35,7 @@ export default async function RhPage() {
   const inactifs = employees.filter((e) => !e.isActive);
 
   return (
-    <div className="px-6 py-6 lg:px-8">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title="Collaborateurs"
         description={`${actifs.length} collaborateur(s) actif(s)${inactifs.length > 0 ? ` · ${inactifs.length} sorti(s)` : ""}.`}

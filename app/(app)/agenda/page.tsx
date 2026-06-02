@@ -73,7 +73,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   const description = `${activities.length} activité(s) sur la semaine · ${viewLabel}.`;
 
   return (
-    <div className="px-6 py-6 lg:px-8">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title="Agenda"
         description={description}

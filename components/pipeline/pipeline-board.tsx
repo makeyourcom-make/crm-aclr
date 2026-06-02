@@ -178,7 +178,11 @@ export function PipelineBoard({ initialData, isAdmin }: PipelineBoardProps) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 overflow-x-auto pb-2">
+      {/*
+        Mobile (<sm) : colonnes stackées verticalement, full width
+        Desktop (≥sm) : Kanban horizontal scrollable
+      */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:overflow-x-auto sm:pb-2">
         {data.columns.map((col) => (
           <PipelineColumn
             key={col.stage}

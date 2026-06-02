@@ -36,7 +36,7 @@ export default async function DashboardPage() {
     .replace(/^(.)/, (m) => m.toUpperCase());
 
   return (
-    <div className="px-6 py-6 lg:px-8">
+    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">
           Bonjour {user.name.split(" ")[0]}
@@ -187,7 +187,7 @@ export default async function DashboardPage() {
             <CardTitle className="text-base">Pipeline</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
               {data.pipelineParStage.map((s) => (
                 <div
                   key={s.stage}
