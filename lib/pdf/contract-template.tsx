@@ -211,6 +211,22 @@ const styles = StyleSheet.create({
   },
 });
 
+/**
+ * Choisit le bon libellé pour l'identifiant entreprise client.
+ *   - CHE-XXX.XXX.XXX → "IDE" (Suisse)
+ *   - 14 chiffres     → "Siret" (France)
+ *   - 9 chiffres      → "Siren" (France)
+ *   - sinon           → "N°"
+ */
+function clientIdLabel(numero: string, pays?: string): string {
+  const clean = numero.trim().toUpperCase();
+  if (clean.startsWith("CHE-") || clean.startsWith("CHE")) return "IDE";
+  if (/^\d{14}$/.test(clean.replace(/\s/g, ""))) return "Siret";
+  if (/^\d{9}$/.test(clean.replace(/\s/g, ""))) return "Siren";
+  if (pays?.toLowerCase().includes("france")) return "Siret";
+  return "N°";
+}
+
 const MODALITE_LABELS: Record<string, string> = {
   CINQUANTE_CINQUANTE: "50 % à la signature / 50 % à la livraison",
   CENT_AU_SIGNING: "100 % à la signature",
@@ -272,11 +288,9 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
             )}
             {data.client.numeroIDE && (
               <Text style={[styles.partieLine, { marginTop: 3 }]}>
+                {clientIdLabel(data.client.numeroIDE, data.client.pays)} :{" "}
                 {data.client.numeroIDE}
               </Text>
-            )}
-            {data.client.numeroTVA && (
-              <Text style={styles.partieLine}>{data.client.numeroTVA}</Text>
             )}
           </View>
         </View>
