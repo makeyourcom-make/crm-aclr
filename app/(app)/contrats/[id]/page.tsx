@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { RecomputeButton } from "@/components/commissions/recompute-button";
 import { DocumentPreviewButton } from "@/components/common/document-preview-button";
 import { ContractStatutBadge } from "@/components/contrats/contract-statut-badge";
+import { DeleteContractButton } from "@/components/common/entity-delete-buttons";
 import { ResilierButton } from "@/components/contrats/resilier-button";
 import { ValidateContractButton } from "@/components/contrats/validate-contract-button";
 import { MarkInvoicePaidButton } from "@/components/paiements/mark-invoice-paid-button";
@@ -153,6 +154,15 @@ export default async function ContractDetailPage({ params }: PageProps) {
                 )}
                 <ResilierButton contractId={contract.id} />
               </>
+            )}
+            {user.role === "ADMIN" && (
+              <DeleteContractButton
+                contractId={contract.id}
+                canDelete={
+                  contract.statut === "ATTENTE_SIGNATURE_CLIENT" &&
+                  !contract.signatures.some((s) => s.signeParClient)
+                }
+              />
             )}
           </>
         }

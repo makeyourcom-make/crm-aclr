@@ -186,3 +186,37 @@ export async function signByAclr(
   revalidatePath(`/contrats/${sig.contractId}`);
   return { ok: true, signatureId: sig.id };
 }
+
+/**
+ * Supprime une demande de signature (link, draft, échue).
+ * RLS : ADMIN uniquement — la signature est juridique, sa suppression
+ * ne doit pas être autorisée à tous les commerciaux.
+ *
+ * Si la signature est déjà signée par le client (signeParClient = true),
+ * la suppression est bloquée pour préserver la traçabilité juridique.
+ */
+export async function deleteSignature(
+  signatureId: string,
+): Promise<SignatureActionResult> {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") {
+    return { ok: false, error: "Seul l'admin peut supprimer une signature." };
+  }
+  const sig = await prisma.signature.findUnique({
+    where: { id: signatureId },
+    select: { id: true, signeParClient: true, contractId: true },
+  });
+  if (!sig) return { ok: false, error: "Signature introuvable." };
+  if (sig.signeParClient) {
+    return {
+      ok: false,
+      error:
+        "Impossible de supprimer : signature déjà apposée par le client. Trace juridique préservée.",
+    };
+  }
+  await prisma.signature.delete({ where: { id: signatureId } });
+  revalidatePath("/signatures");
+  revalidatePath("/pipeline");
+  revalidatePath(`/contrats/${sig.contractId}`);
+  return { ok: true, signatureId };
+}

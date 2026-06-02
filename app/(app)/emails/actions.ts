@@ -137,3 +137,25 @@ export async function sendEmailToProspect(
 
   return { ok: true, emailId: created.id, dryRun: isDryRun };
 }
+
+/**
+ * Supprime un email (envoyé ou brouillon).
+ * RLS : admin OR créateur (email.userId === user.id).
+ */
+export async function deleteEmail(
+  id: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireUser();
+  const email = await prisma.email.findUnique({
+    where: { id },
+    select: { userId: true, prospectId: true },
+  });
+  if (!email) return { ok: false, error: "Email introuvable." };
+  if (user.role !== "ADMIN" && email.userId !== user.id) {
+    return { ok: false, error: "Accès refusé." };
+  }
+  await prisma.email.delete({ where: { id } });
+  revalidatePath("/emails");
+  if (email.prospectId) revalidatePath(`/prospects/${email.prospectId}`);
+  return { ok: true };
+}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { DeleteEmailButton } from "@/components/common/entity-delete-buttons";
 import { EmailPreviewButton } from "@/components/emails/email-preview-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -121,7 +122,8 @@ export default async function EmailsPage() {
                         {user.role === "ADMIN" && ` · ${e.user.name}`}
                       </p>
                     </div>
-                    <div className="shrink-0 pt-0.5">
+                    <div className="flex shrink-0 items-start gap-1 pt-0.5">
+                      <DeleteEmailButton emailId={e.id} />
                       <EmailPreviewButton
                         email={{
                           objet: e.objet,

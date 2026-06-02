@@ -1003,6 +1003,108 @@ function zodErrorToResult(err: import("zod").ZodError): ContractActionResult {
 }
 
 /**
+ * Supprime une facture client.
+ * RLS : admin OR commercial assigné au contrat.
+ * Bloqué si statut = PAYEE (préservation comptable) — utiliser un avoir
+ * à la place. Si tu veux quand même supprimer une payée, utilise l'UI admin
+ * directe via DB (volontairement absent du CRM).
+ */
+export async function deleteClientInvoice(
+  invoiceId: string,
+): Promise<ContractActionResult> {
+  const user = await requireUser();
+  try {
+    const inv = await prisma.clientInvoice.findUnique({
+      where: { id: invoiceId },
+      select: {
+        id: true,
+        statut: true,
+        contractId: true,
+        contract: { select: { assigneAId: true } },
+        payments: { select: { id: true } },
+      },
+    });
+    if (!inv) return { ok: false, error: "Facture introuvable." };
+    if (user.role !== "ADMIN" && inv.contract.assigneAId !== user.id) {
+      return { ok: false, error: "Accès refusé." };
+    }
+    if (inv.statut === "PAYEE" || inv.payments.length > 0) {
+      return {
+        ok: false,
+        error:
+          "Impossible de supprimer une facture payée. Créé un avoir si nécessaire.",
+      };
+    }
+    await prisma.clientInvoice.delete({ where: { id: invoiceId } });
+    revalidatePath("/factures-clients");
+    revalidatePath(`/contrats/${inv.contractId}`);
+    return { ok: true, contractId: inv.contractId };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
+}
+
+/**
+ * Supprime complètement un contrat (uniquement avant signature client).
+ * Bloqué si le contrat est ACTIF / SUSPENDU / RESILIE / EXPIRE → utiliser
+ * resilierContract() à la place.
+ * RLS : admin OR commercial assigné.
+ */
+export async function deleteContract(
+  contractId: string,
+): Promise<ContractActionResult> {
+  const user = await requireUser();
+  try {
+    const c = await prisma.contract.findUnique({
+      where: { id: contractId },
+      select: {
+        statut: true,
+        assigneAId: true,
+        prospectId: true,
+        signatures: { select: { signeParClient: true } },
+        clientInvoices: {
+          select: { statut: true, payments: { select: { id: true } } },
+        },
+      },
+    });
+    if (!c) return { ok: false, error: "Contrat introuvable." };
+    if (user.role !== "ADMIN" && c.assigneAId !== user.id) {
+      return { ok: false, error: "Accès refusé." };
+    }
+    // Bloque si signature client déjà apposée
+    if (c.signatures.some((s) => s.signeParClient)) {
+      return {
+        ok: false,
+        error:
+          "Impossible de supprimer : contrat signé par le client. Utilise 'Résilier' à la place.",
+      };
+    }
+    // Bloque si une facture est déjà PAYEE
+    const hasPayedInvoice = c.clientInvoices.some(
+      (inv) => inv.statut === "PAYEE" || inv.payments.length > 0,
+    );
+    if (hasPayedInvoice) {
+      return {
+        ok: false,
+        error: "Impossible de supprimer : au moins une facture est payée.",
+      };
+    }
+    // Suppression en cascade : signatures + factures brouillons
+    await prisma.$transaction(async (tx) => {
+      await tx.signature.deleteMany({ where: { contractId } });
+      await tx.clientInvoice.deleteMany({ where: { contractId } });
+      await tx.contract.delete({ where: { id: contractId } });
+    });
+    revalidatePath("/contrats");
+    revalidatePath("/pipeline");
+    revalidatePath(`/prospects/${c.prospectId}`);
+    return { ok: true, contractId };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
+}
+
+/**
  * Validation finale par l'admin : passe un contrat de
  * ATTENTE_VALIDATION_ADMIN à ACTIF.
  *

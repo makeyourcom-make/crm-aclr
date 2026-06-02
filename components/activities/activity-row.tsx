@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { markActivityDone } from "@/app/(app)/activites/actions";
 import { ActivityIcon } from "@/components/activities/activity-icon";
+import { DeleteActivityButton } from "@/components/common/entity-delete-buttons";
 import { Badge } from "@/components/ui/badge";
 import {
   formatDateLong,
@@ -122,16 +123,19 @@ export function ActivityRow({
         </div>
       </div>
 
-      {isPlanifiable && isMine && (
-        <button
-          type="button"
-          onClick={handleMarkDone}
-          disabled={pending}
-          className="ml-auto inline-flex h-7 shrink-0 items-center rounded-md border border-border bg-background px-2 text-xs hover:bg-muted disabled:opacity-50"
-        >
-          {pending ? "…" : "Marquer fait"}
-        </button>
-      )}
+      <div className="ml-auto flex shrink-0 items-center gap-1">
+        {isPlanifiable && isMine && (
+          <button
+            type="button"
+            onClick={handleMarkDone}
+            disabled={pending}
+            className="inline-flex h-7 items-center rounded-md border border-border bg-background px-2 text-xs hover:bg-muted disabled:opacity-50"
+          >
+            {pending ? "…" : "Marquer fait"}
+          </button>
+        )}
+        {isMine && <DeleteActivityButton activityId={a.id} />}
+      </div>
     </div>
   );
 }

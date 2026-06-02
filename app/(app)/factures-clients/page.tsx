@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { DocumentPreviewButton } from "@/components/common/document-preview-button";
+import { DeleteClientInvoiceButton } from "@/components/common/entity-delete-buttons";
 import { SortableHeader } from "@/components/common/sortable-header";
 import { ClientInvoiceFilters } from "@/components/factures-clients/client-invoice-filters";
 import { MarkInvoicePaidButton } from "@/components/paiements/mark-invoice-paid-button";
@@ -345,6 +346,10 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                             inv.statut === "ENVOYEE") && (
                             <MarkInvoicePaidButton invoiceId={inv.id} />
                           )}
+                          <DeleteClientInvoiceButton
+                            invoiceId={inv.id}
+                            isPayee={inv.statut === "PAYEE"}
+                          />
                         </div>
                       </td>
                     </tr>
