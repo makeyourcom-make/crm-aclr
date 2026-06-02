@@ -4,11 +4,13 @@ import { notFound } from "next/navigation";
 import { ActivityTimeline } from "@/components/activities/activity-timeline";
 import { QuickLogActivity } from "@/components/activities/quick-log-activity";
 import { ClickToCall } from "@/components/call/click-to-call";
+import { SendEmailDialog } from "@/components/emails/send-email-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badge";
 import { buttonVariants } from "@/components/ui/button";
+import { prisma } from "@/lib/db";
 import { formatDateLong } from "@/lib/format";
 import {
   getProspectSecteurLabel,
@@ -30,9 +32,13 @@ export async function generateMetadata({ params }: PageProps) {
 export default async function ProspectDetailPage({ params }: PageProps) {
   const user = await requireUser();
   const { id } = await params;
-  const [prospect, activities] = await Promise.all([
+  const [prospect, activities, emailTemplates] = await Promise.all([
     getProspectById(user, id),
     getProspectActivities(id, user),
+    prisma.emailTemplate.findMany({
+      select: { id: true, nom: true, objet: true, contenu: true },
+      orderBy: { nom: "asc" },
+    }),
   ]);
 
   if (!prospect) notFound();
@@ -59,6 +65,13 @@ export default async function ProspectDetailPage({ params }: PageProps) {
         }
         actions={
           <>
+            <SendEmailDialog
+              prospectId={prospect.id}
+              prospectEmail={prospect.email}
+              prospectName={prospect.raisonSociale}
+              templates={emailTemplates}
+              triggerVariant="default"
+            />
             <Link
               href={`/prospects/${prospect.id}/modifier`}
               className={buttonVariants({ variant: "outline" })}
