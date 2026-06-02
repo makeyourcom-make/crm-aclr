@@ -52,6 +52,7 @@
     "react-hook-form": "^7.76.1",
     "react-pdf": "^10.4.1",
     "recharts": "^3.8.1",
+    "resend": "^6.12.4",
     "shadcn": "^4.8.2",
     "sonner": "^2.0.7",
     "swissqrbill": "^4.3.0",
