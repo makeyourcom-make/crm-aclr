@@ -35,11 +35,11 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   const view = typeof raw.view === "string" ? raw.view : "mine";
   const isAdmin = user.role === "ADMIN";
 
-  // Pour le switcher : liste des users actifs (admin uniquement)
+  // Pour le switcher + assignation dialog : liste des users actifs (admin uniquement)
   const teamUsers = isAdmin
     ? await prisma.user.findMany({
         where: { isActive: true },
-        select: { id: true, name: true },
+        select: { id: true, name: true, role: true },
         orderBy: { name: "asc" },
       })
     : [];
@@ -83,6 +83,9 @@ export default async function AgendaPage({ searchParams }: PageProps) {
             defaultDate={toIso(today)}
             defaultTime="09:00"
             triggerMode="header"
+            users={teamUsers}
+            currentUserId={user.id}
+            isAdmin={isAdmin}
           />
         }
       />
@@ -106,6 +109,9 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         activities={activities}
         prospects={prospects}
         showUserBadge={isAdmin && view === "all"}
+        users={teamUsers}
+        currentUserId={user.id}
+        isAdmin={isAdmin}
       />
 
       <p className="mt-4 text-center text-xs text-muted-foreground">

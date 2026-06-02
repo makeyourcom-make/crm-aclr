@@ -33,6 +33,12 @@ interface ProspectOption {
   ville: string | null;
 }
 
+interface UserOption {
+  id: string;
+  name: string;
+  role: string;
+}
+
 interface AddActivityDialogProps {
   prospects: ProspectOption[];
   /** Date par défaut au format YYYY-MM-DD */
@@ -45,6 +51,12 @@ interface AddActivityDialogProps {
    *   - "day"    : petit bouton discret en bas d'une cellule de jour
    */
   triggerMode?: "header" | "day";
+  /** Liste des users actifs (admin only). Si fourni → affiche le select Assigné à. */
+  users?: UserOption[];
+  /** ID du user courant — preselected dans le select */
+  currentUserId?: string;
+  /** Vrai si user courant est admin (peut assigner aux autres) */
+  isAdmin?: boolean;
 }
 
 export function AddActivityDialog({
@@ -52,12 +64,16 @@ export function AddActivityDialog({
   defaultDate,
   defaultTime = "09:00",
   triggerMode = "header",
+  users = [],
+  currentUserId,
+  isAdmin = false,
 }: AddActivityDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const [prospectId, setProspectId] = useState("");
+  const [assigneAId, setAssigneAId] = useState(currentUserId ?? "");
   const [type, setType] = useState<ActivityType>("RDV_PHYSIQUE");
   const [sujet, setSujet] = useState("");
   const [date, setDate] = useState(defaultDate);
@@ -89,6 +105,7 @@ export function AddActivityDialog({
     startTransition(async () => {
       const res = await createActivity({
         prospectId,
+        userId: isAdmin && assigneAId ? assigneAId : undefined,
         type,
         date: dateTime,
         sujet: sujet.trim(),
@@ -171,6 +188,28 @@ export function AddActivityDialog({
               </p>
             )}
           </div>
+
+          {/* Sélecteur "Assigné à" — admin uniquement (Sophie reste sur elle-même) */}
+          {isAdmin && users.length > 1 && (
+            <div className="space-y-1.5">
+              <Label htmlFor="assigneA">Assigné à</Label>
+              <select
+                id="assigneA"
+                value={assigneAId}
+                onChange={(e) => setAssigneAId(e.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+              >
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} {u.role === "ADMIN" ? "(admin)" : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-muted-foreground">
+                La personne à qui cette activité apparaîtra dans son agenda.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="type">Type</Label>

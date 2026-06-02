@@ -49,11 +49,16 @@ export async function createActivity(
 
   await assertCanAccessProspect(user, parsed.data.prospectId);
 
+  // Si admin et userId fourni → on assigne à ce user (Sophie par ex.)
+  // Sinon, fallback sur l'user courant (Sophie ne peut s'assigner qu'à elle).
+  const assignToUserId =
+    user.role === "ADMIN" && parsed.data.userId ? parsed.data.userId : user.id;
+
   try {
     const created = await prisma.activity.create({
       data: {
         prospectId: parsed.data.prospectId,
-        userId: user.id,
+        userId: assignToUserId,
         type: parsed.data.type,
         date: parsed.data.date,
         sujet: parsed.data.sujet,

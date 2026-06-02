@@ -25,12 +25,22 @@ interface ProspectOption {
   ville: string | null;
 }
 
+interface UserOption {
+  id: string;
+  name: string;
+  role: string;
+}
+
 interface WeekViewProps {
   weekStart: Date;
   activities: AgendaActivity[];
   prospects: ProspectOption[];
   /** Affiche le prénom du propriétaire sur chaque activité (vue admin "Toute l'équipe"). */
   showUserBadge?: boolean;
+  /** Pour le dialog d'ajout — liste des users (admin assigne, sinon ignoré) */
+  users?: UserOption[];
+  currentUserId?: string;
+  isAdmin?: boolean;
 }
 
 function toIso(d: Date): string {
@@ -43,6 +53,9 @@ export function WeekView({
   activities,
   prospects,
   showUserBadge = false,
+  users = [],
+  currentUserId,
+  isAdmin = false,
 }: WeekViewProps) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -111,6 +124,9 @@ export function WeekView({
                 defaultDate={toIso(dayDate)}
                 defaultTime="09:00"
                 triggerMode="day"
+                users={users}
+                currentUserId={currentUserId}
+                isAdmin={isAdmin}
               />
             </CardContent>
           </Card>

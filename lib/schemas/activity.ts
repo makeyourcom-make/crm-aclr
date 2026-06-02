@@ -27,6 +27,8 @@ const stringOptional = z
 
 export const ActivityCreateSchema = z.object({
   prospectId: z.string().min(1, "Prospect requis."),
+  /** Si fourni (admin only), assigne l'activité à cet utilisateur. Sinon = user courant. */
+  userId: stringOptional,
   type: z.nativeEnum(ActivityType),
   date: z.coerce.date(),
   sujet: z.string().trim().min(1, "Sujet obligatoire.").max(255),
