@@ -813,6 +813,8 @@ model Contract {
   @@index([statut])
   @@index([dateSignature])
   @@index([assigneAId, statut])
+  @@index([prospectId]) // FK très utilisée dans les JOINs
+  @@index([statut, prospectId]) // filtre combiné fréquent
   @@map("contracts")
 }
 
@@ -1112,6 +1114,8 @@ model ClientInvoice {
 
   @@index([contractId])
   @@index([statut, dateEcheance])
+  @@index([dateEmission(sort: Desc)]) // tri par défaut sur la liste
+  @@index([statut, dateEmission(sort: Desc)]) // filtre + tri combinés
   @@map("client_invoices")
 }
 

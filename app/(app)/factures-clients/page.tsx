@@ -120,7 +120,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
         },
       },
       orderBy,
-      take: 200,
+      take: 100,
     }),
     prisma.clientInvoice.groupBy({
       by: ["statut"],

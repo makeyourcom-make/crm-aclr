@@ -42,7 +42,7 @@ export default async function EmailsPage() {
       user: { select: { name: true } },
     },
     orderBy: { createdAt: "desc" },
-    take: 100,
+    take: 50,
   });
 
   const isDryRun = process.env.EMAIL_MODE !== "live";

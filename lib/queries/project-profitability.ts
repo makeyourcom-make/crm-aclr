@@ -182,10 +182,86 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
 
 /**
  * Variante : marge d'un seul contrat (pour la page détail).
+ *
+ * Avant : appelait getProjectMargins() qui charge TOUS les contrats actifs
+ * pour en retourner 1 (~50 contrats × 4 includes = très lent).
+ *
+ * Maintenant : on calcule la quote-part une seule fois (charges + salaires)
+ * puis on charge UNIQUEMENT le contrat ciblé.
  */
 export async function getProjectMarginForContract(
   contractId: string,
 ): Promise<ProjectMargin | null> {
-  const all = await getProjectMargins();
-  return all.projects.find((p) => p.contractId === contractId) ?? null;
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+  const [contract, expensesLast6m, nonCommercialsActifs, nbContrats] =
+    await Promise.all([
+      prisma.contract.findUnique({
+        where: { id: contractId },
+        select: {
+          id: true,
+          numero: true,
+          valeurAn1: true,
+          dateSignature: true,
+          modalitePaiement: true,
+          statut: true,
+          prospect: { select: { raisonSociale: true } },
+          products: {
+            select: { coutOneShot: true, coutMensuel: true },
+          },
+          assigneA: {
+            select: { name: true, tauxCommissionSignature: true },
+          },
+        },
+      }),
+      prisma.expense.findMany({
+        where: { date: { gte: sixMonthsAgo } },
+        select: { montantTTC: true },
+      }),
+      prisma.user.findMany({
+        where: { isActive: true, role: { not: "COMMERCIAL" } },
+        select: { salaireBase: true },
+      }),
+      prisma.contract.count({ where: { statut: "ACTIF" } }),
+    ]);
+
+  if (!contract) return null;
+
+  const chargesMoyennesMensuelles =
+    expensesLast6m.reduce((s, e) => s + Number(e.montantTTC), 0) / 6;
+  const salaireFixeNonCommercial = nonCommercialsActifs.reduce(
+    (s, u) => s + Number(u.salaireBase ?? 0),
+    0,
+  );
+  const fraisFixesMensuels =
+    chargesMoyennesMensuelles + salaireFixeNonCommercial;
+  const quotePartFrais = (fraisFixesMensuels * 12) / Math.max(nbContrats, 1);
+
+  const revenu = Number(contract.valeurAn1);
+  const coutsDirects = contract.products.reduce((s, p) => {
+    const oneShot = Number(p.coutOneShot ?? 0);
+    const mensuel = Number(p.coutMensuel ?? 0);
+    return s + oneShot + mensuel * 12;
+  }, 0);
+  const tauxCom = Number(contract.assigneA.tauxCommissionSignature);
+  const commission = revenu * tauxCom;
+  const margeBrute = revenu - coutsDirects - commission - quotePartFrais;
+  const rentabilite = revenu > 0 ? margeBrute / revenu : 0;
+
+  return {
+    contractId: contract.id,
+    numero: contract.numero,
+    raisonSociale: contract.prospect.raisonSociale,
+    commercialeName: contract.assigneA.name,
+    dateSignature: contract.dateSignature,
+    modalitePaiement: contract.modalitePaiement,
+    statut: contract.statut,
+    revenu12mois: revenu,
+    coutsDirects,
+    commission,
+    quotePartFrais,
+    margeBrute,
+    rentabilite,
+  };
 }

@@ -128,7 +128,7 @@ export default async function ChargesPage({ searchParams }: PageProps) {
     prisma.expense.findMany({
       where,
       orderBy,
-      take: 200,
+      take: 100,
       include: {
         createdBy: { select: { name: true } },
         attachments: { select: { id: true, fileUrl: true, kind: true } },

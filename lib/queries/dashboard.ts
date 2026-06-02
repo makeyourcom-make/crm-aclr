@@ -240,43 +240,50 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
   let contratsAValider: DashboardData["contratsAValider"];
 
   if (user.role === "ADMIN") {
-    const allSignaturesMois = await prisma.contract.aggregate({
-      where: { dateSignature: { gte: startMonth, lte: endMonth } },
-      _sum: { valeurAn1: true },
-    });
-    caAgenceMois = Number(allSignaturesMois._sum.valeurAn1 ?? 0);
-
-    const allComMois = await prisma.commissionPayment.aggregate({
-      where: {
-        statut: "PAYE",
-        dateVersement: { gte: startMonth, lte: endMonth },
-      },
-      _sum: { montant: true },
-    });
-    montantAVerserCommerciales = Number(allComMois._sum.montant ?? 0);
-
-    const allActiveContracts = await prisma.contract.aggregate({
-      where: { statut: "ACTIF" },
-      _sum: { montantMensuel: true },
-    });
-    caRecurrentTotalMensuel = Number(allActiveContracts._sum.montantMensuel ?? 0);
-
-    // Contrats signés par le client mais pas encore contre-signés par ACLR
-    const sigsAValider = await prisma.signature.findMany({
-      where: { signeParClient: true, signeParAclr: false },
-      include: {
-        contract: {
-          select: {
-            id: true,
-            numero: true,
-            valeurAn1: true,
-            assigneA: { select: { name: true } },
-            prospect: { select: { raisonSociale: true } },
+    // Les 4 queries admin sont indépendantes → on les lance en parallèle.
+    // Gain : ~ 4× plus rapide qu'en séquentiel.
+    const [
+      allSignaturesMois,
+      allComMois,
+      allActiveContracts,
+      sigsAValider,
+    ] = await Promise.all([
+      prisma.contract.aggregate({
+        where: { dateSignature: { gte: startMonth, lte: endMonth } },
+        _sum: { valeurAn1: true },
+      }),
+      prisma.commissionPayment.aggregate({
+        where: {
+          statut: "PAYE",
+          dateVersement: { gte: startMonth, lte: endMonth },
+        },
+        _sum: { montant: true },
+      }),
+      prisma.contract.aggregate({
+        where: { statut: "ACTIF" },
+        _sum: { montantMensuel: true },
+      }),
+      prisma.signature.findMany({
+        where: { signeParClient: true, signeParAclr: false },
+        select: {
+          id: true,
+          dateSignatureClient: true,
+          contract: {
+            select: {
+              id: true,
+              numero: true,
+              valeurAn1: true,
+              assigneA: { select: { name: true } },
+              prospect: { select: { raisonSociale: true } },
+            },
           },
         },
-      },
-      orderBy: { dateSignatureClient: "asc" },
-    });
+        orderBy: { dateSignatureClient: "asc" },
+      }),
+    ]);
+    caAgenceMois = Number(allSignaturesMois._sum.valeurAn1 ?? 0);
+    montantAVerserCommerciales = Number(allComMois._sum.montant ?? 0);
+    caRecurrentTotalMensuel = Number(allActiveContracts._sum.montantMensuel ?? 0);
     contratsAValider = sigsAValider.map((s) => ({
       contractId: s.contract.id,
       numero: s.contract.numero,
