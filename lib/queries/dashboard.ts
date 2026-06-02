@@ -84,60 +84,108 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     user.role === "ADMIN" ? {} : { commission: { userId: user.id } };
   const scopeDeal = user.role === "ADMIN" ? {} : { assigneAId: user.id };
 
-  // 1. Signatures ce mois
-  const signaturesMoisRaw = await prisma.contract.aggregate({
-    where: {
-      ...scopeContract,
-      dateSignature: { gte: startMonth, lte: endMonth },
-    },
-    _count: true,
-    _sum: { valeurAn1: true },
-  });
+  // ──────────────────────────────────────────────────────────────────
+  // PARALLÉLISATION : les étapes 1, 2, 3-user, 4, 5, 6, 7 sont toutes
+  // indépendantes et peuvent partir en même temps. Promise.all() →
+  // gain ~6-7× sur le block de queries du dashboard.
+  // ──────────────────────────────────────────────────────────────────
+  const start12 = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const in90Days = new Date(now);
+  in90Days.setDate(in90Days.getDate() + 90);
 
-  // 2. Commissions acquises ce mois
-  const comAcquisesMois = await prisma.commissionPayment.aggregate({
-    where: {
-      ...scopeCommission,
-      statut: "PAYE",
-      dateVersement: { gte: startMonth, lte: endMonth },
-    },
-    _sum: { montant: true },
-  });
+  const [
+    signaturesMoisRaw,
+    comAcquisesMois,
+    userSettings,
+    contractsLast12,
+    dealsAggregated,
+    hotDeals,
+    contractsForRenewal,
+  ] = await Promise.all([
+    // 1. Signatures ce mois
+    prisma.contract.aggregate({
+      where: {
+        ...scopeContract,
+        dateSignature: { gte: startMonth, lte: endMonth },
+      },
+      _count: true,
+      _sum: { valeurAn1: true },
+    }),
+    // 2. Commissions acquises ce mois
+    prisma.commissionPayment.aggregate({
+      where: {
+        ...scopeCommission,
+        statut: "PAYE",
+        dateVersement: { gte: startMonth, lte: endMonth },
+      },
+      _sum: { montant: true },
+    }),
+    // 3. User garantie/frais (uniquement pour les commerciales)
+    user.role === "ADMIN"
+      ? Promise.resolve(null)
+      : prisma.user.findUnique({
+          where: { id: user.id },
+          select: { garantieMensuelle: true, forfaitFrais: true },
+        }),
+    // 4. Évolution 12 mois (CA signé par mois)
+    prisma.contract.findMany({
+      where: { ...scopeContract, dateSignature: { gte: start12 } },
+      select: { dateSignature: true, valeurAn1: true },
+    }),
+    // 5. Pipeline résumé
+    prisma.deal.groupBy({
+      by: ["stage"],
+      where: scopeDeal,
+      _count: true,
+      _sum: { montantPrevu: true },
+    }),
+    // 6. Top deals chauds (Proposition + Négociation)
+    prisma.deal.findMany({
+      where: {
+        ...scopeDeal,
+        stage: { in: ["PROPOSITION", "NEGOCIATION"] },
+      },
+      select: {
+        id: true,
+        titre: true,
+        montantPrevu: true,
+        probabilite: true,
+        prospect: { select: { raisonSociale: true } },
+      },
+    }),
+    // 7. Renouvellements à venir 90 jours
+    prisma.contract.findMany({
+      where: { ...scopeContract, statut: "ACTIF", montantMensuel: { gt: 0 } },
+      select: {
+        id: true,
+        numero: true,
+        dateSignature: true,
+        montantMensuel: true,
+        prospect: { select: { raisonSociale: true } },
+        assigneA: { select: { tauxCommissionRenouvellement: true } },
+      },
+    }),
+  ]);
 
-  // 3. Charge le user pour garantie/frais
+  // Calcul garantie/frais depuis le résultat parallèle
   let garantieMensuelle = 2500;
   let forfaitFrais = 250;
-  if (user.role !== "ADMIN") {
-    const u = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { garantieMensuelle: true, forfaitFrais: true },
-    });
-    if (u) {
-      garantieMensuelle = Number(u.garantieMensuelle);
-      forfaitFrais = Number(u.forfaitFrais);
-    }
+  if (userSettings) {
+    garantieMensuelle = Number(userSettings.garantieMensuelle);
+    forfaitFrais = Number(userSettings.forfaitFrais);
   }
   const comMois = Number(comAcquisesMois._sum.montant ?? 0);
   const salairePrevuMois = Math.max(comMois, garantieMensuelle) + forfaitFrais;
   const garantieActiveMois = comMois < garantieMensuelle;
 
-  // 3.b Objectif mensuel actif (pour la commerciale ou le user filtré admin)
+  // 3.b Objectif mensuel — dépend de signaturesMoisRaw, fait à part
   const monthlyProgress = await computeMonthlyProgress(
     user,
     startMonth,
     endMonth,
     signaturesMoisRaw,
   );
-
-  // 4. Évolution 12 mois en arrière — CA signé (somme valeurAn1 par mois de signature)
-  const start12 = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-  const contractsLast12 = await prisma.contract.findMany({
-    where: {
-      ...scopeContract,
-      dateSignature: { gte: start12 },
-    },
-    select: { dateSignature: true, valeurAn1: true },
-  });
+  // Évolution 12 mois — agrégation in-memory du résultat de la query 4
   const monthMap = new Map<string, number>();
   for (let i = 0; i < 12; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
@@ -159,13 +207,7 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     });
   }
 
-  // 5. Pipeline résumé
-  const dealsAggregated = await prisma.deal.groupBy({
-    by: ["stage"],
-    where: scopeDeal,
-    _count: true,
-    _sum: { montantPrevu: true },
-  });
+  // Pipeline résumé — agrégé du résultat de la query 5
   const stages = ["DECOUVERTE", "PROPOSITION", "NEGOCIATION", "SIGNE", "PERDU"];
   const pipelineParStage = stages.map((s) => {
     const found = dealsAggregated.find((d) => d.stage === s);
@@ -176,16 +218,7 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     };
   });
 
-  // 6. Top deals chauds (Proposition + Négociation, triés par montant pondéré)
-  const hotDeals = await prisma.deal.findMany({
-    where: {
-      ...scopeDeal,
-      stage: { in: ["PROPOSITION", "NEGOCIATION"] },
-    },
-    include: {
-      prospect: { select: { raisonSociale: true } },
-    },
-  });
+  // Top deals — calcul du résultat de la query 6
   const topDeals = hotDeals
     .map((d) => ({
       id: d.id,
@@ -198,22 +231,7 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     .sort((a, b) => b.montantPondere - a.montantPondere)
     .slice(0, 5);
 
-  // 7. Renouvellements à venir 90 jours (anniversaires de contrats actifs)
-  // Fenêtre alignée sur le préavis de 30 jours des CGV (art. 3.2) +
-  // 60 j d'anticipation commerciale → 90 j total.
-  const in90Days = new Date(now);
-  in90Days.setDate(in90Days.getDate() + 90);
-  const contractsForRenewal = await prisma.contract.findMany({
-    where: { ...scopeContract, statut: "ACTIF", montantMensuel: { gt: 0 } },
-    select: {
-      id: true,
-      numero: true,
-      dateSignature: true,
-      montantMensuel: true,
-      prospect: { select: { raisonSociale: true } },
-      assigneA: { select: { tauxCommissionRenouvellement: true } },
-    },
-  });
+  // Renouvellements à venir — calcul du résultat de la query 7
   const renouvellementsAVenir = contractsForRenewal
     .map((c) => {
       // Prochain anniversaire
