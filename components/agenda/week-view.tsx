@@ -10,6 +10,7 @@ import {
 } from "@/app/(app)/activites/actions";
 import { ActivityIcon } from "@/components/activities/activity-icon";
 import { AddActivityDialog } from "@/components/agenda/add-activity-dialog";
+import { DeleteActivityButton } from "@/components/common/entity-delete-buttons";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatTime } from "@/lib/format";
 import { getActivityTypeLabel } from "@/lib/labels";
@@ -230,27 +231,30 @@ function ActivityRow({
       )}
       <p className="truncate text-[10px] opacity-70">{a.sujet}</p>
 
-      {(a.statut === "PLANIFIE" || a.statut === "EN_COURS") && (
-        <div className="mt-1.5 flex gap-1">
-          <button
-            type="button"
-            onClick={markDone}
-            disabled={pending}
-            className="flex-1 rounded border border-emerald-300 bg-white px-1 py-0.5 text-[10px] text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-          >
-            ✓ Fait
-          </button>
-          <button
-            type="button"
-            onClick={replanTomorrow}
-            disabled={pending}
-            className="flex-1 rounded border border-border bg-white px-1 py-0.5 text-[10px] hover:bg-muted disabled:opacity-50"
-            title="Replanifier à demain"
-          >
-            J+1
-          </button>
-        </div>
-      )}
+      <div className="mt-1.5 flex items-center gap-1">
+        {(a.statut === "PLANIFIE" || a.statut === "EN_COURS") && (
+          <>
+            <button
+              type="button"
+              onClick={markDone}
+              disabled={pending}
+              className="flex-1 rounded border border-emerald-300 bg-white px-1 py-0.5 text-[10px] text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+            >
+              ✓ Fait
+            </button>
+            <button
+              type="button"
+              onClick={replanTomorrow}
+              disabled={pending}
+              className="flex-1 rounded border border-border bg-white px-1 py-0.5 text-[10px] hover:bg-muted disabled:opacity-50"
+              title="Replanifier à demain"
+            >
+              J+1
+            </button>
+          </>
+        )}
+        <DeleteActivityButton activityId={a.id} />
+      </div>
     </div>
   );
 }

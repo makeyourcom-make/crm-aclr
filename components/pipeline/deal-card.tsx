@@ -3,6 +3,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+import { DeleteDealButton } from "@/components/common/entity-delete-buttons";
 import { Icon } from "@/components/icon";
 import { formatCHFCompact, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -123,12 +124,23 @@ export function DealCard({ deal, onOpen }: DealCardProps) {
         </p>
       )}
 
-      {/* Commerciale en bas (vue admin) */}
-      {deal.assigneA && (
-        <p className="mt-1.5 text-[10px] text-muted-foreground">
-          → {deal.assigneA.name}
-        </p>
-      )}
+      {/* Commerciale + bouton supprimer (admin/assigné) */}
+      <div className="mt-1.5 flex items-center justify-between gap-2">
+        {deal.assigneA ? (
+          <p className="text-[10px] text-muted-foreground">
+            → {deal.assigneA.name}
+          </p>
+        ) : (
+          <span />
+        )}
+        {/*
+          Wrapper qui stoppe la propagation : sinon le clic sur la
+          poubelle déclencherait le onOpen du Deal (drawer).
+        */}
+        <span onClick={(e) => e.stopPropagation()}>
+          <DeleteDealButton dealId={deal.id} variant="icon" />
+        </span>
+      </div>
     </div>
   );
 }
