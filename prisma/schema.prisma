@@ -122,6 +122,11 @@ enum ProductCategorie {
 }
 
 enum ContractStatut {
+  /// Contrat créé, en attente de signature électronique du client.
+  ATTENTE_SIGNATURE_CLIENT
+  /// Client a signé, en attente de validation par l'admin pour devenir exécutoire.
+  ATTENTE_VALIDATION_ADMIN
+  /// Validé par l'admin — contrat exécutoire, factures émissibles.
   ACTIF
   SUSPENDU
   RESILIE
@@ -772,8 +777,12 @@ model Contract {
   dateDebut     DateTime
   dureeMois     Int      @default(12)
 
-  statut           ContractStatut   @default(ACTIF)
+  statut           ContractStatut   @default(ATTENTE_SIGNATURE_CLIENT)
   modalitePaiement ModalitePaiement
+
+  /// Traçabilité validation admin pour passage en ACTIF.
+  valideParAdminId String?
+  valideALe        DateTime?
 
   /// Devise dans laquelle les montants sont libellés.
   /// Par défaut : CHF (clients suisses). EUR pour les clients UE/France.

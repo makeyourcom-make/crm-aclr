@@ -1,10 +1,10 @@
 /**
  * Encart de rentabilité d'un contrat, affiché sur /contrats/[id] côté admin.
  *
- * Reprend le calcul de getProjectMarginForContract et l'affiche en cascade :
- *   Revenu - Coûts directs - Commission - Frais alloués - Impôts = Marge nette
+ * Cascade :
+ *   Revenu - Coûts directs - Commission - Frais alloués = Marge brute
  *
- * Code couleur sur le badge final + bordure droite.
+ * On s'arrête à la marge brute (pas de provision impôts).
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCHF, formatPercent } from "@/lib/format";
@@ -13,13 +13,9 @@ import type { ProjectMargin } from "@/lib/queries/project-profitability";
 
 interface ProjectMarginBoxProps {
   margin: ProjectMargin;
-  tauxImpots: number;
 }
 
-export function ProjectMarginBox({
-  margin,
-  tauxImpots,
-}: ProjectMarginBoxProps) {
+export function ProjectMarginBox({ margin }: ProjectMarginBoxProps) {
   const m = margin;
   const tone =
     m.rentabilite >= 0.35
@@ -82,30 +78,15 @@ export function ProjectMarginBox({
             value={`- ${formatCHF(m.quotePartFrais)}`}
             danger
           />
-          <div className="border-t border-border pt-1.5">
-            <Row
-              label="Marge brute"
-              value={formatCHF(m.margeBrute)}
-              bold
-              danger={m.margeBrute < 0}
-            />
-          </div>
-          {m.provisionImpots > 0 && (
-            <Row
-              label={`Provision impôts (${formatPercent(tauxImpots)})`}
-              value={`- ${formatCHF(m.provisionImpots)}`}
-              danger
-            />
-          )}
           <div className="border-t-2 border-foreground pt-2">
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-sm font-semibold uppercase tracking-wider">
-                Marge nette
+                Marge brute
               </span>
               <span
                 className={`text-2xl font-bold tabular-nums ${textColor}`}
               >
-                {formatCHF(m.margeNette)}
+                {formatCHF(m.margeBrute)}
               </span>
             </div>
           </div>

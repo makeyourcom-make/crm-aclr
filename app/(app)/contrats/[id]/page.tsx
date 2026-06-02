@@ -5,6 +5,7 @@ import { RecomputeButton } from "@/components/commissions/recompute-button";
 import { DocumentPreviewButton } from "@/components/common/document-preview-button";
 import { ContractStatutBadge } from "@/components/contrats/contract-statut-badge";
 import { ResilierButton } from "@/components/contrats/resilier-button";
+import { ValidateContractButton } from "@/components/contrats/validate-contract-button";
 import { MarkInvoicePaidButton } from "@/components/paiements/mark-invoice-paid-button";
 import { PaymentStatutBadge } from "@/components/paiements/payment-statut-badge";
 import { RecordPaymentButton } from "@/components/paiements/record-payment-button";
@@ -75,20 +76,8 @@ export default async function ContractDetailPage({ params }: PageProps) {
   if (!contract) notFound();
 
   // Rentabilité projet — admin only
-  const [margin, settingsForMargin] =
-    user.role === "ADMIN"
-      ? await Promise.all([
-          getProjectMarginForContract(id),
-          import("@/lib/db").then(({ prisma }) =>
-            prisma.setting.findFirst({
-              select: { tauxImpotsProvisionne: true },
-            }),
-          ),
-        ])
-      : [null, null];
-  const tauxImpotsProvisionne = settingsForMargin
-    ? Number(settingsForMargin.tauxImpotsProvisionne)
-    : 0.25;
+  const margin =
+    user.role === "ADMIN" ? await getProjectMarginForContract(id) : null;
 
   const commission = contract.commissions[0]; // 1 commission par contrat
 
@@ -126,8 +115,14 @@ export default async function ContractDetailPage({ params }: PageProps) {
               <Icon name="ExternalLink" className="h-4 w-4" />
               Onglet
             </a>
+            {/* Bouton validation admin — contrat signé client, à valider */}
+            {contract.statut === "ATTENTE_VALIDATION_ADMIN" &&
+              user.role === "ADMIN" && (
+                <ValidateContractButton contractId={contract.id} />
+              )}
             {/* Upload du PDF signé — visible tant qu'aucune signature client n'est faite */}
-            {contract.statut === "ACTIF" &&
+            {(contract.statut === "ACTIF" ||
+              contract.statut === "ATTENTE_SIGNATURE_CLIENT") &&
               !contract.signatures.some((s) => s.signeParClient) && (
                 <UploadSignedPdfButton contractId={contract.id} />
               )}
@@ -197,10 +192,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
       {/* Rentabilité projet — admin uniquement */}
       {user.role === "ADMIN" && margin && (
         <div className="mt-6">
-          <ProjectMarginBox
-            margin={margin}
-            tauxImpots={tauxImpotsProvisionne}
-          />
+          <ProjectMarginBox margin={margin} />
         </div>
       )}
 

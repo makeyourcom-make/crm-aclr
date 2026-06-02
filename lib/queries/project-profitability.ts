@@ -36,9 +36,7 @@ export interface ProjectMargin {
   commission: number;
   quotePartFrais: number;
   margeBrute: number;
-  provisionImpots: number;
-  margeNette: number;
-  /** marge nette / revenu — entre -∞ et 1. */
+  /** marge brute / revenu — entre -∞ et 1. */
   rentabilite: number;
 }
 
@@ -46,16 +44,12 @@ export interface ProjectMarginCockpit {
   projects: ProjectMargin[];
   /** Coût mensuel moyen alloué par contrat (info en bas de page). */
   quotePartParContrat: number;
-  /** Taux d'impôts utilisé pour la projection. */
-  tauxImpots: number;
   totals: {
     revenu: number;
     coutsDirects: number;
     commissions: number;
     quotePartFrais: number;
     margeBrute: number;
-    provisionImpots: number;
-    margeNette: number;
   };
 }
 
@@ -125,9 +119,9 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
   const quotePartAnnuelleParContrat =
     (fraisFixesMensuels * 12) / nbContrats;
 
-  const tauxImpots = Number(settings?.tauxImpotsProvisionne ?? 0.25);
-
   // ----- Calcul de marge pour chaque contrat -----------------------------
+  // Note : on s'arrête à la marge brute (= revenu - coûts directs -
+  // commission - quote-part frais généraux). Pas de provision impôts.
   const projects: ProjectMargin[] = contracts.map((c) => {
     const revenu = Number(c.valeurAn1);
     const coutsDirects = c.products.reduce((s, p) => {
@@ -139,9 +133,7 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
     const commission = revenu * tauxCom;
     const quotePartFrais = quotePartAnnuelleParContrat;
     const margeBrute = revenu - coutsDirects - commission - quotePartFrais;
-    const provisionImpots = Math.max(0, margeBrute) * tauxImpots;
-    const margeNette = margeBrute - provisionImpots;
-    const rentabilite = revenu > 0 ? margeNette / revenu : 0;
+    const rentabilite = revenu > 0 ? margeBrute / revenu : 0;
 
     return {
       contractId: c.id,
@@ -156,8 +148,6 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
       commission,
       quotePartFrais,
       margeBrute,
-      provisionImpots,
-      margeNette,
       rentabilite,
     };
   });
@@ -172,8 +162,6 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
       acc.commissions += p.commission;
       acc.quotePartFrais += p.quotePartFrais;
       acc.margeBrute += p.margeBrute;
-      acc.provisionImpots += p.provisionImpots;
-      acc.margeNette += p.margeNette;
       return acc;
     },
     {
@@ -182,15 +170,12 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
       commissions: 0,
       quotePartFrais: 0,
       margeBrute: 0,
-      provisionImpots: 0,
-      margeNette: 0,
     },
   );
 
   return {
     projects,
     quotePartParContrat: quotePartAnnuelleParContrat,
-    tauxImpots,
     totals,
   };
 }

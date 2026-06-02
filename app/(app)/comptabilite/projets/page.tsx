@@ -15,9 +15,9 @@ export default async function ProjectsProfitabilityPage() {
   const data = await getProjectMargins();
 
   // Buckets : déficitaire / faible / bonne / excellente
-  const deficitaires = data.projects.filter((p) => p.margeNette < 0);
+  const deficitaires = data.projects.filter((p) => p.margeBrute < 0);
   const faibles = data.projects.filter(
-    (p) => p.margeNette >= 0 && p.rentabilite < 0.15,
+    (p) => p.margeBrute >= 0 && p.rentabilite < 0.15,
   );
   const bonnes = data.projects.filter(
     (p) => p.rentabilite >= 0.15 && p.rentabilite < 0.35,
@@ -48,7 +48,7 @@ export default async function ProjectsProfitabilityPage() {
           subtitle={
             excellentes.length > 0
               ? formatCHFCompact(
-                  excellentes.reduce((s, p) => s + p.margeNette, 0),
+                  excellentes.reduce((s, p) => s + p.margeBrute, 0),
                 ) + " de marge"
               : "Aucun projet"
           }
@@ -60,7 +60,7 @@ export default async function ProjectsProfitabilityPage() {
           subtitle={
             bonnes.length > 0
               ? formatCHFCompact(
-                  bonnes.reduce((s, p) => s + p.margeNette, 0),
+                  bonnes.reduce((s, p) => s + p.margeBrute, 0),
                 ) + " de marge"
               : "Aucun projet"
           }
@@ -72,7 +72,7 @@ export default async function ProjectsProfitabilityPage() {
           subtitle={
             faibles.length > 0
               ? formatCHFCompact(
-                  faibles.reduce((s, p) => s + p.margeNette, 0),
+                  faibles.reduce((s, p) => s + p.margeBrute, 0),
                 ) + " de marge"
               : "Aucun projet"
           }
@@ -84,7 +84,7 @@ export default async function ProjectsProfitabilityPage() {
           subtitle={
             deficitaires.length > 0
               ? formatCHFCompact(
-                  deficitaires.reduce((s, p) => s + p.margeNette, 0),
+                  deficitaires.reduce((s, p) => s + p.margeBrute, 0),
                 ) + " de perte"
               : "Aucun ✓"
           }
@@ -116,8 +116,6 @@ export default async function ProjectsProfitabilityPage() {
                   <Th className="text-right">Commission</Th>
                   <Th className="text-right">Frais alloués</Th>
                   <Th className="text-right">Marge brute</Th>
-                  <Th className="text-right">Impôts ({formatPercent(data.tauxImpots)})</Th>
-                  <Th className="text-right">Marge nette</Th>
                   <Th className="text-right">%</Th>
                 </tr>
               </thead>
@@ -154,25 +152,13 @@ export default async function ProjectsProfitabilityPage() {
                       -{formatCHFCompact(p.quotePartFrais)}
                     </td>
                     <td
-                      className={`px-3 py-2 text-right tabular-nums ${
-                        p.margeBrute >= 0 ? "" : "text-red-700"
-                      }`}
-                    >
-                      {formatCHFCompact(p.margeBrute)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-red-700">
-                      {p.provisionImpots > 0
-                        ? `-${formatCHFCompact(p.provisionImpots)}`
-                        : "—"}
-                    </td>
-                    <td
                       className={`px-3 py-2 text-right font-semibold tabular-nums ${
-                        p.margeNette >= 0
+                        p.margeBrute >= 0
                           ? "text-emerald-700"
                           : "text-red-700"
                       }`}
                     >
-                      {formatCHFCompact(p.margeNette)}
+                      {formatCHFCompact(p.margeBrute)}
                     </td>
                     <td className="px-3 py-2 text-right">
                       <RentabiliteBadge value={p.rentabilite} />
@@ -197,29 +183,19 @@ export default async function ProjectsProfitabilityPage() {
                     -{formatCHFCompact(data.totals.quotePartFrais)}
                   </td>
                   <td
-                    className={`px-3 py-2 text-right tabular-nums ${
-                      data.totals.margeBrute >= 0 ? "" : "text-red-700"
-                    }`}
-                  >
-                    {formatCHFCompact(data.totals.margeBrute)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-red-700">
-                    -{formatCHFCompact(data.totals.provisionImpots)}
-                  </td>
-                  <td
-                    className={`px-3 py-2 text-right tabular-nums ${
-                      data.totals.margeNette >= 0
+                    className={`px-3 py-2 text-right font-semibold tabular-nums ${
+                      data.totals.margeBrute >= 0
                         ? "text-emerald-700"
                         : "text-red-700"
                     }`}
                   >
-                    {formatCHFCompact(data.totals.margeNette)}
+                    {formatCHFCompact(data.totals.margeBrute)}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <RentabiliteBadge
                       value={
                         data.totals.revenu > 0
-                          ? data.totals.margeNette / data.totals.revenu
+                          ? data.totals.margeBrute / data.totals.revenu
                           : 0
                       }
                     />
@@ -265,11 +241,6 @@ export default async function ProjectsProfitabilityPage() {
               {formatCHF(data.quotePartParContrat)} / contrat / an
             </span>
             .
-          </p>
-          <p>
-            <strong>Provision impôts</strong> ={" "}
-            {formatPercent(data.tauxImpots)} sur la marge brute positive.
-            Modifiable dans <strong>Configuration → Réglages</strong>.
           </p>
           <p className="text-xs text-muted-foreground pt-2 border-t">
             💡 <strong>Plus tu signes de contrats</strong>, plus la quote-part

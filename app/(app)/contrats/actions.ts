@@ -170,7 +170,10 @@ export async function createContractFromDeal(
           montantOneShot: centsToChf(oneShotCents),
           montantMensuel: centsToChf(mensuelCents),
           valeurAn1: centsToChf(valeurAn1Cents),
-          statut: "ACTIF",
+          // Workflow : contrat naît en attente de signature client.
+          // → ATTENTE_VALIDATION_ADMIN après signByClient
+          // → ACTIF après validateContract (admin uniquement)
+          statut: "ATTENTE_SIGNATURE_CLIENT",
           products: {
             connect: linesEnriched.map((l) => ({ id: l.productId })),
           },
@@ -997,6 +1000,57 @@ function zodErrorToResult(err: import("zod").ZodError): ContractActionResult {
     if (p && !fieldErrors[p]) fieldErrors[p] = issue.message;
   }
   return { ok: false, error: "Formulaire invalide.", fieldErrors };
+}
+
+/**
+ * Validation finale par l'admin : passe un contrat de
+ * ATTENTE_VALIDATION_ADMIN à ACTIF.
+ *
+ * Le contrat doit avoir été signé par le client au préalable
+ * (statut = ATTENTE_VALIDATION_ADMIN).
+ *
+ * Réservé aux ADMIN.
+ */
+export async function validateContract(
+  contractId: string,
+): Promise<ContractActionResult> {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") {
+    return {
+      ok: false,
+      error: "Seul l'admin peut valider un contrat.",
+    };
+  }
+  try {
+    const contract = await prisma.contract.findUnique({
+      where: { id: contractId },
+      select: { statut: true, numero: true },
+    });
+    if (!contract) return { ok: false, error: "Contrat introuvable." };
+    if (contract.statut !== "ATTENTE_VALIDATION_ADMIN") {
+      return {
+        ok: false,
+        error: `Le contrat ne peut pas être validé (statut actuel : ${contract.statut}). Il doit être en ATTENTE_VALIDATION_ADMIN.`,
+      };
+    }
+    await prisma.contract.update({
+      where: { id: contractId },
+      data: {
+        statut: "ACTIF",
+        valideParAdminId: user.id,
+        valideALe: new Date(),
+      },
+    });
+    revalidatePath("/contrats");
+    revalidatePath(`/contrats/${contractId}`);
+    revalidatePath("/pipeline");
+    console.info(
+      `[validateContract] ${user.name} valide ${contract.numero} → ACTIF`,
+    );
+    return { ok: true, contractId };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
 }
 
 /**

@@ -114,9 +114,18 @@ export async function signByClient(
     // Charge le contrat pour récupérer le deal + prospect
     const contract = await tx.contract.findUnique({
       where: { id: sig.contractId },
-      select: { dealId: true, prospectId: true },
+      select: { dealId: true, prospectId: true, statut: true },
     });
     if (contract) {
+      // Contrat : passe en attente de validation admin (pas encore actif).
+      // L'admin doit explicitement valider via validateContract() pour
+      // que le contrat devienne exécutoire.
+      if (contract.statut === "ATTENTE_SIGNATURE_CLIENT") {
+        await tx.contract.update({
+          where: { id: sig.contractId },
+          data: { statut: "ATTENTE_VALIDATION_ADMIN" },
+        });
+      }
       // Deal → SIGNE + 100% + closeReelLe (si rattaché)
       if (contract.dealId) {
         await tx.deal.update({

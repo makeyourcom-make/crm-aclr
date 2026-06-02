@@ -286,6 +286,8 @@ export const getProductCategorieLabel = (v: ProductCategorie) =>
 // ============================================================================
 
 const CONTRACT_STATUT_LABELS: Record<ContractStatut, string> = {
+  ATTENTE_SIGNATURE_CLIENT: "En attente signature client",
+  ATTENTE_VALIDATION_ADMIN: "À valider par l'admin",
   ACTIF: "Actif",
   SUSPENDU: "Suspendu",
   RESILIE: "Résilié",
