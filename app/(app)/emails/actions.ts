@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { prisma } from "@/lib/db";
+import { resolveFromAddress, sendMail } from "@/lib/mailer";
 import { requireUser } from "@/lib/session";
 
 const SendEmailSchema = z.object({
@@ -80,20 +81,34 @@ export async function sendEmailToProspect(
     select: { email: true, name: true },
   });
 
-  const isDryRun = process.env.EMAIL_MODE !== "live";
-  const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@aclr.ch>`;
+  const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@makeyourcom.ch>`;
   const threadId = randomBytes(8).toString("hex");
 
-  if (isDryRun) {
-    console.log("📧 [DRY-RUN] Email simulé", {
-      to: prospect.email,
-      from: userFull?.email,
-      objet,
-      length: contenuTexte.length,
-    });
-  } else {
-    // V2 : appel Resend API ici
-    console.log("📧 [LIVE] Envoi Resend non implémenté en V1");
+  // Résout l'adresse From selon le user (Arthur → contact@, Sophie → sophie@)
+  const { from, replyTo, fromName } = resolveFromAddress({
+    email: userFull?.email ?? "contact@makeyourcom.ch",
+    name: userFull?.name ?? null,
+  });
+
+  // Envoi réel via Resend (avec BCC auto vers expéditeur pour copie Gmail).
+  // En dry-run, sendMail() log et renvoie ok=true sans envoyer.
+  const sendResult = await sendMail({
+    from,
+    fromName,
+    to: prospect.email,
+    subject: objet,
+    html: contenuHtml,
+    text: contenuTexte,
+    replyTo,
+    messageId,
+  });
+  const isDryRun = sendResult.dryRun;
+
+  if (!sendResult.ok && !isDryRun) {
+    return {
+      ok: false,
+      error: sendResult.error ?? "Échec d'envoi via Resend.",
+    };
   }
 
   // Crée l'enregistrement
@@ -104,16 +119,16 @@ export async function sendEmailToProspect(
       direction: "SORTANT",
       threadId,
       messageId,
-      expediteurEmail: userFull?.email ?? "noreply@aclr.ch",
-      expediteurNom: userFull?.name ?? "",
+      expediteurEmail: from,
+      expediteurNom: fromName,
       destinataireEmail: prospect.email,
       objet,
       contenuHtml,
       contenuTexte,
-      statut: "ENVOYE",
-      envoyeLe: new Date(),
+      statut: isDryRun ? "BROUILLON" : "ENVOYE",
+      envoyeLe: isDryRun ? null : new Date(),
       templateUtiliseId: parsed.data.templateId || null,
-      labels: [],
+      labels: sendResult.resendId ? [`resend:${sendResult.resendId}`] : [],
     },
   });
 
