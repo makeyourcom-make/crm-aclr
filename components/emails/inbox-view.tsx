@@ -14,9 +14,11 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import {
+  attachEmailToProspect,
   deleteEmail,
   markThreadRead,
   replyToEmail,
+  searchProspectsForAttach,
 } from "@/app/(app)/emails/actions";
 import { Icon } from "@/components/icon";
 import { Badge } from "@/components/ui/badge";
@@ -379,17 +381,26 @@ function ThreadDetail({
       {/* Header thread */}
       <div className="border-b border-border bg-muted/30 p-4">
         <h2 className="text-base font-semibold">{thread.msgs[0]!.objet}</h2>
-        {thread.last.prospect && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            Client :{" "}
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Client :</span>
+          {thread.last.prospect ? (
             <Link
               href={`/prospects/${thread.last.prospect.id}`}
-              className="text-primary hover:underline"
+              className="rounded-md bg-primary/10 px-2 py-0.5 font-medium text-primary hover:bg-primary/20"
             >
               {thread.last.prospect.raisonSociale}
             </Link>
-          </p>
-        )}
+          ) : (
+            <span className="text-muted-foreground italic">Non attribué</span>
+          )}
+          <AttachProspectButton
+            emailId={thread.last.id}
+            currentProspectId={thread.last.prospect?.id ?? null}
+            onDone={() => {
+              /* le router.refresh() est dans le composant */
+            }}
+          />
+        </div>
       </div>
 
       {/* Timeline messages */}
@@ -544,15 +555,154 @@ function MessageBubble({
           {message.contenuHtml ? (
             <iframe
               srcDoc={message.contenuHtml}
-              sandbox=""
-              className="h-64 w-full rounded border border-border bg-white"
+              sandbox="allow-popups allow-popups-to-escape-sandbox"
+              className="h-[600px] w-full rounded border border-border bg-white"
               title={message.objet}
             />
-          ) : (
-            <pre className="whitespace-pre-wrap font-sans text-xs">
+          ) : message.contenuTexte ? (
+            <pre className="whitespace-pre-wrap font-sans text-sm">
               {message.contenuTexte}
             </pre>
+          ) : (
+            <p className="italic text-xs text-muted-foreground">
+              (Contenu vide — le mail original n'avait pas de corps)
+            </p>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Bouton "Attribuer à un client" qui ouvre un popover avec recherche.
+ * - Si déjà attribué : affiche "Changer" et permet de détacher
+ * - Sinon : affiche "Attribuer à un client"
+ */
+function AttachProspectButton({
+  emailId,
+  currentProspectId,
+  onDone,
+}: {
+  emailId: string;
+  currentProspectId: string | null;
+  onDone: () => void;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<
+    Array<{ id: string; raisonSociale: string; ville: string | null; email: string | null }>
+  >([]);
+  const [searching, setSearching] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  // Recherche debounced
+  const handleSearch = (q: string) => {
+    setQuery(q);
+    if (q.trim().length < 1) {
+      setResults([]);
+      return;
+    }
+    setSearching(true);
+    void searchProspectsForAttach(q).then((r) => {
+      setResults(r);
+      setSearching(false);
+    });
+  };
+
+  const handleAttach = (prospectId: string | null) => {
+    startTransition(async () => {
+      const res = await attachEmailToProspect(emailId, prospectId);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success(
+        prospectId === null
+          ? "Email détaché du client."
+          : "Email attribué au client ✓",
+      );
+      setOpen(false);
+      setQuery("");
+      setResults([]);
+      onDone();
+      router.refresh();
+    });
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="rounded-md border border-border bg-background px-2 py-0.5 text-xs hover:bg-muted"
+      >
+        <Icon name="UserPlus" className="mr-1 inline h-3 w-3" />
+        {currentProspectId ? "Changer" : "Attribuer à un client"}
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1 w-80 rounded-lg border border-border bg-popover p-3 shadow-lg">
+          <input
+            type="search"
+            autoFocus
+            value={query}
+            onChange={(e) => handleSearch(e.target.value)}
+            placeholder="Rechercher un client (nom, ville, email)…"
+            className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-xs"
+            disabled={pending}
+          />
+          <div className="mt-2 max-h-60 overflow-y-auto">
+            {searching && (
+              <p className="py-2 text-center text-xs text-muted-foreground">
+                Recherche…
+              </p>
+            )}
+            {!searching && query && results.length === 0 && (
+              <p className="py-2 text-center text-xs text-muted-foreground">
+                Aucun client trouvé.
+              </p>
+            )}
+            {!searching &&
+              results.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => handleAttach(p.id)}
+                  disabled={pending || p.id === currentProspectId}
+                  className="block w-full rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-50"
+                >
+                  <p className="truncate font-medium">{p.raisonSociale}</p>
+                  <p className="truncate text-[10px] text-muted-foreground">
+                    {p.ville ?? ""}
+                    {p.ville && p.email ? " · " : ""}
+                    {p.email ?? ""}
+                  </p>
+                </button>
+              ))}
+          </div>
+          {currentProspectId && (
+            <div className="mt-2 border-t border-border pt-2">
+              <button
+                type="button"
+                onClick={() => handleAttach(null)}
+                disabled={pending}
+                className="w-full rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                Détacher du client actuel
+              </button>
+            </div>
+          )}
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-[10px] text-muted-foreground hover:underline"
+            >
+              Fermer
+            </button>
+          </div>
         </div>
       )}
     </div>

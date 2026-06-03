@@ -348,6 +348,120 @@ export async function markThreadRead(
 }
 
 /**
+ * Rattache un email à un prospect (manuellement) ou détache (prospectId=null).
+ *
+ * Utile pour les emails entrants qui arrivent sans match automatique : le
+ * commercial peut les associer à un client après coup. Crée aussi une
+ * activité EMAIL_RECU/EMAIL_ENVOYE rétrospective sur la fiche prospect.
+ */
+export async function attachEmailToProspect(
+  emailId: string,
+  prospectId: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireUser();
+  const email = await prisma.email.findUnique({
+    where: { id: emailId },
+    select: {
+      id: true,
+      userId: true,
+      prospectId: true,
+      direction: true,
+      objet: true,
+      contenuTexte: true,
+      envoyeLe: true,
+      createdAt: true,
+    },
+  });
+  if (!email) return { ok: false, error: "Email introuvable." };
+  if (user.role !== "ADMIN" && email.userId !== user.id) {
+    return { ok: false, error: "Accès refusé." };
+  }
+
+  // Si on rattache (prospectId fourni), vérifie qu'il existe et qu'on y a accès
+  if (prospectId) {
+    const prospect = await prisma.prospect.findUnique({
+      where: { id: prospectId },
+      select: { id: true, assigneAId: true },
+    });
+    if (!prospect) return { ok: false, error: "Client introuvable." };
+    if (user.role !== "ADMIN" && prospect.assigneAId !== user.id) {
+      return { ok: false, error: "Pas d'accès à ce client." };
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Met à jour le prospectId de l'email
+    await tx.email.update({
+      where: { id: emailId },
+      data: { prospectId },
+    });
+
+    // Si on détache (null), supprime l'activity liée s'il y en a une
+    if (prospectId === null) {
+      await tx.activity.deleteMany({ where: { emailId } });
+    } else {
+      // Sinon : crée l'activity rétrospective si elle n'existe pas
+      const existingAct = await tx.activity.findFirst({ where: { emailId } });
+      if (!existingAct) {
+        await tx.activity.create({
+          data: {
+            prospectId,
+            userId: email.userId ?? user.id,
+            type: email.direction === "ENTRANT" ? "EMAIL_RECU" : "EMAIL_ENVOYE",
+            date: email.envoyeLe ?? email.createdAt,
+            sujet: email.objet,
+            contenu: email.contenuTexte.slice(0, 500),
+            statut: "FAIT",
+            emailId,
+          },
+        });
+      } else {
+        // Si elle existe mais pointait sur un autre prospect, on la déplace
+        await tx.activity.updateMany({
+          where: { emailId },
+          data: { prospectId },
+        });
+      }
+    }
+  });
+
+  revalidatePath("/emails");
+  if (email.prospectId) revalidatePath(`/prospects/${email.prospectId}`);
+  if (prospectId) revalidatePath(`/prospects/${prospectId}`);
+  return { ok: true };
+}
+
+/**
+ * Recherche prospects pour le sélecteur d'attribution.
+ * Renvoie max 20 résultats, scope user (commercial ne voit que ses prospects).
+ */
+export async function searchProspectsForAttach(
+  query: string,
+): Promise<
+  Array<{ id: string; raisonSociale: string; ville: string | null; email: string | null }>
+> {
+  const user = await requireUser();
+  const q = query.trim();
+  if (q.length < 1) return [];
+  const prospects = await prisma.prospect.findMany({
+    where: {
+      ...(user.role !== "ADMIN" ? { assigneAId: user.id } : {}),
+      OR: [
+        { raisonSociale: { contains: q, mode: "insensitive" } },
+        { contactPrenom: { contains: q, mode: "insensitive" } },
+        { contactNom: { contains: q, mode: "insensitive" } },
+        { email: { contains: q, mode: "insensitive" } },
+        { ville: { contains: q, mode: "insensitive" } },
+      ],
+    },
+    select: { id: true, raisonSociale: true, ville: true, email: true },
+    orderBy: { raisonSociale: "asc" },
+    take: 20,
+  });
+  return prospects;
+}
+
+/**
  * Supprime un email (envoyé ou brouillon).
  * RLS : admin OR créateur (email.userId === user.id).
  */
