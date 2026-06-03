@@ -154,6 +154,154 @@ export async function sendEmailToProspect(
 }
 
 /**
+ * Répond à un email existant (entrant ou sortant).
+ * Reprend le thread et le destinataire approprié.
+ */
+export async function replyToEmail(
+  emailId: string,
+  contenu: string,
+  objetOverride?: string,
+): Promise<SendEmailResult> {
+  const user = await requireUser();
+  const original = await prisma.email.findUnique({
+    where: { id: emailId },
+    select: {
+      id: true,
+      threadId: true,
+      messageId: true,
+      direction: true,
+      objet: true,
+      userId: true,
+      expediteurEmail: true,
+      destinataireEmail: true,
+      prospect: {
+        select: {
+          id: true,
+          email: true,
+          raisonSociale: true,
+          contactPrenom: true,
+          contactNom: true,
+          ville: true,
+          assigneAId: true,
+        },
+      },
+    },
+  });
+  if (!original) return { ok: false, error: "Email original introuvable." };
+  if (user.role !== "ADMIN" && original.userId !== user.id) {
+    return { ok: false, error: "Accès refusé." };
+  }
+
+  // À qui on répond ?
+  //   - Si l'original est ENTRANT (client → nous) : on répond au expediteurEmail
+  //   - Si l'original est SORTANT (nous → client) : on répond au destinataireEmail
+  const replyTo =
+    original.direction === "ENTRANT"
+      ? original.expediteurEmail
+      : original.destinataireEmail;
+
+  // Variables pour le template (si prospect lié)
+  const vars: Record<string, string> = {
+    prenomContact: original.prospect?.contactPrenom ?? "",
+    nomContact: original.prospect?.contactNom ?? "",
+    raisonSociale: original.prospect?.raisonSociale ?? "",
+    ville: original.prospect?.ville ?? "",
+    commerciale: user.name,
+  };
+  const apply = (s: string) =>
+    s.replace(/\{\{(\w+)\}\}/g, (_m, k) => vars[k] ?? "");
+
+  // Objet : prefix "Re: " si pas déjà présent
+  const objetBase = objetOverride?.trim() || original.objet;
+  const objet = apply(
+    objetBase.toLowerCase().startsWith("re:")
+      ? objetBase
+      : `Re: ${objetBase}`,
+  );
+
+  const contenuTexte = apply(contenu);
+  const contenuHtml = `<pre style="font-family: sans-serif; white-space: pre-wrap;">${contenuTexte
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")}</pre>`;
+
+  // Adresse expéditeur (Arthur ou Sophie selon user connecté)
+  const userFull = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { email: true, name: true },
+  });
+  const { from, replyTo: replyToHeader, fromName } = resolveFromAddress({
+    email: userFull?.email ?? "contact@makeyourcom.ch",
+    name: userFull?.name ?? null,
+  });
+
+  const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@makeyourcom.ch>`;
+
+  const sendResult = await sendMail({
+    from,
+    fromName,
+    to: replyTo,
+    subject: objet,
+    html: contenuHtml,
+    text: contenuTexte,
+    replyTo: replyToHeader,
+    messageId,
+    inReplyTo: original.messageId,
+  });
+  const isDryRun = sendResult.dryRun;
+
+  if (!sendResult.ok && !isDryRun) {
+    return {
+      ok: false,
+      error: sendResult.error ?? "Échec d'envoi via Resend.",
+    };
+  }
+
+  // Crée l'email de réponse dans le même thread
+  const created = await prisma.email.create({
+    data: {
+      prospectId: original.prospect?.id ?? null,
+      userId: user.id,
+      direction: "SORTANT",
+      threadId: original.threadId, // même thread !
+      messageId,
+      inReplyTo: original.messageId,
+      expediteurEmail: from,
+      expediteurNom: fromName,
+      destinataireEmail: replyTo,
+      objet,
+      contenuHtml,
+      contenuTexte,
+      statut: isDryRun ? "BROUILLON" : "ENVOYE",
+      envoyeLe: isDryRun ? null : new Date(),
+      labels: sendResult.resendId ? [`resend:${sendResult.resendId}`] : [],
+    },
+  });
+
+  // Activity
+  if (original.prospect) {
+    await prisma.activity.create({
+      data: {
+        prospectId: original.prospect.id,
+        userId: user.id,
+        type: "EMAIL_ENVOYE",
+        date: new Date(),
+        sujet: objet,
+        contenu: contenuTexte.slice(0, 200),
+        statut: "FAIT",
+        emailId: created.id,
+      },
+    });
+  }
+
+  revalidatePath("/emails");
+  if (original.prospect) {
+    revalidatePath(`/prospects/${original.prospect.id}`);
+  }
+
+  return { ok: true, emailId: created.id, dryRun: isDryRun };
+}
+
+/**
  * Supprime un email (envoyé ou brouillon).
  * RLS : admin OR créateur (email.userId === user.id).
  */
