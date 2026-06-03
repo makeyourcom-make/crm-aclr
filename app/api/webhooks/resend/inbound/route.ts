@@ -219,13 +219,62 @@ export async function POST(req: Request) {
   ).filter((x): x is string => !!x);
 
   const subject = payload.data?.subject ?? payload.subject ?? "(sans sujet)";
-  const html = payload.data?.html ?? payload.html ?? "";
-  const text =
-    payload.data?.text ??
-    payload.text ??
-    (html ? html.replace(/<[^>]+>/g, "").slice(0, 5000) : "");
 
-  const headers = normalizeHeaders(payload.data?.headers ?? payload.headers);
+  // ──────────────────────────────────────────────────────────────────
+  // Resend Inbound : le webhook ne contient PAS le contenu du mail (juste
+  // les métadonnées). Pour récupérer le HTML/text/headers, il faut appeler
+  // l'API Receiving avec l'email_id. Doc :
+  // https://resend.com/docs/dashboard/receiving/get-email-content
+  // ──────────────────────────────────────────────────────────────────
+  let html = payload.data?.html ?? payload.html ?? "";
+  let text = payload.data?.text ?? payload.text ?? "";
+  let fetchedHeaders: Record<string, string> = normalizeHeaders(
+    payload.data?.headers ?? payload.headers,
+  );
+
+  const inboundEmailId = (payload.data as { email_id?: string } | undefined)?.email_id;
+  if (inboundEmailId && (!html || !text)) {
+    try {
+      const res = await fetch(
+        `https://api.resend.com/emails/receiving/${inboundEmailId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.RESEND_API_KEY ?? ""}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+      if (res.ok) {
+        const fetched = (await res.json()) as {
+          html?: string;
+          text?: string;
+          headers?: Record<string, string> | Array<{ name: string; value: string }>;
+        };
+        if (!html && fetched.html) html = fetched.html;
+        if (!text && fetched.text) text = fetched.text;
+        if (fetched.headers) {
+          fetchedHeaders = {
+            ...fetchedHeaders,
+            ...normalizeHeaders(fetched.headers),
+          };
+        }
+      } else {
+        console.warn(
+          `[resend-inbound] Failed to fetch email body (${res.status})`,
+          await res.text().catch(() => ""),
+        );
+      }
+    } catch (err) {
+      console.warn("[resend-inbound] Error fetching email body", err);
+    }
+  }
+
+  // Fallback : texte depuis HTML si rien d'autre
+  if (!text && html) {
+    text = html.replace(/<[^>]+>/g, "").slice(0, 5000);
+  }
+
+  const headers = fetchedHeaders;
   const messageId =
     payload.data?.message_id ??
     payload.message_id ??
