@@ -8,9 +8,10 @@
  * S'appuie sur le callback `authorized` de auth.config.ts.
  *
  * matcher exclut :
- *   - /api/auth/*   (handler NextAuth lui-même)
- *   - /_next/static (assets statiques)
- *   - /_next/image  (images optimisées)
+ *   - /api/auth/*       (handler NextAuth lui-même)
+ *   - /api/webhooks/*   (webhooks tiers — Resend, etc. - signature HMAC pour l'auth)
+ *   - /_next/static     (assets statiques)
+ *   - /_next/image      (images optimisées)
  *   - /favicon.ico
  *   - tous les fichiers à extension dans /public (svg, png, ico, etc.)
  */
@@ -22,6 +23,6 @@ export default NextAuth(authConfig).auth;
 
 export const config = {
   matcher: [
-    "/((?!api/auth|sign/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!api/auth|api/webhooks|sign/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
