@@ -1,3 +1,4 @@
+import { ComposeEmailButton } from "@/components/emails/compose-email-button";
 import { InboxView } from "@/components/emails/inbox-view";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
@@ -41,10 +42,13 @@ export default async function EmailsPage() {
 
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-      <PageHeader
-        title="Boîte de réception"
-        description={`${emails.length} email(s) suivi(s) — envoyés et reçus via le CRM.`}
-      />
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <PageHeader
+          title="Boîte de réception"
+          description={`${emails.length} email(s) suivi(s) — envoyés et reçus via le CRM.`}
+        />
+        <ComposeEmailButton />
+      </div>
 
       {isDryRun && (
         <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
