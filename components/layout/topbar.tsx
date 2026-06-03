@@ -10,13 +10,14 @@ interface TopbarProps {
     email: string;
     role: Role;
   };
+  badges?: { emails?: number };
 }
 
-export function Topbar({ user }: TopbarProps) {
+export function Topbar({ user, badges }: TopbarProps) {
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       {/* Hamburger mobile */}
-      <MobileNav role={user.role} />
+      <MobileNav role={user.role} badges={badges} />
 
       {/* Recherche globale (placeholder — Cmd+K implémenté à l'étape 4 finale) */}
       <button

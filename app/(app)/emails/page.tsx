@@ -34,6 +34,7 @@ export default async function EmailsPage() {
     statut: e.statut,
     envoyeLe: e.envoyeLe ? e.envoyeLe.toISOString() : null,
     createdAt: e.createdAt.toISOString(),
+    lu: e.lu,
     prospect: e.prospect,
     user: e.user,
   }));

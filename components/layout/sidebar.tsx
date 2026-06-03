@@ -19,9 +19,13 @@ interface SidebarProps {
   role: Role;
   /** Pour le drawer mobile : callback exécuté au clic sur un lien. */
   onNavigate?: () => void;
+  /** Compteurs de notifications par section (emails non lus, etc.) */
+  badges?: {
+    emails?: number;
+  };
 }
 
-export function Sidebar({ role, onNavigate }: SidebarProps) {
+export function Sidebar({ role, onNavigate, badges }: SidebarProps) {
   const pathname = usePathname();
   const active = findRoute(pathname);
   const visible = getAccessibleRoutes(role);
@@ -59,6 +63,9 @@ export function Sidebar({ role, onNavigate }: SidebarProps) {
                   isActive={active?.href === item.href}
                   isAdmin={role === "ADMIN"}
                   onClick={onNavigate}
+                  badge={
+                    item.href === "/emails" ? badges?.emails ?? 0 : 0
+                  }
                 />
               ))}
             </ul>
@@ -74,14 +81,18 @@ function SidebarLink({
   isActive,
   isAdmin,
   onClick,
+  badge,
 }: {
   item: RouteDef;
   isActive: boolean;
   isAdmin: boolean;
   onClick?: () => void;
+  /** Compteur de notifications à afficher en badge rouge (0 = caché) */
+  badge?: number;
 }) {
   const label =
     !isAdmin && item.commercialLabel ? item.commercialLabel : item.label;
+  const hasBadge = badge !== undefined && badge > 0;
   return (
     <li>
       <Link
@@ -96,6 +107,14 @@ function SidebarLink({
       >
         <Icon name={item.icon} className="h-4 w-4 shrink-0" />
         <span className="flex-1 truncate">{label}</span>
+        {hasBadge && (
+          <span
+            className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white"
+            aria-label={`${badge} non lu${badge > 1 ? "s" : ""}`}
+          >
+            {badge > 99 ? "99+" : badge}
+          </span>
+        )}
       </Link>
     </li>
   );

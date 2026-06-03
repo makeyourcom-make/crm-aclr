@@ -302,6 +302,52 @@ export async function replyToEmail(
 }
 
 /**
+ * Marque un email comme lu côté CRM.
+ * Appelé quand l'utilisateur ouvre un thread dans la boîte de réception.
+ * No-op si l'email est déjà lu.
+ */
+export async function markEmailRead(
+  emailId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireUser();
+  const email = await prisma.email.findUnique({
+    where: { id: emailId },
+    select: { userId: true, lu: true },
+  });
+  if (!email) return { ok: false, error: "Email introuvable." };
+  if (user.role !== "ADMIN" && email.userId !== user.id) {
+    return { ok: false, error: "Accès refusé." };
+  }
+  if (email.lu) return { ok: true }; // no-op
+  await prisma.email.update({
+    where: { id: emailId },
+    data: { lu: true, luALe: new Date() },
+  });
+  revalidatePath("/emails");
+  return { ok: true };
+}
+
+/**
+ * Marque tous les threads d'un thread (par threadId) comme lus.
+ * Utile quand on ouvre un thread qui contient plusieurs messages non lus.
+ */
+export async function markThreadRead(
+  threadId: string,
+): Promise<{ ok: boolean; count?: number; error?: string }> {
+  const user = await requireUser();
+  const result = await prisma.email.updateMany({
+    where: {
+      threadId,
+      lu: false,
+      ...(user.role !== "ADMIN" ? { userId: user.id } : {}),
+    },
+    data: { lu: true, luALe: new Date() },
+  });
+  if (result.count > 0) revalidatePath("/emails");
+  return { ok: true, count: result.count };
+}
+
+/**
  * Supprime un email (envoyé ou brouillon).
  * RLS : admin OR créateur (email.userId === user.id).
  */

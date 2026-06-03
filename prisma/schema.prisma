@@ -1042,6 +1042,11 @@ model Email {
   ouvertLe DateTime?
   cliqueLe DateTime?
 
+  /// Vrai = email lu par l'utilisateur côté CRM. Pour les ENTRANT, par défaut false ;
+  /// pour les SORTANT, par défaut true (on a forcément lu ce qu'on a écrit).
+  lu       Boolean  @default(true)
+  luALe    DateTime?
+
   templateUtilise   EmailTemplate? @relation(fields: [templateUtiliseId], references: [id], onDelete: SetNull)
   templateUtiliseId String?
 

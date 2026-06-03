@@ -13,7 +13,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { replyToEmail, deleteEmail } from "@/app/(app)/emails/actions";
+import {
+  deleteEmail,
+  markThreadRead,
+  replyToEmail,
+} from "@/app/(app)/emails/actions";
 import { Icon } from "@/components/icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,6 +57,7 @@ export interface InboxEmail {
   statut: string;
   envoyeLe: string | null;
   createdAt: string;
+  lu: boolean;
   prospect: { id: string; raisonSociale: string } | null;
   user: { name: string } | null;
 }
@@ -137,6 +142,15 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
 
   const selectedThread = filteredThreads.find((t) => t.threadId === selectedThreadId);
 
+  const handleSelectThread = (threadId: string) => {
+    setSelectedThreadId(threadId);
+    // Marque le thread comme lu si au moins 1 message non lu
+    const t = threads.find((th) => th.threadId === threadId);
+    if (t && t.msgs.some((m) => !m.lu)) {
+      void markThreadRead(threadId);
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[180px_320px_1fr]">
       {/* Sidebar */}
@@ -193,7 +207,7 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
                 key={t.threadId}
                 thread={t}
                 isSelected={selectedThreadId === t.threadId}
-                onSelect={() => setSelectedThreadId(t.threadId)}
+                onSelect={() => handleSelectThread(t.threadId)}
                 currentUserEmail={currentUserEmail}
               />
             ))
@@ -278,6 +292,7 @@ function ThreadListItem({
     last.direction === "ENTRANT"
       ? last.expediteurNom || last.expediteurEmail
       : thread.first.destinataireEmail;
+  const hasUnread = thread.msgs.some((m) => !m.lu);
   return (
     <li
       onClick={onSelect}
@@ -286,11 +301,21 @@ function ThreadListItem({
       }`}
     >
       <div className="flex items-center gap-2">
+        {hasUnread && (
+          <span
+            className="h-2 w-2 shrink-0 rounded-full bg-blue-600"
+            aria-label="Non lu"
+          />
+        )}
         <Icon
           name={last.direction === "ENTRANT" ? "MailOpen" : "MailPlus"}
           className="h-3 w-3 shrink-0 text-muted-foreground"
         />
-        <span className="truncate text-xs font-medium">{otherParty}</span>
+        <span
+          className={`truncate text-xs ${hasUnread ? "font-bold" : "font-medium"}`}
+        >
+          {otherParty}
+        </span>
         {thread.msgs.length > 1 && (
           <span className="shrink-0 rounded-full bg-primary/10 px-1.5 text-[10px] font-medium text-primary">
             {thread.msgs.length}
@@ -300,7 +325,11 @@ function ThreadListItem({
           {formatShortDate(last.envoyeLe ?? last.createdAt)}
         </span>
       </div>
-      <p className="mt-1 truncate text-sm font-medium">{last.objet}</p>
+      <p
+        className={`mt-1 truncate text-sm ${hasUnread ? "font-bold" : "font-medium"}`}
+      >
+        {last.objet}
+      </p>
       <p className="mt-0.5 truncate text-xs text-muted-foreground">
         {last.contenuTexte.slice(0, 100)}
       </p>

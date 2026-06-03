@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 
 /**
@@ -28,6 +29,17 @@ export default async function AppLayout({
 }) {
   const user = await requireUser();
 
+  // Compte d'emails non lus pour le badge de navigation
+  const unreadEmails = await prisma.email.count({
+    where: {
+      lu: false,
+      direction: "ENTRANT",
+      ...(user.role !== "ADMIN" ? { userId: user.id } : {}),
+    },
+  });
+
+  const badges = { emails: unreadEmails };
+
   return (
     <TooltipProvider delay={200}>
       <CallSessionProvider>
@@ -35,13 +47,13 @@ export default async function AppLayout({
           {/* Sidebar — fixée à gauche sur desktop, drawer mobile via Topbar */}
           <aside className="hidden w-64 shrink-0 border-r border-sidebar-border md:block">
             <div className="sticky top-0 h-screen">
-              <Sidebar role={user.role} />
+              <Sidebar role={user.role} badges={badges} />
             </div>
           </aside>
 
           {/* Zone principale */}
           <div className="flex min-w-0 flex-1 flex-col">
-            <Topbar user={user} />
+            <Topbar user={user} badges={badges} />
             <main className="flex-1 overflow-x-auto">{children}</main>
           </div>
         </div>

@@ -234,6 +234,7 @@ export async function POST(req: Request) {
         statut: "LIVRE",
         envoyeLe: payload.data?.created_at ? new Date(payload.data.created_at) : new Date(),
         labels: ["inbound:resend"],
+        lu: false, // Email entrant = non-lu par défaut
       },
     });
 
