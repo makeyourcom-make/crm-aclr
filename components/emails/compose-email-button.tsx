@@ -16,6 +16,10 @@ import {
   searchProspectsForAttach,
   sendEmailToProspect,
 } from "@/app/(app)/emails/actions";
+import {
+  AttachmentPicker,
+  type PickedAttachment,
+} from "@/components/emails/attachment-picker";
 import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,6 +55,7 @@ export function ComposeEmailButton() {
   // Étape 2 : rédaction
   const [objet, setObjet] = useState("");
   const [contenu, setContenu] = useState("");
+  const [attachments, setAttachments] = useState<PickedAttachment[]>([]);
 
   const reset = () => {
     setSelected(null);
@@ -58,6 +63,7 @@ export function ComposeEmailButton() {
     setResults([]);
     setObjet("");
     setContenu("");
+    setAttachments([]);
   };
 
   const handleSearch = (q: string) => {
@@ -97,6 +103,7 @@ export function ComposeEmailButton() {
         prospectId: selected.id,
         objet: objet.trim(),
         contenu: contenu.trim(),
+        attachments: attachments.length > 0 ? attachments : undefined,
       });
       if (!res.ok) {
         toast.error(res.error ?? "Échec de l'envoi.");
@@ -234,6 +241,15 @@ export function ComposeEmailButton() {
                 <code>{`{{nomContact}}`}</code>, <code>{`{{raisonSociale}}`}</code>,{" "}
                 <code>{`{{ville}}`}</code>.
               </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Pièces jointes</Label>
+              <AttachmentPicker
+                value={attachments}
+                onChange={setAttachments}
+                disabled={pending}
+              />
             </div>
 
             <DialogFooter>

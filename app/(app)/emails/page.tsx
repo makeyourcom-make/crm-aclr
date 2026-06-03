@@ -14,6 +14,15 @@ export default async function EmailsPage() {
     include: {
       prospect: { select: { id: true, raisonSociale: true } },
       user: { select: { name: true } },
+      attachments: {
+        select: {
+          id: true,
+          nom: true,
+          taille: true,
+          mimeType: true,
+          url: true,
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
     take: 200,
@@ -38,6 +47,7 @@ export default async function EmailsPage() {
     lu: e.lu,
     prospect: e.prospect,
     user: e.user,
+    attachments: e.attachments,
   }));
 
   return (

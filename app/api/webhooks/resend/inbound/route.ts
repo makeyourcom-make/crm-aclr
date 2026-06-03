@@ -17,6 +17,7 @@
  */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
+import { put } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
@@ -348,6 +349,72 @@ export async function POST(req: Request) {
         lu: false, // Email entrant = non-lu par défaut
       },
     });
+
+    // Récupère les pièces jointes via l'API Resend Receiving et les
+    // stocke sur Vercel Blob (les URL Resend expirent). Ignore les
+    // attachments AMP/inline injectés par Gmail/Google qu'on ne veut pas
+    // afficher comme pièces jointes utilisateur.
+    if (inboundEmailId && process.env.RESEND_API_KEY) {
+      try {
+        const attRes = await fetch(
+          `https://api.resend.com/emails/receiving/${inboundEmailId}/attachments`,
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+            },
+          },
+        );
+        if (attRes.ok) {
+          const attJson = (await attRes.json()) as {
+            data?: Array<{
+              id: string;
+              content_type?: string;
+              filename?: string;
+              size?: number;
+              download_url?: string;
+            }>;
+          };
+          for (const att of attJson.data ?? []) {
+            // Skip les AMP HTML automatiques (Google les ajoute)
+            if (att.content_type === "text/x-amp-html") continue;
+            if (!att.download_url) continue;
+
+            try {
+              const fileRes = await fetch(att.download_url);
+              if (!fileRes.ok) continue;
+              const buffer = await fileRes.arrayBuffer();
+              const filename = att.filename ?? `attachment-${att.id}`;
+              const safeName = filename.replace(/[^\w.\-]/g, "_");
+              const blob = await put(
+                `email-attachments/inbound/${email.id}/${safeName}`,
+                Buffer.from(buffer),
+                {
+                  access: "public",
+                  contentType: att.content_type ?? "application/octet-stream",
+                  addRandomSuffix: true,
+                },
+              );
+              await prisma.emailAttachment.create({
+                data: {
+                  emailId: email.id,
+                  nom: filename,
+                  taille: att.size ?? buffer.byteLength,
+                  mimeType: att.content_type ?? "application/octet-stream",
+                  url: blob.url,
+                },
+              });
+            } catch (attErr) {
+              console.warn(
+                `[resend-inbound] Échec import pièce jointe ${att.id}`,
+                attErr,
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[resend-inbound] Erreur fetch attachments", err);
+      }
+    }
 
     // Activity auto si on a un prospect lié
     if (prospect) {

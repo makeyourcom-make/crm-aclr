@@ -19,6 +19,15 @@
  */
 import { Resend } from "resend";
 
+export interface SendEmailAttachment {
+  /** Nom du fichier affiché par le client mail */
+  filename: string;
+  /** URL publique du fichier (Resend télécharge depuis cette URL) */
+  path: string;
+  /** MIME type (optionnel, Resend déduit si absent) */
+  contentType?: string;
+}
+
 export interface SendEmailParams {
   /** Adresse "From" : doit être sur un domaine vérifié Resend */
   from: string;
@@ -40,6 +49,8 @@ export interface SendEmailParams {
   messageId?: string;
   /** In-Reply-To pour réponses */
   inReplyTo?: string;
+  /** Pièces jointes (max 40MB total selon Resend) */
+  attachments?: SendEmailAttachment[];
 }
 
 export interface SendEmailResult {
@@ -103,6 +114,14 @@ export async function sendMail(
         ...(params.messageId ? { "Message-ID": params.messageId } : {}),
         ...(params.inReplyTo ? { "In-Reply-To": params.inReplyTo } : {}),
       },
+      attachments:
+        params.attachments && params.attachments.length > 0
+          ? params.attachments.map((a) => ({
+              filename: a.filename,
+              path: a.path,
+              ...(a.contentType ? { contentType: a.contentType } : {}),
+            }))
+          : undefined,
     });
 
     if (result.error) {

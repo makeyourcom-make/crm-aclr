@@ -9,11 +9,19 @@ import { prisma } from "@/lib/db";
 import { resolveFromAddress, sendMail } from "@/lib/mailer";
 import { requireUser } from "@/lib/session";
 
+const AttachmentSchema = z.object({
+  url: z.string().url(),
+  filename: z.string().min(1),
+  mimeType: z.string().min(1),
+  size: z.number().int().nonnegative(),
+});
+
 const SendEmailSchema = z.object({
   prospectId: z.string().min(1),
   templateId: z.string().optional(),
   objet: z.string().min(1),
   contenu: z.string().min(1),
+  attachments: z.array(AttachmentSchema).optional(),
 });
 
 export interface SendEmailResult {
@@ -92,6 +100,7 @@ export async function sendEmailToProspect(
 
   // Envoi réel via Resend (avec BCC auto vers expéditeur pour copie Gmail).
   // En dry-run, sendMail() log et renvoie ok=true sans envoyer.
+  const attachments = parsed.data.attachments ?? [];
   const sendResult = await sendMail({
     from,
     fromName,
@@ -101,6 +110,14 @@ export async function sendEmailToProspect(
     text: contenuTexte,
     replyTo,
     messageId,
+    attachments:
+      attachments.length > 0
+        ? attachments.map((a) => ({
+            filename: a.filename,
+            path: a.url,
+            contentType: a.mimeType,
+          }))
+        : undefined,
   });
   const isDryRun = sendResult.dryRun;
 
@@ -111,7 +128,7 @@ export async function sendEmailToProspect(
     };
   }
 
-  // Crée l'enregistrement
+  // Crée l'enregistrement + les attachments persistés
   const created = await prisma.email.create({
     data: {
       prospectId: prospect.id,
@@ -129,6 +146,17 @@ export async function sendEmailToProspect(
       envoyeLe: isDryRun ? null : new Date(),
       templateUtiliseId: parsed.data.templateId || null,
       labels: sendResult.resendId ? [`resend:${sendResult.resendId}`] : [],
+      attachments:
+        attachments.length > 0
+          ? {
+              create: attachments.map((a) => ({
+                nom: a.filename,
+                taille: a.size,
+                mimeType: a.mimeType,
+                url: a.url,
+              })),
+            }
+          : undefined,
     },
   });
 
@@ -161,6 +189,7 @@ export async function replyToEmail(
   emailId: string,
   contenu: string,
   objetOverride?: string,
+  attachmentsInput?: Array<{ url: string; filename: string; mimeType: string; size: number }>,
 ): Promise<SendEmailResult> {
   const user = await requireUser();
   const original = await prisma.email.findUnique({
@@ -236,6 +265,8 @@ export async function replyToEmail(
 
   const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@makeyourcom.ch>`;
 
+  const attachmentsValidated = (attachmentsInput ?? []).filter((a) => a.url && a.filename);
+
   const sendResult = await sendMail({
     from,
     fromName,
@@ -246,6 +277,14 @@ export async function replyToEmail(
     replyTo: replyToHeader,
     messageId,
     inReplyTo: original.messageId,
+    attachments:
+      attachmentsValidated.length > 0
+        ? attachmentsValidated.map((a) => ({
+            filename: a.filename,
+            path: a.url,
+            contentType: a.mimeType,
+          }))
+        : undefined,
   });
   const isDryRun = sendResult.dryRun;
 
@@ -256,7 +295,7 @@ export async function replyToEmail(
     };
   }
 
-  // Crée l'email de réponse dans le même thread
+  // Crée l'email de réponse dans le même thread (+ attachments si fournis)
   const created = await prisma.email.create({
     data: {
       prospectId: original.prospect?.id ?? null,
@@ -274,6 +313,17 @@ export async function replyToEmail(
       statut: isDryRun ? "BROUILLON" : "ENVOYE",
       envoyeLe: isDryRun ? null : new Date(),
       labels: sendResult.resendId ? [`resend:${sendResult.resendId}`] : [],
+      attachments:
+        attachmentsValidated.length > 0
+          ? {
+              create: attachmentsValidated.map((a) => ({
+                nom: a.filename,
+                taille: a.size,
+                mimeType: a.mimeType,
+                url: a.url,
+              })),
+            }
+          : undefined,
     },
   });
 

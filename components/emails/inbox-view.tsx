@@ -20,6 +20,10 @@ import {
   replyToEmail,
   searchProspectsForAttach,
 } from "@/app/(app)/emails/actions";
+import {
+  AttachmentPicker,
+  type PickedAttachment,
+} from "@/components/emails/attachment-picker";
 import { Icon } from "@/components/icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,6 +50,14 @@ const STATUT_CLASS: Record<string, string> = {
   ERREUR: "bg-red-100 text-red-700",
 };
 
+export interface InboxAttachment {
+  id: string;
+  nom: string;
+  taille: number;
+  mimeType: string;
+  url: string;
+}
+
 export interface InboxEmail {
   id: string;
   direction: "SORTANT" | "ENTRANT";
@@ -62,6 +74,7 @@ export interface InboxEmail {
   lu: boolean;
   prospect: { id: string; raisonSociale: string } | null;
   user: { name: string } | null;
+  attachments: InboxAttachment[];
 }
 
 interface InboxViewProps {
@@ -355,6 +368,7 @@ function ThreadDetail({
 }) {
   const [showReply, setShowReply] = useState(false);
   const [replyContent, setReplyContent] = useState("");
+  const [replyAttachments, setReplyAttachments] = useState<PickedAttachment[]>([]);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -364,13 +378,19 @@ function ThreadDetail({
       return;
     }
     startTransition(async () => {
-      const res = await replyToEmail(thread.last.id, replyContent.trim());
+      const res = await replyToEmail(
+        thread.last.id,
+        replyContent.trim(),
+        undefined,
+        replyAttachments.length > 0 ? replyAttachments : undefined,
+      );
       if (!res.ok) {
         toast.error(res.error ?? "Échec d'envoi.");
         return;
       }
       toast.success(res.dryRun ? "Réponse enregistrée (dry-run)." : "Réponse envoyée ✓");
       setReplyContent("");
+      setReplyAttachments([]);
       setShowReply(false);
       router.refresh();
     });
@@ -448,6 +468,11 @@ function ThreadDetail({
               placeholder="Tape ta réponse…"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
+            <AttachmentPicker
+              value={replyAttachments}
+              onChange={setReplyAttachments}
+              disabled={pending}
+            />
             <div className="flex justify-end gap-2">
               <Button
                 type="button"
@@ -455,6 +480,7 @@ function ThreadDetail({
                 onClick={() => {
                   setShowReply(false);
                   setReplyContent("");
+                  setReplyAttachments([]);
                 }}
                 disabled={pending}
               >
@@ -567,6 +593,42 @@ function MessageBubble({
             <p className="italic text-xs text-muted-foreground">
               (Contenu vide — le mail original n'avait pas de corps)
             </p>
+          )}
+          {message.attachments.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                {message.attachments.length} pièce
+                {message.attachments.length > 1 ? "s" : ""} jointe
+                {message.attachments.length > 1 ? "s" : ""}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {message.attachments.map((a) => (
+                  <a
+                    key={a.id}
+                    href={a.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs hover:bg-muted"
+                    title={`${a.mimeType} · ${formatFileSize(a.taille)}`}
+                  >
+                    <Icon
+                      name={
+                        a.mimeType.startsWith("image/")
+                          ? "Image"
+                          : a.mimeType === "application/pdf"
+                            ? "FileText"
+                            : "Download"
+                      }
+                      className="h-3 w-3"
+                    />
+                    <span className="max-w-[200px] truncate">{a.nom}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      ({formatFileSize(a.taille)})
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -707,6 +769,12 @@ function AttachProspectButton({
       )}
     </div>
   );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function formatShortDate(d: string | Date): string {
