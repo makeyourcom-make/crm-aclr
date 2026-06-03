@@ -30,17 +30,22 @@ export default async function ProspectsPage({ searchParams }: PageProps) {
 
   const isAdmin = user.role === "ADMIN";
 
-  // Liste des commerciales pour le filtre "Assigné à" (admin uniquement).
-  const teamUsers = isAdmin
-    ? await prisma.user.findMany({
-        where: { isActive: true },
-        select: { id: true, name: true },
-        orderBy: { name: "asc" },
-      })
-    : [];
-
-  const [{ items, total, page, pageSize, totalPages }, stats] =
-    await Promise.all([getProspects(user, params), getProspectStats(user)]);
+  // OPTIM : 3 queries en parallèle au lieu de 2 séquentielles + 1
+  const [
+    { items, total, page, pageSize, totalPages },
+    stats,
+    teamUsers,
+  ] = await Promise.all([
+    getProspects(user, params),
+    getProspectStats(user),
+    isAdmin
+      ? prisma.user.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([] as Array<{ id: string; name: string }>),
+  ]);
 
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">

@@ -14,6 +14,26 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "10mb", // pour l'import CSV de prospects
     },
+    // Tree-shaking auto des libs lourdes : gain ~30-50% sur le bundle client.
+    // Critique pour lucide-react (~500KB sans), Radix (~200KB sans), recharts.
+    optimizePackageImports: [
+      "lucide-react",
+      "date-fns",
+      "@radix-ui/react-dialog",
+      "@radix-ui/react-tooltip",
+      "@radix-ui/react-popover",
+      "@radix-ui/react-dropdown-menu",
+      "@radix-ui/react-select",
+      "@radix-ui/react-tabs",
+      "@radix-ui/react-checkbox",
+      "@radix-ui/react-switch",
+      "@radix-ui/react-radio-group",
+      "@radix-ui/react-label",
+      "@radix-ui/react-slot",
+      "recharts",
+      "zod",
+      "sonner",
+    ],
   },
 };
 

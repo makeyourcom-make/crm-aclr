@@ -430,6 +430,8 @@ model Expense {
   @@index([categorie])
   @@index([prospectId])
   @@index([recurrenceId])
+  // Filtre + tri combinés (charges du mois/par statut)
+  @@index([date(sort: Desc), statutPaiement])
   @@map("expenses")
 }
 
@@ -1060,6 +1062,10 @@ model Email {
   @@index([threadId])
   @@index([userId, direction])
   @@index([statut])
+  // Pour la page /emails : tri createdAt desc + filtre userId
+  @@index([userId, createdAt(sort: Desc)])
+  // Pour le badge non-lus du sidebar : count par (userId, direction, lu)
+  @@index([userId, direction, lu])
   @@map("emails")
 }
 

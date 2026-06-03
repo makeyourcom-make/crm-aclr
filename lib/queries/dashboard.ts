@@ -101,6 +101,7 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     dealsAggregated,
     hotDeals,
     contractsForRenewal,
+    monthlyProgressPartial,
   ] = await Promise.all([
     // 1. Signatures ce mois
     prisma.contract.aggregate({
@@ -165,6 +166,9 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
         assigneA: { select: { tauxCommissionRenouvellement: true } },
       },
     }),
+    // 8. Progression objectif mensuel (objective + 4 counts, en parallèle interne)
+    //    → ne dépend PAS de signaturesMoisRaw : on fusionne après.
+    computeMonthlyProgressPartial(user, startMonth, endMonth),
   ]);
 
   // Calcul garantie/frais depuis le résultat parallèle
@@ -178,13 +182,12 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
   const salairePrevuMois = Math.max(comMois, garantieMensuelle) + forfaitFrais;
   const garantieActiveMois = comMois < garantieMensuelle;
 
-  // 3.b Objectif mensuel — dépend de signaturesMoisRaw, fait à part
-  const monthlyProgress = await computeMonthlyProgress(
-    user,
-    startMonth,
-    endMonth,
-    signaturesMoisRaw,
-  );
+  // 3.b Objectif mensuel : fusion des données partielles avec signaturesMoisRaw
+  const monthlyProgress: MonthlyObjectiveProgress = {
+    ...monthlyProgressPartial,
+    nbSignaturesRealise: signaturesMoisRaw._count,
+    caRealise: Number(signaturesMoisRaw._sum.valeurAn1 ?? 0),
+  };
   // Évolution 12 mois — agrégation in-memory du résultat de la query 4
   const monthMap = new Map<string, number>();
   for (let i = 0; i < 12; i++) {
@@ -337,39 +340,39 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
 // HELPER — Progression objectifs du mois
 // ---------------------------------------------------------------------------
 
-async function computeMonthlyProgress(
+/**
+ * Variante "partielle" de la progression objectif : ne lit PAS
+ * signaturesMoisRaw (qu'on a déjà côté caller). Permet de paralléliser cette
+ * fonction avec le Promise.all principal du dashboard plutôt que d'attendre
+ * la fin de la 1re vague.
+ *
+ * Le caller fusionnera nbSignaturesRealise + caRealise après.
+ */
+async function computeMonthlyProgressPartial(
   user: SessionUser,
   startMonth: Date,
   endMonth: Date,
-  signaturesMoisRaw: {
-    _count: number;
-    _sum: { valeurAn1: import("@prisma/client").Prisma.Decimal | null };
-  },
-): Promise<MonthlyObjectiveProgress> {
-  // L'admin n'a pas d'objectif personnel par défaut (sauf s'il en a fixé un).
-  // On cherche son Objective MENSUEL actif qui couvre la date du jour.
+): Promise<Omit<MonthlyObjectiveProgress, "nbSignaturesRealise" | "caRealise">> {
   const userId = user.id;
-
-  const objective = await prisma.objective.findFirst({
-    where: {
-      userId,
-      periode: "MENSUEL",
-      isActif: true,
-      dateDebut: { lte: endMonth },
-      dateFin: { gte: startMonth },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  // Activités réalisées ce mois
   const userScope = { userId };
 
   const [
+    objective,
     nbAppelsRealise,
     nbEmailsRealise,
     nbRsRealise,
     nbRdvRealise,
   ] = await Promise.all([
+    prisma.objective.findFirst({
+      where: {
+        userId,
+        periode: "MENSUEL",
+        isActif: true,
+        dateDebut: { lte: endMonth },
+        dateFin: { gte: startMonth },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
     prisma.activity.count({
       where: {
         ...userScope,
@@ -406,8 +409,6 @@ async function computeMonthlyProgress(
     hasObjective: !!objective,
     objectiveId: objective?.id,
     nbAppelsObjectif: objective?.nbAppelsObjectif ?? null,
-    // L'utilisateur souhaite suivre "contacts" = emails + RS.
-    // On utilise le champ nbEmailsObjectif comme objectif "contacts asynchrones".
     nbContactsObjectif: objective?.nbEmailsObjectif ?? null,
     nbRdvObjectif: objective?.nbRdvObjectif ?? null,
     nbSignaturesObjectif: objective?.nbSignaturesObjectif ?? null,
@@ -416,7 +417,5 @@ async function computeMonthlyProgress(
     nbAppelsRealise,
     nbContactsRealise: nbEmailsRealise + nbRsRealise,
     nbRdvRealise,
-    nbSignaturesRealise: signaturesMoisRaw._count,
-    caRealise: Number(signaturesMoisRaw._sum.valeurAn1 ?? 0),
   };
 }

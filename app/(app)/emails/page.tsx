@@ -25,7 +25,10 @@ export default async function EmailsPage() {
       },
     },
     orderBy: { createdAt: "desc" },
-    take: 200,
+    // 80 = compromis : couvre la vue active (les threads inactifs > 80 derniers
+    // sont rarement consultés depuis l'inbox). Avec index userId+createdAt DESC,
+    // requête sub-ms. Pour rechercher plus loin, la fiche prospect montre tout.
+    take: 80,
   });
 
   const isDryRun = process.env.EMAIL_MODE !== "live";
