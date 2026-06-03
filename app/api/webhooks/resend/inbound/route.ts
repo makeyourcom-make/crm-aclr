@@ -21,19 +21,26 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
 
+/**
+ * Le payload Resend varie selon l'event :
+ *  - Pour `email.*` (sortants) : `data.from` = objet { email, name }, `data.to` = array d'objets
+ *  - Pour `email.received` (inbound) : `data.from` = STRING ("Name <addr>"), `data.to` = array de STRINGS
+ *
+ * On normalise les deux formes via parseAddress() plus bas.
+ */
 interface ResendInboundPayload {
   type?: string;
   data?: {
-    from?: { email?: string; name?: string };
-    to?: Array<{ email?: string; name?: string }>;
+    from?: string | { email?: string; name?: string };
+    to?: Array<string | { email?: string; name?: string }>;
     subject?: string;
     html?: string;
     text?: string;
-    headers?: Record<string, string>;
+    headers?: Record<string, string> | Array<{ name: string; value: string }>;
     message_id?: string;
     created_at?: string;
   };
-  // Compat alternatives
+  // Compat alternatives (anciennes versions de l'API)
   from?: string;
   to?: string | string[];
   subject?: string;
@@ -42,6 +49,41 @@ interface ResendInboundPayload {
   headers?: Record<string, string>;
   messageId?: string;
   message_id?: string;
+}
+
+/**
+ * Extrait l'adresse email d'une string type "Arthur <a@b.com>" ou d'un objet
+ * { email, name }. Retourne { email, name }.
+ */
+function parseAddress(
+  input: string | { email?: string; name?: string } | undefined,
+): { email: string | null; name: string } {
+  if (!input) return { email: null, name: "" };
+  if (typeof input === "string") {
+    const m = input.match(/^\s*(?:"?([^"<]*?)"?\s*)?<?([^<>\s]+@[^<>\s]+)>?\s*$/);
+    if (m) return { email: m[2]!.toLowerCase(), name: (m[1] ?? "").trim() };
+    return { email: input.trim().toLowerCase(), name: "" };
+  }
+  return { email: input.email?.toLowerCase() ?? null, name: input.name ?? "" };
+}
+
+/**
+ * Resend peut envoyer headers comme objet { "in-reply-to": "..." } ou
+ * comme array [{ name: "In-Reply-To", value: "..." }]. Normalise en map.
+ */
+function normalizeHeaders(
+  headers: Record<string, string> | Array<{ name: string; value: string }> | undefined,
+): Record<string, string> {
+  if (!headers) return {};
+  if (Array.isArray(headers)) {
+    return headers.reduce<Record<string, string>>((acc, h) => {
+      acc[h.name.toLowerCase()] = h.value;
+      return acc;
+    }, {});
+  }
+  return Object.fromEntries(
+    Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]),
+  );
 }
 
 export const runtime = "nodejs";
@@ -88,9 +130,14 @@ export async function POST(req: Request) {
   // Gestion des événements EMAIL (sortants) : email.sent, .delivered,
   // .opened, .clicked, .bounced, .complained, .delivery_delayed, .failed
   // On met à jour le statut de l'Email existant en DB.
+  //
+  // EXCEPTION : `email.received` est l'event INBOUND envoyé par
+  // Resend Inbound — il ne représente PAS un changement de statut d'un
+  // email sortant, mais l'arrivée d'un nouveau mail à créer en DB.
+  // On le laisse traverser jusqu'au handler inbound plus bas.
   // ──────────────────────────────────────────────────────────────────
   const eventType = payload.type ?? "";
-  if (eventType.startsWith("email.")) {
+  if (eventType.startsWith("email.") && eventType !== "email.received") {
     const data = payload.data as
       | {
           email_id?: string;
@@ -152,33 +199,42 @@ export async function POST(req: Request) {
   // Sinon : email INBOUND (réception). Normalisation et traitement.
   // ──────────────────────────────────────────────────────────────────
 
-  // Normalisation : Resend peut envoyer `data.from.email` ou directement `from`
-  const fromEmail =
-    payload.data?.from?.email ??
-    (typeof payload.from === "string" ? payload.from : undefined);
-  const fromName = payload.data?.from?.name ?? "";
-  const toEmails =
-    payload.data?.to?.map((t) => t.email).filter(Boolean) ??
-    (Array.isArray(payload.to)
-      ? payload.to
-      : typeof payload.to === "string"
-        ? [payload.to]
-        : []);
+  // Normalisation : Resend peut envoyer plusieurs formes — voir parseAddress()
+  const fromParsed = parseAddress(payload.data?.from ?? payload.from);
+  const fromEmail = fromParsed.email;
+  const fromName = fromParsed.name;
+
+  // to peut être array d'objets, array de strings, ou string
+  const rawTo = payload.data?.to ?? payload.to;
+  const toEmails: string[] = (
+    Array.isArray(rawTo)
+      ? rawTo.map((t) => parseAddress(t).email)
+      : [parseAddress(rawTo as string).email]
+  ).filter((x): x is string => !!x);
+
   const subject = payload.data?.subject ?? payload.subject ?? "(sans sujet)";
   const html = payload.data?.html ?? payload.html ?? "";
   const text =
     payload.data?.text ??
     payload.text ??
     (html ? html.replace(/<[^>]+>/g, "").slice(0, 5000) : "");
+
+  const headers = normalizeHeaders(payload.data?.headers ?? payload.headers);
   const messageId =
-    payload.data?.message_id ?? payload.message_id ?? payload.messageId ?? `<inbound.${randomBytes(8).toString("hex")}.${Date.now()}@resend>`;
-  const inReplyToHeader =
-    payload.data?.headers?.["in-reply-to"] ??
-    payload.headers?.["in-reply-to"] ??
-    null;
+    payload.data?.message_id ??
+    payload.message_id ??
+    payload.messageId ??
+    headers["message-id"] ??
+    `<inbound.${randomBytes(8).toString("hex")}.${Date.now()}@resend>`;
+  const inReplyToHeader = headers["in-reply-to"] ?? null;
 
   if (!fromEmail || toEmails.length === 0) {
-    console.warn("[resend-inbound] Payload missing from/to", { fromEmail, toEmails });
+    console.warn("[resend-inbound] Payload missing from/to", {
+      fromEmail,
+      toEmails,
+      rawPayloadKeys: Object.keys(payload),
+      dataKeys: payload.data ? Object.keys(payload.data) : null,
+    });
     return NextResponse.json({ error: "Missing from/to" }, { status: 400 });
   }
 
