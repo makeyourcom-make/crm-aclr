@@ -84,6 +84,74 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  // ──────────────────────────────────────────────────────────────────
+  // Gestion des événements EMAIL (sortants) : email.sent, .delivered,
+  // .opened, .clicked, .bounced, .complained, .delivery_delayed, .failed
+  // On met à jour le statut de l'Email existant en DB.
+  // ──────────────────────────────────────────────────────────────────
+  const eventType = payload.type ?? "";
+  if (eventType.startsWith("email.")) {
+    const data = payload.data as
+      | {
+          email_id?: string;
+          subject?: string;
+          to?: string[];
+          tags?: Array<{ name: string; value: string }>;
+        }
+      | undefined;
+    const resendEmailId = data?.email_id;
+    if (!resendEmailId) {
+      return NextResponse.json({ ok: true, note: "no email_id" });
+    }
+    // Match par label "resend:<id>" qu'on a stocké à l'envoi
+    const existing = await prisma.email.findFirst({
+      where: { labels: { has: `resend:${resendEmailId}` } },
+      select: { id: true, statut: true },
+    });
+    if (!existing) {
+      // Pas un email qu'on a envoyé via le CRM, on ignore
+      return NextResponse.json({ ok: true, note: "email not found" });
+    }
+    const STATUT_MAP: Record<string, string> = {
+      "email.sent": "ENVOYE",
+      "email.delivered": "LIVRE",
+      "email.opened": "OUVERT",
+      "email.clicked": "CLIQUE",
+      "email.bounced": "REBOND",
+      "email.complained": "REBOND",
+      "email.failed": "ERREUR",
+      "email.delivery_delayed": existing.statut, // pas de changement
+    };
+    const newStatut = STATUT_MAP[eventType] ?? existing.statut;
+    // Ne dégrade jamais : si déjà OUVERT, on ne repasse pas à LIVRE
+    const RANK: Record<string, number> = {
+      BROUILLON: 0,
+      ENVOYE: 1,
+      LIVRE: 2,
+      OUVERT: 3,
+      CLIQUE: 4,
+      REPONDU: 5,
+      REBOND: 6,
+      ERREUR: 6,
+    };
+    if ((RANK[newStatut] ?? 0) > (RANK[existing.statut] ?? 0)) {
+      await prisma.email.update({
+        where: { id: existing.id },
+        data: { statut: newStatut as never },
+      });
+    }
+    return NextResponse.json({ ok: true, event: eventType });
+  }
+
+  // Ignore les événements contact.* et domain.* (pas besoin)
+  if (eventType.startsWith("contact.") || eventType.startsWith("domain.")) {
+    return NextResponse.json({ ok: true, note: "event ignored" });
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // Sinon : email INBOUND (réception). Normalisation et traitement.
+  // ──────────────────────────────────────────────────────────────────
+
   // Normalisation : Resend peut envoyer `data.from.email` ou directement `from`
   const fromEmail =
     payload.data?.from?.email ??
