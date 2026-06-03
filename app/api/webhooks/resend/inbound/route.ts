@@ -60,9 +60,15 @@ function parseAddress(
 ): { email: string | null; name: string } {
   if (!input) return { email: null, name: "" };
   if (typeof input === "string") {
-    const m = input.match(/^\s*(?:"?([^"<]*?)"?\s*)?<?([^<>\s]+@[^<>\s]+)>?\s*$/);
-    if (m) return { email: m[2]!.toLowerCase(), name: (m[1] ?? "").trim() };
-    return { email: input.trim().toLowerCase(), name: "" };
+    const trimmed = input.trim();
+    // Forme "Name <addr@x>" : extraire ce qui est entre < et >
+    const angleMatch = trimmed.match(/^(.*?)<([^<>]+)>\s*$/);
+    if (angleMatch) {
+      const namePart = angleMatch[1]!.trim().replace(/^"|"$/g, "").trim();
+      return { email: angleMatch[2]!.trim().toLowerCase(), name: namePart };
+    }
+    // Sinon : c'est l'adresse seule
+    return { email: trimmed.toLowerCase(), name: "" };
   }
   return { email: input.email?.toLowerCase() ?? null, name: input.name ?? "" };
 }
@@ -251,19 +257,6 @@ export async function POST(req: Request) {
       where: { email: { equals: destEmail, mode: "insensitive" } },
       select: { id: true, name: true },
     });
-    // DEBUG temporaire : trace pour comprendre pourquoi user reste null en prod
-    if (!user) {
-      const allUsers = await prisma.user.findMany({
-        select: { id: true, email: true },
-      });
-      console.error("[resend-inbound] DEBUG no user match", {
-        destEmail,
-        toEmails,
-        fromEmail,
-        allUserEmails: allUsers.map((u) => u.email),
-        userCount: allUsers.length,
-      });
-    }
     const userId = user?.id ?? prospect?.assigneAId ?? null;
 
     // Recherche thread parent (si réponse à un email sortant qu'on a envoyé)
