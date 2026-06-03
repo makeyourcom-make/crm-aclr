@@ -90,13 +90,13 @@ export async function sendMail(
   try {
     const resend = new Resend(apiKey);
 
-    // BCC auto vers l'expéditeur : pour que la copie tombe dans son Gmail.
-    // On ne BCC PAS si l'expéditeur est dans le "to" (évite dupliquer pour soi-même).
-    const autoBcc =
-      params.from && params.to.toLowerCase() !== params.from.toLowerCase()
-        ? [params.from]
-        : [];
-    const allBcc = [...autoBcc, ...(params.bcc ?? [])];
+    // ⚠️ Plus de BCC auto vers contact@/sophie@ :
+    // - Avant, on BCCait pour archiver dans Gmail (via forward Infomaniak)
+    // - Depuis la suppression du forward, ce BCC reviendrait dans Resend
+    //   Inbound → webhook → email ENTRANT en doublon. Le CRM archive déjà
+    //   chaque envoi en DB côté SORTANT, donc aucune perte.
+    // Les BCC explicites passés en paramètre (params.bcc) restent honorés.
+    const allBcc = params.bcc ?? [];
 
     const fromHeader = params.fromName
       ? `${params.fromName} <${params.from}>`

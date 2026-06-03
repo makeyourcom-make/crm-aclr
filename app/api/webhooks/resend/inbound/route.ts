@@ -329,6 +329,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, reason: "no-user-match" }, { status: 200 });
     }
 
+    // Anti-doublon : si on a déjà un mail avec ce messageId en DB
+    // (ex. notre propre envoi qui reviendrait en boucle, ou un replay
+    // involontaire), on skip silencieusement.
+    const existingByMsgId = await prisma.email.findUnique({
+      where: { messageId },
+      select: { id: true, direction: true },
+    });
+    if (existingByMsgId) {
+      return NextResponse.json({
+        ok: true,
+        skipped: "duplicate",
+        existingId: existingByMsgId.id,
+      });
+    }
+
     const email = await prisma.email.create({
       data: {
         prospectId: prospect?.id ?? null,
