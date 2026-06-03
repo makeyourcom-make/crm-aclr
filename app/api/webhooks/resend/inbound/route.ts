@@ -251,6 +251,19 @@ export async function POST(req: Request) {
       where: { email: { equals: destEmail, mode: "insensitive" } },
       select: { id: true, name: true },
     });
+    // DEBUG temporaire : trace pour comprendre pourquoi user reste null en prod
+    if (!user) {
+      const allUsers = await prisma.user.findMany({
+        select: { id: true, email: true },
+      });
+      console.error("[resend-inbound] DEBUG no user match", {
+        destEmail,
+        toEmails,
+        fromEmail,
+        allUserEmails: allUsers.map((u) => u.email),
+        userCount: allUsers.length,
+      });
+    }
     const userId = user?.id ?? prospect?.assigneAId ?? null;
 
     // Recherche thread parent (si réponse à un email sortant qu'on a envoyé)
