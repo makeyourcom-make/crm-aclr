@@ -169,7 +169,7 @@ export function ExpenseAllocationsPanel({
                 key={a.prospectId}
                 className="flex flex-wrap items-end gap-2 rounded-md border border-border bg-muted/30 p-2"
               >
-                <div className="flex-1 min-w-[180px]">
+                <div className="flex-1 min-w-0 sm:min-w-[180px]">
                   <p className="text-xs font-medium">{a.prospectName}</p>
                   <Input
                     value={a.note ?? ""}

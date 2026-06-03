@@ -80,7 +80,7 @@ export default async function RhPage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   <Cell label="Rôle" value={e.role} />
                   <Cell
                     label="Activité"

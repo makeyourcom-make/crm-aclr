@@ -26,8 +26,8 @@ export function MonthlyCalendar({ parMois }: MonthlyCalendarProps) {
   const currentYear = now.getFullYear();
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-end gap-1">
+    <div className="overflow-x-auto rounded-lg border border-border bg-card p-4">
+      <div className="flex min-w-[520px] items-end gap-1">
         {parMois.map((m, idx) => {
           const isCurrent =
             m.mois.getMonth() === currentMonth &&

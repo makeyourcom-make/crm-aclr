@@ -227,7 +227,7 @@ export default async function ProspectDetailPage({ params }: PageProps) {
 
       {/* Timeline d'activités */}
       <Card className="mt-6">
-        <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <CardTitle className="text-base">
             Activités
             <span className="ml-2 text-xs font-normal text-muted-foreground">

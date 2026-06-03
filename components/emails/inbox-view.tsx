@@ -582,7 +582,7 @@ function MessageBubble({
             <iframe
               srcDoc={message.contenuHtml}
               sandbox="allow-popups allow-popups-to-escape-sandbox"
-              className="h-[600px] w-full rounded border border-border bg-white"
+              className="h-[400px] sm:h-[600px] w-full rounded border border-border bg-white"
               title={message.objet}
             />
           ) : message.contenuTexte ? (
@@ -705,7 +705,7 @@ function AttachProspectButton({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-80 rounded-lg border border-border bg-popover p-3 shadow-lg">
+        <div className="absolute left-0 top-full z-50 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-3 shadow-lg">
           <input
             type="search"
             autoFocus
