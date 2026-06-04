@@ -79,6 +79,7 @@ export function AddActivityDialog({
   const [date, setDate] = useState(defaultDate);
   const [heure, setHeure] = useState(defaultTime);
   const [duree, setDuree] = useState("60");
+  const [adresseRdv, setAdresseRdv] = useState("");
   const [contenu, setContenu] = useState("");
 
   // Quand on rouvre la modale et que la prop defaultDate change, on resync
@@ -107,6 +108,7 @@ export function AddActivityDialog({
         date: dateTime,
         sujet: sujet.trim(),
         duree: duree ? Number(duree) : undefined,
+        adresseRdv: adresseRdv.trim() || undefined,
         contenu: contenu.trim() || undefined,
         statut: "PLANIFIE",
       });
@@ -118,6 +120,7 @@ export function AddActivityDialog({
       // Reset
       setProspectId("");
       setSujet("");
+      setAdresseRdv("");
       setContenu("");
       setOpen(false);
       router.refresh();
@@ -267,6 +270,20 @@ export function AddActivityDialog({
           </div>
 
           <div className="space-y-1.5">
+            <Label htmlFor="adresseRdv">Adresse / Lieu (optionnel)</Label>
+            <Input
+              id="adresseRdv"
+              value={adresseRdv}
+              onChange={(e) => setAdresseRdv(e.target.value)}
+              placeholder="Ex. Rue du Clos 5, 1800 Vevey"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Si renseigné, sera affiché en lien cliquable vers Google Maps
+              sur l&apos;agenda et la fiche prospect.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
             <Label htmlFor="contenu">Notes (optionnel)</Label>
             <textarea
               id="contenu"
@@ -274,7 +291,7 @@ export function AddActivityDialog({
               onChange={(e) => setContenu(e.target.value)}
               rows={2}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              placeholder="Lieu, lien visio, mémo personnel…"
+              placeholder="Lien visio, mémo personnel…"
             />
           </div>
 

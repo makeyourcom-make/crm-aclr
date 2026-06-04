@@ -66,6 +66,7 @@ export async function createActivity(
         date: parsed.data.date,
         sujet: parsed.data.sujet,
         contenu: parsed.data.contenu,
+        adresseRdv: parsed.data.adresseRdv,
         duree: parsed.data.duree,
         statut: parsed.data.statut,
         resultat: parsed.data.resultat,

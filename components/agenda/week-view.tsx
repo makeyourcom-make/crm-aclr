@@ -9,6 +9,7 @@ import {
   rescheduleActivity,
 } from "@/app/(app)/activites/actions";
 import { ActivityIcon } from "@/components/activities/activity-icon";
+import { AdresseRdvLink } from "@/components/activities/adresse-rdv-link";
 import { AddActivityDialog } from "@/components/agenda/add-activity-dialog";
 import { DeleteActivityButton } from "@/components/common/entity-delete-buttons";
 import { Card, CardContent } from "@/components/ui/card";
@@ -230,6 +231,11 @@ function ActivityRow({
         </span>
       )}
       <p className="truncate text-[10px] opacity-70">{a.sujet}</p>
+      {a.adresseRdv && (
+        <div className="mt-0.5 truncate">
+          <AdresseRdvLink adresse={a.adresseRdv} size="sm" />
+        </div>
+      )}
 
       <div className="mt-1.5 flex items-center gap-1">
         {(a.statut === "PLANIFIE" || a.statut === "EN_COURS") && (

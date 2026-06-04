@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ActivityIcon } from "@/components/activities/activity-icon";
+import { AdresseRdvLink } from "@/components/activities/adresse-rdv-link";
 import { Icon } from "@/components/icon";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -132,6 +133,10 @@ function Timeline({
               </Link>
             ) : (
               <p className="text-sm">{a.sujet}</p>
+            )}
+
+            {a.adresseRdv && (
+              <AdresseRdvLink adresse={a.adresseRdv} size="md" />
             )}
 
             {a.notesResultat && (

@@ -683,6 +683,11 @@ model Activity {
   sujet   String
   contenu String? @db.Text
 
+  /// Adresse / lieu du RDV (optionnel). Texte libre — peut être une
+  /// adresse postale, une salle ("Salle 2A"), un lien visio, etc.
+  /// Affiché en lien Google Maps si renseigné.
+  adresseRdv String?
+
   statut        ActivityStatut    @default(PLANIFIE)
   resultat      ActivityResultat? // valide pour APPEL_* et RDV_*
   notesResultat String?           @db.Text // qualitatif libre saisi après l'appel

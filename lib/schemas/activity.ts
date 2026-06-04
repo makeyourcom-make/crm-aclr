@@ -34,6 +34,8 @@ export const ActivityCreateSchema = z.object({
   date: z.coerce.date(),
   sujet: z.string().trim().min(1, "Sujet obligatoire.").max(255),
   contenu: stringOptional,
+  /** Adresse/lieu du RDV — texte libre, cliquable vers Google Maps */
+  adresseRdv: stringOptional,
   duree: z.coerce.number().int().min(0).max(1440).optional(), // minutes
   statut: z.nativeEnum(ActivityStatut).default("FAIT"),
   resultat: z.nativeEnum(ActivityResultat).optional(),
