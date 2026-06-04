@@ -616,6 +616,7 @@ model Prospect {
   expenses            Expense[] // charges directement attribuables au client
   expenseAllocations  ExpenseAllocation[] // parts de charges multi-clients
   expenseRecurrences  ExpenseRecurrence[] // templates de charges récurrentes liées
+  tags                ProspectTagAssignment[] // tags libres (admin uniquement)
 
   @@index([statut])
   @@index([assigneAId])
@@ -623,6 +624,37 @@ model Prospect {
   @@index([canton])
   @@index([raisonSociale]) // recherche par nom
   @@map("prospects")
+}
+
+/// Tag libre rattaché aux entreprises (ex. "Passeport Beauté").
+/// Création/édition réservée à l'admin. Tout le monde peut filtrer dessus.
+model ProspectTag {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  nom     String @unique
+  /// Couleur Tailwind du badge (slate, blue, emerald, amber, rose, purple, …)
+  couleur String @default("slate")
+  /// Description / mémo pour l'admin (optionnel)
+  description String?
+
+  prospects ProspectTagAssignment[]
+
+  @@map("prospect_tags")
+}
+
+/// Table de jonction many-to-many entre Prospect et ProspectTag
+model ProspectTagAssignment {
+  prospect   Prospect    @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  prospectId String
+  tag        ProspectTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  tagId      String
+  assignedAt DateTime    @default(now())
+
+  @@id([prospectId, tagId])
+  @@index([tagId])
+  @@map("prospect_tag_assignments")
 }
 
 // ============================================================================

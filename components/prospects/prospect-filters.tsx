@@ -23,6 +23,8 @@ interface ProspectFiltersProps {
   users?: Array<{ id: string; name: string }>;
   /** ID de l'utilisateur connecté — sert à libeller "Moi" dans le filtre. */
   currentUserId?: string;
+  /** Tags disponibles pour le filtre — visible par tous les users. */
+  tags?: Array<{ id: string; nom: string }>;
 }
 
 /**
@@ -35,6 +37,7 @@ export function ProspectFilters({
   params,
   users,
   currentUserId,
+  tags,
 }: ProspectFiltersProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -89,6 +92,7 @@ export function ProspectFilters({
     !!params.secteur ||
     !!params.canton ||
     !!params.assigneAId ||
+    !!params.tagId ||
     !!params.q;
 
   const clearAll = () => {
@@ -149,6 +153,15 @@ export function ProspectFilters({
         onChange={(v) => handleSelectChange("canton", v)}
         options={CANTONS_SUISSES}
       />
+
+      {tags && tags.length > 0 && (
+        <FilterSelect
+          label="Tag"
+          value={params.tagId ?? ""}
+          onChange={(v) => handleSelectChange("tagId", v)}
+          options={tags.map((t) => ({ value: t.id, label: t.nom }))}
+        />
+      )}
 
       {hasFilters && (
         <button

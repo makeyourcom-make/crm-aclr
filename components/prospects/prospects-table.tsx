@@ -13,8 +13,30 @@ import { formatRelative } from "@/lib/format";
 
 import type { Prospect } from "@prisma/client";
 
+// Couleur Tailwind du badge (synchronisé avec tags-manager.tsx)
+const TAG_COLOR_CLASSES: Record<string, string> = {
+  slate: "bg-slate-100 text-slate-700",
+  blue: "bg-blue-100 text-blue-800",
+  emerald: "bg-emerald-100 text-emerald-800",
+  amber: "bg-amber-100 text-amber-800",
+  rose: "bg-rose-100 text-rose-800",
+  purple: "bg-purple-100 text-purple-800",
+  cyan: "bg-cyan-100 text-cyan-800",
+  orange: "bg-orange-100 text-orange-800",
+};
+
+/**
+ * Row de prospect enrichie avec ses tags pour l'affichage en table.
+ * Le getProspects() retourne maintenant les tags via include.
+ */
+export type ProspectRow = Prospect & {
+  tags?: Array<{
+    tag: { id: string; nom: string; couleur: string };
+  }>;
+};
+
 interface ProspectsTableProps {
-  rows: Prospect[];
+  rows: ProspectRow[];
   /** Si fourni : active la sélection multiple + barre d'action admin. */
   teamUsers?: Array<{ id: string; name: string }>;
   /** Si true, affiche les checkboxes de sélection. */
@@ -43,7 +65,7 @@ export function ProspectsTable({
     );
   };
 
-  const columns: ColumnDef<Prospect>[] = [
+  const columns: ColumnDef<ProspectRow>[] = [
     ...(showBulkActions
       ? [
           {
@@ -79,7 +101,7 @@ export function ProspectsTable({
       id: "raisonSociale",
       header: "Raison sociale",
       cell: ({ row }) => (
-        <div className="flex flex-col">
+        <div className="flex flex-col gap-1">
           <Link
             href={`/prospects/${row.original.id}`}
             className="font-medium text-foreground hover:underline"
@@ -95,6 +117,20 @@ export function ProspectsTable({
                 ? ` · ${row.original.contactFonction}`
                 : ""}
             </span>
+          )}
+          {row.original.tags && row.original.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-0.5">
+              {row.original.tags.map((t) => (
+                <span
+                  key={t.tag.id}
+                  className={`inline-flex items-center rounded-full px-2 py-0 text-[10px] font-medium ${
+                    TAG_COLOR_CLASSES[t.tag.couleur] ?? TAG_COLOR_CLASSES.slate
+                  }`}
+                >
+                  {t.tag.nom}
+                </span>
+              ))}
+            </div>
           )}
         </div>
       ),

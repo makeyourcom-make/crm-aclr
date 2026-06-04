@@ -128,6 +128,7 @@ export const ProspectListParamsSchema = z.object({
   secteur: z.nativeEnum(ProspectSecteur).optional(),
   canton: stringOptional,
   assigneAId: stringOptional,
+  tagId: stringOptional, // filtre par tag (ex. "Passeport Beauté")
   sortBy: ProspectSortFieldSchema.default("createdAt"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
   page: z.coerce.number().int().min(1).default(1),

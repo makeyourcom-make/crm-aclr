@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badge";
+import { ProspectTagsEditor } from "@/components/prospects/prospect-tags-editor";
 import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/db";
 import { formatDateLong } from "@/lib/format";
@@ -32,11 +33,15 @@ export async function generateMetadata({ params }: PageProps) {
 export default async function ProspectDetailPage({ params }: PageProps) {
   const user = await requireUser();
   const { id } = await params;
-  const [prospect, activities, emailTemplates] = await Promise.all([
+  const [prospect, activities, emailTemplates, allTags] = await Promise.all([
     getProspectById(user, id),
     getProspectActivities(id, user),
     prisma.emailTemplate.findMany({
       select: { id: true, nom: true, objet: true, contenu: true },
+      orderBy: { nom: "asc" },
+    }),
+    prisma.prospectTag.findMany({
+      select: { id: true, nom: true, couleur: true },
       orderBy: { nom: "asc" },
     }),
   ]);
@@ -95,6 +100,20 @@ export default async function ProspectDetailPage({ params }: PageProps) {
             · Source : {getProspectSourceLabel(prospect.source)}
           </span>
         )}
+      </div>
+
+      {/* Tags — admin peut éditer, Sophie lit seulement */}
+      <div className="mb-6">
+        <ProspectTagsEditor
+          prospectId={prospect.id}
+          currentTags={prospect.tags.map((t) => ({
+            id: t.tag.id,
+            nom: t.tag.nom,
+            couleur: t.tag.couleur,
+          }))}
+          allTags={allTags}
+          canEdit={user.role === "ADMIN"}
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

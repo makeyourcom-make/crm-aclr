@@ -40,6 +40,13 @@ export async function getProspects(
       orderBy,
       skip: (params.page - 1) * params.pageSize,
       take: params.pageSize,
+      include: {
+        tags: {
+          include: {
+            tag: { select: { id: true, nom: true, couleur: true } },
+          },
+        },
+      },
     }),
     prisma.prospect.count({ where }),
   ]);
@@ -62,6 +69,13 @@ export async function getProspectById(user: SessionUser, id: string) {
     where: { id },
     include: {
       assigneA: { select: { id: true, name: true } },
+      tags: {
+        include: {
+          tag: {
+            select: { id: true, nom: true, couleur: true, description: true },
+          },
+        },
+      },
       _count: {
         select: { activities: true, deals: true, contracts: true },
       },
@@ -127,6 +141,10 @@ function buildProspectWhere(
   if (params.secteur) conditions.push({ secteur: params.secteur });
   if (params.canton) conditions.push({ canton: params.canton });
   if (params.assigneAId) conditions.push({ assigneAId: params.assigneAId });
+  // Filtre par tag : récupère les prospects ayant ce tagId via la table de jonction
+  if (params.tagId) {
+    conditions.push({ tags: { some: { tagId: params.tagId } } });
+  }
 
   // Recherche full-text simple (LIKE multi-champs, insensible à la casse)
   if (params.q && params.q.length > 0) {

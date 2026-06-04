@@ -30,11 +30,12 @@ export default async function ProspectsPage({ searchParams }: PageProps) {
 
   const isAdmin = user.role === "ADMIN";
 
-  // OPTIM : 3 queries en parallèle au lieu de 2 séquentielles + 1
+  // OPTIM : 4 queries en parallèle (prospects, stats, users admin, tags)
   const [
     { items, total, page, pageSize, totalPages },
     stats,
     teamUsers,
+    tags,
   ] = await Promise.all([
     getProspects(user, params),
     getProspectStats(user),
@@ -45,6 +46,10 @@ export default async function ProspectsPage({ searchParams }: PageProps) {
           orderBy: { name: "asc" },
         })
       : Promise.resolve([] as Array<{ id: string; name: string }>),
+    prisma.prospectTag.findMany({
+      select: { id: true, nom: true },
+      orderBy: { nom: "asc" },
+    }),
   ]);
 
   return (
@@ -60,6 +65,13 @@ export default async function ProspectsPage({ searchParams }: PageProps) {
           <>
             {user.role === "ADMIN" && (
               <>
+                <Link
+                  href="/prospects/tags"
+                  className={buttonVariants({ variant: "outline" })}
+                >
+                  <Icon name="Sparkles" className="mr-1.5 h-4 w-4" />
+                  Gérer les tags
+                </Link>
                 <a
                   href={`/api/prospects/export?${new URLSearchParams(
                     Object.entries(params)
@@ -97,6 +109,7 @@ export default async function ProspectsPage({ searchParams }: PageProps) {
           params={params}
           users={teamUsers}
           currentUserId={user.id}
+          tags={tags}
         />
       </div>
 
