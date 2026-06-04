@@ -90,21 +90,8 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
   const [folder, setFolder] = useState<FolderType>("all");
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  // Filtre par utilisateur (admin uniquement) :
-  //   "all" = tous les mails de l'équipe (défaut admin)
-  //   "mine" = seulement les miens (= currentUserEmail)
-  //   "<nom>" = seulement ceux d'un autre user
-  const [userFilter, setUserFilter] = useState<string>("all");
-
-  // Liste des users distincts présents dans les mails (pour le sélecteur admin)
-  const userOptions = useMemo(() => {
-    if (!isAdmin) return [];
-    const set = new Map<string, string>();
-    for (const e of emails) {
-      if (e.user?.name) set.set(e.user.name, e.user.name);
-    }
-    return Array.from(set.keys()).sort();
-  }, [emails, isAdmin]);
+  // Note : depuis la décision "mailbox privée par user", on ne filtre plus par
+  // propriétaire — la page ne sert QUE les mails du user connecté côté serveur.
 
   // Regroupe les emails par thread, garde le dernier en haut
   const threads = useMemo(() => {
@@ -136,7 +123,7 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
       );
   }, [emails]);
 
-  // Filtre par dossier + user
+  // Filtre par dossier
   const filteredThreads = useMemo(() => {
     let t = threads;
     if (folder === "inbox") {
@@ -145,26 +132,6 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
       t = t.filter((th) => th.msgs.some((m) => m.direction === "SORTANT" && m.statut !== "BROUILLON"));
     } else if (folder === "draft") {
       t = t.filter((th) => th.msgs.some((m) => m.statut === "BROUILLON"));
-    }
-    // Filtre par propriétaire (admin uniquement)
-    if (isAdmin && userFilter !== "all") {
-      if (userFilter === "mine") {
-        // "mine" = au moins un message dont expediteur ou destinataire = currentUserEmail
-        // (couvre SORTANT depuis mon adresse + ENTRANT vers mon adresse)
-        const lower = currentUserEmail.toLowerCase();
-        t = t.filter((th) =>
-          th.msgs.some(
-            (m) =>
-              m.expediteurEmail.toLowerCase() === lower ||
-              m.destinataireEmail.toLowerCase() === lower,
-          ),
-        );
-      } else {
-        // Nom de user → filtre par user.name
-        t = t.filter((th) =>
-          th.msgs.some((m) => m.user?.name === userFilter),
-        );
-      }
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -233,61 +200,6 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
           active={folder === "draft"}
           onClick={() => setFolder("draft")}
         />
-
-        {/* Filtre par utilisateur — admin uniquement */}
-        {isAdmin && userOptions.length > 1 && (
-          <div className="mt-4 space-y-1 border-t border-border pt-3">
-            <p className="px-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              Propriétaire
-            </p>
-            <button
-              type="button"
-              onClick={() => setUserFilter("all")}
-              className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors ${
-                userFilter === "all"
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted"
-              }`}
-            >
-              <Icon name="Users" className="h-3 w-3" />
-              Toute l&apos;équipe
-            </button>
-            <button
-              type="button"
-              onClick={() => setUserFilter("mine")}
-              className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors ${
-                userFilter === "mine"
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted"
-              }`}
-            >
-              <Icon name="Mail" className="h-3 w-3" />
-              Mes mails
-            </button>
-            {userOptions.map((name) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => setUserFilter(name)}
-                className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors ${
-                  userFilter === name
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-muted"
-                }`}
-              >
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-purple-100 text-[9px] font-semibold text-purple-700">
-                  {name
-                    .split(" ")
-                    .slice(0, 2)
-                    .map((p) => p[0])
-                    .join("")
-                    .toUpperCase()}
-                </span>
-                <span className="truncate">{name}</span>
-              </button>
-            ))}
-          </div>
-        )}
       </aside>
 
       {/* Liste threads */}
@@ -313,8 +225,6 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
                 thread={t}
                 isSelected={selectedThreadId === t.threadId}
                 onSelect={() => handleSelectThread(t.threadId)}
-                currentUserEmail={currentUserEmail}
-                isAdmin={isAdmin}
               />
             ))
           )}
@@ -386,14 +296,10 @@ function ThreadListItem({
   thread,
   isSelected,
   onSelect,
-  currentUserEmail,
-  isAdmin,
 }: {
   thread: { threadId: string; msgs: InboxEmail[]; last: InboxEmail; first: InboxEmail };
   isSelected: boolean;
   onSelect: () => void;
-  currentUserEmail: string;
-  isAdmin: boolean;
 }) {
   const last = thread.last;
   const otherParty =
@@ -401,21 +307,6 @@ function ThreadListItem({
       ? last.expediteurNom || last.expediteurEmail
       : thread.first.destinataireEmail;
   const hasUnread = thread.msgs.some((m) => !m.lu);
-  // Détermine le propriétaire du thread (le user.name le plus récent)
-  // Pour l'admin : on affiche un badge si ce n'est PAS le user connecté
-  const ownerName = last.user?.name ?? "";
-  const ownerInitials = ownerName
-    .split(" ")
-    .slice(0, 2)
-    .map((p) => p[0])
-    .join("")
-    .toUpperCase();
-  // Compare via l'email : si le mail appartient à un user dont l'email n'est
-  // pas currentUserEmail, c'est un "autre"
-  const isMine =
-    last.expediteurEmail.toLowerCase() === currentUserEmail.toLowerCase() ||
-    last.destinataireEmail.toLowerCase() === currentUserEmail.toLowerCase();
-  const showOwnerBadge = isAdmin && !isMine && !!ownerName;
   return (
     <li
       onClick={onSelect}
@@ -429,14 +320,6 @@ function ThreadListItem({
             className="h-2 w-2 shrink-0 rounded-full bg-blue-600"
             aria-label="Non lu"
           />
-        )}
-        {showOwnerBadge && (
-          <span
-            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-purple-100 text-[9px] font-semibold text-purple-700"
-            title={`Mail de ${ownerName}`}
-          >
-            {ownerInitials}
-          </span>
         )}
         <Icon
           name={last.direction === "ENTRANT" ? "MailOpen" : "MailPlus"}

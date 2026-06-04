@@ -9,8 +9,10 @@ export const dynamic = "force-dynamic";
 
 export default async function EmailsPage() {
   const user = await requireUser();
+  // Boîte privée par utilisateur : même l'admin ne voit pas les mails de l'équipe.
+  // Si supervision croisée nécessaire un jour, ajouter un toggle explicite.
   const emails = await prisma.email.findMany({
-    where: user.role === "ADMIN" ? {} : { userId: user.id },
+    where: { userId: user.id },
     include: {
       prospect: { select: { id: true, raisonSociale: true } },
       user: { select: { name: true } },

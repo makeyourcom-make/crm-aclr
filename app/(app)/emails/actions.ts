@@ -365,7 +365,9 @@ export async function markEmailRead(
     select: { userId: true, lu: true },
   });
   if (!email) return { ok: false, error: "Email introuvable." };
-  if (user.role !== "ADMIN" && email.userId !== user.id) {
+  // Mailbox privée : seul le propriétaire du mail peut agir dessus,
+  // même un admin n'a pas le droit (cf. confidentialité commerciale).
+  if (email.userId !== user.id) {
     return { ok: false, error: "Accès refusé." };
   }
   if (email.lu) return { ok: true }; // no-op
@@ -389,7 +391,7 @@ export async function markThreadRead(
     where: {
       threadId,
       lu: false,
-      ...(user.role !== "ADMIN" ? { userId: user.id } : {}),
+      userId: user.id, // mailbox privée, même pour admin
     },
     data: { lu: true, luALe: new Date() },
   });
@@ -423,7 +425,9 @@ export async function attachEmailToProspect(
     },
   });
   if (!email) return { ok: false, error: "Email introuvable." };
-  if (user.role !== "ADMIN" && email.userId !== user.id) {
+  // Mailbox privée : seul le propriétaire du mail peut agir dessus,
+  // même un admin n'a pas le droit (cf. confidentialité commerciale).
+  if (email.userId !== user.id) {
     return { ok: false, error: "Accès refusé." };
   }
 
@@ -524,7 +528,9 @@ export async function deleteEmail(
     select: { userId: true, prospectId: true },
   });
   if (!email) return { ok: false, error: "Email introuvable." };
-  if (user.role !== "ADMIN" && email.userId !== user.id) {
+  // Mailbox privée : seul le propriétaire du mail peut agir dessus,
+  // même un admin n'a pas le droit (cf. confidentialité commerciale).
+  if (email.userId !== user.id) {
     return { ok: false, error: "Accès refusé." };
   }
   await prisma.email.delete({ where: { id } });

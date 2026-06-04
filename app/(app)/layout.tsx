@@ -29,12 +29,12 @@ export default async function AppLayout({
 }) {
   const user = await requireUser();
 
-  // Compte d'emails non lus pour le badge de navigation
+  // Badge non-lus : strictement scopé à l'utilisateur connecté (mailbox privée).
   const unreadEmails = await prisma.email.count({
     where: {
       lu: false,
       direction: "ENTRANT",
-      ...(user.role !== "ADMIN" ? { userId: user.id } : {}),
+      userId: user.id,
     },
   });
 
