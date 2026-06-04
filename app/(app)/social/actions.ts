@@ -194,20 +194,19 @@ export async function bulkImportSocialProspects(
     const items: Array<{ nom: string; profilUrl: string }> = [];
     const errors: string[] = [];
     for (const [i, line] of rows.entries()) {
-      // Format : "Nom | URL"  ou juste URL
-      let nom = "";
-      let url = "";
-      if (line.includes("|")) {
-        const [n, u] = line.split("|").map((x) => x.trim());
-        nom = n ?? "";
-        url = u ?? "";
-      } else {
-        url = line;
-      }
-      if (!/^https?:\/\//i.test(url)) {
-        errors.push(`Ligne ${i + 1} : URL invalide (${line.slice(0, 60)})`);
+      // Parsing tolérant : on cherche l'URL dans la ligne (peu importe ce
+      // qui est avant), le nom = le texte avant l'URL nettoyé des
+      // séparateurs courants ( | ¦ ; , tab "→" "-" ).
+      const urlMatch = line.match(/https?:\/\/\S+/i);
+      if (!urlMatch) {
+        errors.push(`Ligne ${i + 1} : pas d'URL trouvée (${line.slice(0, 60)})`);
         continue;
       }
+      // Nettoie ponctuation finale (ex. "...com/," ou "...com/)" )
+      const url = urlMatch[0].replace(/[.,;)\]>}'"]+$/, "");
+      const before = line.slice(0, urlMatch.index).trim();
+      // Nettoie séparateurs en fin de "before" : | ¦ ; , tab → -
+      let nom = before.replace(/[|¦;,\t→\-]+\s*$/u, "").trim();
       if (!nom) {
         // Devine depuis l'URL : dernier segment du path
         try {
