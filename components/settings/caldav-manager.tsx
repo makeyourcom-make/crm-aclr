@@ -45,7 +45,7 @@ export function CaldavManager({ initial }: CaldavManagerProps) {
   const isConfigured = !!initial.serverUrl && !!initial.calendarUrl;
 
   const [serverUrl, setServerUrl] = useState(
-    initial.serverUrl ?? "https://sync.infomaniak.com/calendar/",
+    initial.serverUrl ?? "https://sync.infomaniak.com",
   );
   const [username, setUsername] = useState(initial.username ?? "");
   const [password, setPassword] = useState("");
@@ -188,14 +188,14 @@ export function CaldavManager({ initial }: CaldavManagerProps) {
             id="caldav-server"
             value={serverUrl}
             onChange={(e) => setServerUrl(e.target.value)}
-            placeholder="https://sync.infomaniak.com/calendar/"
+            placeholder="https://sync.infomaniak.com"
             disabled={pending}
           />
           <p className="text-[11px] text-muted-foreground">
-            Infomaniak : <code>https://sync.infomaniak.com/calendar/</code> ·
-            Google : <code>https://apidata.googleusercontent.com/caldav/v2/</code> ·
-            iCloud :{" "}
-            <code>https://caldav.icloud.com/</code>
+            Infomaniak : <code>https://sync.infomaniak.com</code> (sans path —
+            la découverte est automatique) · Google :{" "}
+            <code>https://apidata.googleusercontent.com/caldav/v2/</code> ·
+            iCloud : <code>https://caldav.icloud.com</code>
           </p>
         </div>
 

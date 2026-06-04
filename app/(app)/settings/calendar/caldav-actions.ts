@@ -19,11 +19,38 @@ import {
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 
-const CredsSchema = z.object({
-  serverUrl: z.string().trim().url("URL serveur invalide."),
-  username: z.string().trim().min(1, "Identifiant requis."),
-  password: z.string().min(1, "Mot de passe requis."),
-});
+/**
+ * Normalise une URL serveur CalDAV : retire les chemins erronés courants
+ * (Infomaniak ancien : "/calendar/", "/caldav/") pour ne garder que
+ * l'origine. tsdav fait ensuite la découverte automatique du principal.
+ */
+function normalizeServerUrl(raw: string): string {
+  try {
+    const u = new URL(raw.trim());
+    // Pour Infomaniak : la racine seule fonctionne. Si l'utilisateur a
+    // copié un sous-chemin erroné on le retire pour éviter le 404 Sabre.
+    if (
+      u.host.includes("infomaniak.com") ||
+      u.host.includes("icloud.com")
+    ) {
+      return `${u.protocol}//${u.host}`;
+    }
+    return u.toString().replace(/\/+$/, "");
+  } catch {
+    return raw;
+  }
+}
+
+const CredsSchema = z
+  .object({
+    serverUrl: z.string().trim().url("URL serveur invalide."),
+    username: z.string().trim().min(1, "Identifiant requis."),
+    password: z.string().min(1, "Mot de passe requis."),
+  })
+  .transform((data) => ({
+    ...data,
+    serverUrl: normalizeServerUrl(data.serverUrl),
+  }));
 
 /**
  * Test la connexion + retourne la liste des calendriers du serveur.
