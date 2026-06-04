@@ -20,15 +20,22 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 
 /**
- * Normalise une URL serveur CalDAV : retire les chemins erronés courants
- * (Infomaniak ancien : "/calendar/", "/caldav/") pour ne garder que
- * l'origine. tsdav fait ensuite la découverte automatique du principal.
+ * Normalise une URL serveur CalDAV :
+ *  - Si l'URL pointe DIRECTEMENT sur un calendrier (path /calendars/<id>/<calid>/)
+ *    → on garde tel quel, en nettoyant juste `?export` et trailing slashes.
+ *    Mode "URL directe" : la découverte CalDAV est sautée côté lib.
+ *  - Sinon pour Infomaniak/iCloud → on revient à l'origine (la racine).
+ *  - Pour les autres serveurs → on garde l'URL fournie.
  */
 function normalizeServerUrl(raw: string): string {
   try {
     const u = new URL(raw.trim());
-    // Pour Infomaniak : la racine seule fonctionne. Si l'utilisateur a
-    // copié un sous-chemin erroné on le retire pour éviter le 404 Sabre.
+    // URL directe d'un calendrier Sabre/DAV (Infomaniak) : on préserve le path
+    if (/^\/calendars\/[^/]+\/[^/]+/.test(u.pathname)) {
+      const cleanPath = u.pathname.replace(/\/+$/, "") + "/";
+      return `${u.protocol}//${u.host}${cleanPath}`;
+    }
+    // Racine seule pour Infomaniak / iCloud (path erroné supprimé)
     if (
       u.host.includes("infomaniak.com") ||
       u.host.includes("icloud.com")

@@ -89,26 +89,94 @@ async function makeClient(creds: CaldavCreds): Promise<DAVClient> {
 }
 
 /**
+ * Si l'URL contient déjà le path d'un calendrier précis
+ * (`/calendars/<account>/<calendar>/` chez Sabre/DAV / Infomaniak), on
+ * peut utiliser ce calendrier directement SANS la découverte standard
+ * (PROPFIND DAV:current-user-principal) qui échoue parfois côté Infomaniak.
+ *
+ * Retourne { directUrl, displayName } si le PROPFIND minimal est OK,
+ * sinon null pour fallback sur la découverte tsdav normale.
+ */
+async function tryDirectCalendarUrl(
+  creds: CaldavCreds,
+): Promise<{ url: string; displayName: string } | null> {
+  try {
+    const u = new URL(creds.serverUrl);
+    // Le path doit ressembler à /calendars/<id>/<id>/ pour considérer
+    // que c'est une URL de calendrier direct
+    if (!/^\/calendars\/[^/]+\/[^/]+/.test(u.pathname)) return null;
+    // Nettoie ?export et trailing slash → garde juste le calendrier
+    const cleanPath = u.pathname.replace(/\/+$/, "") + "/";
+    const calendarUrl = `${u.protocol}//${u.host}${cleanPath}`;
+    const auth = Buffer.from(`${creds.username}:${creds.password}`).toString(
+      "base64",
+    );
+    const res = await fetch(calendarUrl, {
+      method: "PROPFIND",
+      headers: {
+        Authorization: `Basic ${auth}`,
+        "Content-Type": "application/xml",
+        Depth: "0",
+      },
+      body: '<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/><d:resourcetype/></d:prop></d:propfind>',
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    const nameMatch = text.match(
+      /<[a-z0-9]*:?displayname[^>]*>([^<]*)<\/[a-z0-9]*:?displayname>/i,
+    );
+    const displayName = nameMatch?.[1]?.trim() || "Calendrier Infomaniak";
+    return { url: calendarUrl, displayName };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Teste les credentials CalDAV. Retourne la liste des calendriers
  * disponibles si OK, ou une erreur lisible.
  */
 export async function listAvailableCalendars(
   creds: CaldavCreds,
 ): Promise<{ ok: true; calendars: DAVCalendar[] } | { ok: false; error: string }> {
+  // Mode "URL directe" : si l'utilisateur a collé l'URL CalDAV exacte d'un
+  // calendrier (issu de Infomaniak → Partager / Exporter), on l'utilise
+  // directement et on évite la découverte qui peut échouer.
+  const direct = await tryDirectCalendarUrl(creds);
+  if (direct) {
+    return {
+      ok: true,
+      calendars: [
+        {
+          url: direct.url,
+          displayName: direct.displayName,
+          components: ["VEVENT"],
+        } as unknown as DAVCalendar,
+      ],
+    };
+  }
+
+  // Découverte CalDAV standard via tsdav (Google, Apple, Nextcloud, …)
   try {
     const client = await makeClient(creds);
     const calendars = await client.fetchCalendars();
-    // Filtre : on ne garde que les calendriers qui acceptent VEVENT
     const eventCalendars = calendars.filter((c) => {
       const comps = c.components ?? [];
       return comps.length === 0 || comps.includes("VEVENT");
     });
     return { ok: true, calendars: eventCalendars };
   } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : "Erreur de connexion CalDAV.",
-    };
+    const msg =
+      err instanceof Error ? err.message : "Erreur de connexion CalDAV.";
+    // Aide spécifique pour le cas "cannot find homeUrl"
+    if (/cannot find homeUrl|currentUserPrincipal/i.test(msg)) {
+      return {
+        ok: false,
+        error:
+          "Infomaniak n'a pas retourné l'URL du principal. Solution : colle directement l'URL CalDAV de TON calendrier (format https://sync.infomaniak.com/calendars/<id>/<calendar>/) — disponible dans Infomaniak Calendar → Paramètres du calendrier → Partager.",
+      };
+    }
+    return { ok: false, error: msg };
   }
 }
 
@@ -132,6 +200,24 @@ export interface RemoteEvent {
  * Récupère tous les events d'un calendrier sur une fenêtre temporelle.
  * Utilise REPORT calendar-query (filtré par date) — efficace côté serveur.
  */
+/**
+ * Construit un faux DAVCalendar à partir d'une URL connue. Permet de
+ * bypass `fetchCalendars()` quand on a déjà l'URL du calendrier (cas
+ * Infomaniak où la découverte échoue).
+ */
+function calendarFromUrl(url: string): DAVCalendar {
+  return {
+    url,
+    ctag: undefined,
+    displayName: "",
+    components: ["VEVENT"],
+    resourcetype: ["calendar"],
+    timezone: "",
+    description: "",
+    syncToken: "",
+  } as unknown as DAVCalendar;
+}
+
 export async function pullEvents(
   creds: CaldavCreds,
   calendarUrl: string,
@@ -139,9 +225,8 @@ export async function pullEvents(
   windowEnd: Date,
 ): Promise<RemoteEvent[]> {
   const client = await makeClient(creds);
-  const calendars = await client.fetchCalendars();
-  const cal = calendars.find((c) => c.url === calendarUrl);
-  if (!cal) throw new Error("Calendrier introuvable sur le serveur.");
+  // Bypass fetchCalendars : on connaît déjà l'URL du calendrier
+  const cal = calendarFromUrl(calendarUrl);
 
   const objs = await client.fetchCalendarObjects({
     calendar: cal,
@@ -183,9 +268,8 @@ export async function pushActivity(
   appUrl: string,
 ): Promise<{ href: string; etag: string | null; uid: string }> {
   const client = await makeClient(creds);
-  const calendars = await client.fetchCalendars();
-  const cal = calendars.find((c) => c.url === calendarUrl);
-  if (!cal) throw new Error("Calendrier introuvable.");
+  // Bypass fetchCalendars (cf. pullEvents) — l'URL est connue
+  const cal = calendarFromUrl(calendarUrl);
 
   const uid = activity.caldavUid ?? `activity-${activity.id}@crm.makeyourcom.ch`;
   const ical = activityToIcal(activity, uid, appUrl);
