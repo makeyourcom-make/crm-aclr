@@ -12,7 +12,7 @@ export default async function EmailsPage() {
   // Boîte privée par utilisateur : même l'admin ne voit pas les mails de l'équipe.
   // Si supervision croisée nécessaire un jour, ajouter un toggle explicite.
   const emails = await prisma.email.findMany({
-    where: { userId: user.id },
+    where: { userId: user.id, archive: false },
     include: {
       prospect: { select: { id: true, raisonSociale: true } },
       user: { select: { name: true } },

@@ -30,11 +30,13 @@ export default async function AppLayout({
   const user = await requireUser();
 
   // Badge non-lus : strictement scopé à l'utilisateur connecté (mailbox privée).
+  // Exclut les archivés (qui ne sont plus dans l'inbox active).
   const unreadEmails = await prisma.email.count({
     where: {
       lu: false,
       direction: "ENTRANT",
       userId: user.id,
+      archive: false,
     },
   });
 

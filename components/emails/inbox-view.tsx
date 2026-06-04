@@ -14,11 +14,13 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import {
+  archiveThread,
   attachEmailToProspect,
   deleteEmail,
   markThreadRead,
   replyToEmail,
   searchProspectsForAttach,
+  setEmailArchive,
 } from "@/app/(app)/emails/actions";
 import {
   AttachmentPicker,
@@ -511,7 +513,7 @@ function MessageBubble({
   const [pending, startTransition] = useTransition();
 
   const handleDelete = () => {
-    if (!confirm("Supprimer ce message ?")) return;
+    if (!confirm("Supprimer ce message ? Action définitive.")) return;
     startTransition(async () => {
       const res = await deleteEmail(message.id);
       if (!res.ok) {
@@ -519,6 +521,22 @@ function MessageBubble({
         return;
       }
       toast.success("Message supprimé.");
+      onRefresh();
+    });
+  };
+
+  const handleArchive = () => {
+    const msg = message.prospect
+      ? `Archiver ce message ? Il sera retiré de la boîte de réception mais restera visible sur la fiche de ${message.prospect.raisonSociale}.`
+      : "Archiver ce message ? Il sera retiré de la boîte de réception (toujours en DB).";
+    if (!confirm(msg)) return;
+    startTransition(async () => {
+      const res = await setEmailArchive(message.id, true);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success("Message archivé.");
       onRefresh();
     });
   };
@@ -561,17 +579,30 @@ function MessageBubble({
           >
             <Icon name={expanded ? "ChevronUp" : "ChevronDown"} className="h-3 w-3" />
           </button>
-          {(isAdmin || isMine) && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={pending}
-              className="rounded-md p-1 text-muted-foreground hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
-              title="Supprimer"
-            >
-              <Icon name="Trash2" className="h-3 w-3" />
-            </button>
-          )}
+          {/* Mailbox privée : tout mail visible appartient à l'user connecté
+              → on peut toujours archiver + supprimer. */}
+          <button
+            type="button"
+            onClick={handleArchive}
+            disabled={pending}
+            className="rounded-md p-1 text-muted-foreground hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50"
+            title={
+              message.prospect
+                ? `Archiver (reste sur la fiche ${message.prospect.raisonSociale})`
+                : "Archiver"
+            }
+          >
+            <Icon name="Inbox" className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={pending}
+            className="rounded-md p-1 text-muted-foreground hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+            title="Supprimer définitivement"
+          >
+            <Icon name="Trash2" className="h-3 w-3" />
+          </button>
         </div>
       </div>
       {expanded && (

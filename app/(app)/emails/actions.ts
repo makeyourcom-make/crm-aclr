@@ -516,6 +516,54 @@ export async function searchProspectsForAttach(
 }
 
 /**
+ * Archive un email : le retire de la boîte de réception (/emails) tout en
+ * conservant l'enregistrement en DB et son lien avec le prospect (visible
+ * sur la fiche client). Utile pour nettoyer son inbox sans perdre
+ * l'historique commercial.
+ *
+ * Toggle `archive` : si true, on annule l'archivage (renvoie dans l'inbox).
+ */
+export async function setEmailArchive(
+  id: string,
+  archive: boolean,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireUser();
+  const email = await prisma.email.findUnique({
+    where: { id },
+    select: { userId: true, prospectId: true },
+  });
+  if (!email) return { ok: false, error: "Email introuvable." };
+  if (email.userId !== user.id) {
+    return { ok: false, error: "Accès refusé." };
+  }
+  await prisma.email.update({
+    where: { id },
+    data: {
+      archive,
+      archiveALe: archive ? new Date() : null,
+    },
+  });
+  revalidatePath("/emails");
+  if (email.prospectId) revalidatePath(`/prospects/${email.prospectId}`);
+  return { ok: true };
+}
+
+/**
+ * Archive tous les mails d'un thread en une fois.
+ */
+export async function archiveThread(
+  threadId: string,
+): Promise<{ ok: boolean; count?: number; error?: string }> {
+  const user = await requireUser();
+  const result = await prisma.email.updateMany({
+    where: { threadId, userId: user.id },
+    data: { archive: true, archiveALe: new Date() },
+  });
+  revalidatePath("/emails");
+  return { ok: true, count: result.count };
+}
+
+/**
  * Supprime un email (envoyé ou brouillon).
  * RLS : admin OR créateur (email.userId === user.id).
  */

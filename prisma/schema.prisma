@@ -1081,6 +1081,12 @@ model Email {
   lu       Boolean  @default(true)
   luALe    DateTime?
 
+  /// Vrai = email archivé : retiré de la boîte de réception (/emails) mais
+  /// reste visible sur la fiche du prospect rattaché. Utile pour nettoyer
+  /// l'inbox sans perdre l'historique commercial.
+  archive    Boolean   @default(false)
+  archiveALe DateTime?
+
   templateUtilise   EmailTemplate? @relation(fields: [templateUtiliseId], references: [id], onDelete: SetNull)
   templateUtiliseId String?
 
