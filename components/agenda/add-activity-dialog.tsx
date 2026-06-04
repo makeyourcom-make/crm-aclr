@@ -269,19 +269,43 @@ export function AddActivityDialog({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="adresseRdv">Adresse / Lieu (optionnel)</Label>
-            <Input
-              id="adresseRdv"
-              value={adresseRdv}
-              onChange={(e) => setAdresseRdv(e.target.value)}
-              placeholder="Ex. Rue du Clos 5, 1800 Vevey"
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Si renseigné, sera affiché en lien cliquable vers Google Maps
-              sur l&apos;agenda et la fiche prospect.
-            </p>
-          </div>
+          {/* Champ contextuel selon le type :
+              - RDV physique → adresse (Google Maps)
+              - RDV visio    → lien visio (Meet/Zoom/Teams)
+              - RDV téléphonique → numéro / pont conf (optionnel)
+              - autres types → champ caché (pas pertinent) */}
+          {(type === "RDV_PHYSIQUE" ||
+            type === "RDV_VISIO" ||
+            type === "RDV_TELEPHONIQUE") && (
+            <div className="space-y-1.5">
+              <Label htmlFor="adresseRdv">
+                {type === "RDV_VISIO"
+                  ? "Lien visio (optionnel)"
+                  : type === "RDV_TELEPHONIQUE"
+                    ? "Numéro / pont conf. (optionnel)"
+                    : "Adresse (optionnel)"}
+              </Label>
+              <Input
+                id="adresseRdv"
+                value={adresseRdv}
+                onChange={(e) => setAdresseRdv(e.target.value)}
+                placeholder={
+                  type === "RDV_VISIO"
+                    ? "https://meet.google.com/abc-defg-hij"
+                    : type === "RDV_TELEPHONIQUE"
+                      ? "+41 78 225 78 05"
+                      : "Ex. Rue du Clos 5, 1800 Vevey"
+                }
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {type === "RDV_VISIO"
+                  ? "Sera affiché en lien cliquable (Meet, Zoom, Teams…) sur la card de l'agenda."
+                  : type === "RDV_TELEPHONIQUE"
+                    ? "Le numéro est cliquable pour appel direct depuis le téléphone."
+                    : "Sera affiché en lien cliquable vers Google Maps sur l'agenda et la fiche."}
+              </p>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="contenu">Notes (optionnel)</Label>

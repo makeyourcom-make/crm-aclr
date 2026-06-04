@@ -1,11 +1,10 @@
 import { Icon } from "@/components/icon";
 
 /**
- * Affiche une adresse de RDV cliquable. Le clic ouvre Google Maps
- * dans un nouvel onglet avec l'adresse en query (`?q=<adresse>`).
- *
- * Si l'adresse contient déjà une URL (http(s)://, ex. lien Google Meet ou
- * Maps direct), on l'utilise telle quelle.
+ * Affiche un "lieu" de RDV cliquable. Selon le contenu :
+ *  - URL (http(s)://) → icône Video, ouvre le lien (Meet/Zoom/Teams)
+ *  - Numéro de téléphone (+, espaces, chiffres) → icône Phone, tel:
+ *  - Sinon (texte/adresse) → icône MapPin, Google Maps
  */
 export function AdresseRdvLink({
   adresse,
@@ -17,9 +16,38 @@ export function AdresseRdvLink({
 }) {
   const trimmed = adresse.trim();
   const isUrl = /^https?:\/\//i.test(trimmed);
-  const href = isUrl
-    ? trimmed
-    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trimmed)}`;
+  // Numéro de téléphone : commence par + ou un chiffre, ne contient que
+  // chiffres / espaces / parenthèses / tirets / points (et 6 chiffres min)
+  const isPhone =
+    !isUrl &&
+    /^[+\d][\d\s().-]{5,}$/.test(trimmed) &&
+    (trimmed.match(/\d/g)?.length ?? 0) >= 6;
+
+  let href: string;
+  let iconName: string;
+  let title: string;
+  let label = trimmed;
+  if (isUrl) {
+    href = trimmed;
+    iconName = "Video";
+    title = "Ouvrir le lien visio";
+    // Sur les longs liens Meet/Zoom, montre juste le domaine + path court
+    try {
+      const u = new URL(trimmed);
+      label = u.host.replace(/^www\./, "") + u.pathname.replace(/\/+$/, "");
+      if (label.length > 40) label = label.slice(0, 37) + "…";
+    } catch {
+      // garde le lien tel quel
+    }
+  } else if (isPhone) {
+    href = `tel:${trimmed.replace(/[\s().-]/g, "")}`;
+    iconName = "Phone";
+    title = "Appeler ce numéro";
+  } else {
+    href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trimmed)}`;
+    iconName = "MapPin";
+    title = "Ouvrir dans Google Maps";
+  }
 
   const textClass = size === "sm" ? "text-[11px]" : "text-xs";
   const iconClass = size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5";
@@ -27,14 +55,14 @@ export function AdresseRdvLink({
   return (
     <a
       href={href}
-      target="_blank"
-      rel="noopener noreferrer"
+      target={isPhone ? "_self" : "_blank"}
+      rel={isPhone ? undefined : "noopener noreferrer"}
       className={`inline-flex items-center gap-1 ${textClass} text-primary hover:underline`}
       onClick={(e) => e.stopPropagation()}
-      title={isUrl ? "Ouvrir le lien" : "Ouvrir dans Google Maps"}
+      title={title}
     >
-      <Icon name="MapPin" className={iconClass} />
-      <span className="truncate">{trimmed}</span>
+      <Icon name={iconName} className={iconClass} />
+      <span className="truncate">{label}</span>
     </a>
   );
 }
