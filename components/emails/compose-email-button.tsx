@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import {
   searchProspectsForAttach,
   sendEmailToProspect,
+  sendFreeFormEmail,
 } from "@/app/(app)/emails/actions";
 import {
   AttachmentPicker,
@@ -41,16 +42,24 @@ interface ProspectOption {
   email: string | null;
 }
 
+type Mode = "client" | "freeform";
+
 export function ComposeEmailButton() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  // Étape 1 : sélection du destinataire
+  // Mode : client enregistré OU adresse libre
+  const [mode, setMode] = useState<Mode>("client");
+
+  // Étape 1 (mode client) : sélection du destinataire
   const [selected, setSelected] = useState<ProspectOption | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ProspectOption[]>([]);
   const [searching, setSearching] = useState(false);
+
+  // Étape 1 (mode freeform) : email libre
+  const [freeEmail, setFreeEmail] = useState("");
 
   // Étape 2 : rédaction
   const [objet, setObjet] = useState("");
@@ -58,13 +67,19 @@ export function ComposeEmailButton() {
   const [attachments, setAttachments] = useState<PickedAttachment[]>([]);
 
   const reset = () => {
+    setMode("client");
     setSelected(null);
     setQuery("");
     setResults([]);
+    setFreeEmail("");
     setObjet("");
     setContenu("");
     setAttachments([]);
   };
+
+  /** Vrai si l'utilisateur a fini l'étape 1 (a un destinataire valide). */
+  const hasRecipient =
+    mode === "client" ? selected !== null : /^\S+@\S+\.\S+$/.test(freeEmail.trim());
 
   const handleSearch = (q: string) => {
     setQuery(q);
@@ -89,7 +104,7 @@ export function ComposeEmailButton() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selected) return;
+    if (!hasRecipient) return;
     if (!objet.trim()) {
       toast.error("Donne un sujet.");
       return;
@@ -99,20 +114,32 @@ export function ComposeEmailButton() {
       return;
     }
     startTransition(async () => {
-      const res = await sendEmailToProspect({
-        prospectId: selected.id,
-        objet: objet.trim(),
-        contenu: contenu.trim(),
-        attachments: attachments.length > 0 ? attachments : undefined,
-      });
+      const res =
+        mode === "client" && selected
+          ? await sendEmailToProspect({
+              prospectId: selected.id,
+              objet: objet.trim(),
+              contenu: contenu.trim(),
+              attachments: attachments.length > 0 ? attachments : undefined,
+            })
+          : await sendFreeFormEmail({
+              to: freeEmail.trim(),
+              objet: objet.trim(),
+              contenu: contenu.trim(),
+              attachments: attachments.length > 0 ? attachments : undefined,
+            });
       if (!res.ok) {
         toast.error(res.error ?? "Échec de l'envoi.");
         return;
       }
+      const recipientLabel =
+        mode === "client" && selected
+          ? selected.raisonSociale
+          : freeEmail.trim();
       if (res.dryRun) {
         toast.success("Email enregistré (mode dry-run, pas d'envoi réel).");
       } else {
-        toast.success(`Email envoyé à ${selected.raisonSociale} ✓`);
+        toast.success(`Email envoyé à ${recipientLabel} ✓`);
       }
       reset();
       setOpen(false);
@@ -135,79 +162,145 @@ export function ComposeEmailButton() {
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {selected ? `Email à ${selected.raisonSociale}` : "Nouveau mail"}
+            {hasRecipient
+              ? mode === "client" && selected
+                ? `Email à ${selected.raisonSociale}`
+                : `Email à ${freeEmail.trim()}`
+              : "Nouveau mail"}
           </DialogTitle>
           <DialogDescription>
-            {selected ? (
+            {hasRecipient ? (
               <>
-                Destinataire : <strong>{selected.email}</strong>{" "}
+                Destinataire :{" "}
+                <strong>
+                  {mode === "client" && selected ? selected.email : freeEmail.trim()}
+                </strong>{" "}
                 <button
                   type="button"
-                  onClick={() => setSelected(null)}
+                  onClick={() => {
+                    setSelected(null);
+                    setFreeEmail("");
+                  }}
                   className="ml-2 text-xs text-primary hover:underline"
                 >
                   changer
                 </button>
               </>
             ) : (
-              "Choisis le client destinataire en tapant son nom, sa ville ou son email."
+              "Choisis un client existant ou saisis directement une adresse email."
             )}
           </DialogDescription>
         </DialogHeader>
 
-        {/* Étape 1 : recherche prospect */}
-        {!selected && (
-          <div className="space-y-2">
-            <Input
-              type="search"
-              autoFocus
-              value={query}
-              onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Rechercher un client…"
-              disabled={pending}
-            />
-            <div className="max-h-72 overflow-y-auto rounded-md border border-border">
-              {!query && (
-                <p className="p-4 text-center text-xs text-muted-foreground">
-                  Commence à taper pour voir les clients.
-                </p>
-              )}
-              {searching && (
-                <p className="p-4 text-center text-xs text-muted-foreground">
-                  Recherche…
-                </p>
-              )}
-              {!searching && query && results.length === 0 && (
-                <p className="p-4 text-center text-xs text-muted-foreground">
-                  Aucun client trouvé.
-                </p>
-              )}
-              {!searching &&
-                results.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => handleSelect(p)}
-                    className="block w-full border-b border-border px-3 py-2 text-left text-sm hover:bg-muted last:border-b-0"
-                  >
-                    <p className="truncate font-medium">{p.raisonSociale}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {p.ville && <span>{p.ville}</span>}
-                      {p.ville && p.email && <span> · </span>}
-                      {p.email ? (
-                        <span>{p.email}</span>
-                      ) : (
-                        <span className="text-red-600 italic">pas d'email</span>
-                      )}
-                    </p>
-                  </button>
-                ))}
+        {/* Étape 1 : sélection destinataire (2 modes) */}
+        {!hasRecipient && (
+          <div className="space-y-3">
+            {/* Toggle Client / Adresse libre */}
+            <div className="flex gap-1 rounded-md bg-muted p-1">
+              <button
+                type="button"
+                onClick={() => setMode("client")}
+                className={`flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+                  mode === "client"
+                    ? "bg-background shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon name="Users" className="mr-1 inline h-3 w-3" />
+                Client existant
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("freeform")}
+                className={`flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+                  mode === "freeform"
+                    ? "bg-background shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon name="Mail" className="mr-1 inline h-3 w-3" />
+                Adresse libre
+              </button>
             </div>
+
+            {/* Mode client : recherche prospect */}
+            {mode === "client" && (
+              <div className="space-y-2">
+                <Input
+                  type="search"
+                  autoFocus
+                  value={query}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  placeholder="Rechercher un client…"
+                  disabled={pending}
+                />
+                <div className="max-h-72 overflow-y-auto rounded-md border border-border">
+                  {!query && (
+                    <p className="p-4 text-center text-xs text-muted-foreground">
+                      Commence à taper pour voir les clients.
+                    </p>
+                  )}
+                  {searching && (
+                    <p className="p-4 text-center text-xs text-muted-foreground">
+                      Recherche…
+                    </p>
+                  )}
+                  {!searching && query && results.length === 0 && (
+                    <p className="p-4 text-center text-xs text-muted-foreground">
+                      Aucun client trouvé.
+                    </p>
+                  )}
+                  {!searching &&
+                    results.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleSelect(p)}
+                        className="block w-full border-b border-border px-3 py-2 text-left text-sm hover:bg-muted last:border-b-0"
+                      >
+                        <p className="truncate font-medium">{p.raisonSociale}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {p.ville && <span>{p.ville}</span>}
+                          {p.ville && p.email && <span> · </span>}
+                          {p.email ? (
+                            <span>{p.email}</span>
+                          ) : (
+                            <span className="text-red-600 italic">pas d&apos;email</span>
+                          )}
+                        </p>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Mode adresse libre : saisie email */}
+            {mode === "freeform" && (
+              <div className="space-y-2">
+                <Label htmlFor="freeform-email">
+                  Email du destinataire{" "}
+                  <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="freeform-email"
+                  type="email"
+                  autoFocus
+                  value={freeEmail}
+                  onChange={(e) => setFreeEmail(e.target.value)}
+                  placeholder="prenom.nom@exemple.com"
+                  disabled={pending}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Si cette adresse correspond à un client existant, le mail
+                  sera automatiquement rattaché à sa fiche.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
         {/* Étape 2 : rédaction */}
-        {selected && (
+        {hasRecipient && (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="objet">
@@ -236,11 +329,13 @@ export function ComposeEmailButton() {
                 placeholder={`Bonjour {{prenomContact}},\n\n…`}
                 required
               />
-              <p className="text-[11px] text-muted-foreground">
-                Variables disponibles : <code>{`{{prenomContact}}`}</code>,{" "}
-                <code>{`{{nomContact}}`}</code>, <code>{`{{raisonSociale}}`}</code>,{" "}
-                <code>{`{{ville}}`}</code>.
-              </p>
+              {mode === "client" && (
+                <p className="text-[11px] text-muted-foreground">
+                  Variables disponibles : <code>{`{{prenomContact}}`}</code>,{" "}
+                  <code>{`{{nomContact}}`}</code>, <code>{`{{raisonSociale}}`}</code>,{" "}
+                  <code>{`{{ville}}`}</code>.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">

@@ -24,6 +24,13 @@ const SendEmailSchema = z.object({
   attachments: z.array(AttachmentSchema).optional(),
 });
 
+const SendFreeFormEmailSchema = z.object({
+  to: z.string().trim().toLowerCase().email("Adresse email invalide."),
+  objet: z.string().min(1),
+  contenu: z.string().min(1),
+  attachments: z.array(AttachmentSchema).optional(),
+});
+
 export interface SendEmailResult {
   ok: boolean;
   emailId?: string;
@@ -175,6 +182,138 @@ export async function sendEmailToProspect(
   });
 
   revalidatePath(`/prospects/${prospect.id}`);
+  revalidatePath("/emails");
+  revalidatePath("/activites");
+
+  return { ok: true, emailId: created.id, dryRun: isDryRun };
+}
+
+/**
+ * Envoie un email à une adresse libre (pas forcément un prospect enregistré).
+ *
+ * Le mail est créé en DB avec prospectId=null. Si l'adresse correspond à
+ * un prospect existant, on le rattache automatiquement (et on crée
+ * l'activité EMAIL_ENVOYE associée).
+ */
+export async function sendFreeFormEmail(
+  input: unknown,
+): Promise<SendEmailResult> {
+  const user = await requireUser();
+  const parsed = SendFreeFormEmailSchema.safeParse(input);
+  if (!parsed.success) {
+    const firstErr = parsed.error.issues[0]?.message ?? "Formulaire invalide.";
+    return { ok: false, error: firstErr };
+  }
+
+  const userFull = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { email: true, name: true },
+  });
+
+  const { from, replyTo, fromName } = resolveFromAddress({
+    email: userFull?.email ?? "contact@makeyourcom.ch",
+    name: userFull?.name ?? null,
+  });
+
+  // Auto-rattachement si l'adresse correspond à un prospect existant
+  // (et que le user y a accès). Sinon on garde prospectId=null.
+  let prospectId: string | null = null;
+  const prospectMatch = await prisma.prospect.findFirst({
+    where: { email: { equals: parsed.data.to, mode: "insensitive" } },
+    select: { id: true, assigneAId: true },
+  });
+  if (prospectMatch) {
+    if (user.role === "ADMIN" || prospectMatch.assigneAId === user.id) {
+      prospectId = prospectMatch.id;
+    }
+    // Si la commerciale n'a pas accès, on n'auto-rattache PAS — admin
+    // peut le faire manuellement plus tard via attachEmailToProspect.
+  }
+
+  const objet = parsed.data.objet.trim();
+  const contenuTexte = parsed.data.contenu.trim();
+  const contenuHtml = `<pre style="font-family: sans-serif; white-space: pre-wrap;">${contenuTexte
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")}</pre>`;
+
+  const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@makeyourcom.ch>`;
+  const threadId = randomBytes(8).toString("hex");
+
+  const attachments = parsed.data.attachments ?? [];
+  const sendResult = await sendMail({
+    from,
+    fromName,
+    to: parsed.data.to,
+    subject: objet,
+    html: contenuHtml,
+    text: contenuTexte,
+    replyTo,
+    messageId,
+    attachments:
+      attachments.length > 0
+        ? attachments.map((a) => ({
+            filename: a.filename,
+            path: a.url,
+            contentType: a.mimeType,
+          }))
+        : undefined,
+  });
+  const isDryRun = sendResult.dryRun;
+
+  if (!sendResult.ok && !isDryRun) {
+    return {
+      ok: false,
+      error: sendResult.error ?? "Échec d'envoi via Resend.",
+    };
+  }
+
+  const created = await prisma.email.create({
+    data: {
+      prospectId,
+      userId: user.id,
+      direction: "SORTANT",
+      threadId,
+      messageId,
+      expediteurEmail: from,
+      expediteurNom: fromName,
+      destinataireEmail: parsed.data.to,
+      objet,
+      contenuHtml,
+      contenuTexte,
+      statut: isDryRun ? "BROUILLON" : "ENVOYE",
+      envoyeLe: isDryRun ? null : new Date(),
+      labels: sendResult.resendId ? [`resend:${sendResult.resendId}`] : [],
+      attachments:
+        attachments.length > 0
+          ? {
+              create: attachments.map((a) => ({
+                nom: a.filename,
+                taille: a.size,
+                mimeType: a.mimeType,
+                url: a.url,
+              })),
+            }
+          : undefined,
+    },
+  });
+
+  // Activity si rattaché à un prospect
+  if (prospectId) {
+    await prisma.activity.create({
+      data: {
+        prospectId,
+        userId: user.id,
+        type: "EMAIL_ENVOYE",
+        date: new Date(),
+        sujet: objet,
+        contenu: contenuTexte.slice(0, 500),
+        statut: "FAIT",
+        emailId: created.id,
+      },
+    });
+    revalidatePath(`/prospects/${prospectId}`);
+  }
+
   revalidatePath("/emails");
   revalidatePath("/activites");
 
