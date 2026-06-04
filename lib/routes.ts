@@ -88,6 +88,13 @@ export const ROUTES: RouteDef[] = [
     group: "operationnel",
     etape: 26,
   },
+  {
+    href: "/social/aujourdhui",
+    label: "Social",
+    icon: "Sparkles",
+    group: "operationnel",
+    etape: 99,
+  },
 
   // ---- VENTE ----
   {

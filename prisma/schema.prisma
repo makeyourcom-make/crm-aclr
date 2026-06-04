@@ -332,6 +332,7 @@ model User {
   objectives        Objective[]
   documentsRH       EmployeeDocument[]
   expensesCreated   Expense[]
+  socialAccounts    SocialAccount[]
 
   @@index([email])
   @@map("users")
@@ -1427,4 +1428,79 @@ model Counter {
 
   @@id([scope, year])
   @@map("counters")
+}
+
+// ============================================================================
+// SOCIAL MEDIA PROSPECTION — outil de suivi (séquence J+0/2/4/6)
+// ============================================================================
+
+enum SocialNetwork {
+  FACEBOOK
+  INSTAGRAM
+  LINKEDIN
+  TIKTOK
+  AUTRE
+}
+
+enum SocialProspectStatut {
+  EN_COURS    // séquence en cours
+  PAS_REPONSE // séquence terminée sans réponse
+  GAGNE       // converti
+  PERDU       // refusé / hors-cible
+}
+
+/// Compte social suivi (5 prévus : MakeYourCom FB+IG, Arthur LI, Sophie LI,
+/// Passeport Beauté IG). Chacun a un responsable (Arthur ou Sophie) qui
+/// effectue les actions au quotidien.
+model SocialAccount {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Nom commercial du compte ("MakeYourCom", "Arthur", "Passeport Beauté")
+  nom    String
+  reseau SocialNetwork
+
+  responsable   User   @relation(fields: [responsableId], references: [id], onDelete: Restrict)
+  responsableId String
+
+  actif Boolean @default(true)
+
+  prospects SocialProspect[]
+
+  @@unique([nom, reseau])
+  @@index([responsableId])
+  @@map("social_accounts")
+}
+
+/// Prospect social — quelqu'un à approcher sur un compte donné, avec une
+/// séquence de 4 étapes (J+0 like, J+2 réaction, J+4 MP, J+6 relance).
+model SocialProspect {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account   SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  accountId String
+
+  /// Nom affiché du prospect (texte libre, ex. "Sophie Dupont")
+  nom       String
+  /// URL du profil (clic = ouverture dans un nouvel onglet)
+  profilUrl String
+
+  /// Date de démarrage de la séquence — J+0 = ce jour-là, like des 2 publis
+  dateDemarrage DateTime
+
+  statut SocialProspectStatut @default(EN_COURS)
+  notes  String? @db.Text
+
+  /// 4 étapes — null = non faite, DateTime = quand l'utilisateur a coché
+  step0Done DateTime? // J+0 like 2 publis
+  step2Done DateTime? // J+2 réagir story / commentaire
+  step4Done DateTime? // J+4 contact MP
+  step6Done DateTime? // J+6 relance
+
+  @@index([accountId, dateDemarrage])
+  @@index([statut])
+  @@map("social_prospects")
 }
