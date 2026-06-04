@@ -1,4 +1,7 @@
+import Link from "next/link";
+
 import { ActivityIcon } from "@/components/activities/activity-icon";
+import { Icon } from "@/components/icon";
 import { Badge } from "@/components/ui/badge";
 import {
   getActivityResultatLabel,
@@ -116,7 +119,20 @@ function Timeline({
               )}
             </div>
 
-            <p className="text-sm">{a.sujet}</p>
+            {a.emailId ? (
+              <Link
+                href={`/emails/${a.emailId}`}
+                className="group inline-flex items-baseline gap-1 text-sm font-medium text-primary hover:underline"
+              >
+                {a.sujet}
+                <Icon
+                  name="ExternalLink"
+                  className="h-3 w-3 opacity-60 group-hover:opacity-100"
+                />
+              </Link>
+            ) : (
+              <p className="text-sm">{a.sujet}</p>
+            )}
 
             {a.notesResultat && (
               <p className="rounded-md bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground italic">
