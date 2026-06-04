@@ -287,6 +287,12 @@ model User {
   // Signature email personnalisée (HTML pour le module Emails — étape 26)
   signatureEmailHtml String? @db.Text
 
+  /// Token aléatoire (32 bytes hex) pour exposer un feed iCalendar (.ics)
+  /// du CRM vers un agenda externe (Infomaniak, Apple Calendar, Google).
+  /// L'URL est servie sans auth session — la connaissance du token suffit.
+  /// Régénérable depuis /settings/calendar (révoque l'ancien lien).
+  calendarFeedToken String? @unique
+
   // Coords personnelles (apparaissent sur la facture mensuelle PDF)
   iban      String?
   telephone String?

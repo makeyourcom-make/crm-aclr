@@ -1,7 +1,10 @@
+import Link from "next/link";
+
 import { AddActivityDialog } from "@/components/agenda/add-activity-dialog";
 import { AgendaViewSwitcher } from "@/components/agenda/agenda-view-switcher";
 import { WeekNav } from "@/components/agenda/week-nav";
 import { WeekView } from "@/components/agenda/week-view";
+import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
 import { getAgendaWeek, getStartOfWeek } from "@/lib/queries/agenda";
@@ -78,15 +81,25 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         title="Agenda"
         description={description}
         actions={
-          <AddActivityDialog
-            prospects={prospects}
-            defaultDate={toIso(today)}
-            defaultTime="09:00"
-            triggerMode="header"
-            users={teamUsers}
-            currentUserId={user.id}
-            isAdmin={isAdmin}
-          />
+          <>
+            <Link
+              href="/settings/calendar"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm hover:bg-muted"
+              title="Synchroniser avec Infomaniak / Google / Apple"
+            >
+              <Icon name="Repeat" className="h-3.5 w-3.5" />
+              Synchroniser
+            </Link>
+            <AddActivityDialog
+              prospects={prospects}
+              defaultDate={toIso(today)}
+              defaultTime="09:00"
+              triggerMode="header"
+              users={teamUsers}
+              currentUserId={user.id}
+              isAdmin={isAdmin}
+            />
+          </>
         }
       />
 
