@@ -84,11 +84,11 @@ export default async function AgendaPage({ searchParams }: PageProps) {
           <>
             <Link
               href="/settings/calendar"
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm hover:bg-muted"
-              title="Synchroniser avec Infomaniak / Google / Apple"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-3 text-sm font-medium text-emerald-800 hover:bg-emerald-100"
+              title="Configurer la synchronisation Infomaniak / Google / Apple"
             >
               <Icon name="Repeat" className="h-3.5 w-3.5" />
-              Synchroniser
+              Synchroniser l&apos;agenda
             </Link>
             <AddActivityDialog
               prospects={prospects}

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -64,6 +66,16 @@ export function UserMenu({ user }: UserMenuProps) {
             </span>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
+
+        <DropdownMenuSeparator />
+
+        <Link
+          href="/settings/calendar"
+          className="flex w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+        >
+          <Icon name="Repeat" className="h-4 w-4" />
+          Synchroniser l&apos;agenda
+        </Link>
 
         <DropdownMenuSeparator />
 
