@@ -41,16 +41,11 @@ function normalizeServerUrl(raw: string): string {
   }
 }
 
-const CredsSchema = z
-  .object({
-    serverUrl: z.string().trim().url("URL serveur invalide."),
-    username: z.string().trim().min(1, "Identifiant requis."),
-    password: z.string().min(1, "Mot de passe requis."),
-  })
-  .transform((data) => ({
-    ...data,
-    serverUrl: normalizeServerUrl(data.serverUrl),
-  }));
+const CredsSchema = z.object({
+  serverUrl: z.string().trim().url("URL serveur invalide."),
+  username: z.string().trim().min(1, "Identifiant requis."),
+  password: z.string().min(1, "Mot de passe requis."),
+});
 
 /**
  * Test la connexion + retourne la liste des calendriers du serveur.
@@ -65,7 +60,11 @@ export async function testCaldavConnection(input: unknown): Promise<
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalide" };
   }
-  const res = await listAvailableCalendars(parsed.data);
+  const creds = {
+    ...parsed.data,
+    serverUrl: normalizeServerUrl(parsed.data.serverUrl),
+  };
+  const res = await listAvailableCalendars(creds);
   if (!res.ok) return res;
   return {
     ok: true,
@@ -96,7 +95,7 @@ export async function saveCaldavConfig(input: unknown): Promise<{
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        caldavServerUrl: parsed.data.serverUrl,
+        caldavServerUrl: normalizeServerUrl(parsed.data.serverUrl),
         caldavUsername: parsed.data.username,
         caldavPasswordEnc: encryptPassword(parsed.data.password),
         caldavCalendarUrl: parsed.data.calendarUrl,
