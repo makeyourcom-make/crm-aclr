@@ -10,6 +10,10 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 
+import {
+  deleteActivityFromCaldav,
+  pushActivityToCaldav,
+} from "@/app/(app)/settings/calendar/caldav-actions";
 import { prisma } from "@/lib/db";
 import {
   ActivityCreateSchema,
@@ -78,6 +82,10 @@ export async function createActivity(
     }
     revalidatePath("/activites");
     revalidatePath("/agenda");
+    // Push best-effort vers le serveur CalDAV (Infomaniak, etc.) si configuré.
+    // Volontairement non-bloquant : si Infomaniak est down, l'activité reste
+    // bien créée en DB et sera repoussée au prochain syncNow().
+    void pushActivityToCaldav(created.id).catch(() => {});
     return { ok: true, activityId: created.id };
   } catch (err) {
     return prismaErrorToResult(err);
@@ -107,6 +115,8 @@ export async function updateActivity(
     });
     revalidatePath(`/prospects/${updated.prospectId}`);
     revalidatePath("/activites");
+    // Push best-effort vers CalDAV pour propager la modif.
+    void pushActivityToCaldav(id).catch(() => {});
     return { ok: true, activityId: id };
   } catch (err) {
     return prismaErrorToResult(err);
@@ -162,9 +172,21 @@ export async function deleteActivity(
   await assertCanEditActivity(user, id);
 
   try {
+    // On lit le caldavHref AVANT delete pour pouvoir nettoyer le serveur distant
+    const existing = await prisma.activity.findUnique({
+      where: { id },
+      select: { userId: true, caldavHref: true, prospectId: true },
+    });
     const deleted = await prisma.activity.delete({ where: { id } });
     revalidatePath(`/prospects/${deleted.prospectId}`);
     revalidatePath("/activites");
+    revalidatePath("/agenda");
+    if (existing?.caldavHref) {
+      void deleteActivityFromCaldav({
+        userId: existing.userId,
+        caldavHref: existing.caldavHref,
+      }).catch(() => {});
+    }
     return { ok: true, activityId: id };
   } catch (err) {
     return prismaErrorToResult(err);

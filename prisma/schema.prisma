@@ -293,6 +293,16 @@ model User {
   /// Régénérable depuis /settings/calendar (révoque l'ancien lien).
   calendarFeedToken String? @unique
 
+  /// CalDAV (sync bidirectionnelle Infomaniak / Google / Apple).
+  /// Le mot de passe est chiffré symétriquement avec AUTH_SECRET.
+  /// `caldavCalendarUrl` = URL complète du calendrier choisi (PROPFIND).
+  caldavServerUrl    String?
+  caldavUsername     String?
+  caldavPasswordEnc  String?
+  caldavCalendarUrl  String?
+  caldavSyncToken    String? // sync-token CalDAV (RFC 6578) pour pull incrémental
+  caldavLastSyncAt   DateTime?
+
   // Coords personnelles (apparaissent sur la facture mensuelle PDF)
   iban      String?
   telephone String?
@@ -693,6 +703,16 @@ model Activity {
   /// adresse postale, une salle ("Salle 2A"), un lien visio, etc.
   /// Affiché en lien Google Maps si renseigné.
   adresseRdv String?
+
+  /// CalDAV : URL de l'event sur le serveur distant (href). NULL = pas
+  /// encore poussée à Infomaniak (sera créée à la prochaine sync).
+  caldavHref String?
+  /// CalDAV : ETag du dernier sync — sert à détecter les modifications
+  /// distantes (conflict resolution).
+  caldavEtag String?
+  /// CalDAV : UID iCalendar (RFC 5545). Stable même si l'event est déplacé.
+  /// Renseigné au 1er push, sinon dérivé de activity.id.
+  caldavUid  String?
 
   statut        ActivityStatut    @default(PLANIFIE)
   resultat      ActivityResultat? // valide pour APPEL_* et RDV_*
