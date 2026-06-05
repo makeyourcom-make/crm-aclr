@@ -40,9 +40,14 @@ export async function createDeal(input: unknown): Promise<DealActionResult> {
 
   try {
     const { productIds, productNotes, ...rest } = parsed.data;
+    // Recompute serveur-side du montantPrevu — JAMAIS faire confiance au
+    // client. Évite désync si l'état React est stale ou si quelqu'un trafique
+    // la requête. Formule : Σ(prixOneShot) + Σ(prixMensuel) × 12.
+    const montantPrevuRecompute = await recomputeMontantPrevu(productIds);
     const created = await prisma.deal.create({
       data: {
         ...rest,
+        montantPrevu: montantPrevuRecompute ?? rest.montantPrevu,
         assigneAId: user.id,
         productNotes: productNotes ?? undefined,
         productsProposes:
@@ -74,10 +79,20 @@ export async function updateDeal(
 
   try {
     const { productIds, productNotes, ...rest } = parsed.data;
+    // Si productIds est fourni, on recompute montantPrevu côté serveur pour
+    // garantir la cohérence avec la liste des produits.
+    let montantPrevuOverride: number | undefined;
+    if (productIds !== undefined) {
+      const r = await recomputeMontantPrevu(productIds);
+      if (r !== null) montantPrevuOverride = r;
+    }
     const updated = await prisma.deal.update({
       where: { id },
       data: {
         ...rest,
+        ...(montantPrevuOverride !== undefined && {
+          montantPrevu: montantPrevuOverride,
+        }),
         ...(productNotes !== undefined && {
           productNotes: productNotes,
         }),
@@ -160,6 +175,37 @@ export async function deleteDeal(id: string): Promise<DealActionResult> {
 // ---------------------------------------------------------------------------
 // HELPERS
 // ---------------------------------------------------------------------------
+
+/**
+ * Recompute le montantPrevu d'un deal côté serveur à partir des prix
+ * RÉELS en DB des produits sélectionnés. Source de vérité = catalogue,
+ * pas le state React.
+ *
+ * Formule : Σ(prixOneShot) + Σ(prixMensuel) × 12 (valeur an 1).
+ *
+ * Retourne null si aucun produit fourni → le caller décide quoi faire
+ * (createDeal garde alors la valeur client qui aura probablement été
+ * recalculée pareil avec 0 produit, mais sera bloquée plus tôt par la
+ * validation montantPrevu > 0 côté form).
+ */
+async function recomputeMontantPrevu(
+  productIds: string[] | undefined,
+): Promise<number | null> {
+  if (!productIds || productIds.length === 0) return null;
+  // Dédup côté serveur AUSSI (ceinture + bretelles)
+  const uniqueIds = Array.from(new Set(productIds));
+  const products = await prisma.product.findMany({
+    where: { id: { in: uniqueIds }, isActive: true },
+    select: { id: true, prixOneShot: true, prixMensuel: true },
+  });
+  let one = 0;
+  let mens = 0;
+  for (const p of products) {
+    if (p.prixOneShot) one += Number(p.prixOneShot);
+    if (p.prixMensuel) mens += Number(p.prixMensuel);
+  }
+  return one + mens * 12;
+}
 
 async function assertCanEditDeal(
   user: { role: string; id: string },

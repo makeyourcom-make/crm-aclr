@@ -46,10 +46,18 @@ export interface ContractPdfData {
     /** Numéro TVA si différent ou si applicable. */
     numeroTVA?: string;
   };
+  /**
+   * Liste des prestations vendues. On affiche désignation + description
+   * éventuelle, SANS prix par ligne. Les prix par ligne du catalogue
+   * peuvent diverger des prix réellement contractés (override à la
+   * signature, MAJ catalogue post-signature) — pour éviter toute
+   * contradiction visuelle avec les totaux en bas, on s'en tient au récap.
+   * Détail tarifaire ligne par ligne = sur la facture (qui a un modèle
+   * ClientInvoiceLine avec prix unitaire négocié figé).
+   */
   produits: Array<{
     nom: string;
-    prixOneShot?: number | null;
-    prixMensuel?: number | null;
+    description?: string | null;
   }>;
   signature?: {
     nomClient?: string | null;
@@ -333,25 +341,14 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Prestations et tarifs</Text>
+        <Text style={styles.sectionTitle}>Prestations vendues</Text>
 
-        <View style={styles.tableHeader}>
-          <Text style={styles.colNom}>Désignation</Text>
-          <Text style={styles.colOneShot}>One-shot</Text>
-          <Text style={styles.colMensuel}>Mensuel</Text>
-        </View>
         {data.produits.map((p, i) => (
           <View key={i} style={styles.tableRow}>
-            <Text style={styles.colNom}>{p.nom}</Text>
-            <Text style={styles.colOneShot}>
-              {p.prixOneShot && p.prixOneShot > 0
-                ? fmt(p.prixOneShot)
-                : "—"}
-            </Text>
-            <Text style={styles.colMensuel}>
-              {p.prixMensuel && p.prixMensuel > 0
-                ? `${fmt(p.prixMensuel)}/mois`
-                : "—"}
+            <Text style={styles.colNom}>
+              {"• "}
+              {p.nom}
+              {p.description ? ` — ${p.description}` : ""}
             </Text>
           </View>
         ))}

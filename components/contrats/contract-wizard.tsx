@@ -142,16 +142,22 @@ export function ContractWizard({
     return result;
   }, [products, localCustomProducts]);
 
-  // Auto-suggère la durée du contrat selon le 1er produit sélectionné qui a
-  // un `engagementMois` défini. L'utilisateur peut toujours la modifier.
+  // Auto-suggère la durée du contrat = MAX des engagements minimum des
+  // produits sélectionnés. Logique : si une ligne est engagée 24 mois et
+  // une autre 12 mois, le contrat doit courir au moins 24 mois (sinon on
+  // viole l'engagement du produit le plus long). L'utilisateur peut
+  // toujours modifier — `dureeMoisManuallyEdited` désactive la suggestion.
   useEffect(() => {
     if (dureeMoisManuallyEdited) return;
+    let maxEngagement = 0;
     for (const l of lines) {
       const prod = allProducts.find((p) => p.id === l.productId);
-      if (prod?.engagementMois) {
-        setDureeMois(String(prod.engagementMois));
-        break;
+      if (prod?.engagementMois && prod.engagementMois > maxEngagement) {
+        maxEngagement = prod.engagementMois;
       }
+    }
+    if (maxEngagement > 0) {
+      setDureeMois(String(maxEngagement));
     }
   }, [lines, allProducts, dureeMoisManuallyEdited]);
 

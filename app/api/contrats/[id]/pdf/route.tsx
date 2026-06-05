@@ -43,7 +43,11 @@ export async function GET(
         },
       },
       products: {
-        select: { nom: true, prixOneShot: true, prixMensuel: true },
+        // On NE charge PAS les prix individuels — ils peuvent diverger des
+        // totaux réellement contractés (override à la signature, MAJ
+        // catalogue ultérieure). Le PDF affiche la liste des prestations
+        // + les totaux figés du contrat. Détail tarifaire = sur la facture.
+        select: { nom: true, description: true },
       },
       signatures: {
         select: {
@@ -114,8 +118,7 @@ export async function GET(
     },
     produits: contract.products.map((p) => ({
       nom: p.nom,
-      prixOneShot: p.prixOneShot ? Number(p.prixOneShot) : null,
-      prixMensuel: p.prixMensuel ? Number(p.prixMensuel) : null,
+      description: p.description,
     })),
     signature: latestSignature
       ? {
