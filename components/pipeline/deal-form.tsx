@@ -14,14 +14,35 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { createCustomProduct } from "@/app/(app)/catalogue/actions";
 import { createDeal, updateDeal } from "@/app/(app)/pipeline/actions";
+import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCHF } from "@/lib/format";
 import { DEAL_STAGE_PROBA_DEFAUT } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+
+const CATEGORIE_LABELS: Record<string, string> = {
+  SITE: "Sites web",
+  RS: "Réseaux sociaux",
+  SEO: "Référencement (SEO)",
+  ADS: "Google Ads",
+  CMO: "CMO externalisé",
+  METRICOOL: "Outils",
+  PACK: "Packs combinés",
+};
 
 import type { DealStage } from "@prisma/client";
 
@@ -34,10 +55,13 @@ interface ProspectOption {
 interface ProductOption {
   id: string;
   nom: string;
+  description?: string | null;
   categorie: string;
   type: string;
   prixOneShot: string | null;
   prixMensuel: string | null;
+  prixVariable?: boolean;
+  engagementMois?: number | null;
 }
 
 interface DealFormProps {
@@ -84,11 +108,23 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
   const [productNotes, setProductNotes] = useState<Record<string, string>>(
     initial?.productNotes ?? {},
   );
+  const [productSearch, setProductSearch] = useState("");
+  // Produits créés à la volée pendant l'édition du deal (non encore reflétés
+  // côté props `products`). On les rajoute pour qu'ils apparaissent sélectionnés.
+  const [localCustomProducts, setLocalCustomProducts] = useState<
+    ProductOption[]
+  >([]);
+
+  // Catalogue effectif = produits passés en props + produits custom créés ici
+  const allProducts = useMemo(
+    () => [...products, ...localCustomProducts],
+    [products, localCustomProducts],
+  );
 
   // Montant prévu = total déduit des produits sélectionnés.
   // valeurAn1 = oneShot + mensuel × 12. Recalculé à chaque toggle.
   const { totalOneShot, totalMensuel, montantPrevu } = useMemo(() => {
-    const selected = products.filter((p) => productIds.includes(p.id));
+    const selected = allProducts.filter((p) => productIds.includes(p.id));
     let one = 0;
     let mens = 0;
     for (const p of selected) {
@@ -100,7 +136,7 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
       totalMensuel: mens,
       montantPrevu: one + mens * 12,
     };
-  }, [products, productIds]);
+  }, [allProducts, productIds]);
 
   const handleStageChange = (newStage: DealStage) => {
     setStage(newStage);
@@ -165,16 +201,27 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
     });
   };
 
-  // Groupement des produits par catégorie pour l'affichage
-  const productsByCat = products.reduce<Record<string, ProductOption[]>>(
-    (acc, p) => {
+  // Groupement des produits par catégorie pour l'affichage (filtré par recherche)
+  const filteredProductsByCat = useMemo(() => {
+    const q = productSearch.trim().toLowerCase();
+    const matchSearch = (p: ProductOption) => {
+      if (!q) return true;
+      return (
+        p.nom.toLowerCase().includes(q) ||
+        p.categorie.toLowerCase().includes(q) ||
+        (p.description ?? "").toLowerCase().includes(q)
+      );
+    };
+    const filtered = allProducts.filter(
+      (p) => matchSearch(p) || productIds.includes(p.id),
+    );
+    return filtered.reduce<Record<string, ProductOption[]>>((acc, p) => {
       const cat = p.categorie || "Autre";
       if (!acc[cat]) acc[cat] = [];
       acc[cat].push(p);
       return acc;
-    },
-    {},
-  );
+    }, {});
+  }, [allProducts, productSearch, productIds]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -238,7 +285,7 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base">
             Produits proposés
             {productIds.length > 0 && (
@@ -247,6 +294,13 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
               </span>
             )}
           </CardTitle>
+          <CustomProductButton
+            onCreated={(newProduct) => {
+              // Ajoute le produit créé dans la liste locale + le sélectionne
+              setLocalCustomProducts((prev) => [...prev, newProduct]);
+              setProductIds((prev) => [...prev, newProduct.id]);
+            }}
+          />
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
@@ -274,16 +328,32 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
             </div>
           )}
 
+          {/* Recherche */}
+          {products.length > 0 && (
+            <Input
+              type="search"
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              placeholder="Rechercher dans le catalogue (nom, catégorie, description)…"
+              className="text-sm"
+            />
+          )}
+
           {products.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Aucun produit au catalogue. Ajoute-en depuis /catalogue.
+              Aucun produit au catalogue. Ajoute-en depuis /catalogue ou
+              clique sur &quot;+ Produit sur-mesure&quot;.
+            </p>
+          ) : Object.keys(filteredProductsByCat).length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Aucun produit ne correspond à &quot;{productSearch}&quot;.
             </p>
           ) : (
             <div className="space-y-3">
-              {Object.entries(productsByCat).map(([cat, list]) => (
+              {Object.entries(filteredProductsByCat).map(([cat, list]) => (
                 <div key={cat}>
                   <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {cat}
+                    {CATEGORIE_LABELS[cat] ?? cat}
                   </p>
                   <div className="space-y-1.5">
                     {list.map((p) => {
@@ -305,10 +375,25 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
                             className="mt-0.5 h-4 w-4 rounded border-input"
                           />
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium">{p.nom}</p>
+                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                              <p className="text-sm font-medium">{p.nom}</p>
+                              {p.engagementMois ? (
+                                <span className="inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0 text-[10px] font-medium text-blue-800">
+                                  Engagement {p.engagementMois} mois
+                                </span>
+                              ) : null}
+                              {p.prixVariable ? (
+                                <span
+                                  className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0 text-[10px] font-medium text-amber-800"
+                                  title="Prix de base — peut être ajusté lors de la signature du contrat selon le périmètre exact."
+                                >
+                                  ✏️ Prix sur-mesure
+                                </span>
+                              ) : null}
+                            </div>
                             <p className="text-xs text-muted-foreground tabular-nums">
                               {p.prixOneShot && Number(p.prixOneShot) > 0
-                                ? `${formatCHF(Number(p.prixOneShot))} one-shot`
+                                ? `${p.prixVariable ? "dès " : ""}${formatCHF(Number(p.prixOneShot))} one-shot`
                                 : ""}
                               {p.prixOneShot &&
                                 Number(p.prixOneShot) > 0 &&
@@ -316,9 +401,14 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
                                 Number(p.prixMensuel) > 0 &&
                                 " · "}
                               {p.prixMensuel && Number(p.prixMensuel) > 0
-                                ? `${formatCHF(Number(p.prixMensuel))}/mois`
+                                ? `${p.prixVariable ? "dès " : ""}${formatCHF(Number(p.prixMensuel))}/mois`
                                 : ""}
                             </p>
+                            {p.description && !isChecked && (
+                              <p className="mt-0.5 text-[11px] text-muted-foreground line-clamp-2">
+                                {p.description}
+                              </p>
+                            )}
                             {isChecked && (
                               <textarea
                                 value={productNotes[p.id] ?? ""}
@@ -329,7 +419,11 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
                                   }))
                                 }
                                 onClick={(e) => e.stopPropagation()}
-                                placeholder="Détails / livrables / spécificités (apparaîtra sur le contrat et la facture)"
+                                placeholder={
+                                  p.prixVariable
+                                    ? "Précise le périmètre + prix négocié avec le client (sera repris sur le contrat / la facture)"
+                                    : "Détails / livrables / spécificités (apparaîtra sur le contrat et la facture)"
+                                }
                                 rows={2}
                                 className="mt-2 w-full resize-y rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                               />
@@ -453,3 +547,198 @@ const STAGE_LABELS: Record<DealStage, string> = {
   SIGNE: "Signé",
   PERDU: "Perdu",
 };
+
+// ===========================================================================
+// CustomProductButton — modal pour créer un produit sur-mesure à la volée
+// ===========================================================================
+
+interface CustomProductButtonProps {
+  onCreated: (p: ProductOption) => void;
+}
+
+function CustomProductButton({ onCreated }: CustomProductButtonProps) {
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [nom, setNom] = useState("");
+  const [description, setDescription] = useState("");
+  const [prixOneShot, setPrixOneShot] = useState("");
+  const [prixMensuel, setPrixMensuel] = useState("");
+  const [categorie, setCategorie] = useState<
+    "SITE" | "RS" | "SEO" | "ADS" | "CMO" | "METRICOOL" | "PACK"
+  >("SITE");
+
+  const reset = () => {
+    setNom("");
+    setDescription("");
+    setPrixOneShot("");
+    setPrixMensuel("");
+    setCategorie("SITE");
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nom.trim()) {
+      toast.error("Donne un nom au produit.");
+      return;
+    }
+    const one = prixOneShot ? Number(prixOneShot) : undefined;
+    const mens = prixMensuel ? Number(prixMensuel) : undefined;
+    if (!one && !mens) {
+      toast.error("Renseigne au moins un prix (one-shot ou mensuel).");
+      return;
+    }
+    startTransition(async () => {
+      const res = await createCustomProduct({
+        nom: nom.trim(),
+        description: description.trim() || undefined,
+        prixOneShot: one,
+        prixMensuel: mens,
+        categorie,
+      });
+      if (!res.ok || !res.productId) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success(`"${nom.trim()}" ajouté au deal ✓`);
+      // Construit l'objet ProductOption pour insertion locale
+      onCreated({
+        id: res.productId,
+        nom: nom.trim(),
+        description: description.trim()
+          ? `[Custom] ${description.trim()}`
+          : "[Custom] Produit sur-mesure créé depuis un deal.",
+        categorie,
+        type: mens && !one ? "RECURRENT_MENSUEL" : "ONE_SHOT",
+        prixOneShot: one ? String(one) : null,
+        prixMensuel: mens ? String(mens) : null,
+        prixVariable: false,
+        engagementMois: null,
+      });
+      reset();
+      setOpen(false);
+    });
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) reset();
+      }}
+    >
+      <DialogTrigger className="inline-flex h-8 items-center gap-1 rounded-md border border-dashed border-border bg-background px-2.5 text-xs font-medium hover:border-primary hover:bg-primary/5 hover:text-primary">
+        <Icon name="Plus" className="h-3.5 w-3.5" />
+        Produit sur-mesure
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Produit sur-mesure</DialogTitle>
+          <DialogDescription>
+            Crée un produit non présent au catalogue. Il sera ajouté au deal et
+            persisté pour pouvoir être réutilisé. L&apos;admin pourra le
+            désactiver depuis /catalogue si besoin.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="cp-nom">
+              Nom <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="cp-nom"
+              autoFocus
+              value={nom}
+              onChange={(e) => setNom(e.target.value)}
+              placeholder="Ex. Refonte branding + charte graphique"
+              required
+              disabled={pending}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="cp-categorie">Catégorie</Label>
+            <select
+              id="cp-categorie"
+              value={categorie}
+              onChange={(e) =>
+                setCategorie(e.target.value as typeof categorie)
+              }
+              disabled={pending}
+              className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+            >
+              <option value="SITE">Sites web</option>
+              <option value="RS">Réseaux sociaux</option>
+              <option value="SEO">SEO</option>
+              <option value="ADS">Google Ads</option>
+              <option value="CMO">CMO externalisé</option>
+              <option value="PACK">Pack</option>
+              <option value="METRICOOL">Outils / Autre</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="cp-oneshot">Prix one-shot (CHF)</Label>
+              <Input
+                id="cp-oneshot"
+                type="number"
+                min={0}
+                step="0.01"
+                value={prixOneShot}
+                onChange={(e) => setPrixOneShot(e.target.value)}
+                placeholder="0"
+                disabled={pending}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cp-mensuel">Prix mensuel (CHF)</Label>
+              <Input
+                id="cp-mensuel"
+                type="number"
+                min={0}
+                step="0.01"
+                value={prixMensuel}
+                onChange={(e) => setPrixMensuel(e.target.value)}
+                placeholder="0"
+                disabled={pending}
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Au moins un des deux prix est obligatoire. Tu peux laisser
+            l&apos;autre vide.
+          </p>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="cp-description">Description (optionnelle)</Label>
+            <textarea
+              id="cp-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              placeholder="Détails du périmètre, livrables…"
+              disabled={pending}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={pending}
+            >
+              Annuler
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? "Création…" : "Ajouter au deal"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

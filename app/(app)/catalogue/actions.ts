@@ -3,19 +3,89 @@
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 
+import { z } from "zod";
+
 import { prisma } from "@/lib/db";
 import {
   ProductCreateSchema,
   ProductPriceUpdateSchema,
   ProductUpdateSchema,
 } from "@/lib/schemas/product";
-import { ForbiddenError, requireAdmin } from "@/lib/session";
+import { ForbiddenError, requireAdmin, requireUser } from "@/lib/session";
 
 export interface ProductActionResult {
   ok: boolean;
   productId?: string;
   error?: string;
   fieldErrors?: Record<string, string>;
+}
+
+/**
+ * Création rapide d'un produit "sur-mesure" depuis le wizard Deal/Contrat.
+ * Accessible aux commerciaux (pas seulement admin) pour éviter de bloquer
+ * Sophie quand un prospect demande une prestation hors-catalogue.
+ *
+ * Le produit est marqué dans sa description "[Custom]" pour qu'Arthur
+ * puisse trier ensuite ce qui mérite d'entrer au vrai catalogue.
+ */
+const CustomProductSchema = z.object({
+  nom: z.string().trim().min(2).max(255),
+  description: z.string().trim().max(2000).optional(),
+  prixOneShot: z.coerce.number().min(0).max(1_000_000).optional(),
+  prixMensuel: z.coerce.number().min(0).max(1_000_000).optional(),
+  categorie: z
+    .enum(["SITE", "RS", "SEO", "ADS", "CMO", "METRICOOL", "PACK"])
+    .default("SITE"),
+});
+
+export async function createCustomProduct(
+  input: unknown,
+): Promise<ProductActionResult> {
+  await requireUser();
+  const parsed = CustomProductSchema.safeParse(input);
+  if (!parsed.success) return zodErrorToResult(parsed.error);
+
+  // Au moins un prix doit être renseigné
+  if (!parsed.data.prixOneShot && !parsed.data.prixMensuel) {
+    return {
+      ok: false,
+      error: "Renseigne un prix one-shot OU un prix mensuel (au moins un).",
+    };
+  }
+
+  // Le type est déduit du prix
+  const type: "ONE_SHOT" | "RECURRENT_MENSUEL" =
+    parsed.data.prixMensuel && !parsed.data.prixOneShot
+      ? "RECURRENT_MENSUEL"
+      : "ONE_SHOT";
+
+  const baseDesc = parsed.data.description?.trim() ?? "";
+  const description = baseDesc
+    ? `[Custom] ${baseDesc}`
+    : "[Custom] Produit sur-mesure créé depuis un deal.";
+
+  try {
+    const created = await prisma.product.create({
+      data: {
+        nom: parsed.data.nom,
+        description,
+        type,
+        categorie: parsed.data.categorie,
+        prixOneShot: parsed.data.prixOneShot
+          ? parsed.data.prixOneShot.toString()
+          : null,
+        prixMensuel: parsed.data.prixMensuel
+          ? parsed.data.prixMensuel.toString()
+          : null,
+        prixVariable: false,
+        isActive: true,
+      },
+    });
+    revalidatePath("/catalogue");
+    return { ok: true, productId: created.id };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
 }
 
 export async function createProduct(input: unknown): Promise<ProductActionResult> {

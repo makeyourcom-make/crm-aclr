@@ -34,10 +34,13 @@ export default async function EditDealPage({ params }: PageProps) {
       select: {
         id: true,
         nom: true,
+        description: true,
         categorie: true,
         type: true,
         prixOneShot: true,
         prixMensuel: true,
+        prixVariable: true,
+        engagementMois: true,
       },
       orderBy: [{ categorie: "asc" }, { nom: "asc" }],
     }),

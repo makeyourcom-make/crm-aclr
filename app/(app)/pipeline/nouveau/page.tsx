@@ -28,10 +28,13 @@ export default async function NewDealPage() {
       select: {
         id: true,
         nom: true,
+        description: true,
         categorie: true,
         type: true,
         prixOneShot: true,
         prixMensuel: true,
+        prixVariable: true,
+        engagementMois: true,
       },
       orderBy: [{ categorie: "asc" }, { nom: "asc" }],
     }),
