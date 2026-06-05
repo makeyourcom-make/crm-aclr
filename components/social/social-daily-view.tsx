@@ -8,7 +8,11 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { toggleStep, updateProspectStatut } from "@/app/(app)/social/actions";
+import {
+  redistributeProspects,
+  toggleStep,
+  updateProspectStatut,
+} from "@/app/(app)/social/actions";
 import { Icon } from "@/components/icon";
 import {
   NETWORK_COLORS,

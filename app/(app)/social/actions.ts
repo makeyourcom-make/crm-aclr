@@ -14,7 +14,11 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
-import { assignProspectsToDays, dateOnly } from "@/lib/social-sequence";
+import {
+  assignProspectsFromDate,
+  assignProspectsToDays,
+  dateOnly,
+} from "@/lib/social-sequence";
 
 // ===========================================================================
 // HELPERS
@@ -160,12 +164,17 @@ export async function updateProspectStatut(input: {
 
 const BulkImportSchema = z.object({
   accountId: z.string().min(1),
-  /** AAAA-MM (mois de référence pour la distribution sur jours ouvrables) */
-  yearMonth: z.string().regex(/^\d{4}-\d{2}$/, "Format AAAA-MM attendu"),
   /** Une ligne par prospect : "Nom | URL"  ou juste URL */
   rawInput: z.string().min(1),
-  /** Si fourni, force le démarrage de tous les prospects à cette date */
-  forceStartDate: z.string().optional(),
+  /** Mode de distribution :
+   *   - "fromToday" (défaut) : étale 10/jour ouvrable à partir d'aujourd'hui
+   *   - "month"             : étale sur les jours ouvrables d'un mois précis
+   *   - "fixedDate"         : force tous à la même date (option exceptionnelle) */
+  mode: z.enum(["fromToday", "month", "fixedDate"]).default("fromToday"),
+  /** Si mode = "month" : AAAA-MM */
+  yearMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+  /** Si mode = "fixedDate" : la date à utiliser pour tous */
+  fixedDate: z.string().optional(),
 });
 
 export interface BulkImportResult {
@@ -224,14 +233,28 @@ export async function bulkImportSocialProspects(
       return { ok: false, error: "Aucune ligne valide.", errors };
     }
 
-    // Distribution sur les jours du mois (ou date forcée)
-    const [yearStr, monthStr] = parsed.data.yearMonth.split("-");
-    const year = Number(yearStr);
-    const month = Number(monthStr);
-
-    const dates: Date[] = parsed.data.forceStartDate
-      ? items.map(() => dateOnly(parsed.data.forceStartDate!))
-      : assignProspectsToDays(items.length, year, month, 10);
+    // Distribution selon le mode choisi
+    let dates: Date[];
+    if (parsed.data.mode === "fixedDate") {
+      const fd = parsed.data.fixedDate;
+      if (!fd) return { ok: false, error: "Date forcée manquante." };
+      dates = items.map(() => dateOnly(fd));
+    } else if (parsed.data.mode === "month") {
+      const ym = parsed.data.yearMonth;
+      if (!ym) return { ok: false, error: "Mois manquant." };
+      const [yearStr, monthStr] = ym.split("-");
+      dates = assignProspectsToDays(
+        items.length,
+        Number(yearStr),
+        Number(monthStr),
+        10,
+      );
+    } else {
+      // "fromToday" (défaut) — étale dès aujourd'hui sur les jours ouvrables
+      const today = new Date();
+      today.setUTCHours(12, 0, 0, 0);
+      dates = assignProspectsFromDate(items.length, today, 10);
+    }
 
     await prisma.socialProspect.createMany({
       data: items.map((it, idx) => ({
@@ -309,3 +332,94 @@ export async function updateProspectInfo(input: {
 }
 
 void TOGGLE_STEPS; // silenceur d'unused
+
+// ===========================================================================
+// REDISTRIBUER les prospects EN_COURS d'un compte sur les jours ouvrables
+// ===========================================================================
+
+const RedistribSchema = z.object({
+  accountId: z.string().min(1),
+  /** AAAA-MM */
+  yearMonth: z.string().regex(/^\d{4}-\d{2}$/),
+  /** Cible : 10 prospects par jour ouvrable par défaut */
+  perDay: z.number().int().min(1).max(50).default(10),
+  /** Si true, n'écrase que les prospects dont 0 étape n'est cochée
+   *  (ceux qu'on n'a pas encore commencé à travailler). Défaut true. */
+  onlyUnstarted: z.boolean().default(true),
+});
+
+export async function redistributeProspects(input: {
+  accountId: string;
+  yearMonth: string;
+  perDay?: number;
+  onlyUnstarted?: boolean;
+}): Promise<{ ok: boolean; count?: number; error?: string }> {
+  try {
+    const parsed = RedistribSchema.safeParse({
+      perDay: 10,
+      onlyUnstarted: true,
+      ...input,
+    });
+    if (!parsed.success) return { ok: false, error: "Invalide" };
+    await assertCanAccessAccount(parsed.data.accountId);
+
+    // Mois ciblé
+    const [yearStr, monthStr] = parsed.data.yearMonth.split("-");
+    const year = Number(yearStr);
+    const month = Number(monthStr);
+    const monthStart = new Date(Date.UTC(year, month - 1, 1));
+    const monthEnd = new Date(Date.UTC(year, month, 1));
+
+    // Cherche les prospects EN_COURS du compte, démarrage dans ce mois
+    const prospects = await prisma.socialProspect.findMany({
+      where: {
+        accountId: parsed.data.accountId,
+        statut: "EN_COURS",
+        dateDemarrage: { gte: monthStart, lt: monthEnd },
+        ...(parsed.data.onlyUnstarted
+          ? {
+              step0Done: null,
+              step2Done: null,
+              step4Done: null,
+              step6Done: null,
+            }
+          : {}),
+      },
+      select: { id: true },
+      orderBy: { createdAt: "asc" },
+    });
+
+    if (prospects.length === 0) {
+      return {
+        ok: true,
+        count: 0,
+        error: "Aucun prospect à redistribuer pour ce mois.",
+      };
+    }
+
+    // Calcule les nouvelles dates (10/jour ouvrable)
+    const newDates = assignProspectsToDays(
+      prospects.length,
+      year,
+      month,
+      parsed.data.perDay,
+    );
+
+    // Update en transaction (1 update par prospect, batch côté serveur)
+    await prisma.$transaction(
+      prospects.map((p, idx) =>
+        prisma.socialProspect.update({
+          where: { id: p.id },
+          data: { dateDemarrage: newDates[idx] },
+        }),
+      ),
+    );
+
+    revalidatePath("/social");
+    revalidatePath("/social/aujourdhui");
+    revalidatePath("/social/prospects");
+    return { ok: true, count: prospects.length };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Erreur" };
+  }
+}

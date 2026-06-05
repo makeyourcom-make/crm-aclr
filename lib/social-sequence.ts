@@ -94,11 +94,8 @@ export function getDueSteps(
 }
 
 /**
- * Distribue N prospects sur les jours ouvrables d'un mois.
- * Retourne un array de Date (un par prospect) — utilisé pour l'import en masse.
- *
- * Stratégie : 10 par jour ouvrable, puis si dépassement on continue sur
- * les jours suivants (à priori jamais déclenché si <=220).
+ * Distribue N prospects sur les jours ouvrables d'un mois (10/jour).
+ * Si le mois n'a pas assez de jours, on cycle (pour rester ≤ 220 — défaut).
  */
 export function assignProspectsToDays(
   count: number,
@@ -110,6 +107,37 @@ export function assignProspectsToDays(
   const assignments: Date[] = [];
   for (let i = 0; i < count; i++) {
     const dayIdx = Math.floor(i / perDay) % days.length;
+    assignments.push(dateOnly(days[dayIdx]!));
+  }
+  return assignments;
+}
+
+/**
+ * Distribue N prospects sur les jours ouvrables EN AVANT à partir d'une
+ * date de départ (utilisée pour démarrer "maintenant" et étaler dans le futur).
+ * Toujours `perDay` par jour ouvrable, débordement sur les jours suivants.
+ */
+export function assignProspectsFromDate(
+  count: number,
+  startDate: Date,
+  perDay = 10,
+): Date[] {
+  const assignments: Date[] = [];
+  // Si startDate tombe un week-end, on saute au lundi
+  const cursor = new Date(startDate);
+  while (cursor.getDay() === 0 || cursor.getDay() === 6) {
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  // Construit la liste des jours ouvrables à partir de cursor
+  // jusqu'à avoir assez pour `count` prospects
+  const neededDays = Math.ceil(count / perDay);
+  const days: Date[] = [];
+  for (let i = 0, d = new Date(cursor); days.length < neededDays; i++) {
+    if (d.getDay() !== 0 && d.getDay() !== 6) days.push(new Date(d));
+    d.setDate(d.getDate() + 1);
+  }
+  for (let i = 0; i < count; i++) {
+    const dayIdx = Math.floor(i / perDay);
     assignments.push(dateOnly(days[dayIdx]!));
   }
   return assignments;
