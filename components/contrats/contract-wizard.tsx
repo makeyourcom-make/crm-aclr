@@ -12,9 +12,19 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { createCustomProduct } from "@/app/(app)/catalogue/actions";
 import { createContractFromDeal } from "@/app/(app)/contrats/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Icon } from "@/components/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,12 +33,26 @@ import { cn } from "@/lib/utils";
 
 import type { ModalitePaiement } from "@prisma/client";
 
+const CATEGORIE_LABELS: Record<string, string> = {
+  SITE: "Sites web",
+  RS: "Réseaux sociaux",
+  SEO: "SEO",
+  ADS: "Google Ads",
+  CMO: "CMO",
+  METRICOOL: "Outils",
+  PACK: "Packs",
+};
+
 interface ProductOption {
   id: string;
   nom: string;
+  description?: string | null;
+  categorie?: string;
   type: string;
   prixOneShot: string | null;
   prixMensuel: string | null;
+  prixVariable?: boolean;
+  engagementMois?: number | null;
 }
 
 interface DealOption {
@@ -93,8 +117,31 @@ export function ContractWizard({
   const [dateSignature, setDateSignature] = useState(todayLocalIso());
   const [dateDebut, setDateDebut] = useState(todayLocalIso());
   const [dureeMois, setDureeMois] = useState("12");
+  const [dureeMoisManuallyEdited, setDureeMoisManuallyEdited] = useState(false);
   const [modalitePaiement, setModalitePaiement] =
     useState<ModalitePaiement>("CINQUANTE_CINQUANTE");
+
+  // Produits "sur-mesure" créés à la volée pendant le wizard
+  const [localCustomProducts, setLocalCustomProducts] = useState<
+    ProductOption[]
+  >([]);
+  const allProducts = useMemo(
+    () => [...products, ...localCustomProducts],
+    [products, localCustomProducts],
+  );
+
+  // Auto-suggère la durée du contrat selon le 1er produit sélectionné qui a
+  // un `engagementMois` défini. L'utilisateur peut toujours la modifier.
+  useEffect(() => {
+    if (dureeMoisManuallyEdited) return;
+    for (const l of lines) {
+      const prod = allProducts.find((p) => p.id === l.productId);
+      if (prod?.engagementMois) {
+        setDureeMois(String(prod.engagementMois));
+        break;
+      }
+    }
+  }, [lines, allProducts, dureeMoisManuallyEdited]);
 
   // Si on change le deal, on synchronise le prospect
   useEffect(() => {
@@ -112,7 +159,7 @@ export function ContractWizard({
     let oneShot = 0;
     let mensuel = 0;
     for (const l of lines) {
-      const prod = products.find((p) => p.id === l.productId);
+      const prod = allProducts.find((p) => p.id === l.productId);
       if (!prod) continue;
       const po =
         l.prixOneShot !== ""
@@ -141,7 +188,7 @@ export function ContractWizard({
       commissionPart1,
       commissionPart2,
     };
-  }, [lines, products, tauxCommission]);
+  }, [lines, allProducts, tauxCommission]);
 
   // ---- Mutations ----
   const addLine = () => {
@@ -258,24 +305,38 @@ export function ContractWizard({
 
       {/* ÉTAPE 2 */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <CardHeader className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base">
             <StepBadge n={2} done={lines.length > 0 && lines.every((l) => l.productId)} />
             {" "}Lignes du contrat
           </CardTitle>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={addLine}
-          >
-            + Ajouter une ligne
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <CustomProductButtonContract
+              onCreated={(newProduct) => {
+                setLocalCustomProducts((prev) => [...prev, newProduct]);
+                // Crée une ligne pré-sélectionnée
+                setLines((prev) => [
+                  ...prev,
+                  {
+                    id: uid(),
+                    productId: newProduct.id,
+                    quantite: 1,
+                    prixOneShot: "",
+                    prixMensuel: "",
+                  },
+                ]);
+              }}
+            />
+            <Button type="button" variant="outline" size="sm" onClick={addLine}>
+              + Ajouter une ligne
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {lines.length === 0 ? (
             <p className="rounded-md border border-dashed border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
-              Ajoute au moins une ligne (produit ou pack).
+              Ajoute au moins une ligne (produit ou pack du catalogue, ou crée
+              un produit sur-mesure).
             </p>
           ) : (
             <div className="space-y-2">
@@ -283,7 +344,7 @@ export function ContractWizard({
                 <LineRow
                   key={line.id}
                   line={line}
-                  products={products}
+                  products={allProducts}
                   onChange={(patch) => updateLine(line.id, patch)}
                   onRemove={() => removeLine(line.id)}
                 />
@@ -374,8 +435,16 @@ export function ContractWizard({
                 min={1}
                 max={60}
                 value={dureeMois}
-                onChange={(e) => setDureeMois(e.target.value)}
+                onChange={(e) => {
+                  setDureeMois(e.target.value);
+                  setDureeMoisManuallyEdited(true);
+                }}
               />
+              {!dureeMoisManuallyEdited && lines.length > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  Suggéré automatiquement depuis l&apos;engagement minimum du produit.
+                </p>
+              )}
             </div>
           </div>
         </CardContent>
@@ -488,6 +557,16 @@ function LineRow({
   const defaultOneShot = prod?.prixOneShot ? Number(prod.prixOneShot) : 0;
   const defaultMensuel = prod?.prixMensuel ? Number(prod.prixMensuel) : 0;
 
+  // Groupement par catégorie dans le select (pour catalogue large)
+  const productsByCat = useMemo(() => {
+    return products.reduce<Record<string, ProductOption[]>>((acc, p) => {
+      const cat = p.categorie || "AUTRE";
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(p);
+      return acc;
+    }, {});
+  }, [products]);
+
   return (
     <div className="grid grid-cols-12 gap-2 rounded-md border border-border bg-card px-3 py-2">
       <div className="col-span-12 md:col-span-5">
@@ -497,12 +576,39 @@ function LineRow({
           className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
         >
           <option value="">— Choisir un produit —</option>
-          {products.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.nom}
-            </option>
+          {Object.entries(productsByCat).map(([cat, list]) => (
+            <optgroup key={cat} label={CATEGORIE_LABELS[cat] ?? cat}>
+              {list.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nom}
+                  {p.prixVariable ? " (prix sur-mesure)" : ""}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
+        {prod && (
+          <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
+            {prod.engagementMois ? (
+              <span className="inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0 font-medium text-blue-800">
+                Engagement {prod.engagementMois} mois
+              </span>
+            ) : null}
+            {prod.prixVariable ? (
+              <span
+                className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0 font-medium text-amber-800"
+                title="Prix de base éditable — ajuste-le à droite selon le périmètre négocié."
+              >
+                ✏️ Prix sur-mesure
+              </span>
+            ) : null}
+            {prod.description && (
+              <p className="w-full text-[10px] text-muted-foreground line-clamp-2">
+                {prod.description}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="col-span-3 md:col-span-1">
@@ -560,6 +666,200 @@ function LineRow({
         </p>
       )}
     </div>
+  );
+}
+
+// ===========================================================================
+// CustomProductButtonContract — réplique de celui du DealForm
+// ===========================================================================
+
+interface CustomProductButtonContractProps {
+  onCreated: (p: ProductOption) => void;
+}
+
+function CustomProductButtonContract({
+  onCreated,
+}: CustomProductButtonContractProps) {
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [nom, setNom] = useState("");
+  const [description, setDescription] = useState("");
+  const [prixOneShot, setPrixOneShot] = useState("");
+  const [prixMensuel, setPrixMensuel] = useState("");
+  const [categorie, setCategorie] = useState<
+    "SITE" | "RS" | "SEO" | "ADS" | "CMO" | "METRICOOL" | "PACK"
+  >("SITE");
+
+  const reset = () => {
+    setNom("");
+    setDescription("");
+    setPrixOneShot("");
+    setPrixMensuel("");
+    setCategorie("SITE");
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nom.trim()) {
+      toast.error("Donne un nom au produit.");
+      return;
+    }
+    const one = prixOneShot ? Number(prixOneShot) : undefined;
+    const mens = prixMensuel ? Number(prixMensuel) : undefined;
+    if (!one && !mens) {
+      toast.error("Renseigne au moins un prix.");
+      return;
+    }
+    startTransition(async () => {
+      const res = await createCustomProduct({
+        nom: nom.trim(),
+        description: description.trim() || undefined,
+        prixOneShot: one,
+        prixMensuel: mens,
+        categorie,
+      });
+      if (!res.ok || !res.productId) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success(`"${nom.trim()}" ajouté au contrat ✓`);
+      onCreated({
+        id: res.productId,
+        nom: nom.trim(),
+        description: description.trim()
+          ? `[Custom] ${description.trim()}`
+          : "[Custom] Produit sur-mesure créé depuis un contrat.",
+        categorie,
+        type: mens && !one ? "RECURRENT_MENSUEL" : "ONE_SHOT",
+        prixOneShot: one ? String(one) : null,
+        prixMensuel: mens ? String(mens) : null,
+        prixVariable: false,
+        engagementMois: null,
+      });
+      reset();
+      setOpen(false);
+    });
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) reset();
+      }}
+    >
+      <DialogTrigger className="inline-flex h-8 items-center gap-1 rounded-md border border-dashed border-border bg-background px-2.5 text-xs font-medium hover:border-primary hover:bg-primary/5 hover:text-primary">
+        <Icon name="Plus" className="h-3.5 w-3.5" />
+        Produit sur-mesure
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Produit sur-mesure</DialogTitle>
+          <DialogDescription>
+            Crée un produit non présent au catalogue. Il sera ajouté comme
+            ligne du contrat et persisté pour pouvoir être réutilisé.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="cpc-nom">
+              Nom <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="cpc-nom"
+              autoFocus
+              value={nom}
+              onChange={(e) => setNom(e.target.value)}
+              placeholder="Ex. Refonte branding + charte graphique"
+              required
+              disabled={pending}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="cpc-categorie">Catégorie</Label>
+            <select
+              id="cpc-categorie"
+              value={categorie}
+              onChange={(e) =>
+                setCategorie(e.target.value as typeof categorie)
+              }
+              disabled={pending}
+              className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+            >
+              <option value="SITE">Sites web</option>
+              <option value="RS">Réseaux sociaux</option>
+              <option value="SEO">SEO</option>
+              <option value="ADS">Google Ads</option>
+              <option value="CMO">CMO externalisé</option>
+              <option value="PACK">Pack</option>
+              <option value="METRICOOL">Outils / Autre</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="cpc-oneshot">Prix one-shot (CHF)</Label>
+              <Input
+                id="cpc-oneshot"
+                type="number"
+                min={0}
+                step="0.01"
+                value={prixOneShot}
+                onChange={(e) => setPrixOneShot(e.target.value)}
+                placeholder="0"
+                disabled={pending}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cpc-mensuel">Prix mensuel (CHF)</Label>
+              <Input
+                id="cpc-mensuel"
+                type="number"
+                min={0}
+                step="0.01"
+                value={prixMensuel}
+                onChange={(e) => setPrixMensuel(e.target.value)}
+                placeholder="0"
+                disabled={pending}
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Au moins un des deux prix est obligatoire.
+          </p>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="cpc-description">Description (optionnelle)</Label>
+            <textarea
+              id="cpc-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              placeholder="Détails du périmètre, livrables…"
+              disabled={pending}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={pending}
+            >
+              Annuler
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? "Création…" : "Ajouter au contrat"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
