@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { DocumentPreviewButton } from "@/components/common/document-preview-button";
 import { DeleteClientInvoiceButton } from "@/components/common/entity-delete-buttons";
+import { SendInvoiceButton } from "@/components/factures-clients/send-invoice-button";
 import { SortableHeader } from "@/components/common/sortable-header";
 import { ClientInvoiceFilters } from "@/components/factures-clients/client-invoice-filters";
 import { MarkInvoicePaidButton } from "@/components/paiements/mark-invoice-paid-button";
@@ -128,7 +129,9 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
             id: true,
             numero: true,
             assigneAId: true,
-            prospect: { select: { id: true, raisonSociale: true } },
+            prospect: {
+              select: { id: true, raisonSociale: true, email: true },
+            },
           },
         },
       },
@@ -354,6 +357,15 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                             label="Aperçu"
                             icon="Eye"
                           />
+                          {(inv.statut === "BROUILLON" ||
+                            inv.statut === "ENVOYEE") && (
+                            <SendInvoiceButton
+                              invoiceId={inv.id}
+                              invoiceNumero={inv.numero}
+                              clientName={inv.contract.prospect.raisonSociale}
+                              clientEmail={inv.contract.prospect.email}
+                            />
+                          )}
                           {(inv.statut === "BROUILLON" ||
                             inv.statut === "ENVOYEE") && (
                             <MarkInvoicePaidButton invoiceId={inv.id} />
