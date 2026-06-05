@@ -194,21 +194,55 @@ export function ContractWizard({
       oneShot += po * l.quantite;
       mensuel += pm * l.quantite;
     }
-    // Assiette commission = revenu ACLR sur la durée du contrat, plafonnée
-    // à 12 mois (les mois 13+ sont rémunérés via le mécanisme renouvellement
-    // à 10 %). Pour un contrat 3 mois (ex. Google Ads), assiette = revenu
-    // RÉEL sur 3 mois, pas 12 mois fictifs.
-    const dureeMoisNum = Number(dureeMois) || 12;
-    const moisAssiette = Math.min(Math.max(dureeMoisNum, 1), 12);
-    const valeurAn1 = oneShot + mensuel * moisAssiette;
-    const commissionTotale = valeurAn1 * tauxCommission;
+    // Valeur an 1 affichée = formule historique (× 12), indépendante de
+    // la catégorie. Reflète la colonne DB `contract.valeurAn1`.
+    const valeurAn1 = oneShot + mensuel * 12;
+
+    // Assiette COMMISSION = règle hybride par ligne (cohérente avec
+    // computeAssietteCommissionContrat côté serveur) :
+    //   - Ligne ADS    → oneShot + mensuel × dureeMois (sans cap)
+    //   - Ligne autres → oneShot + mensuel × 12        (cap an 1)
+    const dureeMoisNum = Math.max(Number(dureeMois) || 12, 1);
+    let assietteCommission = 0;
+    let hasAdsLine = false;
+    let hasNonAdsLine = false;
+    for (const l of lines) {
+      const prod = allProducts.find((p) => p.id === l.productId);
+      if (!prod) continue;
+      const po =
+        l.prixOneShot !== ""
+          ? Number(l.prixOneShot)
+          : prod.prixOneShot
+            ? Number(prod.prixOneShot)
+            : 0;
+      const pm =
+        l.prixMensuel !== ""
+          ? Number(l.prixMensuel)
+          : prod.prixMensuel
+            ? Number(prod.prixMensuel)
+            : 0;
+      const lineOneShot = po * l.quantite;
+      const lineMensuel = pm * l.quantite;
+      if (prod.categorie === "ADS") {
+        assietteCommission += lineOneShot + lineMensuel * dureeMoisNum;
+        hasAdsLine = true;
+      } else {
+        assietteCommission += lineOneShot + lineMensuel * 12;
+        hasNonAdsLine = true;
+      }
+    }
+
+    const commissionTotale = assietteCommission * tauxCommission;
     const commissionPart1 = commissionTotale / 2;
     const commissionPart2 = commissionTotale / 2;
     return {
       oneShot,
       mensuel,
       valeurAn1,
-      moisAssiette,
+      assietteCommission,
+      hasAdsLine,
+      hasNonAdsLine,
+      dureeMoisNum,
       commissionTotale,
       commissionPart1,
       commissionPart2,
@@ -504,11 +538,7 @@ export function ContractWizard({
               value={`${formatCHF(calc.mensuel)} / mois`}
             />
             <RecapLine
-              label={
-                calc.moisAssiette < 12
-                  ? `Revenu ACLR (${calc.moisAssiette} mois)`
-                  : "Valeur an 1"
-              }
+              label="Valeur an 1"
               value={formatCHF(calc.valeurAn1)}
               big
             />
@@ -519,11 +549,20 @@ export function ContractWizard({
             />
           </div>
 
-          {calc.moisAssiette < 12 && (
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              ℹ️ Contrat &lt; 12 mois : la commission est calculée sur le
-              revenu réel encaissé par ACLR pendant la durée du contrat
-              ({calc.moisAssiette} mois), pas sur 12 mois extrapolés.
+          {calc.hasAdsLine && (
+            <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+              <strong>Règle ADS appliquée</strong> — les lignes Google Ads /
+              Meta Ads commissionnent sur le revenu réel ACLR pendant la
+              durée du contrat ({calc.dureeMoisNum} mois), sans extrapolation
+              sur 12 mois.
+              {calc.hasNonAdsLine ? (
+                <>
+                  {" "}
+                  Les autres lignes restent sur l&apos;assiette an 1
+                  classique (× 12 mois).
+                </>
+              ) : null}
+              {" "}Assiette commission : <strong>{formatCHF(calc.assietteCommission)}</strong>.
             </p>
           )}
 

@@ -11,6 +11,7 @@ import {
   buildSignaturePaymentPlan,
   centsToChf,
   chfToCents,
+  computeAssietteCommissionContrat,
   computeCommissionSignature,
   computeValeurAn1,
   addMonthsKeepEndOfMonth,
@@ -121,6 +122,7 @@ export async function createContractFromDeal(
     const nom = note ? `${prod.nom} — ${note}` : prod.nom;
     return {
       productId: line.productId,
+      categorie: prod.categorie, // utilisé pour la règle commission ADS
       nom,
       quantite: line.quantite,
       oneShotUnit,
@@ -130,21 +132,34 @@ export async function createContractFromDeal(
     };
   });
 
-  // On passe la dureeMois pour que les contrats < 12 mois (ex. Google Ads
-  // 3 mois fermes) commissionnent sur le revenu réel ACLR, pas sur 12 mois
-  // fictifs. Les contrats >= 12 mois conservent le cap à 12 mois (an 2+
-  // rémunéré via renouvellement).
+  // "valeurAn1" du contrat (colonne DB, affichage compta) = formule
+  // historique an 1 standard, indépendante de la catégorie des produits.
   const valeurAn1Cents = computeValeurAn1({
     oneShotCents,
     mensuelCents,
-    dureeMois: parsed.data.dureeMois,
   });
+
+  // Assiette COMMISSION : règle hybride par ligne.
+  //   - Ligne ADS (Google Ads / Meta Ads) → revenu réel sur la durée du
+  //     contrat (× dureeMois sans cap). Cohérent avec engagement court
+  //     typique (3 mois) et budget pub payé direct à Google/Meta.
+  //   - Ligne non-ADS → assiette an 1 classique (× 12, cap renouvellement
+  //     pour les contrats > 12 mois).
+  const assietteCommissionCents = computeAssietteCommissionContrat(
+    linesEnriched.map((l) => ({
+      oneShotCents: l.lineOneShot,
+      mensuelCents: l.lineMensuel,
+      categorie: l.categorie,
+    })),
+    parsed.data.dureeMois,
+  );
+
   const commission = computeCommissionSignature({
-    valeurAn1Cents,
+    valeurAn1Cents: assietteCommissionCents,
     taux: tauxCommission,
   });
   const plan = buildSignaturePaymentPlan({
-    valeurAn1Cents,
+    valeurAn1Cents: assietteCommissionCents,
     taux: tauxCommission,
     dateSignature: parsed.data.dateSignature,
   });

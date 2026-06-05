@@ -330,45 +330,101 @@ export function computeMonthlyInvoice(
 export interface ValeurAn1Input {
   oneShotCents: Cents;
   mensuelCents: Cents;
-  /**
-   * Durée totale du contrat en mois. Default 12.
-   *
-   * Règle (depuis 2026-06) :
-   *   - Si dureeMois >= 12 → assiette commission = oneShot + mensuel × 12
-   *     (les mois 13+ sont rémunérés via le mécanisme renouvellement à 10 %).
-   *   - Si dureeMois < 12  → assiette = oneShot + mensuel × dureeMois
-   *     (on ne commissionne JAMAIS sur un revenu qui ne rentrera pas chez
-   *     ACLR. Ex. contrat 3 mois Google Ads : commission sur ce qui est
-   *     réellement encaissé pendant 3 mois, pas sur 12 mois fictifs.)
-   */
+  /** Durée totale du contrat en mois — paramètre conservé pour compat. */
   dureeMois?: number;
 }
 
 /**
- * Calcule l'assiette de la commission de signature.
+ * Calcule la valeur "an 1" qui sert d'assiette à la commission de signature
+ * pour les lignes NON-ADS (sites web, RS, SEO, CMO, packs…).
  *
- * Nom historique « valeur an 1 » conservé pour compat (colonne DB, audit
- * comptable). En pratique : c'est le revenu RÉEL d'ACLR sur la durée du
- * contrat, plafonné à 12 mois (les années suivantes étant rémunérées via
- * le mécanisme renouvellement).
+ * = oneShot + mensuel × 12
  *
- * Formule : oneShot + mensuel × min(dureeMois, 12)
+ * Même si le contrat dure 24 mois, l'assiette commission reste 12 mois ;
+ * les années suivantes sont rémunérées via le mécanisme renouvellement à
+ * 10 % / mois.
  *
- * Exemples :
- *   - Contrat 12 mois @ 1000 setup + 100/mois → assiette 2 200
- *   - Contrat 24 mois @ 1000 setup + 100/mois → assiette 2 200 (cap 12, an2+
- *     via renouvellement)
- *   - Contrat 3 mois @ 349 setup + 600/mois (Google Ads gros budget) →
- *     assiette 2 149 (= revenu réel ACLR sur les 3 mois)
+ * ⚠️ Pour les lignes ADS (Google Ads / Meta Ads), la règle est différente :
+ * on commissionne sur le revenu RÉEL pendant la durée du contrat (× durée
+ * effective, pas × 12). Voir `computeAssietteCommissionAds` ci-dessous.
  */
 export function computeValeurAn1(input: ValeurAn1Input): Cents {
   if (input.oneShotCents < 0) throw new RangeError("oneShotCents ≥ 0");
   if (input.mensuelCents < 0) throw new RangeError("mensuelCents ≥ 0");
-  const duree = input.dureeMois ?? 12;
-  if (duree <= 0 || !Number.isFinite(duree))
-    throw new RangeError(`dureeMois doit être > 0 (reçu ${duree})`);
-  const moisAssiette = Math.min(duree, 12);
-  return input.oneShotCents + input.mensuelCents * moisAssiette;
+  return input.oneShotCents + input.mensuelCents * 12;
+}
+
+/**
+ * Assiette commission pour une ligne ADS (Google Ads / Meta Ads).
+ *
+ * Règle (2026-06, validée par Arthur) : les contrats ADS sont à engagement
+ * court (souvent 3 mois) et le client paye son budget pub directement à
+ * Google / Meta. Le revenu ACLR = les % de frais de gestion uniquement.
+ * On ne peut pas commissionner Sophie sur 12 mois de revenu fictif si le
+ * contrat ne dure que 3 mois — elle doit toucher sa part sur ce qu'ACLR
+ * encaisse VRAIMENT pendant la durée du contrat.
+ *
+ * = oneShot + mensuel × dureeMois (sans cap)
+ *
+ * Exemples :
+ *   - 3 mois @ 349 setup + 600/mois (Budget 5'000+) → 2 149 CHF
+ *   - 6 mois @ 349 setup + 125/mois (Budget 500)   → 1 099 CHF
+ */
+export function computeAssietteCommissionAds(
+  input: ValeurAn1Input & { dureeMois: number },
+): Cents {
+  if (input.oneShotCents < 0) throw new RangeError("oneShotCents ≥ 0");
+  if (input.mensuelCents < 0) throw new RangeError("mensuelCents ≥ 0");
+  if (!Number.isFinite(input.dureeMois) || input.dureeMois <= 0)
+    throw new RangeError(`dureeMois doit être > 0 (reçu ${input.dureeMois})`);
+  return input.oneShotCents + input.mensuelCents * input.dureeMois;
+}
+
+/**
+ * Catégories produit considérées comme "ADS" pour la règle commission
+ * spéciale. Aujourd'hui : enum Prisma `ProductCategorie.ADS` (regroupe
+ * Google Ads + Meta Ads).
+ */
+export const ADS_CATEGORIES = new Set<string>(["ADS"]);
+
+/**
+ * Calcule l'assiette commission GLOBALE d'un contrat à partir de ses
+ * lignes, en appliquant la bonne règle selon la catégorie produit.
+ *
+ *   - ligne ADS         → oneShot + mensuel × dureeMois (sans cap)
+ *   - ligne non-ADS     → oneShot + mensuel × 12        (cap an 1)
+ *
+ * Retourne la somme des assiettes par ligne.
+ */
+export interface AssietteLine {
+  oneShotCents: Cents;
+  mensuelCents: Cents;
+  /** Catégorie produit (raw enum Prisma, ex. "ADS", "SITE", "RS"…) */
+  categorie: string;
+}
+
+export function computeAssietteCommissionContrat(
+  lines: AssietteLine[],
+  dureeMois: number,
+): Cents {
+  if (!Number.isFinite(dureeMois) || dureeMois <= 0)
+    throw new RangeError(`dureeMois doit être > 0 (reçu ${dureeMois})`);
+  let assietteCents = 0;
+  for (const l of lines) {
+    if (ADS_CATEGORIES.has(l.categorie)) {
+      assietteCents += computeAssietteCommissionAds({
+        oneShotCents: l.oneShotCents,
+        mensuelCents: l.mensuelCents,
+        dureeMois,
+      });
+    } else {
+      assietteCents += computeValeurAn1({
+        oneShotCents: l.oneShotCents,
+        mensuelCents: l.mensuelCents,
+      });
+    }
+  }
+  return assietteCents;
 }
 
 // ===========================================================================

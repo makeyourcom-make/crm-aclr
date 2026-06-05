@@ -411,65 +411,162 @@ describe("computeValeurAn1", () => {
     ).toThrow();
   });
 
-  // ---- Règle 2026-06 : dureeMois < 12 -> assiette = revenu réel -----
-  describe("dureeMois < 12 — commissionne sur le revenu réel ACLR", () => {
-    it("Google Ads gros budget 3 mois : 349 setup + 600/mois × 3 = 2'149 CHF", () => {
-      const v = computeValeurAn1({
-        oneShotCents: chfToCents(349),
-        mensuelCents: chfToCents(600),
-        dureeMois: 3,
-      });
-      expect(centsToChf(v)).toBe(2149); // 349 + 600 * 3
+  it("ignore dureeMois (param compat-only) — la valeur an 1 reste × 12", () => {
+    const v = computeValeurAn1({
+      oneShotCents: chfToCents(1000),
+      mensuelCents: chfToCents(100),
+      dureeMois: 3, // ignoré
     });
+    expect(centsToChf(v)).toBe(2200); // 1000 + 100 × 12
+  });
+});
 
-    it("CMO Light 9 mois : 0 setup + 990/mois × 9 = 8'910 CHF", () => {
-      const v = computeValeurAn1({
+// ===========================================================================
+// ASSIETTE COMMISSION HYBRIDE — règle ADS uniquement (2026-06)
+// ===========================================================================
+
+import {
+  computeAssietteCommissionAds,
+  computeAssietteCommissionContrat,
+} from "../commissions";
+
+describe("computeAssietteCommissionAds (lignes ADS uniquement)", () => {
+  it("Google Ads gros budget 3 mois : 349 setup + 600/mois × 3 = 2'149", () => {
+    const v = computeAssietteCommissionAds({
+      oneShotCents: chfToCents(349),
+      mensuelCents: chfToCents(600),
+      dureeMois: 3,
+    });
+    expect(centsToChf(v)).toBe(2149);
+  });
+
+  it("Google Ads Budget 500 sur 6 mois : 0 + 125/mois × 6 = 750", () => {
+    const v = computeAssietteCommissionAds({
+      oneShotCents: 0,
+      mensuelCents: chfToCents(125),
+      dureeMois: 6,
+    });
+    expect(centsToChf(v)).toBe(750);
+  });
+
+  it("ADS sur 24 mois : aucun cap (24 × mensuel)", () => {
+    const v = computeAssietteCommissionAds({
+      oneShotCents: chfToCents(349),
+      mensuelCents: chfToCents(600),
+      dureeMois: 24,
+    });
+    expect(centsToChf(v)).toBe(349 + 600 * 24);
+  });
+
+  it("rejette dureeMois <= 0", () => {
+    expect(() =>
+      computeAssietteCommissionAds({
         oneShotCents: 0,
-        mensuelCents: chfToCents(990),
-        dureeMois: 9,
-      });
-      expect(centsToChf(v)).toBe(8910);
-    });
-
-    it("dureeMois >= 12 reste plafonnée à 12 (renouvellement prend le relais)", () => {
-      const v12 = computeValeurAn1({
-        oneShotCents: chfToCents(1000),
         mensuelCents: chfToCents(100),
-        dureeMois: 12,
-      });
-      const v24 = computeValeurAn1({
-        oneShotCents: chfToCents(1000),
-        mensuelCents: chfToCents(100),
-        dureeMois: 24,
-      });
-      expect(centsToChf(v12)).toBe(2200);
-      expect(centsToChf(v24)).toBe(2200); // cap à 12 mois
-    });
+        dureeMois: 0,
+      }),
+    ).toThrow();
+  });
+});
 
-    it("default dureeMois (undefined) = 12 mois (backward-compat)", () => {
-      const v = computeValeurAn1({
-        oneShotCents: chfToCents(1000),
-        mensuelCents: chfToCents(100),
-      });
-      expect(centsToChf(v)).toBe(2200);
-    });
+describe("computeAssietteCommissionContrat (règle hybride par ligne)", () => {
+  it("Contrat 100 % ADS 3 mois → assiette ADS sans cap", () => {
+    const a = computeAssietteCommissionContrat(
+      [
+        {
+          oneShotCents: chfToCents(349),
+          mensuelCents: chfToCents(600),
+          categorie: "ADS",
+        },
+      ],
+      3,
+    );
+    expect(centsToChf(a)).toBe(2149); // 349 + 600 × 3
+  });
 
-    it("rejette dureeMois <= 0", () => {
-      expect(() =>
-        computeValeurAn1({
+  it("Contrat 100 % SITE 12 mois → assiette an 1 classique", () => {
+    const a = computeAssietteCommissionContrat(
+      [
+        {
+          oneShotCents: chfToCents(499),
+          mensuelCents: chfToCents(39),
+          categorie: "SITE",
+        },
+      ],
+      12,
+    );
+    expect(centsToChf(a)).toBe(499 + 39 * 12); // 967
+  });
+
+  it("Contrat SITE 24 mois → cap 12 (renouvellement an 2+)", () => {
+    const a = computeAssietteCommissionContrat(
+      [
+        {
+          oneShotCents: chfToCents(499),
+          mensuelCents: chfToCents(39),
+          categorie: "SITE",
+        },
+      ],
+      24,
+    );
+    expect(centsToChf(a)).toBe(499 + 39 * 12); // toujours × 12
+  });
+
+  it("Contrat MIXTE SITE + ADS 3 mois → SITE × 12, ADS × 3", () => {
+    const a = computeAssietteCommissionContrat(
+      [
+        // Site Vitrine
+        {
+          oneShotCents: chfToCents(499),
+          mensuelCents: chfToCents(39),
+          categorie: "SITE",
+        },
+        // Google Ads Budget 5000+
+        {
+          oneShotCents: chfToCents(349),
+          mensuelCents: chfToCents(600),
+          categorie: "ADS",
+        },
+      ],
+      3,
+    );
+    const expected =
+      // SITE : 499 + 39 × 12 (× 12 même si contrat dure 3 mois — rare en
+      // pratique mais on garde la règle non-ADS uniforme)
+      499 +
+      39 * 12 +
+      // ADS : 349 + 600 × 3
+      349 +
+      600 * 3;
+    expect(centsToChf(a)).toBe(expected);
+  });
+
+  it("Contrat MIXTE 12 mois → SITE × 12 + ADS × 12 (durée contractuelle)", () => {
+    const a = computeAssietteCommissionContrat(
+      [
+        {
           oneShotCents: 0,
           mensuelCents: chfToCents(100),
-          dureeMois: 0,
-        }),
-      ).toThrow();
-      expect(() =>
-        computeValeurAn1({
+          categorie: "SITE",
+        },
+        {
           oneShotCents: 0,
-          mensuelCents: chfToCents(100),
-          dureeMois: -1,
-        }),
-      ).toThrow();
-    });
+          mensuelCents: chfToCents(45),
+          categorie: "ADS",
+        },
+      ],
+      12,
+    );
+    expect(centsToChf(a)).toBe(100 * 12 + 45 * 12); // 1740
+  });
+
+  it("rejette dureeMois <= 0", () => {
+    expect(() =>
+      computeAssietteCommissionContrat(
+        [{ oneShotCents: 0, mensuelCents: 0, categorie: "SITE" }],
+        0,
+      ),
+    ).toThrow();
   });
 });
 
