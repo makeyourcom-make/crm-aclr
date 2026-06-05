@@ -125,10 +125,22 @@ export function ContractWizard({
   const [localCustomProducts, setLocalCustomProducts] = useState<
     ProductOption[]
   >([]);
-  const allProducts = useMemo(
-    () => [...products, ...localCustomProducts],
-    [products, localCustomProducts],
-  );
+  // Dédup par id : sur Next.js 16, `revalidatePath("/catalogue")` peut
+  // invalider les caches React qui touchent prisma.product.findMany — un
+  // re-render serveur ramène alors le custom dans `products`, ET il est
+  // déjà dans `localCustomProducts` → doublon dans les totaux. La dédup
+  // par id empêche que le même produit soit comptabilisé deux fois.
+  const allProducts = useMemo(() => {
+    const seen = new Set<string>();
+    const result: ProductOption[] = [];
+    for (const p of [...products, ...localCustomProducts]) {
+      if (!seen.has(p.id)) {
+        seen.add(p.id);
+        result.push(p);
+      }
+    }
+    return result;
+  }, [products, localCustomProducts]);
 
   // Auto-suggère la durée du contrat selon le 1er produit sélectionné qui a
   // un `engagementMois` défini. L'utilisateur peut toujours la modifier.
@@ -313,18 +325,29 @@ export function ContractWizard({
           <div className="flex flex-wrap gap-2">
             <CustomProductButtonContract
               onCreated={(newProduct) => {
-                setLocalCustomProducts((prev) => [...prev, newProduct]);
-                // Crée une ligne pré-sélectionnée
-                setLines((prev) => [
-                  ...prev,
-                  {
-                    id: uid(),
-                    productId: newProduct.id,
-                    quantite: 1,
-                    prixOneShot: "",
-                    prixMensuel: "",
-                  },
-                ]);
+                // Anti-doublon : ne pas pousser deux fois le même id si
+                // onCreated est rappelé (double-click, retry, etc.).
+                setLocalCustomProducts((prev) =>
+                  prev.some((p) => p.id === newProduct.id)
+                    ? prev
+                    : [...prev, newProduct],
+                );
+                // Crée une ligne pré-sélectionnée seulement si aucune
+                // ligne existante ne référence déjà ce produit.
+                setLines((prev) =>
+                  prev.some((l) => l.productId === newProduct.id)
+                    ? prev
+                    : [
+                        ...prev,
+                        {
+                          id: uid(),
+                          productId: newProduct.id,
+                          quantite: 1,
+                          prixOneShot: "",
+                          prixMensuel: "",
+                        },
+                      ],
+                );
               }}
             />
             <Button type="button" variant="outline" size="sm" onClick={addLine}>

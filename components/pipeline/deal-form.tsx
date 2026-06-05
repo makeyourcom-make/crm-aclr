@@ -115,11 +115,21 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
     ProductOption[]
   >([]);
 
-  // Catalogue effectif = produits passés en props + produits custom créés ici
-  const allProducts = useMemo(
-    () => [...products, ...localCustomProducts],
-    [products, localCustomProducts],
-  );
+  // Catalogue effectif = produits passés en props + produits custom créés ici.
+  // Dédup par id : si Next.js re-render la page (revalidatePath du serveur),
+  // le custom product peut apparaître à la fois dans `products` ET dans
+  // `localCustomProducts` → on évite le doublon de comptage.
+  const allProducts = useMemo(() => {
+    const seen = new Set<string>();
+    const result: ProductOption[] = [];
+    for (const p of [...products, ...localCustomProducts]) {
+      if (!seen.has(p.id)) {
+        seen.add(p.id);
+        result.push(p);
+      }
+    }
+    return result;
+  }, [products, localCustomProducts]);
 
   // Montant prévu = total déduit des produits sélectionnés.
   // valeurAn1 = oneShot + mensuel × 12. Recalculé à chaque toggle.
@@ -296,9 +306,17 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
           </CardTitle>
           <CustomProductButton
             onCreated={(newProduct) => {
-              // Ajoute le produit créé dans la liste locale + le sélectionne
-              setLocalCustomProducts((prev) => [...prev, newProduct]);
-              setProductIds((prev) => [...prev, newProduct.id]);
+              // Ajoute le produit créé dans la liste locale + le sélectionne.
+              // Guards anti-doublon : si onCreated est rappelé (double-click,
+              // retry, etc.) on n'empile pas le même id deux fois.
+              setLocalCustomProducts((prev) =>
+                prev.some((p) => p.id === newProduct.id)
+                  ? prev
+                  : [...prev, newProduct],
+              );
+              setProductIds((prev) =>
+                prev.includes(newProduct.id) ? prev : [...prev, newProduct.id],
+              );
             }}
           />
         </CardHeader>

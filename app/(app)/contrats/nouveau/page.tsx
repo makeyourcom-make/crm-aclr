@@ -81,9 +81,13 @@ export default async function NewContractPage() {
         products={products.map((p) => ({
           id: p.id,
           nom: p.nom,
+          description: p.description,
+          categorie: p.categorie,
           type: p.type,
           prixOneShot: p.prixOneShot?.toString() ?? null,
           prixMensuel: p.prixMensuel?.toString() ?? null,
+          prixVariable: p.prixVariable,
+          engagementMois: p.engagementMois,
         }))}
         tauxCommission={Number(userFull?.tauxCommissionSignature ?? 0.25)}
       />

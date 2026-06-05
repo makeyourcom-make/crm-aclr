@@ -5,7 +5,6 @@ import { DealForm } from "@/components/pipeline/deal-form";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
-import { getProductCategorieLabel } from "@/lib/labels";
 import { getDealById } from "@/lib/queries/deals";
 import { requireUser, scopedWhere } from "@/lib/session";
 
@@ -42,7 +41,10 @@ export default async function EditDealPage({ params }: PageProps) {
         prixVariable: true,
         engagementMois: true,
       },
-      orderBy: [{ categorie: "asc" }, { nom: "asc" }],
+      // Stable ordering : par nom seulement → quand un produit custom est créé,
+      // sa catégorie est cohérente avec le rendu côté client (qui regroupe
+      // déjà par catégorie). Évite le double tri.
+      orderBy: { nom: "asc" },
     }),
   ]);
 
@@ -66,10 +68,16 @@ export default async function EditDealPage({ params }: PageProps) {
         products={products.map((p) => ({
           id: p.id,
           nom: p.nom,
-          categorie: getProductCategorieLabel(p.categorie),
+          // On garde la CLÉ catégorie brute (SITE, RS, …) — le client a sa propre
+          // map de labels. Si on passe un label déjà localisé ici, le groupement
+          // côté client (par clé brute) ne marche plus.
+          categorie: p.categorie,
+          description: p.description,
           type: p.type,
           prixOneShot: p.prixOneShot?.toString() ?? null,
           prixMensuel: p.prixMensuel?.toString() ?? null,
+          prixVariable: p.prixVariable,
+          engagementMois: p.engagementMois,
         }))}
         initial={{
           id: deal.id,
