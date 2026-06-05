@@ -55,6 +55,18 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
 
   // --- Construction du WHERE ---
   const whereConditions: Prisma.ClientInvoiceWhereInput[] = [];
+
+  // Un contrat doit être ACTIF (ou suspendu/résilié/expiré = historique
+  // facturé) pour que ses factures apparaissent. Les contrats en
+  // ATTENTE_SIGNATURE_CLIENT ou ATTENTE_VALIDATION_ADMIN ne doivent PAS
+  // encombrer la liste — leurs factures (pré-créées en BROUILLON) restent
+  // en DB mais sont masquées tant que le contrat n'est pas exécutoire.
+  whereConditions.push({
+    contract: {
+      statut: { in: ["ACTIF", "SUSPENDU", "RESILIE", "EXPIRE"] },
+    },
+  });
+
   if (user.role !== "ADMIN") {
     whereConditions.push({ contract: { assigneAId: user.id } });
   }

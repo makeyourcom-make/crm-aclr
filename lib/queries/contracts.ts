@@ -202,7 +202,16 @@ function buildWhere(
     conditions.push({ assigneAId: user.id });
   }
 
-  if (params.statut) conditions.push({ statut: params.statut });
+  // Par défaut, on cache les contrats encore EN ATTENTE de signature/validation
+  // (qui apparaissent dans /pipeline ou dans le filtre statut explicite).
+  // Le user choisit explicitement le statut pour les voir.
+  if (params.statut) {
+    conditions.push({ statut: params.statut });
+  } else {
+    conditions.push({
+      statut: { in: ["ACTIF", "SUSPENDU", "RESILIE", "EXPIRE"] },
+    });
+  }
   if (params.assigneAId) conditions.push({ assigneAId: params.assigneAId });
 
   if (params.q) {
