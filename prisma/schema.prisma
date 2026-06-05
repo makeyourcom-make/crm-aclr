@@ -807,6 +807,14 @@ model Product {
   coutOneShot Decimal? @db.Decimal(12, 2) @default(0)
   coutMensuel Decimal? @db.Decimal(12, 2) @default(0)
 
+  /// Si true, le prix est "dès X CHF" — le commercial peut overrider le prix
+  /// au moment de l'ajout dans un Deal ou un Contrat (sur-mesure).
+  prixVariable Boolean @default(false)
+
+  /// Durée minimum d'engagement client en mois (12, 24, 6, 9, 3).
+  /// Null = pas d'engagement spécifique (option ponctuelle, pack mixte).
+  engagementMois Int?
+
   /// Pour les packs : IDs des produits composants (JSON array de Product.id)
   composantsIds Json?
 
