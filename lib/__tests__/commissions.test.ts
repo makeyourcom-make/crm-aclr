@@ -410,6 +410,67 @@ describe("computeValeurAn1", () => {
       computeValeurAn1({ oneShotCents: 0, mensuelCents: -1 }),
     ).toThrow();
   });
+
+  // ---- Règle 2026-06 : dureeMois < 12 -> assiette = revenu réel -----
+  describe("dureeMois < 12 — commissionne sur le revenu réel ACLR", () => {
+    it("Google Ads gros budget 3 mois : 349 setup + 600/mois × 3 = 2'149 CHF", () => {
+      const v = computeValeurAn1({
+        oneShotCents: chfToCents(349),
+        mensuelCents: chfToCents(600),
+        dureeMois: 3,
+      });
+      expect(centsToChf(v)).toBe(2149); // 349 + 600 * 3
+    });
+
+    it("CMO Light 9 mois : 0 setup + 990/mois × 9 = 8'910 CHF", () => {
+      const v = computeValeurAn1({
+        oneShotCents: 0,
+        mensuelCents: chfToCents(990),
+        dureeMois: 9,
+      });
+      expect(centsToChf(v)).toBe(8910);
+    });
+
+    it("dureeMois >= 12 reste plafonnée à 12 (renouvellement prend le relais)", () => {
+      const v12 = computeValeurAn1({
+        oneShotCents: chfToCents(1000),
+        mensuelCents: chfToCents(100),
+        dureeMois: 12,
+      });
+      const v24 = computeValeurAn1({
+        oneShotCents: chfToCents(1000),
+        mensuelCents: chfToCents(100),
+        dureeMois: 24,
+      });
+      expect(centsToChf(v12)).toBe(2200);
+      expect(centsToChf(v24)).toBe(2200); // cap à 12 mois
+    });
+
+    it("default dureeMois (undefined) = 12 mois (backward-compat)", () => {
+      const v = computeValeurAn1({
+        oneShotCents: chfToCents(1000),
+        mensuelCents: chfToCents(100),
+      });
+      expect(centsToChf(v)).toBe(2200);
+    });
+
+    it("rejette dureeMois <= 0", () => {
+      expect(() =>
+        computeValeurAn1({
+          oneShotCents: 0,
+          mensuelCents: chfToCents(100),
+          dureeMois: 0,
+        }),
+      ).toThrow();
+      expect(() =>
+        computeValeurAn1({
+          oneShotCents: 0,
+          mensuelCents: chfToCents(100),
+          dureeMois: -1,
+        }),
+      ).toThrow();
+    });
+  });
 });
 
 // ===========================================================================

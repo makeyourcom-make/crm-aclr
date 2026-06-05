@@ -330,22 +330,45 @@ export function computeMonthlyInvoice(
 export interface ValeurAn1Input {
   oneShotCents: Cents;
   mensuelCents: Cents;
-  /** Durée en mois — default 12. Si > 12, on prend quand même 12 (valeur AN1) */
+  /**
+   * Durée totale du contrat en mois. Default 12.
+   *
+   * Règle (depuis 2026-06) :
+   *   - Si dureeMois >= 12 → assiette commission = oneShot + mensuel × 12
+   *     (les mois 13+ sont rémunérés via le mécanisme renouvellement à 10 %).
+   *   - Si dureeMois < 12  → assiette = oneShot + mensuel × dureeMois
+   *     (on ne commissionne JAMAIS sur un revenu qui ne rentrera pas chez
+   *     ACLR. Ex. contrat 3 mois Google Ads : commission sur ce qui est
+   *     réellement encaissé pendant 3 mois, pas sur 12 mois fictifs.)
+   */
   dureeMois?: number;
 }
 
 /**
- * Calcule la valeur "an 1" qui sert d'assiette à la commission de signature.
+ * Calcule l'assiette de la commission de signature.
  *
- * = oneShot + mensuel * 12
+ * Nom historique « valeur an 1 » conservé pour compat (colonne DB, audit
+ * comptable). En pratique : c'est le revenu RÉEL d'ACLR sur la durée du
+ * contrat, plafonné à 12 mois (les années suivantes étant rémunérées via
+ * le mécanisme renouvellement).
  *
- * (Même si le contrat dure 24 mois, l'assiette commission reste 12 mois ;
- * les années suivantes sont rémunérées via le mécanisme renouvellement.)
+ * Formule : oneShot + mensuel × min(dureeMois, 12)
+ *
+ * Exemples :
+ *   - Contrat 12 mois @ 1000 setup + 100/mois → assiette 2 200
+ *   - Contrat 24 mois @ 1000 setup + 100/mois → assiette 2 200 (cap 12, an2+
+ *     via renouvellement)
+ *   - Contrat 3 mois @ 349 setup + 600/mois (Google Ads gros budget) →
+ *     assiette 2 149 (= revenu réel ACLR sur les 3 mois)
  */
 export function computeValeurAn1(input: ValeurAn1Input): Cents {
   if (input.oneShotCents < 0) throw new RangeError("oneShotCents ≥ 0");
   if (input.mensuelCents < 0) throw new RangeError("mensuelCents ≥ 0");
-  return input.oneShotCents + input.mensuelCents * 12;
+  const duree = input.dureeMois ?? 12;
+  if (duree <= 0 || !Number.isFinite(duree))
+    throw new RangeError(`dureeMois doit être > 0 (reçu ${duree})`);
+  const moisAssiette = Math.min(duree, 12);
+  return input.oneShotCents + input.mensuelCents * moisAssiette;
 }
 
 // ===========================================================================

@@ -194,7 +194,13 @@ export function ContractWizard({
       oneShot += po * l.quantite;
       mensuel += pm * l.quantite;
     }
-    const valeurAn1 = oneShot + mensuel * 12;
+    // Assiette commission = revenu ACLR sur la durée du contrat, plafonnée
+    // à 12 mois (les mois 13+ sont rémunérés via le mécanisme renouvellement
+    // à 10 %). Pour un contrat 3 mois (ex. Google Ads), assiette = revenu
+    // RÉEL sur 3 mois, pas 12 mois fictifs.
+    const dureeMoisNum = Number(dureeMois) || 12;
+    const moisAssiette = Math.min(Math.max(dureeMoisNum, 1), 12);
+    const valeurAn1 = oneShot + mensuel * moisAssiette;
     const commissionTotale = valeurAn1 * tauxCommission;
     const commissionPart1 = commissionTotale / 2;
     const commissionPart2 = commissionTotale / 2;
@@ -202,11 +208,12 @@ export function ContractWizard({
       oneShot,
       mensuel,
       valeurAn1,
+      moisAssiette,
       commissionTotale,
       commissionPart1,
       commissionPart2,
     };
-  }, [lines, allProducts, tauxCommission]);
+  }, [lines, allProducts, tauxCommission, dureeMois]);
 
   // ---- Mutations ----
   const addLine = () => {
@@ -497,7 +504,11 @@ export function ContractWizard({
               value={`${formatCHF(calc.mensuel)} / mois`}
             />
             <RecapLine
-              label="Valeur an 1"
+              label={
+                calc.moisAssiette < 12
+                  ? `Revenu ACLR (${calc.moisAssiette} mois)`
+                  : "Valeur an 1"
+              }
               value={formatCHF(calc.valeurAn1)}
               big
             />
@@ -507,6 +518,14 @@ export function ContractWizard({
               big
             />
           </div>
+
+          {calc.moisAssiette < 12 && (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              ℹ️ Contrat &lt; 12 mois : la commission est calculée sur le
+              revenu réel encaissé par ACLR pendant la durée du contrat
+              ({calc.moisAssiette} mois), pas sur 12 mois extrapolés.
+            </p>
+          )}
 
           <div className="mt-4 rounded-md border border-border bg-card p-3 text-xs text-muted-foreground">
             <p className="mb-1 font-medium text-foreground">

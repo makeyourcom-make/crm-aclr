@@ -130,9 +130,14 @@ export async function createContractFromDeal(
     };
   });
 
+  // On passe la dureeMois pour que les contrats < 12 mois (ex. Google Ads
+  // 3 mois fermes) commissionnent sur le revenu réel ACLR, pas sur 12 mois
+  // fictifs. Les contrats >= 12 mois conservent le cap à 12 mois (an 2+
+  // rémunéré via renouvellement).
   const valeurAn1Cents = computeValeurAn1({
     oneShotCents,
     mensuelCents,
+    dureeMois: parsed.data.dureeMois,
   });
   const commission = computeCommissionSignature({
     valeurAn1Cents,
