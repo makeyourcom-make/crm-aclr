@@ -57,6 +57,11 @@ interface AddActivityDialogProps {
   currentUserId?: string;
   /** Vrai si user courant est admin (peut assigner aux autres) */
   isAdmin?: boolean;
+  /** Mode contrôlé : ouverture pilotée par le parent (ex. clic sur un créneau). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Masque le bouton déclencheur (utile en mode contrôlé pur). */
+  hideTrigger?: boolean;
 }
 
 export function AddActivityDialog({
@@ -67,9 +72,17 @@ export function AddActivityDialog({
   users = [],
   currentUserId,
   isAdmin = false,
+  open: openProp,
+  onOpenChange,
+  hideTrigger = false,
 }: AddActivityDialogProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = openProp ?? internalOpen;
+  const setOpen = (o: boolean) => {
+    setInternalOpen(o);
+    onOpenChange?.(o);
+  };
   const [pending, startTransition] = useTransition();
 
   const [prospectId, setProspectId] = useState("");
@@ -137,20 +150,25 @@ export function AddActivityDialog({
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        // Quand on ouvre, on recolle sur la date du jour cliqué
-        if (o) setDate(defaultDate);
+        // À l'ouverture, on recolle sur le jour ET l'heure cliqués
+        if (o) {
+          setDate(defaultDate);
+          setHeure(defaultTime);
+        }
       }}
     >
-      <DialogTrigger className={triggerClass}>
-        {triggerMode === "header" ? (
-          <>
-            <Icon name="Calendar" className="h-4 w-4" />
-            + Nouvelle activité
-          </>
-        ) : (
-          "+ Ajouter"
-        )}
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger className={triggerClass}>
+          {triggerMode === "header" ? (
+            <>
+              <Icon name="Calendar" className="h-4 w-4" />
+              + Nouvelle activité
+            </>
+          ) : (
+            "+ Ajouter"
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Nouvelle activité dans l&apos;agenda</DialogTitle>

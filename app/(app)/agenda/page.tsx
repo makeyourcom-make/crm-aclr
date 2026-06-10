@@ -128,9 +128,9 @@ export default async function AgendaPage({ searchParams }: PageProps) {
       />
 
       <p className="mt-4 text-center text-xs text-muted-foreground">
-        💡 Clique « + Ajouter » au bas de chaque jour pour planifier une
-        activité (RDV, appel, email…). Drag &amp; drop d&apos;une case
-        à l&apos;autre arrive en v2.
+        💡 Clique sur un créneau vide pour planifier une activité à cette
+        heure, ou sur un événement pour le détail et les actions (fait, J+1,
+        supprimer).
       </p>
     </div>
   );

@@ -1,7 +1,17 @@
 "use client";
 
+/**
+ * Agenda — vue semaine en grille horaire type Google Agenda.
+ *
+ *  - Gouttière d'heures à gauche + 7 colonnes de jours
+ *  - Événements positionnés par heure de début et dimensionnés par durée
+ *  - Chevauchements répartis en colonnes côte à côte
+ *  - Trait rouge "maintenant" sur le jour courant
+ *  - Clic sur un événement → fiche détail + actions (Fait, J+1, supprimer)
+ *  - Clic sur un créneau vide → création d'activité pré-remplie (jour + heure)
+ */
 import Link from "next/link";
-import { useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
@@ -12,21 +22,31 @@ import { ActivityIcon } from "@/components/activities/activity-icon";
 import { AdresseRdvLink } from "@/components/activities/adresse-rdv-link";
 import { AddActivityDialog } from "@/components/agenda/add-activity-dialog";
 import { DeleteActivityButton } from "@/components/common/entity-delete-buttons";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { formatTime } from "@/lib/format";
 import { getActivityTypeLabel } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
 import type { AgendaActivity } from "@/lib/queries/agenda";
 
-const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+const DAYS_SHORT = ["LUN.", "MAR.", "MER.", "JEU.", "VEN.", "SAM.", "DIM."];
+
+const HOUR_HEIGHT = 48; // px par heure
+const TOTAL_HEIGHT = 24 * HOUR_HEIGHT;
+const GUTTER_W = 56; // largeur gouttière heures
+const DEFAULT_DUR_MIN = 30; // durée par défaut si non renseignée
+const SCROLL_TO_HOUR = 7; // ancrage du scroll au chargement
 
 interface ProspectOption {
   id: string;
   raisonSociale: string;
   ville: string | null;
 }
-
 interface UserOption {
   id: string;
   name: string;
@@ -37,17 +57,88 @@ interface WeekViewProps {
   weekStart: Date;
   activities: AgendaActivity[];
   prospects: ProspectOption[];
-  /** Affiche le prénom du propriétaire sur chaque activité (vue admin "Toute l'équipe"). */
   showUserBadge?: boolean;
-  /** Pour le dialog d'ajout — liste des users (admin assigne, sinon ignoré) */
   users?: UserOption[];
   currentUserId?: string;
   isAdmin?: boolean;
 }
 
+// Couleurs de bloc par statut (fond doux + accent bordure gauche)
+const STATUT_BLOCK: Record<string, string> = {
+  PLANIFIE: "bg-blue-50 border-l-blue-500 text-blue-900",
+  EN_COURS: "bg-amber-50 border-l-amber-500 text-amber-900",
+  FAIT: "bg-emerald-50 border-l-emerald-500 text-emerald-900",
+  MANQUE: "bg-red-50 border-l-red-500 text-red-900",
+  REPLANIFIE: "bg-slate-50 border-l-slate-400 text-slate-700",
+  ANNULE: "bg-slate-50 border-l-slate-300 text-slate-400 line-through",
+};
+
+const USER_DOT_COLORS = ["#0E1936", "#F47174", "#2563eb", "#10b981", "#a855f7"];
+function colorForUser(userId: string): string {
+  let h = 0;
+  for (let i = 0; i < userId.length; i++) h = (h * 31 + userId.charCodeAt(i)) | 0;
+  return USER_DOT_COLORS[Math.abs(h) % USER_DOT_COLORS.length];
+}
+
 function toIso(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function minOfDay(d: Date): number {
+  return d.getHours() * 60 + d.getMinutes();
+}
+function dureeMin(a: AgendaActivity): number {
+  return a.duree && a.duree > 0 ? a.duree : DEFAULT_DUR_MIN;
+}
+
+interface Positioned {
+  activity: AgendaActivity;
+  startMin: number;
+  endMin: number;
+  col: number;
+  cols: number;
+}
+
+/** Répartit les événements d'un jour en colonnes pour gérer les chevauchements. */
+function layoutDay(items: AgendaActivity[]): Positioned[] {
+  const base = items
+    .map((a) => {
+      const startMin = minOfDay(new Date(a.date));
+      const endMin = Math.min(startMin + dureeMin(a), 24 * 60);
+      return { activity: a, startMin, endMin };
+    })
+    .sort((x, y) => x.startMin - y.startMin || x.endMin - y.endMin);
+
+  const result: Positioned[] = [];
+  let cluster: typeof base = [];
+  let clusterEnd = -1;
+
+  const flush = () => {
+    const colEnds: number[] = [];
+    const placed: { it: (typeof base)[number]; col: number }[] = [];
+    for (const it of cluster) {
+      let c = 0;
+      for (; c < colEnds.length; c++) {
+        if (colEnds[c] <= it.startMin) break;
+      }
+      colEnds[c] = it.endMin;
+      placed.push({ it, col: c });
+    }
+    const cols = colEnds.length;
+    for (const p of placed) {
+      result.push({ ...p.it, col: p.col, cols });
+    }
+    cluster = [];
+    clusterEnd = -1;
+  };
+
+  for (const it of base) {
+    if (cluster.length && it.startMin >= clusterEnd) flush();
+    cluster.push(it);
+    clusterEnd = Math.max(clusterEnd, it.endMin);
+  }
+  if (cluster.length) flush();
+  return result;
 }
 
 export function WeekView({
@@ -59,119 +150,249 @@ export function WeekView({
   currentUserId,
   isAdmin = false,
 }: WeekViewProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [selected, setSelected] = useState<AgendaActivity | null>(null);
+  const [add, setAdd] = useState<{ open: boolean; dateIso: string; time: string }>(
+    { open: false, dateIso: toIso(weekStart), time: "09:00" },
+  );
+
+  // Scroll au matin au montage
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = SCROLL_TO_HOUR * HOUR_HEIGHT - 12;
+    }
+  }, []);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
 
-  // Groupe par jour
-  const grouped: AgendaActivity[][] = Array.from({ length: 7 }, () => []);
-  for (const a of activities) {
-    const d = new Date(a.date);
-    d.setHours(0, 0, 0, 0);
-    const dayIdx = Math.round(
-      (d.getTime() - weekStart.getTime()) / 86400_000,
-    );
-    if (dayIdx >= 0 && dayIdx < 7) grouped[dayIdx].push(a);
-  }
+  // Groupe + layout par jour
+  const days = useMemo(() => {
+    const grouped: AgendaActivity[][] = Array.from({ length: 7 }, () => []);
+    for (const a of activities) {
+      const d = new Date(a.date);
+      d.setHours(0, 0, 0, 0);
+      const idx = Math.round((d.getTime() - weekStart.getTime()) / 86400_000);
+      if (idx >= 0 && idx < 7) grouped[idx].push(a);
+    }
+    return grouped.map((items) => layoutDay(items));
+  }, [activities, weekStart]);
+
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+
+  const openSlot = (dayIdx: number, e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const totalMin = Math.max(0, Math.min((y / HOUR_HEIGHT) * 60, 23 * 60 + 45));
+    const rounded = Math.round(totalMin / 15) * 15;
+    const hh = String(Math.floor(rounded / 60)).padStart(2, "0");
+    const mm = String(rounded % 60).padStart(2, "0");
+    const day = new Date(weekStart);
+    day.setDate(day.getDate() + dayIdx);
+    setAdd({ open: true, dateIso: toIso(day), time: `${hh}:${mm}` });
+  };
 
   return (
-    <div className="grid gap-3 lg:grid-cols-7">
-      {DAYS.map((label, idx) => {
-        const dayDate = new Date(weekStart);
-        dayDate.setDate(dayDate.getDate() + idx);
-        const isToday = dayDate.getTime() === today.getTime();
-        const isPast = dayDate < today;
-        return (
-          <Card
-            key={idx}
-            className={cn(
-              isToday && "ring-2 ring-primary",
-              isPast && "opacity-70",
-            )}
-          >
-            <CardContent className="p-3">
-              <div className="mb-2 flex items-baseline justify-between">
-                <p
-                  className={cn(
-                    "text-sm font-semibold",
-                    isToday && "text-primary",
-                  )}
-                >
+    <div className="overflow-hidden rounded-lg border border-border bg-card">
+      {/* En-tête des jours (sticky) */}
+      <div className="flex border-b border-border bg-muted/30">
+        <div style={{ width: GUTTER_W }} className="shrink-0" />
+        <div className="grid flex-1 grid-cols-7">
+          {DAYS_SHORT.map((label, idx) => {
+            const d = new Date(weekStart);
+            d.setDate(d.getDate() + idx);
+            const isToday = d.getTime() === today.getTime();
+            return (
+              <div
+                key={idx}
+                className="border-l border-border px-1 py-2 text-center"
+              >
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   {label}
                 </p>
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  {String(dayDate.getDate()).padStart(2, "0")}/
-                  {String(dayDate.getMonth() + 1).padStart(2, "0")}
+                <p
+                  className={cn(
+                    "mx-auto mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold tabular-nums",
+                    isToday
+                      ? "bg-primary text-primary-foreground"
+                      : "text-foreground",
+                  )}
+                >
+                  {d.getDate()}
                 </p>
               </div>
+            );
+          })}
+        </div>
+      </div>
 
-              {grouped[idx].length === 0 ? (
-                <p className="rounded-md border border-dashed border-border bg-muted/20 px-2 py-4 text-center text-[11px] text-muted-foreground">
-                  —
-                </p>
-              ) : (
-                <div className="space-y-1.5">
-                  {grouped[idx].map((a) => (
-                    <ActivityRow
-                      key={a.id}
-                      activity={a}
-                      showUserBadge={showUserBadge}
+      {/* Corps scrollable */}
+      <div ref={scrollRef} className="max-h-[640px] overflow-y-auto">
+        <div className="flex" style={{ height: TOTAL_HEIGHT }}>
+          {/* Gouttière heures */}
+          <div
+            style={{ width: GUTTER_W }}
+            className="relative shrink-0 select-none"
+          >
+            {hours.map((h) => (
+              <div
+                key={h}
+                style={{ top: h * HOUR_HEIGHT }}
+                className="absolute right-1.5 -translate-y-1/2 text-[10px] tabular-nums text-muted-foreground"
+              >
+                {h === 0 ? "" : `${h}:00`}
+              </div>
+            ))}
+          </div>
+
+          {/* 7 colonnes */}
+          <div className="grid flex-1 grid-cols-7">
+            {days.map((positioned, dayIdx) => {
+              const d = new Date(weekStart);
+              d.setDate(d.getDate() + dayIdx);
+              d.setHours(0, 0, 0, 0);
+              const isToday = d.getTime() === today.getTime();
+              return (
+                <div
+                  key={dayIdx}
+                  className="relative border-l border-border"
+                  onClick={(e) => openSlot(dayIdx, e)}
+                  role="presentation"
+                >
+                  {/* Lignes d'heures */}
+                  {hours.map((h) => (
+                    <div
+                      key={h}
+                      style={{ top: h * HOUR_HEIGHT, height: HOUR_HEIGHT }}
+                      className="absolute inset-x-0 border-t border-border/60"
                     />
                   ))}
-                </div>
-              )}
 
-              {/* Bouton "+ Ajouter" pré-réglé sur ce jour */}
-              <AddActivityDialog
-                prospects={prospects}
-                defaultDate={toIso(dayDate)}
-                defaultTime="09:00"
-                triggerMode="day"
-                users={users}
-                currentUserId={currentUserId}
-                isAdmin={isAdmin}
-              />
-            </CardContent>
-          </Card>
-        );
-      })}
+                  {/* Trait "maintenant" */}
+                  {isToday && (
+                    <div
+                      style={{ top: (nowMin / 60) * HOUR_HEIGHT }}
+                      className="absolute inset-x-0 z-20 -translate-y-1/2"
+                    >
+                      <div className="relative h-0 border-t-2 border-red-500">
+                        <span className="absolute -left-1 -top-[5px] h-2.5 w-2.5 rounded-full bg-red-500" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Événements */}
+                  {positioned.map((p) => {
+                    const top = (p.startMin / 60) * HOUR_HEIGHT;
+                    const rawH = ((p.endMin - p.startMin) / 60) * HOUR_HEIGHT;
+                    const height = Math.max(rawH, 16);
+                    const widthPct = 100 / p.cols;
+                    const leftPct = p.col * widthPct;
+                    const compact = height < 34;
+                    return (
+                      <button
+                        key={p.activity.id}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelected(p.activity);
+                        }}
+                        style={{
+                          top,
+                          height: height - 2,
+                          left: `calc(${leftPct}% + 1px)`,
+                          width: `calc(${widthPct}% - 3px)`,
+                        }}
+                        className={cn(
+                          "absolute z-10 overflow-hidden rounded-md border border-l-4 px-1.5 py-0.5 text-left text-[11px] leading-tight shadow-sm transition hover:z-30 hover:shadow-md",
+                          STATUT_BLOCK[p.activity.statut] ?? STATUT_BLOCK.PLANIFIE,
+                        )}
+                        title={`${formatTime(p.activity.date)} · ${p.activity.sujet}`}
+                      >
+                        {compact ? (
+                          <span className="flex items-center gap-1 truncate">
+                            <span className="font-semibold tabular-nums">
+                              {formatTime(p.activity.date)}
+                            </span>
+                            <span className="truncate">
+                              {p.activity.prospect?.raisonSociale ??
+                                p.activity.sujet}
+                            </span>
+                          </span>
+                        ) : (
+                          <>
+                            <span className="flex items-center gap-1 font-semibold tabular-nums">
+                              <ActivityIcon type={p.activity.type} size={13} />
+                              {formatTime(p.activity.date)}
+                              {showUserBadge && p.activity.user && (
+                                <span
+                                  className="ml-auto inline-block h-2 w-2 shrink-0 rounded-full"
+                                  style={{
+                                    backgroundColor: colorForUser(
+                                      p.activity.user.id,
+                                    ),
+                                  }}
+                                />
+                              )}
+                            </span>
+                            <span className="block truncate font-medium">
+                              {p.activity.prospect?.raisonSociale ??
+                                p.activity.sujet}
+                            </span>
+                            {p.activity.prospect && (
+                              <span className="block truncate opacity-70">
+                                {p.activity.sujet}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Dialog création (créneau cliqué) */}
+      <AddActivityDialog
+        prospects={prospects}
+        defaultDate={add.dateIso}
+        defaultTime={add.time}
+        users={users}
+        currentUserId={currentUserId}
+        isAdmin={isAdmin}
+        open={add.open}
+        onOpenChange={(o) => setAdd((s) => ({ ...s, open: o }))}
+        hideTrigger
+      />
+
+      {/* Dialog détail événement */}
+      <EventDetailDialog
+        activity={selected}
+        showUser={showUserBadge}
+        onClose={() => setSelected(null)}
+      />
     </div>
   );
 }
 
-const STATUT_CLASSES: Record<string, string> = {
-  PLANIFIE: "bg-blue-50 border-blue-200 text-blue-900",
-  EN_COURS: "bg-amber-50 border-amber-200 text-amber-900",
-  FAIT: "bg-emerald-50 border-emerald-200 text-emerald-900 opacity-60",
-  MANQUE: "bg-red-50 border-red-200 text-red-900",
-  REPLANIFIE: "bg-slate-50 border-slate-200 text-slate-700",
-  ANNULE: "bg-slate-50 border-slate-200 text-slate-400 line-through",
-};
-
-// Palette par utilisateur (déterministe) pour distinguer Arthur vs Sophie
-// dans la vue "Toute l'équipe". Couleur ≠ statut → on garde les couleurs
-// de statut, on ajoute juste une pastille à côté du nom.
-const USER_DOT_COLORS = [
-  "#0E1936", // navy
-  "#F47174", // coral
-  "#2563eb",
-  "#10b981",
-  "#a855f7",
-];
-function colorForUser(userId: string): string {
-  // Hash simple basé sur le userId pour assigner une couleur stable
-  let h = 0;
-  for (let i = 0; i < userId.length; i++) h = (h * 31 + userId.charCodeAt(i)) | 0;
-  return USER_DOT_COLORS[Math.abs(h) % USER_DOT_COLORS.length];
-}
-
-function ActivityRow({
+function EventDetailDialog({
   activity: a,
-  showUserBadge = false,
+  showUser,
+  onClose,
 }: {
-  activity: AgendaActivity;
-  showUserBadge?: boolean;
+  activity: AgendaActivity | null;
+  showUser: boolean;
+  onClose: () => void;
 }) {
   const [pending, startTransition] = useTransition();
+  if (!a) return null;
+
+  const start = new Date(a.date);
+  const end = new Date(start.getTime() + dureeMin(a) * 60_000);
 
   const markDone = () =>
     startTransition(async () => {
@@ -181,86 +402,88 @@ function ActivityRow({
         return;
       }
       toast.success("Faite.");
+      onClose();
     });
 
   const replanTomorrow = () =>
     startTransition(async () => {
-      const tomorrow = new Date(a.date);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const res = await rescheduleActivity(a.id, tomorrow);
+      const t = new Date(a.date);
+      t.setDate(t.getDate() + 1);
+      const res = await rescheduleActivity(a.id, t);
       if (!res.ok) {
         toast.error(res.error ?? "Échec.");
         return;
       }
       toast.success("Replanifiée à J+1.");
+      onClose();
     });
 
   return (
-    <div
-      className={cn(
-        "rounded-md border px-2 py-1.5 text-xs",
-        STATUT_CLASSES[a.statut],
-      )}
-    >
-      <div className="flex items-center gap-1.5">
-        <ActivityIcon type={a.type} size={20} />
-        <span className="font-mono font-semibold tabular-nums">
-          {formatTime(a.date)}
-        </span>
-        <span className="opacity-70">{getActivityTypeLabel(a.type)}</span>
-        {showUserBadge && a.user && (
-          <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-white/70 px-1.5 py-0.5 text-[9px] font-medium">
-            <span
-              className="inline-block h-1.5 w-1.5 rounded-full"
-              style={{ backgroundColor: colorForUser(a.user.id) }}
-            />
-            {a.user.name.split(" ")[0]}
-          </span>
-        )}
-      </div>
-      {a.prospect ? (
-        <Link
-          href={`/prospects/${a.prospect.id}`}
-          className="mt-1 block truncate font-medium hover:underline"
-        >
-          {a.prospect.raisonSociale}
-        </Link>
-      ) : (
-        <span className="mt-1 block truncate font-medium italic opacity-70">
-          Note interne
-        </span>
-      )}
-      <p className="truncate text-[10px] opacity-70">{a.sujet}</p>
-      {a.adresseRdv && (
-        <div className="mt-0.5 truncate">
-          <AdresseRdvLink adresse={a.adresseRdv} size="sm" />
-        </div>
-      )}
+    <Dialog open={!!a} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <ActivityIcon type={a.type} size={20} />
+            {getActivityTypeLabel(a.type)}
+          </DialogTitle>
+        </DialogHeader>
 
-      <div className="mt-1.5 flex items-center gap-1">
-        {(a.statut === "PLANIFIE" || a.statut === "EN_COURS") && (
-          <>
-            <button
-              type="button"
-              onClick={markDone}
-              disabled={pending}
-              className="flex-1 rounded border border-emerald-300 bg-white px-1 py-0.5 text-[10px] text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+        <div className="space-y-2 text-sm">
+          <p className="font-mono text-sm tabular-nums text-muted-foreground">
+            {formatTime(start)} – {formatTime(end)}
+          </p>
+          {a.prospect ? (
+            <Link
+              href={`/prospects/${a.prospect.id}`}
+              className="block font-semibold text-primary hover:underline"
             >
-              ✓ Fait
-            </button>
-            <button
-              type="button"
-              onClick={replanTomorrow}
-              disabled={pending}
-              className="flex-1 rounded border border-border bg-white px-1 py-0.5 text-[10px] hover:bg-muted disabled:opacity-50"
-              title="Replanifier à demain"
-            >
-              J+1
-            </button>
-          </>
-        )}
-        <DeleteActivityButton activityId={a.id} />
-      </div>
-    </div>
+              {a.prospect.raisonSociale}
+            </Link>
+          ) : (
+            <p className="font-semibold italic text-muted-foreground">
+              Note interne
+            </p>
+          )}
+          <p className="font-medium">{a.sujet}</p>
+          {a.contenu && (
+            <p className="whitespace-pre-wrap text-muted-foreground">
+              {a.contenu}
+            </p>
+          )}
+          {a.adresseRdv && <AdresseRdvLink adresse={a.adresseRdv} />}
+          {showUser && a.user && (
+            <p className="text-xs text-muted-foreground">
+              Assigné à {a.user.name}
+            </p>
+          )}
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {(a.statut === "PLANIFIE" || a.statut === "EN_COURS") && (
+            <>
+              <button
+                type="button"
+                onClick={markDone}
+                disabled={pending}
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-3 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+              >
+                ✓ Marquer faite
+              </button>
+              <button
+                type="button"
+                onClick={replanTomorrow}
+                disabled={pending}
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted disabled:opacity-50"
+              >
+                Reporter à J+1
+              </button>
+            </>
+          )}
+          <div className="ml-auto">
+            <DeleteActivityButton activityId={a.id} />
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
