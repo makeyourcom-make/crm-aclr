@@ -59,17 +59,17 @@ export interface ContractPdfData {
     numeroTVA?: string;
   };
   /**
-   * Liste des prestations vendues. On affiche désignation + description
-   * éventuelle, SANS prix par ligne. Les prix par ligne du catalogue
-   * peuvent diverger des prix réellement contractés (override à la
-   * signature, MAJ catalogue post-signature) — pour éviter toute
-   * contradiction visuelle avec les totaux en bas, on s'en tient au récap.
-   * Détail tarifaire ligne par ligne = sur la facture (qui a un modèle
-   * ClientInvoiceLine avec prix unitaire négocié figé).
+   * Liste des prestations vendues, avec le prix par ligne (frais unique
+   * et/ou mensuel) issu du produit. ⚠️ Ces prix proviennent de la fiche
+   * produit ; ils peuvent diverger des montants figés du contrat (override
+   * à la signature, MAJ catalogue ultérieure). Les totaux en bas restent la
+   * référence contractuelle.
    */
   produits: Array<{
     nom: string;
     description?: string | null;
+    prixOneShot?: number | null;
+    prixMensuel?: number | null;
   }>;
   signature?: {
     nomClient?: string | null;
@@ -164,6 +164,15 @@ const styles = StyleSheet.create({
   colNom: { width: "60%" },
   colOneShot: { width: "20%", textAlign: "right" },
   colMensuel: { width: "20%", textAlign: "right" },
+  prestaNom: { width: "62%" },
+  prestaNomText: { fontSize: 9 },
+  prestaDesc: { fontSize: 8, color: c.muted, marginTop: 1 },
+  prestaPrix: {
+    width: "38%",
+    textAlign: "right",
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+  },
   totauxBlock: {
     marginTop: 16,
     alignSelf: "flex-end",
@@ -263,10 +272,39 @@ function clientIdLabel(numero: string, pays?: string): string {
 }
 
 const MODALITE_LABELS: Record<string, string> = {
-  CINQUANTE_CINQUANTE: "50 % à la signature / 50 % à la livraison",
+  CINQUANTE_CINQUANTE: "50 % d'acompte à la commande / 50 % à la mise en ligne",
   CENT_AU_SIGNING: "100 % à la signature",
   MENSUEL: "Mensualisé sur la durée",
 };
+
+/**
+ * Masque les descriptions auto-générées non destinées au client
+ * (ex. « [Custom] Produit sur-mesure créé depuis un deal. »).
+ */
+function cleanPrestaDescription(desc?: string | null): string {
+  if (!desc) return "";
+  const t = desc.trim();
+  if (t.startsWith("[Custom]")) return "";
+  return t;
+}
+
+/**
+ * Libellé prix d'une ligne de prestation : frais unique et/ou mensuel.
+ *   - les deux    → "CHF 499.00 + CHF 29.90 / mois"
+ *   - mensuel     → "CHF 29.90 / mois"
+ *   - frais unique→ "CHF 499.00"
+ *   - aucun prix  → "" (produit inclus / sur-mesure sans tarif ligne)
+ */
+function prestaPrixLabel(
+  p: { prixOneShot?: number | null; prixMensuel?: number | null },
+  fmt: (n: number | null | undefined) => string,
+): string {
+  const parts: string[] = [];
+  if (p.prixOneShot && p.prixOneShot > 0) parts.push(fmt(p.prixOneShot));
+  if (p.prixMensuel && p.prixMensuel > 0)
+    parts.push(`${fmt(p.prixMensuel)} / mois`);
+  return parts.join(" + ");
+}
 
 export function ContractPdf({ data }: { data: ContractPdfData }) {
   const devise = data.devise ?? "CHF";
@@ -362,18 +400,18 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
             <Text style={styles.metaValue}>{data.numero}</Text>
           </View>
           {/*
-            Date de signature : affichée UNIQUEMENT si le client a
-            réellement signé le document. Sinon le PDF n'est qu'un
-            projet / aperçu en attente — on affiche un placeholder.
+            Date de signature : affichée UNIQUEMENT si le client a réellement
+            signé. Tant que le contrat n'est pas signé, la ligne est masquée
+            (un document non signé n'a pas de date de signature).
           */}
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Date de signature :</Text>
-            <Text style={styles.metaValue}>
-              {data.signature?.dateSignatureClient
-                ? formatDateLong(data.signature.dateSignatureClient)
-                : "— non signé —"}
-            </Text>
-          </View>
+          {data.signature?.dateSignatureClient && (
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Date de signature :</Text>
+              <Text style={styles.metaValue}>
+                {formatDateLong(data.signature.dateSignatureClient)}
+              </Text>
+            </View>
+          )}
           <View style={styles.metaRow}>
             <Text style={styles.metaLabel}>Date de début :</Text>
             <Text style={styles.metaValue}>
@@ -381,33 +419,44 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
             </Text>
           </View>
           <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Durée ferme :</Text>
+            <Text style={styles.metaLabel}>Durée :</Text>
             <Text style={styles.metaValue}>{data.dureeMois} mois</Text>
           </View>
           <View style={styles.metaRow}>
             <Text style={styles.metaLabel}>Modalité de paiement :</Text>
             <Text style={styles.metaValue}>
-              {MODALITE_LABELS[data.modalitePaiement] ??
-                data.modalitePaiement}
+              {(MODALITE_LABELS[data.modalitePaiement] ??
+                data.modalitePaiement) +
+                (data.montantMensuel > 0 &&
+                data.modalitePaiement === "CINQUANTE_CINQUANTE"
+                  ? ", puis facturation mensuelle"
+                  : "")}
             </Text>
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Prestations vendues</Text>
+        <Text style={styles.sectionTitle}>Prestations</Text>
 
-        {data.produits.map((p, i) => (
-          <View key={i} style={styles.tableRow}>
-            <Text style={styles.colNom}>
-              {"• "}
-              {p.nom}
-              {p.description ? ` — ${p.description}` : ""}
-            </Text>
-          </View>
-        ))}
+        {data.produits.map((p, i) => {
+          const desc = cleanPrestaDescription(p.description);
+          const prix = prestaPrixLabel(p, fmt);
+          return (
+            <View key={i} style={styles.tableRow}>
+              <View style={styles.prestaNom}>
+                <Text style={styles.prestaNomText}>
+                  {"• "}
+                  {p.nom}
+                </Text>
+                {desc && <Text style={styles.prestaDesc}>{desc}</Text>}
+              </View>
+              <Text style={styles.prestaPrix}>{prix}</Text>
+            </View>
+          );
+        })}
 
         <View style={styles.totauxBlock}>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Frais one-shot</Text>
+            <Text style={styles.totalLabel}>Frais unique</Text>
             <Text style={styles.totalValue}>
               {fmt(data.montantOneShot)}
             </Text>
