@@ -34,11 +34,19 @@ interface TemplateOption {
   contenu: string;
 }
 
+interface SignatureOption {
+  id: string;
+  nom: string;
+  html: string;
+  isDefault: boolean;
+}
+
 interface SendEmailDialogProps {
   prospectId: string;
   prospectEmail: string | null;
   prospectName: string;
   templates?: TemplateOption[];
+  signatures?: SignatureOption[];
   /** Variante du bouton déclencheur */
   triggerVariant?: "default" | "outline" | "compact";
 }
@@ -48,6 +56,7 @@ export function SendEmailDialog({
   prospectEmail,
   prospectName,
   templates = [],
+  signatures = [],
   triggerVariant = "default",
 }: SendEmailDialogProps) {
   const router = useRouter();
@@ -57,6 +66,10 @@ export function SendEmailDialog({
   const [templateId, setTemplateId] = useState("");
   const [objet, setObjet] = useState("");
   const [contenu, setContenu] = useState("");
+  const [signatureId, setSignatureId] = useState(
+    signatures.find((s) => s.isDefault)?.id ?? "",
+  );
+  const selectedSig = signatures.find((s) => s.id === signatureId);
 
   const handleTemplateChange = (id: string) => {
     setTemplateId(id);
@@ -87,6 +100,7 @@ export function SendEmailDialog({
         templateId: templateId || undefined,
         objet: objet.trim(),
         contenu: contenu.trim(),
+        signatureId: signatureId || undefined,
       });
       if (!res.ok) {
         toast.error(res.error ?? "Échec de l'envoi.");
@@ -185,6 +199,32 @@ export function SendEmailDialog({
               Tu recevras automatiquement une copie sur ton Gmail.
             </p>
           </div>
+
+          {signatures.length > 0 && (
+            <div className="space-y-1.5">
+              <Label htmlFor="signature">Signature</Label>
+              <select
+                id="signature"
+                value={signatureId}
+                onChange={(e) => setSignatureId(e.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+              >
+                <option value="">— Aucune signature —</option>
+                {signatures.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nom}
+                    {s.isDefault ? " (par défaut)" : ""}
+                  </option>
+                ))}
+              </select>
+              {selectedSig && (
+                <div
+                  className="mt-1 rounded-md border border-border bg-white p-3"
+                  dangerouslySetInnerHTML={{ __html: selectedSig.html }}
+                />
+              )}
+            </div>
+          )}
 
           <DialogFooter>
             <Button

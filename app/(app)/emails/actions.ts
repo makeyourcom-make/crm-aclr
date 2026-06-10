@@ -22,6 +22,8 @@ const SendEmailSchema = z.object({
   objet: z.string().min(1),
   contenu: z.string().min(1),
   attachments: z.array(AttachmentSchema).optional(),
+  /** Signature email à ajouter (id d'une EmailSignature de l'utilisateur). */
+  signatureId: z.string().optional(),
 });
 
 const SendFreeFormEmailSchema = z.object({
@@ -88,7 +90,23 @@ export async function sendEmailToProspect(
 
   const objet = apply(parsed.data.objet);
   const contenuTexte = apply(parsed.data.contenu);
-  const contenuHtml = `<pre style="font-family: sans-serif; white-space: pre-wrap;">${contenuTexte.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
+  const contenuHtmlBase = `<pre style="font-family: sans-serif; white-space: pre-wrap;">${contenuTexte.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
+
+  // Signature email choisie (scopée à l'utilisateur) — ajoutée au contenu.
+  let signatureHtml = "";
+  let signatureText = "";
+  if (parsed.data.signatureId) {
+    const sig = await prisma.emailSignature.findFirst({
+      where: { id: parsed.data.signatureId, userId: user.id },
+      select: { html: true },
+    });
+    if (sig) {
+      signatureHtml = `<br /><br />${sig.html}`;
+      signatureText = `\n\n-- \n${sig.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()}`;
+    }
+  }
+  const contenuHtml = contenuHtmlBase + signatureHtml;
+  const contenuTexteFinal = contenuTexte + signatureText;
 
   // Récupère le from
   const userFull = await prisma.user.findUnique({
@@ -114,7 +132,7 @@ export async function sendEmailToProspect(
     to: prospect.email,
     subject: objet,
     html: contenuHtml,
-    text: contenuTexte,
+    text: contenuTexteFinal,
     replyTo,
     messageId,
     attachments:
@@ -148,7 +166,7 @@ export async function sendEmailToProspect(
       destinataireEmail: prospect.email,
       objet,
       contenuHtml,
-      contenuTexte,
+      contenuTexte: contenuTexteFinal,
       statut: isDryRun ? "BROUILLON" : "ENVOYE",
       envoyeLe: isDryRun ? null : new Date(),
       templateUtiliseId: parsed.data.templateId || null,

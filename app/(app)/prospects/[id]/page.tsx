@@ -33,18 +33,24 @@ export async function generateMetadata({ params }: PageProps) {
 export default async function ProspectDetailPage({ params }: PageProps) {
   const user = await requireUser();
   const { id } = await params;
-  const [prospect, activities, emailTemplates, allTags] = await Promise.all([
-    getProspectById(user, id),
-    getProspectActivities(id, user),
-    prisma.emailTemplate.findMany({
-      select: { id: true, nom: true, objet: true, contenu: true },
-      orderBy: { nom: "asc" },
-    }),
-    prisma.prospectTag.findMany({
-      select: { id: true, nom: true, couleur: true },
-      orderBy: { nom: "asc" },
-    }),
-  ]);
+  const [prospect, activities, emailTemplates, allTags, emailSignatures] =
+    await Promise.all([
+      getProspectById(user, id),
+      getProspectActivities(id, user),
+      prisma.emailTemplate.findMany({
+        select: { id: true, nom: true, objet: true, contenu: true },
+        orderBy: { nom: "asc" },
+      }),
+      prisma.prospectTag.findMany({
+        select: { id: true, nom: true, couleur: true },
+        orderBy: { nom: "asc" },
+      }),
+      prisma.emailSignature.findMany({
+        where: { userId: user.id },
+        select: { id: true, nom: true, html: true, isDefault: true },
+        orderBy: [{ isDefault: "desc" }, { nom: "asc" }],
+      }),
+    ]);
 
   if (!prospect) notFound();
 
@@ -75,6 +81,7 @@ export default async function ProspectDetailPage({ params }: PageProps) {
               prospectEmail={prospect.email}
               prospectName={prospect.raisonSociale}
               templates={emailTemplates}
+              signatures={emailSignatures}
               triggerVariant="default"
             />
             <Link

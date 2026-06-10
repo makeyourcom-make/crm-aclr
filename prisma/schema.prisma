@@ -333,9 +333,43 @@ model User {
   documentsRH       EmployeeDocument[]
   expensesCreated   Expense[]
   socialAccounts    SocialAccount[]
+  emailSignatures   EmailSignature[]
 
   @@index([email])
   @@map("users")
+}
+
+/// Signatures email personnalisées par utilisateur (bibliothèque nommée).
+/// Composées via un formulaire guidé ; le HTML est généré et stocké pour
+/// l'envoi. Une signature peut être marquée par défaut (auto-sélectionnée).
+model EmailSignature {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  /// Libellé interne de la signature (ex. « Pro », « Court », « Promo »).
+  nom String
+
+  // Champs du formulaire guidé
+  displayName String
+  fonction    String?
+  telephone   String?
+  email       String?
+  siteWeb     String?
+  entreprise  String? @default("Make Your Com")
+  logoUrl     String?
+
+  /// HTML généré à partir des champs ci-dessus (utilisé tel quel à l'envoi).
+  html String @db.Text
+
+  /// Signature par défaut de l'utilisateur (pré-sélectionnée à l'envoi).
+  isDefault Boolean @default(false)
+
+  @@index([userId])
+  @@map("email_signatures")
 }
 
 enum TypeContrat {

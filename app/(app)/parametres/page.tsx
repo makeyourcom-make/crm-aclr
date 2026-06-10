@@ -1,5 +1,8 @@
+import Link from "next/link";
+
 import { ProfileForm } from "@/components/parametres/profile-form";
 import { SettingsForm } from "@/components/parametres/settings-form";
+import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
@@ -39,6 +42,21 @@ export default async function ParametresPage() {
           <ProfileForm user={userFull} />
         </div>
       )}
+
+      <Link
+        href="/parametres/signatures"
+        className="mb-10 flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/40"
+      >
+        <Icon name="Mail" className="h-5 w-5 text-primary" />
+        <div className="flex-1">
+          <p className="text-sm font-semibold">Signatures email</p>
+          <p className="text-xs text-muted-foreground">
+            Crée et personnalise tes signatures, ajoutées automatiquement à
+            tes emails.
+          </p>
+        </div>
+        <Icon name="ChevronRight" className="h-4 w-4 text-muted-foreground" />
+      </Link>
 
       {user.role === "ADMIN" && (
         <>
