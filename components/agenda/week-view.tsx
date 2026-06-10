@@ -21,7 +21,14 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { toast } from "sonner";
 
 import {
@@ -223,6 +230,19 @@ export function WeekView({
     });
   };
 
+  // Redimensionnement : change la durée d'une activité.
+  const handleResize = (id: string, duree: number) => {
+    startMove(async () => {
+      const res = await updateActivity(id, { duree });
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success("Durée mise à jour.");
+      router.refresh();
+    });
+  };
+
   // Scroll au matin au montage
   useEffect(() => {
     if (scrollRef.current) {
@@ -356,6 +376,7 @@ export function WeekView({
                       p={p}
                       showUserBadge={showUserBadge}
                       onOpen={() => setSelected(p.activity)}
+                      onResize={(duree) => handleResize(p.activity.id, duree)}
                     />
                   ))}
                 </div>
@@ -525,25 +546,55 @@ function EventDetailDialog({
   );
 }
 
-/** Bloc événement positionné + déplaçable (drag & drop). */
+/** Bloc événement positionné + déplaçable (drag & drop) + redimensionnable. */
 function DraggableEvent({
   p,
   showUserBadge,
   onOpen,
+  onResize,
 }: {
   p: Positioned;
   showUserBadge: boolean;
   onOpen: () => void;
+  onResize: (duree: number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: p.activity.id });
+  const baseDur = p.endMin - p.startMin;
+  const [previewDur, setPreviewDur] = useState<number | null>(null);
+  const resizeStart = useRef<{ y: number; dur: number } | null>(null);
+
+  const onResizeDown = (e: ReactPointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    resizeStart.current = { y: e.clientY, dur: baseDur };
+    setPreviewDur(baseDur);
+  };
+  const onResizeMove = (e: ReactPointerEvent) => {
+    if (!resizeStart.current) return;
+    const dy = e.clientY - resizeStart.current.y;
+    const deltaMin = Math.round((dy / HOUR_HEIGHT) * 4) * 15; // snap 15 min
+    setPreviewDur(Math.max(15, resizeStart.current.dur + deltaMin));
+  };
+  const onResizeUp = () => {
+    if (!resizeStart.current) return;
+    const finalDur = previewDur ?? baseDur;
+    const started = resizeStart.current.dur;
+    resizeStart.current = null;
+    setPreviewDur(null);
+    if (finalDur !== started) onResize(finalDur);
+  };
+
+  const durMin = previewDur ?? baseDur;
   const top = (p.startMin / 60) * HOUR_HEIGHT;
-  const rawH = ((p.endMin - p.startMin) / 60) * HOUR_HEIGHT;
+  const rawH = (durMin / 60) * HOUR_HEIGHT;
   const height = Math.max(rawH, 16);
   const widthPct = 100 / p.cols;
   const leftPct = p.col * widthPct;
   const compact = height < 34;
   const a = p.activity;
+  const resizing = previewDur !== null;
 
   return (
     <button
@@ -551,7 +602,7 @@ function DraggableEvent({
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        if (!isDragging) onOpen();
+        if (!isDragging && !resizing) onOpen();
       }}
       {...listeners}
       {...attributes}
@@ -561,17 +612,29 @@ function DraggableEvent({
         left: `calc(${leftPct}% + 1px)`,
         width: `calc(${widthPct}% - 3px)`,
         transform: CSS.Translate.toString(transform),
-        zIndex: isDragging ? 50 : undefined,
+        zIndex: isDragging || resizing ? 50 : undefined,
         cursor: "grab",
         touchAction: "none",
       }}
       className={cn(
-        "absolute z-10 overflow-hidden rounded-md border border-l-4 px-1.5 py-0.5 text-left text-[11px] leading-tight shadow-sm transition-shadow hover:z-30 hover:shadow-md",
-        isDragging && "opacity-80 shadow-lg",
+        "group absolute z-10 overflow-hidden rounded-md border border-l-4 px-1.5 py-0.5 text-left text-[11px] leading-tight shadow-sm transition-shadow hover:z-30 hover:shadow-md",
+        (isDragging || resizing) && "opacity-80 shadow-lg",
         STATUT_BLOCK[a.statut] ?? STATUT_BLOCK.PLANIFIE,
       )}
       title={`${formatTime(a.date)} · ${a.sujet}`}
     >
+      {/* Poignée de redimensionnement (bas du bloc) */}
+      <span
+        onPointerDown={onResizeDown}
+        onPointerMove={onResizeMove}
+        onPointerUp={onResizeUp}
+        onClick={(e) => e.stopPropagation()}
+        className="absolute inset-x-0 bottom-0 z-40 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100"
+        style={{ touchAction: "none" }}
+        role="presentation"
+      >
+        <span className="mx-auto block h-0.5 w-5 translate-y-0.5 rounded-full bg-current opacity-40" />
+      </span>
       {compact ? (
         <span className="flex items-center gap-1 truncate">
           <span className="font-semibold tabular-nums">

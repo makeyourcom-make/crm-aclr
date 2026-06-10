@@ -101,6 +101,33 @@ export async function createProspectRaw(
   }
 }
 
+/**
+ * Création rapide depuis un autre écran (ex. fenêtre d'activité de l'agenda).
+ * Sécurisée (requireUser) + assignée au user courant par défaut. Prend un
+ * objet simple (pas un FormData) et renvoie l'id pour sélection immédiate.
+ */
+export async function createProspectQuick(
+  input: unknown,
+): Promise<ProspectActionResult> {
+  const user = await requireUser();
+  const parsed = ProspectCreateSchema.safeParse(input);
+  if (!parsed.success) {
+    return zodErrorToResult(parsed.error);
+  }
+  try {
+    const created = await prisma.prospect.create({
+      data: {
+        ...parsed.data,
+        assigneAId: parsed.data.assigneAId ?? user.id,
+      },
+    });
+    revalidatePath("/prospects");
+    return { ok: true, prospectId: created.id };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
+}
+
 // ===========================================================================
 // UPDATE
 // ===========================================================================

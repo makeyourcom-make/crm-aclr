@@ -10,6 +10,7 @@ import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { createActivity, updateActivity } from "@/app/(app)/activites/actions";
+import { createProspectQuick } from "@/app/(app)/prospects/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -128,6 +129,50 @@ export function AddActivityDialog({
   );
   const [adresseRdv, setAdresseRdv] = useState("");
   const [contenu, setContenu] = useState("");
+
+  // Création de client inline (depuis la ligne "prospect")
+  const [localProspects, setLocalProspects] = useState<ProspectOption[]>([]);
+  const [creatingProspect, setCreatingProspect] = useState(false);
+  const [newNom, setNewNom] = useState("");
+  const [newVille, setNewVille] = useState("");
+  const [newTel, setNewTel] = useState("");
+  const [creatingPending, startCreating] = useTransition();
+  const allProspects = [
+    ...prospects.filter((p) => !localProspects.some((l) => l.id === p.id)),
+    ...localProspects,
+  ];
+
+  const createNewProspect = () => {
+    if (newNom.trim().length < 2) {
+      toast.error("Nom du client (min. 2 caractères).");
+      return;
+    }
+    startCreating(async () => {
+      const res = await createProspectQuick({
+        raisonSociale: newNom.trim(),
+        ville: newVille.trim() || undefined,
+        telephone: newTel.trim() || undefined,
+      });
+      if (!res.ok || !res.prospectId) {
+        toast.error(res.error ?? "Échec de la création du client.");
+        return;
+      }
+      setLocalProspects((l) => [
+        ...l,
+        {
+          id: res.prospectId!,
+          raisonSociale: newNom.trim(),
+          ville: newVille.trim() || null,
+        },
+      ]);
+      setProspectId(res.prospectId);
+      setNewNom("");
+      setNewVille("");
+      setNewTel("");
+      setCreatingProspect(false);
+      toast.success("Client créé et sélectionné.");
+    });
+  };
 
   // Quand on rouvre la modale et que la prop defaultDate change, on resync
   // (par exemple si l'utilisateur clique sur un autre jour)
@@ -285,21 +330,80 @@ export function AddActivityDialog({
             </div>
           </FieldRow>
 
-          {/* Prospect (= "invités") */}
+          {/* Prospect (= "invités") + création inline d'un client */}
           <FieldRow icon="Users">
-            <select
-              value={prospectId}
-              onChange={(e) => setProspectId(e.target.value)}
-              className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-            >
-              <option value="">Aucun client — note interne</option>
-              {prospects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.raisonSociale}
-                  {p.ville ? ` · ${p.ville}` : ""}
-                </option>
-              ))}
-            </select>
+            {creatingProspect ? (
+              <div className="space-y-2 rounded-md border border-input bg-muted/20 p-2">
+                <Input
+                  value={newNom}
+                  onChange={(e) => setNewNom(e.target.value)}
+                  placeholder="Nom du client / entreprise *"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      createNewProspect();
+                    }
+                  }}
+                />
+                <div className="flex gap-2">
+                  <Input
+                    value={newVille}
+                    onChange={(e) => setNewVille(e.target.value)}
+                    placeholder="Ville"
+                  />
+                  <Input
+                    value={newTel}
+                    onChange={(e) => setNewTel(e.target.value)}
+                    placeholder="Téléphone"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={createNewProspect}
+                    disabled={creatingPending}
+                  >
+                    {creatingPending ? "Création…" : "Créer le client"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCreatingProspect(false)}
+                    disabled={creatingPending}
+                  >
+                    Annuler
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <select
+                  value={prospectId}
+                  onChange={(e) => setProspectId(e.target.value)}
+                  className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                >
+                  <option value="">Aucun client — note interne</option>
+                  {allProspects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.raisonSociale}
+                      {p.ville ? ` · ${p.ville}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setCreatingProspect(true)}
+                  className="inline-flex h-9 shrink-0 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs font-medium hover:bg-muted"
+                  title="Créer un nouveau client"
+                >
+                  <Icon name="UserPlus" className="h-4 w-4" />
+                  Nouveau
+                </button>
+              </div>
+            )}
           </FieldRow>
 
           {/* Type (+ assigné à pour admin) */}
