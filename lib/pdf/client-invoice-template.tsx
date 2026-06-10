@@ -43,8 +43,18 @@ export interface ClientInvoicePdfData {
     numeroTVA?: string;
     emailContact?: string;
     siteWeb?: string;
-    /** Chemin absolu disque du logo PNG côté serveur (Buffer accepté aussi par @react-pdf). */
+    /**
+     * Source du logo carré pour @react-pdf : data URL base64 (recommandé,
+     * portable Windows/Linux) ou chemin disque.
+     */
     logoPath?: string;
+    /**
+     * Bannière pleine largeur (data URL base64) affichée tout en haut, bord
+     * à bord. Prioritaire sur `logoPath` / le bandeau navy.
+     */
+    bannerPath?: string;
+    /** Hauteur en points de la bannière à pleine largeur A4 (calc. côté serveur). */
+    bannerHeightPt?: number;
   };
   client: {
     raisonSociale: string;
@@ -81,6 +91,9 @@ const c = {
   border: "#E2E8F0",
   muted: "#64748B",
 };
+
+/** Largeur page A4 en points (page.padding = 0 → bannière full-bleed sans marge). */
+const PAGE_WIDTH = 595.28;
 
 const styles = StyleSheet.create({
   page: { padding: 0, fontFamily: "Helvetica", fontSize: 9, color: "#0F172A" },
@@ -130,6 +143,25 @@ const styles = StyleSheet.create({
   },
   emetteurLine: { color: "#E0E7FF", marginBottom: 1 },
   emetteurId: { color: "#A5B4FC", fontSize: 8, marginTop: 4 },
+
+  // Variante bannière : identité émetteur sous la bannière, texte foncé sur blanc
+  bannerImage: { width: PAGE_WIDTH },
+  emetteurUnderBanner: {
+    paddingHorizontal: 40,
+    paddingTop: 12,
+    marginBottom: 20,
+    alignItems: "flex-end",
+    textAlign: "right",
+    fontSize: 9,
+  },
+  emetteurNameDark: {
+    fontSize: 13,
+    fontFamily: "Helvetica-Bold",
+    color: c.primary,
+    marginBottom: 3,
+  },
+  emetteurLineDark: { color: "#334155", marginBottom: 1 },
+  emetteurIdDark: { color: c.muted, fontSize: 8, marginTop: 3 },
 
   parties: { flexDirection: "row", justifyContent: "space-between", marginBottom: 18 },
   partieBlock: { width: "48%" },
@@ -240,40 +272,96 @@ export function ClientInvoicePdf({ data }: { data: ClientInvoicePdfData }) {
   return (
     <Document title={`Facture ${data.numero}`} subject={`Facture ${data.numero}`}>
       <Page size="A4" style={styles.page}>
-        {/* HEADER navy : Logo à gauche + identité ACLR à droite (texte blanc) */}
-        <View style={styles.header}>
-          {data.emetteur.logoPath ? (
-            <Image src={data.emetteur.logoPath} style={styles.logoImage} />
-          ) : (
-            <View style={styles.logoBlock}>
-              <Text style={styles.logoMake}>MAKE</Text>
-              <Text style={styles.logoYour}>
-                YOUR <Text style={styles.logoCom}>COM</Text>
+        {/*
+          En-tête. Priorité :
+            1. Bannière pleine largeur (bord à bord) + identité ACLR en
+               texte foncé juste en dessous (légalement requise sur facture).
+            2. Repli : bandeau navy historique (logo/texte à gauche + identité
+               blanche à droite).
+        */}
+        {data.emetteur.bannerPath ? (
+          <>
+            <Image
+              src={data.emetteur.bannerPath}
+              style={[
+                styles.bannerImage,
+                data.emetteur.bannerHeightPt
+                  ? { height: data.emetteur.bannerHeightPt }
+                  : {},
+              ]}
+            />
+            <View style={styles.emetteurUnderBanner}>
+              <Text style={styles.emetteurNameDark}>
+                {data.emetteur.raisonSociale}
               </Text>
+              {data.emetteur.adresse && (
+                <Text style={styles.emetteurLineDark}>
+                  {data.emetteur.adresse}
+                </Text>
+              )}
+              <Text style={styles.emetteurLineDark}>
+                {[data.emetteur.codePostal, data.emetteur.ville]
+                  .filter(Boolean)
+                  .join(" ")}
+              </Text>
+              {data.emetteur.pays && (
+                <Text style={styles.emetteurLineDark}>{data.emetteur.pays}</Text>
+              )}
+              {(data.emetteur.numeroIDE || data.emetteur.numeroTVA) && (
+                <Text style={styles.emetteurIdDark}>
+                  {[data.emetteur.numeroIDE, data.emetteur.numeroTVA]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </Text>
+              )}
+              {data.emetteur.emailContact && (
+                <Text style={styles.emetteurIdDark}>
+                  {data.emetteur.emailContact}
+                </Text>
+              )}
             </View>
-          )}
-          <View style={styles.emetteurInline}>
-            <Text style={styles.emetteurName}>{data.emetteur.raisonSociale}</Text>
-            {data.emetteur.adresse && (
-              <Text style={styles.emetteurLine}>{data.emetteur.adresse}</Text>
+          </>
+        ) : (
+          <View style={styles.header}>
+            {data.emetteur.logoPath ? (
+              <Image src={data.emetteur.logoPath} style={styles.logoImage} />
+            ) : (
+              <View style={styles.logoBlock}>
+                <Text style={styles.logoMake}>MAKE</Text>
+                <Text style={styles.logoYour}>
+                  YOUR <Text style={styles.logoCom}>COM</Text>
+                </Text>
+              </View>
             )}
-            <Text style={styles.emetteurLine}>
-              {[data.emetteur.codePostal, data.emetteur.ville].filter(Boolean).join(" ")}
-            </Text>
-            {data.emetteur.pays && (
-              <Text style={styles.emetteurLine}>{data.emetteur.pays}</Text>
-            )}
-            {data.emetteur.numeroIDE && (
-              <Text style={styles.emetteurId}>{data.emetteur.numeroIDE}</Text>
-            )}
-            {data.emetteur.numeroTVA && (
-              <Text style={styles.emetteurId}>{data.emetteur.numeroTVA}</Text>
-            )}
-            {data.emetteur.emailContact && (
-              <Text style={styles.emetteurId}>{data.emetteur.emailContact}</Text>
-            )}
+            <View style={styles.emetteurInline}>
+              <Text style={styles.emetteurName}>
+                {data.emetteur.raisonSociale}
+              </Text>
+              {data.emetteur.adresse && (
+                <Text style={styles.emetteurLine}>{data.emetteur.adresse}</Text>
+              )}
+              <Text style={styles.emetteurLine}>
+                {[data.emetteur.codePostal, data.emetteur.ville]
+                  .filter(Boolean)
+                  .join(" ")}
+              </Text>
+              {data.emetteur.pays && (
+                <Text style={styles.emetteurLine}>{data.emetteur.pays}</Text>
+              )}
+              {data.emetteur.numeroIDE && (
+                <Text style={styles.emetteurId}>{data.emetteur.numeroIDE}</Text>
+              )}
+              {data.emetteur.numeroTVA && (
+                <Text style={styles.emetteurId}>{data.emetteur.numeroTVA}</Text>
+              )}
+              {data.emetteur.emailContact && (
+                <Text style={styles.emetteurId}>
+                  {data.emetteur.emailContact}
+                </Text>
+              )}
+            </View>
           </View>
-        </View>
+        )}
 
         <View style={styles.pageInner}>
         {/* Parties : facturé à uniquement (émetteur déjà en haut) */}

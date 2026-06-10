@@ -11,6 +11,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
+import { resolveBanner, resolveLogoDataUrl } from "@/lib/pdf/brand-assets";
 import {
   ContractPdf,
   type ContractPdfData,
@@ -83,6 +84,7 @@ export async function GET(
 
   const setting = await prisma.setting.findFirst();
   const latestSignature = contract.signatures[0];
+  const banner = resolveBanner();
 
   const data: ContractPdfData = {
     numero: contract.numero,
@@ -102,6 +104,9 @@ export async function GET(
       pays: setting?.pays ?? "Suisse",
       numeroIDE: setting?.numeroIDE ?? undefined,
       numeroTVA: setting?.numeroTVA ?? undefined,
+      logoPath: resolveLogoDataUrl(),
+      bannerPath: banner?.dataUrl,
+      bannerHeightPt: banner?.heightPt,
     },
     client: {
       raisonSociale: contract.prospect.raisonSociale,

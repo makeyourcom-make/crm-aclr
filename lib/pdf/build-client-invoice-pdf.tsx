@@ -13,21 +13,11 @@ import { join } from "node:path";
 import { PDFDocument } from "pdf-lib";
 
 import { prisma } from "@/lib/db";
+import { resolveBanner, resolveLogoDataUrl } from "@/lib/pdf/brand-assets";
 import {
   ClientInvoicePdf,
   type ClientInvoicePdfData,
 } from "@/lib/pdf/client-invoice-template";
-
-function resolveLogoPath(): string | undefined {
-  const candidates = [
-    join(process.cwd(), "public", "brand", "logo-full.png"),
-    join(process.cwd(), "public", "brand", "logo.png"),
-  ];
-  for (const p of candidates) {
-    if (existsSync(p)) return p;
-  }
-  return undefined;
-}
 
 function guessCurrency(pays?: string | null): "CHF" | "EUR" {
   if (!pays) return "CHF";
@@ -100,6 +90,8 @@ export async function buildClientInvoicePdf(
         ? "CHF"
         : guessCurrency(invoice.contract.prospect.pays);
 
+  const banner = resolveBanner();
+
   const data: ClientInvoicePdfData = {
     numero: invoice.numero,
     dateEmission: invoice.dateEmission,
@@ -121,7 +113,9 @@ export async function buildClientInvoicePdf(
       numeroTVA: setting?.numeroTVA ?? undefined,
       emailContact: setting?.emailContact ?? undefined,
       siteWeb: setting?.siteWeb ?? undefined,
-      logoPath: resolveLogoPath(),
+      logoPath: resolveLogoDataUrl(),
+      bannerPath: banner?.dataUrl,
+      bannerHeightPt: banner?.heightPt,
     },
     client: {
       raisonSociale: invoice.contract.prospect.raisonSociale,

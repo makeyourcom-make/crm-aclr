@@ -33,6 +33,18 @@ export interface ContractPdfData {
     pays?: string;
     numeroIDE?: string;
     numeroTVA?: string;
+    /**
+     * Source du logo pour @react-pdf : data URL base64 (recommandé, portable
+     * Windows/Linux) ou chemin disque. Absent → repli sur le bandeau navy.
+     */
+    logoPath?: string;
+    /**
+     * Bannière pleine largeur affichée tout en haut (bord à bord). Data URL
+     * base64. Prioritaire sur `logoPath` si fournie.
+     */
+    bannerPath?: string;
+    /** Hauteur en points de la bannière à pleine largeur A4 (calc. côté serveur). */
+    bannerHeightPt?: number;
   };
   client: {
     raisonSociale: string;
@@ -77,9 +89,24 @@ const c = {
   muted: "#64748B",
 };
 
+/** Géométrie page A4 (points). Doit rester cohérent avec styles.page.padding. */
+const PAGE_WIDTH = 595.28;
+const PAGE_PADDING = 40;
+
 const styles = StyleSheet.create({
-  page: { padding: 40, fontFamily: "Helvetica", fontSize: 9, color: "#0F172A" },
+  page: { padding: PAGE_PADDING, fontFamily: "Helvetica", fontSize: 9, color: "#0F172A" },
   brandBar: { height: 6, backgroundColor: c.primary, marginBottom: 20 },
+  logoHeader: { alignItems: "center", marginBottom: 22 },
+  logoImage: { width: 84, height: 84, objectFit: "contain" },
+  // Bannière pleine largeur : marges négatives = padding page (40) pour
+  // déborder bord à bord en haut du document.
+  bannerHeader: {
+    marginTop: -PAGE_PADDING,
+    marginLeft: -PAGE_PADDING,
+    marginRight: -PAGE_PADDING,
+    marginBottom: 22,
+  },
+  bannerImage: { width: PAGE_WIDTH, objectFit: "cover" },
   parties: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -250,7 +277,32 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
       subject={`Contrat ${data.numero} — ${data.client.raisonSociale}`}
     >
       <Page size="A4" style={styles.page}>
-        <View style={styles.brandBar} />
+        {/*
+          En-tête, par ordre de priorité :
+            1. Bannière pleine largeur (bord à bord) si fournie
+            2. Logo Make Your Com centré
+            3. Repli sur le bandeau navy plein
+          Évite tout en-tête vide en cas de fichier manquant.
+        */}
+        {data.emetteur.bannerPath ? (
+          <View style={styles.bannerHeader}>
+            <Image
+              src={data.emetteur.bannerPath}
+              style={[
+                styles.bannerImage,
+                data.emetteur.bannerHeightPt
+                  ? { height: data.emetteur.bannerHeightPt }
+                  : {},
+              ]}
+            />
+          </View>
+        ) : data.emetteur.logoPath ? (
+          <View style={styles.logoHeader}>
+            <Image src={data.emetteur.logoPath} style={styles.logoImage} />
+          </View>
+        ) : (
+          <View style={styles.brandBar} />
+        )}
 
         <View style={styles.parties}>
           <View style={styles.partieBlock}>
