@@ -6,7 +6,7 @@
  * pré-remplie sur le jour cliqué.
  */
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { createActivity } from "@/app/(app)/activites/actions";
@@ -22,10 +22,24 @@ import {
 } from "@/components/ui/dialog";
 import { Icon } from "@/components/icon";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ACTIVITY_TYPE_OPTIONS } from "@/lib/labels";
 
 import type { ActivityType } from "@prisma/client";
+
+/** Ajoute des minutes à une heure "HH:MM" (boucle sur 24h). */
+function addMinutesToTime(t: string, mins: number): string {
+  const [h, m] = t.split(":").map(Number);
+  const total = (((h * 60 + m + mins) % 1440) + 1440) % 1440;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
+}
+/** Durée en minutes entre deux heures "HH:MM" (min. 15). */
+function diffMinutes(start: string, end: string): number {
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  const d = eh * 60 + em - (sh * 60 + sm);
+  return d > 0 ? d : 60;
+}
 
 interface ProspectOption {
   id: string;
@@ -91,7 +105,9 @@ export function AddActivityDialog({
   const [sujet, setSujet] = useState("");
   const [date, setDate] = useState(defaultDate);
   const [heure, setHeure] = useState(defaultTime);
-  const [duree, setDuree] = useState("60");
+  const [heureFin, setHeureFin] = useState(() =>
+    addMinutesToTime(defaultTime, 60),
+  );
   const [adresseRdv, setAdresseRdv] = useState("");
   const [contenu, setContenu] = useState("");
 
@@ -120,7 +136,7 @@ export function AddActivityDialog({
         type,
         date: dateTime,
         sujet: sujet.trim(),
-        duree: duree ? Number(duree) : undefined,
+        duree: diffMinutes(heure, heureFin),
         adresseRdv: adresseRdv.trim() || undefined,
         contenu: contenu.trim() || undefined,
         statut: "PLANIFIE",
@@ -154,6 +170,7 @@ export function AddActivityDialog({
         if (o) {
           setDate(defaultDate);
           setHeure(defaultTime);
+          setHeureFin(addMinutesToTime(defaultTime, 60));
         }
       }}
     >
@@ -169,26 +186,73 @@ export function AddActivityDialog({
           )}
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nouvelle activité dans l&apos;agenda</DialogTitle>
-          <DialogDescription>
-            RDV, appel à planifier, email à envoyer ou note. Si elle est dans
-            le futur, elle reste en <em>Planifié</em> jusqu&apos;à ce que tu
-            la marques faite.
+          <DialogTitle className="text-sm font-normal text-muted-foreground">
+            Nouvelle activité
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Crée un RDV, un appel, un email ou une note dans l&apos;agenda.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="prospect">Prospect (optionnel)</Label>
+        <form onSubmit={handleSubmit} className="space-y-1">
+          {/* Titre */}
+          <input
+            value={sujet}
+            onChange={(e) => setSujet(e.target.value)}
+            placeholder="Ajouter un titre"
+            autoFocus
+            required
+            className="mb-3 w-full border-0 border-b border-input bg-transparent px-1 pb-2 text-xl font-medium placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
+          />
+
+          {/* Horaire : date + début – fin */}
+          <FieldRow icon="Clock">
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-40"
+                required
+              />
+              <Input
+                type="time"
+                value={heure}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setHeure(v);
+                  if (
+                    v &&
+                    heureFin &&
+                    `${v}` >= `${heureFin}`
+                  ) {
+                    setHeureFin(addMinutesToTime(v, 60));
+                  }
+                }}
+                className="w-28"
+                required
+              />
+              <span className="text-muted-foreground">–</span>
+              <Input
+                type="time"
+                value={heureFin}
+                onChange={(e) => setHeureFin(e.target.value)}
+                className="w-28"
+                required
+              />
+            </div>
+          </FieldRow>
+
+          {/* Prospect (= "invités") */}
+          <FieldRow icon="Users">
             <select
-              id="prospect"
               value={prospectId}
               onChange={(e) => setProspectId(e.target.value)}
               className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
             >
-              <option value="">— Aucun (note interne) —</option>
+              <option value="">Aucun client — note interne</option>
               {prospects.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.raisonSociale}
@@ -196,148 +260,70 @@ export function AddActivityDialog({
                 </option>
               ))}
             </select>
-            <p className="text-[11px] text-muted-foreground">
-              Laisse vide pour une note interne / tâche d&apos;équipe sans
-              client.
-            </p>
-          </div>
+          </FieldRow>
 
-          {/* Sélecteur "Assigné à" — admin uniquement (Sophie reste sur elle-même) */}
-          {isAdmin && users.length > 1 && (
-            <div className="space-y-1.5">
-              <Label htmlFor="assigneA">Assigné à</Label>
+          {/* Type (+ assigné à pour admin) */}
+          <FieldRow icon="Tag">
+            <div className="space-y-2">
               <select
-                id="assigneA"
-                value={assigneAId}
-                onChange={(e) => setAssigneAId(e.target.value)}
+                value={type}
+                onChange={(e) => setType(e.target.value as ActivityType)}
                 className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
               >
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} {u.role === "ADMIN" ? "(admin)" : ""}
+                {ACTIVITY_TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </select>
-              <p className="text-[11px] text-muted-foreground">
-                La personne à qui cette activité apparaîtra dans son agenda.
-              </p>
+              {isAdmin && users.length > 1 && (
+                <select
+                  value={assigneAId}
+                  onChange={(e) => setAssigneAId(e.target.value)}
+                  className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                  aria-label="Assigné à"
+                >
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      Assigné à {u.name} {u.role === "ADMIN" ? "(admin)" : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
-          )}
+          </FieldRow>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="type">Type</Label>
-            <select
-              id="type"
-              value={type}
-              onChange={(e) => setType(e.target.value as ActivityType)}
-              className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-            >
-              {ACTIVITY_TYPE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="sujet">
-              Sujet <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="sujet"
-              value={sujet}
-              onChange={(e) => setSujet(e.target.value)}
-              placeholder="Ex. Démo Pack Web Complet"
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="date">Date</Label>
-              <Input
-                id="date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="heure">Heure</Label>
-              <Input
-                id="heure"
-                type="time"
-                value={heure}
-                onChange={(e) => setHeure(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="duree">Durée (min)</Label>
-              <Input
-                id="duree"
-                type="number"
-                min={0}
-                value={duree}
-                onChange={(e) => setDuree(e.target.value)}
-                placeholder="60"
-              />
-            </div>
-          </div>
-
-          {/* Champ contextuel selon le type :
-              - RDV physique → adresse (Google Maps)
-              - RDV visio    → lien visio (Meet/Zoom/Teams)
-              - RDV téléphonique → numéro / pont conf (optionnel)
-              - autres types → champ caché (pas pertinent) */}
+          {/* Lieu / lien — contextuel selon le type de RDV */}
           {(type === "RDV_PHYSIQUE" ||
             type === "RDV_VISIO" ||
             type === "RDV_TELEPHONIQUE") && (
-            <div className="space-y-1.5">
-              <Label htmlFor="adresseRdv">
-                {type === "RDV_VISIO"
-                  ? "Lien visio (optionnel)"
-                  : type === "RDV_TELEPHONIQUE"
-                    ? "Numéro / pont conf. (optionnel)"
-                    : "Adresse (optionnel)"}
-              </Label>
+            <FieldRow icon="MapPin">
               <Input
-                id="adresseRdv"
                 value={adresseRdv}
                 onChange={(e) => setAdresseRdv(e.target.value)}
                 placeholder={
                   type === "RDV_VISIO"
-                    ? "https://meet.google.com/abc-defg-hij"
+                    ? "Lien visio (Meet, Zoom, Teams…)"
                     : type === "RDV_TELEPHONIQUE"
-                      ? "+41 78 225 78 05"
-                      : "Ex. Rue du Clos 5, 1800 Vevey"
+                      ? "Numéro / pont conférence"
+                      : "Ajouter un lieu"
                 }
               />
-              <p className="text-[11px] text-muted-foreground">
-                {type === "RDV_VISIO"
-                  ? "Sera affiché en lien cliquable (Meet, Zoom, Teams…) sur la card de l'agenda."
-                  : type === "RDV_TELEPHONIQUE"
-                    ? "Le numéro est cliquable pour appel direct depuis le téléphone."
-                    : "Sera affiché en lien cliquable vers Google Maps sur l'agenda et la fiche."}
-              </p>
-            </div>
+            </FieldRow>
           )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="contenu">Notes (optionnel)</Label>
+          {/* Description */}
+          <FieldRow icon="FileText">
             <textarea
-              id="contenu"
               value={contenu}
               onChange={(e) => setContenu(e.target.value)}
               rows={2}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              placeholder="Lien visio, mémo personnel…"
+              placeholder="Ajouter une description"
             />
-          </div>
+          </FieldRow>
 
-          <DialogFooter>
+          <DialogFooter className="mt-3">
             <Button
               type="button"
               variant="outline"
@@ -347,11 +333,27 @@ export function AddActivityDialog({
               Annuler
             </Button>
             <Button type="submit" disabled={pending}>
-              {pending ? "Création…" : "Ajouter à l'agenda"}
+              {pending ? "Enregistrement…" : "Enregistrer"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Ligne de champ à la Google Agenda : icône à gauche + contenu à droite. */
+function FieldRow({
+  icon,
+  children,
+}: {
+  icon: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3 py-1.5">
+      <Icon name={icon} className="mt-2 h-5 w-5 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
   );
 }
