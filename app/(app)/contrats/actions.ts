@@ -303,6 +303,228 @@ export async function createContractFromDeal(
 }
 
 // ===========================================================================
+// UPDATE d'un contrat NON SIGNÉ — rejoue la cascade
+// ===========================================================================
+//
+// Mêmes calculs que createContractFromDeal, mais sur un contrat existant :
+//   - met à jour montants + modalité + dates + liaison m2m produits
+//   - SUPPRIME puis recrée commission + 12 versements (tous PREVU)
+//   - SUPPRIME puis recrée les ClientInvoices brouillon
+//
+// Garde-fous : interdit si le client a déjà signé OU si une facture est
+// déjà payée (dans ces cas, il faut résilier puis refaire).
+export async function updateContract(
+  contractId: string,
+  input: unknown,
+): Promise<ContractActionResult> {
+  const user = await requireUser();
+  const parsed = ContractCreateSchema.safeParse(input);
+  if (!parsed.success) return zodErrorToResult(parsed.error);
+
+  try {
+    const existing = await prisma.contract.findUnique({
+      where: { id: contractId },
+      select: {
+        assigneAId: true,
+        devise: true,
+        numero: true,
+        signatures: { select: { signeParClient: true } },
+        clientInvoices: {
+          select: { statut: true, payments: { select: { id: true } } },
+        },
+        commissions: { select: { id: true } },
+      },
+    });
+    if (!existing) return { ok: false, error: "Contrat introuvable." };
+    if (user.role !== "ADMIN" && existing.assigneAId !== user.id) {
+      return { ok: false, error: "Accès refusé." };
+    }
+    if (existing.signatures.some((s) => s.signeParClient)) {
+      return {
+        ok: false,
+        error:
+          "Contrat déjà signé par le client — modification impossible. Utilise 'Résilier' puis refais un contrat.",
+      };
+    }
+    if (
+      existing.clientInvoices.some(
+        (inv) => inv.statut === "PAYEE" || inv.payments.length > 0,
+      )
+    ) {
+      return {
+        ok: false,
+        error: "Au moins une facture est déjà payée — modification impossible.",
+      };
+    }
+
+    // Taux commission de l'utilisateur courant (créateur/éditeur)
+    const userFull = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { tauxCommissionSignature: true },
+    });
+    if (!userFull) return { ok: false, error: "Utilisateur introuvable." };
+    const tauxCommission = Number(userFull.tauxCommissionSignature);
+
+    // Charge les produits référencés
+    const productIds = parsed.data.lines.map((l) => l.productId);
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+    });
+    const productById = new Map(products.map((p) => [p.id, p]));
+
+    let oneShotCents = 0;
+    let mensuelCents = 0;
+    const linesEnriched = parsed.data.lines.map((line) => {
+      const prod = productById.get(line.productId);
+      if (!prod) throw new Error(`Produit introuvable : ${line.productId}`);
+      const oneShotUnit =
+        line.prixOneShot ?? (prod.prixOneShot ? Number(prod.prixOneShot) : 0);
+      const mensuelUnit =
+        line.prixMensuel ?? (prod.prixMensuel ? Number(prod.prixMensuel) : 0);
+      const lineOneShot = chfToCents(oneShotUnit * line.quantite);
+      const lineMensuel = chfToCents(mensuelUnit * line.quantite);
+      oneShotCents += lineOneShot;
+      mensuelCents += lineMensuel;
+      const note = (line.note ?? "").trim();
+      const nom = note ? `${prod.nom} — ${note}` : prod.nom;
+      return {
+        productId: line.productId,
+        categorie: prod.categorie,
+        nom,
+        quantite: line.quantite,
+        oneShotUnit,
+        mensuelUnit,
+        lineOneShot,
+        lineMensuel,
+      };
+    });
+
+    const valeurAn1Cents = computeValeurAn1({ oneShotCents, mensuelCents });
+    const assietteCommissionCents = computeAssietteCommissionContrat(
+      linesEnriched.map((l) => ({
+        oneShotCents: l.lineOneShot,
+        mensuelCents: l.lineMensuel,
+        categorie: l.categorie,
+      })),
+      parsed.data.dureeMois,
+    );
+    const commission = computeCommissionSignature({
+      valeurAn1Cents: assietteCommissionCents,
+      taux: tauxCommission,
+    });
+    const plan = buildSignaturePaymentPlan({
+      valeurAn1Cents: assietteCommissionCents,
+      taux: tauxCommission,
+      dateSignature: parsed.data.dateSignature,
+    });
+    const invoicesData = buildClientInvoicesForContract({
+      modalite: parsed.data.modalitePaiement,
+      dateSignature: parsed.data.dateSignature,
+      dateDebut: parsed.data.dateDebut,
+      dureeMois: parsed.data.dureeMois,
+      oneShotCents,
+      mensuelCents,
+      lines: linesEnriched,
+    });
+
+    await prisma.$transaction(
+      async (tx) => {
+        // 1. Contrat : montants + paramètres + liaison produits (remplace tout)
+        await tx.contract.update({
+          where: { id: contractId },
+          data: {
+            dateSignature: parsed.data.dateSignature,
+            dateDebut: parsed.data.dateDebut,
+            dureeMois: parsed.data.dureeMois,
+            modalitePaiement: parsed.data.modalitePaiement,
+            montantOneShot: centsToChf(oneShotCents),
+            montantMensuel: centsToChf(mensuelCents),
+            valeurAn1: centsToChf(valeurAn1Cents),
+            products: {
+              set: linesEnriched.map((l) => ({ id: l.productId })),
+            },
+          },
+        });
+
+        // 2. Commission + versements : suppression puis recréation
+        await tx.commission.deleteMany({ where: { contractId } });
+        const commissionRecord = await tx.commission.create({
+          data: {
+            contractId,
+            userId: user.id,
+            montantTotal: centsToChf(commission.totalCents),
+            montantPart1: centsToChf(commission.partSignatureCents),
+            montantPart2: centsToChf(commission.totalEtalementsCents),
+            statut: "DUE",
+          },
+        });
+        for (const item of plan) {
+          await tx.commissionPayment.create({
+            data: {
+              commissionId: commissionRecord.id,
+              typePart: item.typePart,
+              numeroMois: item.numeroMois,
+              montant: centsToChf(item.montantCents),
+              dateVersementPrevue: item.dateVersementPrevue,
+              statut: "PREVU",
+            },
+          });
+        }
+
+        // 3. Factures brouillon : suppression puis régénération
+        await tx.clientInvoice.deleteMany({ where: { contractId } });
+        for (const inv of invoicesData) {
+          const cAnnee = inv.dateEmission.getFullYear();
+          const cCounter = await tx.counter.upsert({
+            where: { scope_year: { scope: "client_invoice", year: cAnnee } },
+            create: { scope: "client_invoice", year: cAnnee, value: 1 },
+            update: { value: { increment: 1 } },
+          });
+          const facNumero = `${PREFIX_FACTURE_CLIENT}-${cAnnee}-${String(cCounter.value).padStart(4, "0")}`;
+          await tx.clientInvoice.create({
+            data: {
+              contractId,
+              numero: facNumero,
+              dateEmission: inv.dateEmission,
+              dateEcheance: inv.dateEcheance,
+              type: inv.type,
+              periodeMoisDebut: inv.periodeMoisDebut ?? null,
+              periodeMoisFin: inv.periodeMoisFin ?? null,
+              devise: existing.devise,
+              sousTotal: centsToChf(inv.sousTotalCents),
+              totalTVA: 0,
+              total: centsToChf(inv.sousTotalCents),
+              statut: "BROUILLON",
+              lignes: {
+                create: inv.lines.map((l, idx) => ({
+                  designation: l.designation,
+                  quantite: l.quantite,
+                  prixUnitaire: l.prixUnitaire,
+                  montantHT: l.montantHT,
+                  tauxTVA: 0,
+                  ordre: idx,
+                  productId: l.productId ?? null,
+                })),
+              },
+            },
+          });
+        }
+      },
+      { timeout: 30_000 },
+    );
+
+    revalidatePath("/contrats");
+    revalidatePath(`/contrats/${contractId}`);
+    revalidatePath("/pipeline");
+    revalidatePath(`/prospects/${parsed.data.prospectId}`);
+
+    return { ok: true, contractId, numero: existing.numero };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
+}
+
+// ===========================================================================
 // RÉSILIER un contrat
 // ===========================================================================
 

@@ -116,6 +116,18 @@ export default async function ContractDetailPage({ params }: PageProps) {
               <Icon name="ExternalLink" className="h-4 w-4" />
               Onglet
             </a>
+            {/* Modifier — réservé aux contrats non signés et non payés */}
+            {contract.statut === "ATTENTE_SIGNATURE_CLIENT" &&
+              !contract.signatures.some((s) => s.signeParClient) &&
+              !contract.clientInvoices.some((f) => f.statut === "PAYEE") && (
+                <Link
+                  href={`/contrats/${contract.id}/modifier`}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
+                >
+                  <Icon name="Pencil" className="h-4 w-4" />
+                  Modifier
+                </Link>
+              )}
             {/* Bouton validation admin — contrat signé client, à valider */}
             {contract.statut === "ATTENTE_VALIDATION_ADMIN" &&
               user.role === "ADMIN" && (

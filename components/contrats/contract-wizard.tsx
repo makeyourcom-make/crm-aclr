@@ -13,7 +13,10 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { createCustomProduct } from "@/app/(app)/catalogue/actions";
-import { createContractFromDeal } from "@/app/(app)/contrats/actions";
+import {
+  createContractFromDeal,
+  updateContract,
+} from "@/app/(app)/contrats/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -68,11 +71,26 @@ interface ProspectOption {
   ville: string | null;
 }
 
+/** Valeurs initiales pour le mode édition (contrat existant non signé). */
+interface ContractEditInitial {
+  contractId: string;
+  numero: string;
+  prospectId: string;
+  dealId: string;
+  dateSignature: string; // ISO yyyy-mm-dd
+  dateDebut: string;
+  dureeMois: string;
+  modalitePaiement: ModalitePaiement;
+  lines: LineState[];
+}
+
 interface ContractWizardProps {
   prospects: ProspectOption[];
   deals: DealOption[];
   products: ProductOption[];
   tauxCommission: number;
+  /** Si fourni → mode édition (met à jour le contrat au lieu d'en créer un). */
+  initial?: ContractEditInitial;
 }
 
 interface LineState {
@@ -98,28 +116,41 @@ export function ContractWizard({
   deals,
   products,
   tauxCommission,
+  initial,
 }: ContractWizardProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
 
-  const initialDealId = searchParams.get("dealId") ?? "";
+  const isEdit = !!initial;
+
+  const initialDealId = initial?.dealId ?? searchParams.get("dealId") ?? "";
   const initialDeal = deals.find((d) => d.id === initialDealId);
   const initialProspectId =
-    initialDeal?.prospectId ?? searchParams.get("prospectId") ?? "";
+    initial?.prospectId ??
+    initialDeal?.prospectId ??
+    searchParams.get("prospectId") ??
+    "";
 
   // ---- État du wizard ----
   const [prospectId, setProspectId] = useState(initialProspectId);
   const [dealId, setDealId] = useState(initialDealId);
 
-  const [lines, setLines] = useState<LineState[]>([]);
+  const [lines, setLines] = useState<LineState[]>(initial?.lines ?? []);
 
-  const [dateSignature, setDateSignature] = useState(todayLocalIso());
-  const [dateDebut, setDateDebut] = useState(todayLocalIso());
-  const [dureeMois, setDureeMois] = useState("12");
-  const [dureeMoisManuallyEdited, setDureeMoisManuallyEdited] = useState(false);
-  const [modalitePaiement, setModalitePaiement] =
-    useState<ModalitePaiement>("CINQUANTE_CINQUANTE");
+  const [dateSignature, setDateSignature] = useState(
+    initial?.dateSignature ?? todayLocalIso(),
+  );
+  const [dateDebut, setDateDebut] = useState(
+    initial?.dateDebut ?? todayLocalIso(),
+  );
+  const [dureeMois, setDureeMois] = useState(initial?.dureeMois ?? "12");
+  // En édition, la durée vient du contrat → on bloque la suggestion auto.
+  const [dureeMoisManuallyEdited, setDureeMoisManuallyEdited] =
+    useState(isEdit);
+  const [modalitePaiement, setModalitePaiement] = useState<ModalitePaiement>(
+    initial?.modalitePaiement ?? "CINQUANTE_CINQUANTE",
+  );
 
   // Produits "sur-mesure" créés à la volée pendant le wizard
   const [localCustomProducts, setLocalCustomProducts] = useState<
@@ -276,26 +307,33 @@ export function ContractWizard({
       toast.error("Complète les sections en rouge.");
       return;
     }
+    const payload = {
+      prospectId,
+      dealId: dealId || undefined,
+      dateSignature: new Date(dateSignature),
+      dateDebut: new Date(dateDebut),
+      dureeMois: Number(dureeMois),
+      modalitePaiement,
+      lines: lines.map((l) => ({
+        productId: l.productId,
+        quantite: l.quantite,
+        prixOneShot: l.prixOneShot ? Number(l.prixOneShot) : undefined,
+        prixMensuel: l.prixMensuel ? Number(l.prixMensuel) : undefined,
+      })),
+    };
     startTransition(async () => {
-      const res = await createContractFromDeal({
-        prospectId,
-        dealId: dealId || undefined,
-        dateSignature: new Date(dateSignature),
-        dateDebut: new Date(dateDebut),
-        dureeMois: Number(dureeMois),
-        modalitePaiement,
-        lines: lines.map((l) => ({
-          productId: l.productId,
-          quantite: l.quantite,
-          prixOneShot: l.prixOneShot ? Number(l.prixOneShot) : undefined,
-          prixMensuel: l.prixMensuel ? Number(l.prixMensuel) : undefined,
-        })),
-      });
+      const res = initial
+        ? await updateContract(initial.contractId, payload)
+        : await createContractFromDeal(payload);
       if (!res.ok) {
-        toast.error(res.error ?? "Échec de la création.");
+        toast.error(
+          res.error ?? (initial ? "Échec de l'enregistrement." : "Échec de la création."),
+        );
         return;
       }
-      toast.success(`Contrat ${res.numero} créé !`);
+      toast.success(
+        initial ? `Contrat ${res.numero} mis à jour !` : `Contrat ${res.numero} créé !`,
+      );
       router.push(`/contrats/${res.contractId}`);
       router.refresh();
     });
@@ -601,7 +639,13 @@ export function ContractWizard({
               onClick={handleSubmit}
               disabled={!canSubmit || pending}
             >
-              {pending ? "Création…" : `Créer le contrat (${formatCHF(calc.valeurAn1)})`}
+              {pending
+                ? isEdit
+                  ? "Enregistrement…"
+                  : "Création…"
+                : isEdit
+                  ? `Enregistrer les modifications (${formatCHF(calc.valeurAn1)})`
+                  : `Créer le contrat (${formatCHF(calc.valeurAn1)})`}
             </Button>
           </div>
         </CardContent>

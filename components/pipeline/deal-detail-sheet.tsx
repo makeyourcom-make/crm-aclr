@@ -328,7 +328,7 @@ export function DealDetailSheet({ dealId, onClose, isAdmin }: DealDetailSheetPro
                         Télécharger le PDF
                       </a>
                       <Link
-                        href={`/contrats/${contract.id}`}
+                        href={`/contrats/${contract.id}/modifier`}
                         className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-blue-300 bg-white px-3 text-sm font-medium text-blue-900 hover:bg-blue-100"
                       >
                         <Icon name="Pencil" className="h-3.5 w-3.5" />
