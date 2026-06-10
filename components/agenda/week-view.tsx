@@ -55,7 +55,8 @@ import { cn } from "@/lib/utils";
 
 import type { AgendaActivity } from "@/lib/queries/agenda";
 
-const DAYS_SHORT = ["LUN.", "MAR.", "MER.", "JEU.", "VEN.", "SAM.", "DIM."];
+// Indexé par Date.getDay() (0 = dimanche)
+const WEEKDAY_SHORT = ["DIM.", "LUN.", "MAR.", "MER.", "JEU.", "VEN.", "SAM."];
 
 const HOUR_HEIGHT = 48; // px par heure
 const TOTAL_HEIGHT = 24 * HOUR_HEIGHT;
@@ -75,7 +76,8 @@ interface UserOption {
 }
 
 interface WeekViewProps {
-  weekStart: Date;
+  /** Colonnes à afficher : 7 dates (semaine) ou 1 (jour). */
+  dates: Date[];
   activities: AgendaActivity[];
   prospects: ProspectOption[];
   showUserBadge?: boolean;
@@ -184,7 +186,7 @@ function layoutDay(items: AgendaActivity[]): Positioned[] {
 }
 
 export function WeekView({
-  weekStart,
+  dates,
   activities,
   prospects,
   showUserBadge = false,
@@ -199,8 +201,9 @@ export function WeekView({
   const [editing, setEditing] = useState<AgendaActivity | null>(null);
   const [, startMove] = useTransition();
   const [add, setAdd] = useState<{ open: boolean; dateIso: string; time: string }>(
-    { open: false, dateIso: toIso(weekStart), time: "09:00" },
+    { open: false, dateIso: toIso(dates[0] ?? new Date()), time: "09:00" },
   );
+  const nbCols = dates.length;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -212,8 +215,11 @@ export function WeekView({
     if (!delta) return;
     const a = activities.find((x) => x.id === active.id);
     if (!a) return;
-    const colW = columnsRef.current ? columnsRef.current.offsetWidth / 7 : 0;
-    const dayDelta = colW ? Math.round(delta.x / colW) : 0;
+    const colW = columnsRef.current
+      ? columnsRef.current.offsetWidth / nbCols
+      : 0;
+    // En vue Jour (1 colonne), on ne change pas de jour horizontalement.
+    const dayDelta = nbCols > 1 && colW ? Math.round(delta.x / colW) : 0;
     const minDelta = Math.round((delta.y / HOUR_HEIGHT) * 4) * 15; // snap 15 min
     if (dayDelta === 0 && minDelta === 0) return;
     const newStart = new Date(a.date);
@@ -254,17 +260,19 @@ export function WeekView({
   today.setHours(0, 0, 0, 0);
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
 
-  // Groupe + layout par jour
+  // Clé jour pour le groupage
+  const dayKeys = useMemo(() => dates.map((d) => toIso(d)), [dates]);
+
+  // Groupe + layout par colonne (jour)
   const days = useMemo(() => {
-    const grouped: AgendaActivity[][] = Array.from({ length: 7 }, () => []);
+    const grouped: Record<string, AgendaActivity[]> = {};
+    for (const k of dayKeys) grouped[k] = [];
     for (const a of activities) {
-      const d = new Date(a.date);
-      d.setHours(0, 0, 0, 0);
-      const idx = Math.round((d.getTime() - weekStart.getTime()) / 86400_000);
-      if (idx >= 0 && idx < 7) grouped[idx].push(a);
+      const k = toIso(new Date(a.date));
+      if (grouped[k]) grouped[k].push(a);
     }
-    return grouped.map((items) => layoutDay(items));
-  }, [activities, weekStart]);
+    return dayKeys.map((k) => layoutDay(grouped[k]));
+  }, [activities, dayKeys]);
 
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
@@ -275,9 +283,7 @@ export function WeekView({
     const rounded = Math.round(totalMin / 15) * 15;
     const hh = String(Math.floor(rounded / 60)).padStart(2, "0");
     const mm = String(rounded % 60).padStart(2, "0");
-    const day = new Date(weekStart);
-    day.setDate(day.getDate() + dayIdx);
-    setAdd({ open: true, dateIso: toIso(day), time: `${hh}:${mm}` });
+    setAdd({ open: true, dateIso: dayKeys[dayIdx], time: `${hh}:${mm}` });
   };
 
   return (
@@ -285,18 +291,20 @@ export function WeekView({
       {/* En-tête des jours (sticky) */}
       <div className="flex border-b border-border bg-muted/30">
         <div style={{ width: GUTTER_W }} className="shrink-0" />
-        <div className="grid flex-1 grid-cols-7">
-          {DAYS_SHORT.map((label, idx) => {
-            const d = new Date(weekStart);
-            d.setDate(d.getDate() + idx);
-            const isToday = d.getTime() === today.getTime();
+        <div
+          className="grid flex-1"
+          style={{ gridTemplateColumns: `repeat(${nbCols}, minmax(0,1fr))` }}
+        >
+          {dates.map((d, idx) => {
+            const isToday =
+              new Date(d).setHours(0, 0, 0, 0) === today.getTime();
             return (
               <div
                 key={idx}
                 className="border-l border-border px-1 py-2 text-center"
               >
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {label}
+                  {WEEKDAY_SHORT[new Date(d).getDay()]}
                 </p>
                 <p
                   className={cn(
@@ -334,11 +342,14 @@ export function WeekView({
             ))}
           </div>
 
-          {/* 7 colonnes */}
-          <div ref={columnsRef} className="grid flex-1 grid-cols-7">
+          {/* Colonnes (jour) */}
+          <div
+            ref={columnsRef}
+            className="grid flex-1"
+            style={{ gridTemplateColumns: `repeat(${nbCols}, minmax(0,1fr))` }}
+          >
             {days.map((positioned, dayIdx) => {
-              const d = new Date(weekStart);
-              d.setDate(d.getDate() + dayIdx);
+              const d = new Date(dates[dayIdx]);
               d.setHours(0, 0, 0, 0);
               const isToday = d.getTime() === today.getTime();
               return (
@@ -403,7 +414,7 @@ export function WeekView({
       {/* Dialog édition (depuis le détail d'un événement) */}
       <AddActivityDialog
         prospects={prospects}
-        defaultDate={toIso(weekStart)}
+        defaultDate={dayKeys[0] ?? toIso(new Date())}
         users={users}
         currentUserId={currentUserId}
         isAdmin={isAdmin}

@@ -1,13 +1,17 @@
 import Link from "next/link";
 
 import { AddActivityDialog } from "@/components/agenda/add-activity-dialog";
+import {
+  AgendaToolbar,
+  type AgendaMode,
+} from "@/components/agenda/agenda-toolbar";
 import { AgendaViewSwitcher } from "@/components/agenda/agenda-view-switcher";
-import { WeekNav } from "@/components/agenda/week-nav";
+import { MonthView } from "@/components/agenda/month-view";
 import { WeekView } from "@/components/agenda/week-view";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
-import { getAgendaWeek, getStartOfWeek } from "@/lib/queries/agenda";
+import { getAgendaRange, getStartOfWeek } from "@/lib/queries/agenda";
 import { requireUser, scopedWhere } from "@/lib/session";
 
 export const metadata = { title: "Agenda" };
@@ -26,12 +30,52 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   const user = await requireUser();
   const raw = await searchParams;
 
-  const weekParam = typeof raw.week === "string" ? raw.week : undefined;
-  const requested = weekParam ? new Date(weekParam) : new Date();
-  const weekStart = getStartOfWeek(
-    isNaN(requested.getTime()) ? new Date() : requested,
-  );
+  // Mode d'affichage : jour / semaine (défaut) / mois
+  const mode: AgendaMode =
+    raw.mode === "day" || raw.mode === "month" ? raw.mode : "week";
+
+  // Date de référence : ?date= (ou ?week= en rétrocompat), sinon aujourd'hui
+  const dateParam =
+    (typeof raw.date === "string" ? raw.date : undefined) ??
+    (typeof raw.week === "string" ? raw.week : undefined);
+  const requested = dateParam ? new Date(dateParam) : new Date();
+  const refDate = isNaN(requested.getTime()) ? new Date() : requested;
+  refDate.setHours(0, 0, 0, 0);
   const hideDone = raw.hideDone === "1";
+
+  // Construit la liste des colonnes (dates) + l'intervalle de requête
+  let dates: Date[];
+  let rangeStart: Date;
+  let rangeEnd: Date;
+  let targetMonth = refDate.getMonth();
+
+  if (mode === "day") {
+    dates = [new Date(refDate)];
+    rangeStart = new Date(refDate);
+    rangeEnd = new Date(refDate);
+    rangeEnd.setDate(rangeEnd.getDate() + 1);
+  } else if (mode === "month") {
+    const monthFirst = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
+    targetMonth = monthFirst.getMonth();
+    rangeStart = getStartOfWeek(monthFirst);
+    dates = Array.from({ length: 42 }, (_, i) => {
+      const d = new Date(rangeStart);
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+    rangeEnd = new Date(rangeStart);
+    rangeEnd.setDate(rangeEnd.getDate() + 42);
+  } else {
+    const ws = getStartOfWeek(refDate);
+    dates = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(ws);
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+    rangeStart = ws;
+    rangeEnd = new Date(ws);
+    rangeEnd.setDate(rangeEnd.getDate() + 7);
+  }
 
   // Vue admin : "mine" (défaut), "all", ou userId d'une commerciale précise.
   // Ignorée pour les commerciaux (scope verrouillé côté query).
@@ -48,7 +92,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     : [];
 
   const [activities, prospects] = await Promise.all([
-    getAgendaWeek(user, weekStart, hideDone, view),
+    getAgendaRange(user, rangeStart, rangeEnd, hideDone, view),
     prisma.prospect.findMany({
       where: {
         ...scopedWhere(user, {}),
@@ -73,7 +117,19 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         ? `Agenda de ${viewedUser.name}`
         : "Mon agenda"
     : "Mon agenda";
-  const description = `${activities.length} activité(s) sur la semaine · ${viewLabel}.`;
+  const periodeLabel =
+    mode === "day" ? "ce jour" : mode === "month" ? "ce mois" : "la semaine";
+  const description = `${activities.length} activité(s) sur ${periodeLabel} · ${viewLabel}.`;
+
+  // Lien vers la vue Jour (utilisé par la vue Mois), préserve les filtres
+  const hrefForDay = (iso: string) => {
+    const sp = new URLSearchParams();
+    sp.set("mode", "day");
+    sp.set("date", iso);
+    if (view !== "mine") sp.set("view", view);
+    if (hideDone) sp.set("hideDone", "1");
+    return `/agenda?${sp.toString()}`;
+  };
 
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
@@ -114,23 +170,37 @@ export default async function AgendaPage({ searchParams }: PageProps) {
       )}
 
       <div className="mb-4">
-        <WeekNav weekStart={weekStart} hideDone={hideDone} />
+        <AgendaToolbar
+          mode={mode}
+          date={refDate}
+          view={view}
+          hideDone={hideDone}
+        />
       </div>
 
-      <WeekView
-        weekStart={weekStart}
-        activities={activities}
-        prospects={prospects}
-        showUserBadge={isAdmin && view === "all"}
-        users={teamUsers}
-        currentUserId={user.id}
-        isAdmin={isAdmin}
-      />
+      {mode === "month" ? (
+        <MonthView
+          dates={dates}
+          targetMonth={targetMonth}
+          activities={activities}
+          hrefForDay={hrefForDay}
+        />
+      ) : (
+        <WeekView
+          dates={dates}
+          activities={activities}
+          prospects={prospects}
+          showUserBadge={isAdmin && view === "all"}
+          users={teamUsers}
+          currentUserId={user.id}
+          isAdmin={isAdmin}
+        />
+      )}
 
       <p className="mt-4 text-center text-xs text-muted-foreground">
-        💡 Clique sur un créneau vide pour planifier une activité à cette
-        heure, ou sur un événement pour le détail et les actions (fait, J+1,
-        supprimer).
+        {mode === "month"
+          ? "💡 Clique sur un jour pour l'ouvrir en vue Jour."
+          : "💡 Clique sur un créneau vide pour planifier, glisse un événement pour le déplacer, tire son bas pour changer la durée."}
       </p>
     </div>
   );

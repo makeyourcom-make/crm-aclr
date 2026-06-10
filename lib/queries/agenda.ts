@@ -32,6 +32,19 @@ export async function getAgendaWeek(
 ): Promise<AgendaActivity[]> {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 7);
+  return getAgendaRange(user, weekStart, weekEnd, hideDone, view);
+}
+
+/** Activités sur un intervalle [start, end) quelconque (jour / semaine / mois). */
+export async function getAgendaRange(
+  user: SessionUser,
+  start: Date,
+  end: Date,
+  hideDone: boolean,
+  view: AgendaView = "mine",
+): Promise<AgendaActivity[]> {
+  const weekStart = start;
+  const weekEnd = end;
 
   // Construit le scope selon le rôle et la vue choisie
   let scope: Prisma.ActivityWhereInput = {};
