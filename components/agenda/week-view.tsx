@@ -10,17 +10,31 @@
  *  - Clic sur un événement → fiche détail + actions (Fait, J+1, supprimer)
  *  - Clic sur un créneau vide → création d'activité pré-remplie (jour + heure)
  */
+import {
+  DndContext,
+  PointerSensor,
+  useDraggable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
   markActivityDone,
   rescheduleActivity,
+  updateActivity,
 } from "@/app/(app)/activites/actions";
 import { ActivityIcon } from "@/components/activities/activity-icon";
 import { AdresseRdvLink } from "@/components/activities/adresse-rdv-link";
-import { AddActivityDialog } from "@/components/agenda/add-activity-dialog";
+import {
+  AddActivityDialog,
+  type EditActivityInput,
+} from "@/components/agenda/add-activity-dialog";
 import { DeleteActivityButton } from "@/components/common/entity-delete-buttons";
 import {
   Dialog,
@@ -90,6 +104,27 @@ function minOfDay(d: Date): number {
 function dureeMin(a: AgendaActivity): number {
   return a.duree && a.duree > 0 ? a.duree : DEFAULT_DUR_MIN;
 }
+function hhmm(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+/** Convertit une activité en valeurs initiales pour le formulaire d'édition. */
+function toEditInput(a: AgendaActivity): EditActivityInput {
+  const start = new Date(a.date);
+  const end = new Date(start.getTime() + dureeMin(a) * 60_000);
+  return {
+    id: a.id,
+    prospectId: a.prospectId ?? "",
+    userId: a.userId,
+    type: a.type,
+    sujet: a.sujet,
+    dateIso: toIso(start),
+    heure: hhmm(start),
+    heureFin: hhmm(end),
+    adresseRdv: a.adresseRdv ?? "",
+    contenu: a.contenu ?? "",
+  };
+}
 
 interface Positioned {
   activity: AgendaActivity;
@@ -150,11 +185,43 @@ export function WeekView({
   currentUserId,
   isAdmin = false,
 }: WeekViewProps) {
+  const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const columnsRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<AgendaActivity | null>(null);
+  const [editing, setEditing] = useState<AgendaActivity | null>(null);
+  const [, startMove] = useTransition();
   const [add, setAdd] = useState<{ open: boolean; dateIso: string; time: string }>(
     { open: false, dateIso: toIso(weekStart), time: "09:00" },
   );
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
+
+  // Drag & drop : déplace une activité (jour + heure) selon le delta du glisser.
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, delta } = e;
+    if (!delta) return;
+    const a = activities.find((x) => x.id === active.id);
+    if (!a) return;
+    const colW = columnsRef.current ? columnsRef.current.offsetWidth / 7 : 0;
+    const dayDelta = colW ? Math.round(delta.x / colW) : 0;
+    const minDelta = Math.round((delta.y / HOUR_HEIGHT) * 4) * 15; // snap 15 min
+    if (dayDelta === 0 && minDelta === 0) return;
+    const newStart = new Date(a.date);
+    newStart.setDate(newStart.getDate() + dayDelta);
+    newStart.setMinutes(newStart.getMinutes() + minDelta);
+    startMove(async () => {
+      const res = await updateActivity(a.id, { date: newStart });
+      if (!res.ok) {
+        toast.error(res.error ?? "Déplacement impossible.");
+        return;
+      }
+      toast.success("Déplacé.");
+      router.refresh();
+    });
+  };
 
   // Scroll au matin au montage
   useEffect(() => {
@@ -228,6 +295,7 @@ export function WeekView({
       </div>
 
       {/* Corps scrollable */}
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <div ref={scrollRef} className="max-h-[640px] overflow-y-auto">
         <div className="flex" style={{ height: TOTAL_HEIGHT }}>
           {/* Gouttière heures */}
@@ -247,7 +315,7 @@ export function WeekView({
           </div>
 
           {/* 7 colonnes */}
-          <div className="grid flex-1 grid-cols-7">
+          <div ref={columnsRef} className="grid flex-1 grid-cols-7">
             {days.map((positioned, dayIdx) => {
               const d = new Date(weekStart);
               d.setDate(d.getDate() + dayIdx);
@@ -282,79 +350,21 @@ export function WeekView({
                   )}
 
                   {/* Événements */}
-                  {positioned.map((p) => {
-                    const top = (p.startMin / 60) * HOUR_HEIGHT;
-                    const rawH = ((p.endMin - p.startMin) / 60) * HOUR_HEIGHT;
-                    const height = Math.max(rawH, 16);
-                    const widthPct = 100 / p.cols;
-                    const leftPct = p.col * widthPct;
-                    const compact = height < 34;
-                    return (
-                      <button
-                        key={p.activity.id}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelected(p.activity);
-                        }}
-                        style={{
-                          top,
-                          height: height - 2,
-                          left: `calc(${leftPct}% + 1px)`,
-                          width: `calc(${widthPct}% - 3px)`,
-                        }}
-                        className={cn(
-                          "absolute z-10 overflow-hidden rounded-md border border-l-4 px-1.5 py-0.5 text-left text-[11px] leading-tight shadow-sm transition hover:z-30 hover:shadow-md",
-                          STATUT_BLOCK[p.activity.statut] ?? STATUT_BLOCK.PLANIFIE,
-                        )}
-                        title={`${formatTime(p.activity.date)} · ${p.activity.sujet}`}
-                      >
-                        {compact ? (
-                          <span className="flex items-center gap-1 truncate">
-                            <span className="font-semibold tabular-nums">
-                              {formatTime(p.activity.date)}
-                            </span>
-                            <span className="truncate">
-                              {p.activity.prospect?.raisonSociale ??
-                                p.activity.sujet}
-                            </span>
-                          </span>
-                        ) : (
-                          <>
-                            <span className="flex items-center gap-1 font-semibold tabular-nums">
-                              <ActivityIcon type={p.activity.type} size={13} />
-                              {formatTime(p.activity.date)}
-                              {showUserBadge && p.activity.user && (
-                                <span
-                                  className="ml-auto inline-block h-2 w-2 shrink-0 rounded-full"
-                                  style={{
-                                    backgroundColor: colorForUser(
-                                      p.activity.user.id,
-                                    ),
-                                  }}
-                                />
-                              )}
-                            </span>
-                            <span className="block truncate font-medium">
-                              {p.activity.prospect?.raisonSociale ??
-                                p.activity.sujet}
-                            </span>
-                            {p.activity.prospect && (
-                              <span className="block truncate opacity-70">
-                                {p.activity.sujet}
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </button>
-                    );
-                  })}
+                  {positioned.map((p) => (
+                    <DraggableEvent
+                      key={p.activity.id}
+                      p={p}
+                      showUserBadge={showUserBadge}
+                      onOpen={() => setSelected(p.activity)}
+                    />
+                  ))}
                 </div>
               );
             })}
           </div>
         </div>
       </div>
+      </DndContext>
 
       {/* Dialog création (créneau cliqué) */}
       <AddActivityDialog
@@ -369,11 +379,29 @@ export function WeekView({
         hideTrigger
       />
 
+      {/* Dialog édition (depuis le détail d'un événement) */}
+      <AddActivityDialog
+        prospects={prospects}
+        defaultDate={toIso(weekStart)}
+        users={users}
+        currentUserId={currentUserId}
+        isAdmin={isAdmin}
+        open={!!editing}
+        onOpenChange={(o) => !o && setEditing(null)}
+        hideTrigger
+        editActivity={editing ? toEditInput(editing) : undefined}
+      />
+
       {/* Dialog détail événement */}
       <EventDetailDialog
         activity={selected}
         showUser={showUserBadge}
         onClose={() => setSelected(null)}
+        onEdit={() => {
+          const a = selected;
+          setSelected(null);
+          setEditing(a);
+        }}
       />
     </div>
   );
@@ -383,10 +411,12 @@ function EventDetailDialog({
   activity: a,
   showUser,
   onClose,
+  onEdit,
 }: {
   activity: AgendaActivity | null;
   showUser: boolean;
   onClose: () => void;
+  onEdit: () => void;
 }) {
   const [pending, startTransition] = useTransition();
   if (!a) return null;
@@ -459,6 +489,13 @@ function EventDetailDialog({
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
+          >
+            ✎ Modifier
+          </button>
           {(a.statut === "PLANIFIE" || a.statut === "EN_COURS") && (
             <>
               <button
@@ -485,5 +522,85 @@ function EventDetailDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Bloc événement positionné + déplaçable (drag & drop). */
+function DraggableEvent({
+  p,
+  showUserBadge,
+  onOpen,
+}: {
+  p: Positioned;
+  showUserBadge: boolean;
+  onOpen: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({ id: p.activity.id });
+  const top = (p.startMin / 60) * HOUR_HEIGHT;
+  const rawH = ((p.endMin - p.startMin) / 60) * HOUR_HEIGHT;
+  const height = Math.max(rawH, 16);
+  const widthPct = 100 / p.cols;
+  const leftPct = p.col * widthPct;
+  const compact = height < 34;
+  const a = p.activity;
+
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        if (!isDragging) onOpen();
+      }}
+      {...listeners}
+      {...attributes}
+      style={{
+        top,
+        height: height - 2,
+        left: `calc(${leftPct}% + 1px)`,
+        width: `calc(${widthPct}% - 3px)`,
+        transform: CSS.Translate.toString(transform),
+        zIndex: isDragging ? 50 : undefined,
+        cursor: "grab",
+        touchAction: "none",
+      }}
+      className={cn(
+        "absolute z-10 overflow-hidden rounded-md border border-l-4 px-1.5 py-0.5 text-left text-[11px] leading-tight shadow-sm transition-shadow hover:z-30 hover:shadow-md",
+        isDragging && "opacity-80 shadow-lg",
+        STATUT_BLOCK[a.statut] ?? STATUT_BLOCK.PLANIFIE,
+      )}
+      title={`${formatTime(a.date)} · ${a.sujet}`}
+    >
+      {compact ? (
+        <span className="flex items-center gap-1 truncate">
+          <span className="font-semibold tabular-nums">
+            {formatTime(a.date)}
+          </span>
+          <span className="truncate">
+            {a.prospect?.raisonSociale ?? a.sujet}
+          </span>
+        </span>
+      ) : (
+        <>
+          <span className="flex items-center gap-1 font-semibold tabular-nums">
+            <ActivityIcon type={a.type} size={13} />
+            {formatTime(a.date)}
+            {showUserBadge && a.user && (
+              <span
+                className="ml-auto inline-block h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: colorForUser(a.user.id) }}
+              />
+            )}
+          </span>
+          <span className="block truncate font-medium">
+            {a.prospect?.raisonSociale ?? a.sujet}
+          </span>
+          {a.prospect && (
+            <span className="block truncate opacity-70">{a.sujet}</span>
+          )}
+        </>
+      )}
+    </button>
   );
 }

@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
-import { createActivity } from "@/app/(app)/activites/actions";
+import { createActivity, updateActivity } from "@/app/(app)/activites/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -76,6 +76,22 @@ interface AddActivityDialogProps {
   onOpenChange?: (open: boolean) => void;
   /** Masque le bouton déclencheur (utile en mode contrôlé pur). */
   hideTrigger?: boolean;
+  /** Si fourni → mode édition (met à jour l'activité au lieu d'en créer une). */
+  editActivity?: EditActivityInput;
+}
+
+/** Valeurs d'une activité existante pour le mode édition. */
+export interface EditActivityInput {
+  id: string;
+  prospectId: string;
+  userId: string;
+  type: ActivityType;
+  sujet: string;
+  dateIso: string;
+  heure: string;
+  heureFin: string;
+  adresseRdv: string;
+  contenu: string;
 }
 
 export function AddActivityDialog({
@@ -89,7 +105,9 @@ export function AddActivityDialog({
   open: openProp,
   onOpenChange,
   hideTrigger = false,
+  editActivity,
 }: AddActivityDialogProps) {
+  const isEdit = !!editActivity;
   const router = useRouter();
   const [internalOpen, setInternalOpen] = useState(false);
   const open = openProp ?? internalOpen;
@@ -128,29 +146,34 @@ export function AddActivityDialog({
     const [hh, mn] = heure.split(":").map(Number);
     const dateTime = new Date(yyyy, mm - 1, dd, hh, mn, 0);
 
+    const payload = {
+      // prospectId optionnel — vide = note interne sans client
+      prospectId: prospectId || undefined,
+      userId: isAdmin && assigneAId ? assigneAId : undefined,
+      type,
+      date: dateTime,
+      sujet: sujet.trim(),
+      duree: diffMinutes(heure, heureFin),
+      adresseRdv: adresseRdv.trim() || undefined,
+      contenu: contenu.trim() || undefined,
+    };
     startTransition(async () => {
-      const res = await createActivity({
-        // prospectId optionnel — vide = note interne sans client
-        prospectId: prospectId || undefined,
-        userId: isAdmin && assigneAId ? assigneAId : undefined,
-        type,
-        date: dateTime,
-        sujet: sujet.trim(),
-        duree: diffMinutes(heure, heureFin),
-        adresseRdv: adresseRdv.trim() || undefined,
-        contenu: contenu.trim() || undefined,
-        statut: "PLANIFIE",
-      });
+      const res = editActivity
+        ? await updateActivity(editActivity.id, payload)
+        : await createActivity({ ...payload, statut: "PLANIFIE" });
       if (!res.ok) {
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success("Activité ajoutée à l'agenda.");
-      // Reset
-      setProspectId("");
-      setSujet("");
-      setAdresseRdv("");
-      setContenu("");
+      toast.success(
+        editActivity ? "Activité modifiée." : "Activité ajoutée à l'agenda.",
+      );
+      if (!editActivity) {
+        setProspectId("");
+        setSujet("");
+        setAdresseRdv("");
+        setContenu("");
+      }
       setOpen(false);
       router.refresh();
     });
@@ -166,8 +189,25 @@ export function AddActivityDialog({
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        // À l'ouverture, on recolle sur le jour ET l'heure cliqués
-        if (o) {
+        if (!o) return;
+        // À l'ouverture : pré-remplit depuis l'activité (édition) ou réinitialise
+        if (editActivity) {
+          setProspectId(editActivity.prospectId);
+          setAssigneAId(editActivity.userId || currentUserId || "");
+          setType(editActivity.type);
+          setSujet(editActivity.sujet);
+          setDate(editActivity.dateIso);
+          setHeure(editActivity.heure);
+          setHeureFin(editActivity.heureFin);
+          setAdresseRdv(editActivity.adresseRdv);
+          setContenu(editActivity.contenu);
+        } else {
+          setProspectId("");
+          setAssigneAId(currentUserId ?? "");
+          setType("RDV_PHYSIQUE");
+          setSujet("");
+          setAdresseRdv("");
+          setContenu("");
           setDate(defaultDate);
           setHeure(defaultTime);
           setHeureFin(addMinutesToTime(defaultTime, 60));
@@ -189,7 +229,7 @@ export function AddActivityDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-sm font-normal text-muted-foreground">
-            Nouvelle activité
+            {isEdit ? "Modifier l'activité" : "Nouvelle activité"}
           </DialogTitle>
           <DialogDescription className="sr-only">
             Crée un RDV, un appel, un email ou une note dans l&apos;agenda.
