@@ -110,28 +110,31 @@ export function CallSessionProvider({
       prospectRaisonSociale: string;
       numero: string;
     }) => {
-      const res = await startCall({
-        prospectId: input.prospectId,
-        numero: input.numero,
-      });
-      if (!res.ok || !res.activityId) {
-        const msg = res.error ?? "Impossible de démarrer la session d'appel.";
-        const { toast } = await import("sonner");
-        toast.error(msg);
-        return;
-      }
-      const newSession: CallSession = {
-        activityId: res.activityId,
-        prospectId: input.prospectId,
-        prospectRaisonSociale: input.prospectRaisonSociale,
-        numero: input.numero,
-        startedAt: Date.now(),
-      };
-      setSession(newSession);
+      const { toast } = await import("sonner");
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
+        const res = await startCall({
+          prospectId: input.prospectId,
+          numero: input.numero,
+        });
+        if (!res.ok || !res.activityId) {
+          toast.error(res.error ?? "Impossible de démarrer la session d'appel.");
+          return;
+        }
+        const newSession: CallSession = {
+          activityId: res.activityId,
+          prospectId: input.prospectId,
+          prospectRaisonSociale: input.prospectRaisonSociale,
+          numero: input.numero,
+          startedAt: Date.now(),
+        };
+        setSession(newSession);
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession));
+        } catch {
+          /* quota/refus → on continue en mémoire seulement */
+        }
       } catch {
-        /* quota/refus → on continue en mémoire seulement */
+        toast.error("Impossible de démarrer la session d'appel (réessaie).");
       }
     },
     [],

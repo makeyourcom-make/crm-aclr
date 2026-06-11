@@ -39,14 +39,14 @@ export function ClickToCall({
   const isThisProspectInCall = session?.prospectId === prospectId;
 
   const handleClick = async (e: React.MouseEvent) => {
-    // On ne bloque PAS le tel: natif — on lance la session en parallèle pour
-    // que le widget soit prêt quand le user raccroche.
+    // On démarre TOUJOURS la session AVANT d'ouvrir le dialer : sinon la
+    // navigation tel: peut interrompre le démarrage et le chrono ne part pas.
+    e.preventDefault();
     e.stopPropagation();
     if (isCallActive && !isThisProspectInCall) {
-      e.preventDefault();
       const { toast } = await import("sonner");
       toast.error(
-        "Un appel est déjà en cours. Termine-le avant d'en démarrer un nouveau.",
+        "Un appel est déjà en cours. Clique « J'ai raccroché » sur le widget pour le terminer.",
       );
       return;
     }
@@ -57,6 +57,9 @@ export function ClickToCall({
         numero: normalized,
       });
     }
+    // Ouvre le dialer (mobile = appel natif, desktop = handler par défaut)
+    // une fois la session démarrée → le widget chrono est déjà affiché.
+    window.location.href = `tel:${normalized.replace(/\s/g, "")}`;
   };
 
   return (

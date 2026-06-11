@@ -212,9 +212,8 @@ export async function startCall(
     return zodErrorToResult(parsed.error);
   }
 
-  await assertCanAccessProspect(user, parsed.data.prospectId);
-
   try {
+    await assertCanAccessProspect(user, parsed.data.prospectId);
     const prospect = await prisma.prospect.findUnique({
       where: { id: parsed.data.prospectId },
       select: { raisonSociale: true },
@@ -231,6 +230,7 @@ export async function startCall(
     });
     return { ok: true, activityId: created.id };
   } catch (err) {
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
     return prismaErrorToResult(err);
   }
 }
