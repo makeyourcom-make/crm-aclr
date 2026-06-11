@@ -16,6 +16,7 @@ import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badg
 import { ProspectTagsEditor } from "@/components/prospects/prospect-tags-editor";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getNextRenewalDate, relativeDays } from "@/lib/contract-renewal";
 import { prisma } from "@/lib/db";
 import { formatDateLong, formatMoney } from "@/lib/format";
 import {
@@ -116,6 +117,35 @@ export default async function ProspectDetailPage({ params }: PageProps) {
   ]);
 
   if (!prospect) notFound();
+
+  // Prochaine échéance = la plus proche entre renouvellement d'un contrat
+  // actif et prochaine facture à échéance non payée.
+  const now = new Date();
+  const echeances: { date: Date; label: string }[] = [];
+  for (const c of contracts) {
+    const r = getNextRenewalDate({
+      dateDebut: c.dateDebut,
+      dureeMois: c.dureeMois,
+      statut: c.statut,
+    });
+    if (r) echeances.push({ date: r, label: `Renouvellement ${c.numero}` });
+  }
+  const prochaineFacture = clientInvoices
+    .filter(
+      (f) =>
+        f.statut !== "PAYEE" &&
+        f.statut !== "ANNULEE" &&
+        f.dateEcheance >= now,
+    )
+    .sort((a, b) => a.dateEcheance.getTime() - b.dateEcheance.getTime())[0];
+  if (prochaineFacture) {
+    echeances.push({
+      date: prochaineFacture.dateEcheance,
+      label: `Facture ${prochaineFacture.numero}`,
+    });
+  }
+  const prochaineEcheance =
+    echeances.sort((a, b) => a.date.getTime() - b.date.getTime())[0] ?? null;
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-6 lg:px-8">
@@ -283,6 +313,22 @@ export default async function ProspectDetailPage({ params }: PageProps) {
             <CardTitle className="text-base">Méta</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
+            {prochaineEcheance && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5">
+                <p className="text-xs uppercase tracking-wider text-amber-700">
+                  Prochaine échéance
+                </p>
+                <p className="mt-0.5 font-medium text-amber-900">
+                  {formatDateLong(prochaineEcheance.date)}{" "}
+                  <span className="text-xs font-normal">
+                    ({relativeDays(prochaineEcheance.date).label})
+                  </span>
+                </p>
+                <p className="text-xs text-amber-700/80">
+                  {prochaineEcheance.label}
+                </p>
+              </div>
+            )}
             <Field label="Assigné à">
               {prospect.assigneA?.name ?? "—"}
             </Field>
@@ -322,7 +368,13 @@ export default async function ProspectDetailPage({ params }: PageProps) {
             <p className="text-sm text-muted-foreground">Aucun contrat.</p>
           ) : (
             <div className="divide-y divide-border">
-              {contracts.map((c) => (
+              {contracts.map((c) => {
+                const renouv = getNextRenewalDate({
+                  dateDebut: c.dateDebut,
+                  dureeMois: c.dureeMois,
+                  statut: c.statut,
+                });
+                return (
                 <Link
                   key={c.id}
                   href={`/contrats/${c.id}`}
@@ -335,6 +387,14 @@ export default async function ProspectDetailPage({ params }: PageProps) {
                     </div>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       Début {formatDateLong(c.dateDebut)} · {c.dureeMois} mois
+                      {renouv && (
+                        <>
+                          {" · "}
+                          <span className="text-amber-700">
+                            Renouvellement {formatDateLong(renouv)}
+                          </span>
+                        </>
+                      )}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
@@ -348,7 +408,8 @@ export default async function ProspectDetailPage({ params }: PageProps) {
                     )}
                   </div>
                 </Link>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
