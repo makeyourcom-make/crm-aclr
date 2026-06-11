@@ -133,8 +133,11 @@ export function CallSessionProvider({
         } catch {
           /* quota/refus → on continue en mémoire seulement */
         }
-      } catch {
-        toast.error("Impossible de démarrer la session d'appel (réessaie).");
+      } catch (e) {
+        const detail =
+          e instanceof Error ? e.message : String(e);
+        toast.error("Échec appel : " + detail.slice(0, 220));
+        console.error("[startCallSession] échec:", e);
       }
     },
     [],

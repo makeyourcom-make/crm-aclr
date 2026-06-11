@@ -205,14 +205,14 @@ export async function deleteActivity(
 export async function startCall(
   input: unknown,
 ): Promise<ActivityActionResult> {
-  const user = await requireUser();
-  const parsed = StartCallSchema.safeParse(input);
-
-  if (!parsed.success) {
-    return zodErrorToResult(parsed.error);
-  }
-
+  // Tout est enveloppé : l'action ne doit JAMAIS rejeter (sinon le client
+  // n'a aucun feedback). On renvoie toujours un résultat exploitable.
   try {
+    const user = await requireUser();
+    const parsed = StartCallSchema.safeParse(input);
+    if (!parsed.success) {
+      return zodErrorToResult(parsed.error);
+    }
     await assertCanAccessProspect(user, parsed.data.prospectId);
     const prospect = await prisma.prospect.findUnique({
       where: { id: parsed.data.prospectId },
@@ -231,7 +231,8 @@ export async function startCall(
     return { ok: true, activityId: created.id };
   } catch (err) {
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
-    return prismaErrorToResult(err);
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: "Démarrage appel impossible : " + msg.slice(0, 200) };
   }
 }
 
