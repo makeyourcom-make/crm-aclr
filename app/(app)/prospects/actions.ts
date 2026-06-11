@@ -147,10 +147,24 @@ export async function updateProspect(
     return zodErrorToResult(parsed.error);
   }
 
+  // Un champ vidé dans le formulaire devient `undefined` après Zod, et Prisma
+  // IGNORE les `undefined` (la valeur précédente "revient"). Pour vraiment
+  // effacer un champ, on force `null` sur les champs nullable soumis vides.
+  const CLEARABLE = [
+    "contactNom", "contactPrenom", "contactFonction", "email", "telephone",
+    "telephoneMobile", "adresse", "codePostal", "ville", "canton",
+    "numeroIDE", "numeroTVA", "siteWeb", "linkedIn", "facebook", "instagram",
+    "noga", "notesGenerales", "effectif",
+  ] as const;
+  const data: Record<string, unknown> = { ...parsed.data };
+  for (const f of CLEARABLE) {
+    if (f in raw && String(raw[f]).trim() === "") data[f] = null;
+  }
+
   try {
     await prisma.prospect.update({
       where: { id },
-      data: parsed.data,
+      data,
     });
     revalidatePath("/prospects");
     revalidatePath(`/prospects/${id}`);
