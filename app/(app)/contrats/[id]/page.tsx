@@ -478,12 +478,23 @@ export default async function ContractDetailPage({ params }: PageProps) {
                       </Badge>
                     </td>
                     <td className="px-3 py-2 text-right">
-                      {contract.statut === "ACTIF" && user.role === "ADMIN" && (
-                        <MarkInvoicePaidButton
-                          invoiceId={inv.id}
-                          hidden={inv.statut === "PAYEE" || inv.statut === "ANNULEE"}
+                      <div className="flex items-center justify-end gap-1.5">
+                        <DocumentPreviewButton
+                          url={`/api/factures-clients/${inv.id}/pdf`}
+                          filename={`${inv.numero}.pdf`}
+                          label="Voir"
                         />
-                      )}
+                        {contract.statut === "ACTIF" &&
+                          user.role === "ADMIN" && (
+                            <MarkInvoicePaidButton
+                              invoiceId={inv.id}
+                              hidden={
+                                inv.statut === "PAYEE" ||
+                                inv.statut === "ANNULEE"
+                              }
+                            />
+                          )}
+                      </div>
                     </td>
                   </tr>
                 ))

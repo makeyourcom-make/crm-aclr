@@ -6,6 +6,7 @@ import type { ClientInvoiceStatut, ClientInvoiceType } from "@prisma/client";
 import { ActivityTimeline } from "@/components/activities/activity-timeline";
 import { QuickLogActivity } from "@/components/activities/quick-log-activity";
 import { ClickToCall } from "@/components/call/click-to-call";
+import { DocumentPreviewButton } from "@/components/common/document-preview-button";
 import { ContractStatutBadge } from "@/components/contrats/contract-statut-badge";
 import { SendEmailDialog } from "@/components/emails/send-email-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -458,15 +459,12 @@ export default async function ProspectDetailPage({ params }: PageProps) {
                     <p className="font-semibold tabular-nums">
                       {formatMoney(Number(f.total), f.devise)}
                     </p>
-                    <a
-                      href={`/api/factures-clients/${f.id}/pdf`}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Télécharger le PDF"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-muted"
-                    >
-                      <Icon name="Download" className="h-4 w-4" />
-                    </a>
+                    <DocumentPreviewButton
+                      url={`/api/factures-clients/${f.id}/pdf`}
+                      filename={`${f.numero}.pdf`}
+                      label="Voir"
+                      className="h-8 px-2.5 text-xs"
+                    />
                   </div>
                 </div>
               ))}
