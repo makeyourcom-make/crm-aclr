@@ -140,6 +140,8 @@ function buildProspectWhere(
   // statut sont gérés via le filtre.
   if (params.secteur) conditions.push({ secteur: params.secteur });
   if (params.canton) conditions.push({ canton: params.canton });
+  if (params.ville)
+    conditions.push({ ville: { contains: params.ville, mode: "insensitive" } });
   if (params.assigneAId) conditions.push({ assigneAId: params.assigneAId });
   // Filtre par tag : récupère les prospects ayant ce tagId via la table de jonction
   if (params.tagId) {

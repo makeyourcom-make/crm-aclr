@@ -6,7 +6,6 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import { Icon } from "@/components/icon";
 import { Input } from "@/components/ui/input";
 import {
-  CANTONS_SUISSES,
   PROSPECT_SECTEUR_OPTIONS,
   PROSPECT_STATUT_OPTIONS,
 } from "@/lib/labels";
@@ -50,6 +49,13 @@ export function ProspectFilters({
     setSearch(params.q ?? "");
   }, [params.q]);
 
+  // Filtre Ville (texte libre, debounce) — remplace le filtre Canton
+  const [ville, setVille] = useState(params.ville ?? "");
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setVille(params.ville ?? "");
+  }, [params.ville]);
+
   const pushParams = useCallback(
     (mut: (sp: URLSearchParams) => void) => {
       const sp = new URLSearchParams(searchParams.toString());
@@ -77,6 +83,20 @@ export function ProspectFilters({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
+  // Debounce sur la ville
+  useEffect(() => {
+    const current = params.ville ?? "";
+    if (ville === current) return;
+    const t = setTimeout(() => {
+      pushParams((sp) => {
+        if (ville) sp.set("ville", ville);
+        else sp.delete("ville");
+      });
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ville]);
+
   const handleSelectChange = (
     key: keyof ProspectListParams,
     value: string,
@@ -90,7 +110,7 @@ export function ProspectFilters({
   const hasFilters =
     !!params.statut ||
     !!params.secteur ||
-    !!params.canton ||
+    !!params.ville ||
     !!params.assigneAId ||
     !!params.tagId ||
     !!params.q;
@@ -147,11 +167,13 @@ export function ProspectFilters({
         options={PROSPECT_SECTEUR_OPTIONS}
       />
 
-      <FilterSelect
-        label="Canton"
-        value={params.canton ?? ""}
-        onChange={(v) => handleSelectChange("canton", v)}
-        options={CANTONS_SUISSES}
+      <Input
+        type="text"
+        placeholder="Ville…"
+        value={ville}
+        onChange={(e) => setVille(e.target.value)}
+        aria-label="Ville"
+        className={cn("h-9 w-32", ville && "border-primary/40 bg-primary/5")}
       />
 
       {tags && tags.length > 0 && (

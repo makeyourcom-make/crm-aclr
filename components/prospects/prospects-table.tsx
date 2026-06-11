@@ -2,6 +2,7 @@
 
 import { type ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { BulkReassignBar } from "@/components/prospects/bulk-reassign-bar";
@@ -41,6 +42,37 @@ interface ProspectsTableProps {
   teamUsers?: Array<{ id: string; name: string }>;
   /** Si true, affiche les checkboxes de sélection. */
   showBulkActions?: boolean;
+}
+
+/** En-tête de colonne triable : clic → met à jour ?sortBy & ?sortDir. */
+function SortableHeader({ field, label }: { field: string; label: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const curBy = searchParams.get("sortBy") ?? "createdAt";
+  const curDir = searchParams.get("sortDir") ?? "desc";
+  const active = curBy === field;
+  const nextDir = active && curDir === "asc" ? "desc" : "asc";
+  const onClick = () => {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.set("sortBy", field);
+    sp.set("sortDir", nextDir);
+    sp.delete("page");
+    router.push(`${pathname}?${sp.toString()}`);
+  };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1 hover:text-foreground"
+      title={`Trier par ${label}`}
+    >
+      {label}
+      <span className="text-[10px] text-muted-foreground">
+        {active ? (curDir === "asc" ? "▲" : "▼") : "↕"}
+      </span>
+    </button>
+  );
 }
 
 export function ProspectsTable({
@@ -99,7 +131,7 @@ export function ProspectsTable({
       : []),
     {
       id: "raisonSociale",
-      header: "Raison sociale",
+      header: () => <SortableHeader field="raisonSociale" label="Raison sociale" />,
       cell: ({ row }) => (
         <div className="flex flex-col gap-1">
           <Link
@@ -163,7 +195,7 @@ export function ProspectsTable({
     },
     {
       id: "lieu",
-      header: "Lieu",
+      header: () => <SortableHeader field="ville" label="Lieu" />,
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
           {[row.original.ville, row.original.canton]
@@ -174,7 +206,7 @@ export function ProspectsTable({
     },
     {
       id: "secteur",
-      header: "Secteur",
+      header: () => <SortableHeader field="secteur" label="Secteur" />,
       cell: ({ row }) =>
         row.original.secteur ? (
           <span className="text-xs">
@@ -186,12 +218,12 @@ export function ProspectsTable({
     },
     {
       id: "statut",
-      header: "Statut",
+      header: () => <SortableHeader field="statut" label="Statut" />,
       cell: ({ row }) => <ProspectStatutBadge statut={row.original.statut} />,
     },
     {
       id: "updatedAt",
-      header: "Modifié",
+      header: () => <SortableHeader field="updatedAt" label="Modifié" />,
       cell: ({ row }) => (
         <span className="whitespace-nowrap text-xs text-muted-foreground">
           {formatRelative(row.original.updatedAt)}

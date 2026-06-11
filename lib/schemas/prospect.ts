@@ -127,6 +127,7 @@ export const ProspectListParamsSchema = z.object({
   statut: z.nativeEnum(ProspectStatut).optional(),
   secteur: z.nativeEnum(ProspectSecteur).optional(),
   canton: stringOptional,
+  ville: stringOptional, // filtre texte par ville (remplace le canton en UI)
   assigneAId: stringOptional,
   tagId: stringOptional, // filtre par tag (ex. "Passeport Beauté")
   sortBy: ProspectSortFieldSchema.default("createdAt"),
