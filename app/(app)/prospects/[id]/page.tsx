@@ -1,18 +1,23 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import type { ClientInvoiceStatut, ClientInvoiceType } from "@prisma/client";
+
 import { ActivityTimeline } from "@/components/activities/activity-timeline";
 import { QuickLogActivity } from "@/components/activities/quick-log-activity";
 import { ClickToCall } from "@/components/call/click-to-call";
+import { ContractStatutBadge } from "@/components/contrats/contract-statut-badge";
 import { SendEmailDialog } from "@/components/emails/send-email-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badge";
 import { ProspectTagsEditor } from "@/components/prospects/prospect-tags-editor";
 import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { prisma } from "@/lib/db";
-import { formatDateLong } from "@/lib/format";
+import { formatDateLong, formatMoney } from "@/lib/format";
 import {
   getProspectSecteurLabel,
   getProspectSourceLabel,
@@ -25,6 +30,28 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+const INV_STATUT_LABEL: Record<ClientInvoiceStatut, string> = {
+  BROUILLON: "Brouillon",
+  ENVOYEE: "Envoyée",
+  PAYEE: "Payée",
+  EN_RETARD: "En retard",
+  ANNULEE: "Annulée",
+};
+const INV_STATUT_COLOR: Record<ClientInvoiceStatut, string> = {
+  BROUILLON: "bg-slate-100 text-slate-600",
+  ENVOYEE: "bg-blue-100 text-blue-700",
+  PAYEE: "bg-emerald-100 text-emerald-800",
+  EN_RETARD: "bg-red-100 text-red-700",
+  ANNULEE: "bg-slate-100 text-slate-400 line-through",
+};
+const INV_TYPE_LABEL: Record<ClientInvoiceType, string> = {
+  ACOMPTE: "Acompte",
+  SOLDE: "Solde",
+  MENSUALITE: "Mensualité",
+  ANNUELLE: "Annuelle",
+  PONCTUELLE: "Ponctuelle",
+};
+
 export async function generateMetadata({ params }: PageProps) {
   const { id } = await params;
   return { title: `Prospect ${id.slice(0, 8)}…` };
@@ -33,24 +60,60 @@ export async function generateMetadata({ params }: PageProps) {
 export default async function ProspectDetailPage({ params }: PageProps) {
   const user = await requireUser();
   const { id } = await params;
-  const [prospect, activities, emailTemplates, allTags, emailSignatures] =
-    await Promise.all([
-      getProspectById(user, id),
-      getProspectActivities(id, user),
-      prisma.emailTemplate.findMany({
-        select: { id: true, nom: true, objet: true, contenu: true },
-        orderBy: { nom: "asc" },
-      }),
-      prisma.prospectTag.findMany({
-        select: { id: true, nom: true, couleur: true },
-        orderBy: { nom: "asc" },
-      }),
-      prisma.emailSignature.findMany({
-        where: { userId: user.id },
-        select: { id: true, nom: true, html: true, isDefault: true },
-        orderBy: [{ isDefault: "desc" }, { nom: "asc" }],
-      }),
-    ]);
+  const [
+    prospect,
+    activities,
+    emailTemplates,
+    allTags,
+    emailSignatures,
+    contracts,
+    clientInvoices,
+  ] = await Promise.all([
+    getProspectById(user, id),
+    getProspectActivities(id, user),
+    prisma.emailTemplate.findMany({
+      select: { id: true, nom: true, objet: true, contenu: true },
+      orderBy: { nom: "asc" },
+    }),
+    prisma.prospectTag.findMany({
+      select: { id: true, nom: true, couleur: true },
+      orderBy: { nom: "asc" },
+    }),
+    prisma.emailSignature.findMany({
+      where: { userId: user.id },
+      select: { id: true, nom: true, html: true, isDefault: true },
+      orderBy: [{ isDefault: "desc" }, { nom: "asc" }],
+    }),
+    prisma.contract.findMany({
+      where: { prospectId: id },
+      select: {
+        id: true,
+        numero: true,
+        statut: true,
+        dateDebut: true,
+        dureeMois: true,
+        devise: true,
+        montantOneShot: true,
+        montantMensuel: true,
+        valeurAn1: true,
+      },
+      orderBy: { dateDebut: "desc" },
+    }),
+    prisma.clientInvoice.findMany({
+      where: { contract: { prospectId: id } },
+      select: {
+        id: true,
+        numero: true,
+        type: true,
+        statut: true,
+        total: true,
+        devise: true,
+        dateEmission: true,
+        dateEcheance: true,
+      },
+      orderBy: { dateEmission: "desc" },
+    }),
+  ]);
 
   if (!prospect) notFound();
 
@@ -236,6 +299,120 @@ export default async function ProspectDetailPage({ params }: PageProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Contrats du client */}
+      <Card className="mt-6">
+        <CardHeader className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <CardTitle className="text-base">
+            Contrats
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              ({contracts.length})
+            </span>
+          </CardTitle>
+          <Link
+            href={`/contrats/nouveau?prospectId=${prospect.id}`}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <Icon name="Plus" className="mr-1 h-3.5 w-3.5" />
+            Nouveau contrat
+          </Link>
+        </CardHeader>
+        <CardContent>
+          {contracts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucun contrat.</p>
+          ) : (
+            <div className="divide-y divide-border">
+              {contracts.map((c) => (
+                <Link
+                  key={c.id}
+                  href={`/contrats/${c.id}`}
+                  className="flex items-center justify-between gap-3 py-2.5 hover:bg-muted/40"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{c.numero}</span>
+                      <ContractStatutBadge statut={c.statut} />
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Début {formatDateLong(c.dateDebut)} · {c.dureeMois} mois
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-semibold tabular-nums">
+                      {formatMoney(Number(c.valeurAn1), c.devise)}
+                    </p>
+                    {Number(c.montantMensuel) > 0 && (
+                      <p className="text-xs text-muted-foreground tabular-nums">
+                        {formatMoney(Number(c.montantMensuel), c.devise)}/mois
+                      </p>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Factures du client */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="text-base">
+            Factures
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              ({clientInvoices.length})
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {clientInvoices.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucune facture.</p>
+          ) : (
+            <div className="divide-y divide-border">
+              {clientInvoices.map((f) => (
+                <div
+                  key={f.id}
+                  className="flex items-center justify-between gap-3 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{f.numero}</span>
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          "font-normal",
+                          INV_STATUT_COLOR[f.statut],
+                        )}
+                      >
+                        {INV_STATUT_LABEL[f.statut]}
+                      </Badge>
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {INV_TYPE_LABEL[f.type]} · Émise{" "}
+                      {formatDateLong(f.dateEmission)} · Échéance{" "}
+                      {formatDateLong(f.dateEcheance)}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <p className="font-semibold tabular-nums">
+                      {formatMoney(Number(f.total), f.devise)}
+                    </p>
+                    <a
+                      href={`/api/factures-clients/${f.id}/pdf`}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Télécharger le PDF"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-muted"
+                    >
+                      <Icon name="Download" className="h-4 w-4" />
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Notes générales */}
       {prospect.notesGenerales && (
