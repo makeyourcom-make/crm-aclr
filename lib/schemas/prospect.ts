@@ -133,7 +133,7 @@ export const ProspectListParamsSchema = z.object({
   sortBy: ProspectSortFieldSchema.default("createdAt"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(10).max(200).default(50),
+  pageSize: z.coerce.number().int().min(10).max(2000).default(50),
 });
 export type ProspectListParams = z.infer<typeof ProspectListParamsSchema>;
 

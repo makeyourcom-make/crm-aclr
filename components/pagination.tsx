@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { cn } from "@/lib/utils";
+
+const PAGE_SIZES = [50, 100, 200, 500, 1000];
+const MAX_ALL = 2000; // garde-fou navigateur pour "Tout afficher"
 
 interface PaginationProps {
   current: number;
@@ -23,7 +26,17 @@ export function Pagination({
   pageSize,
 }: PaginationProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
+
+  const changePageSize = (val: string) => {
+    const size = val === "all" ? Math.min(Math.max(total, 50), MAX_ALL) : Number(val);
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.set("pageSize", String(size));
+    sp.delete("page");
+    router.push(`${pathname}?${sp.toString()}`);
+  };
+  const selectValue = PAGE_SIZES.includes(pageSize) ? String(pageSize) : "all";
 
   const buildHref = (page: number) => {
     const sp = new URLSearchParams(searchParams.toString());
@@ -40,17 +53,36 @@ export function Pagination({
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-muted-foreground">
-      <span>
-        {total === 0 ? (
-          "Aucun résultat"
-        ) : (
-          <>
-            <strong className="text-foreground">{start}</strong>–
-            <strong className="text-foreground">{end}</strong> sur{" "}
-            <strong className="text-foreground">{total}</strong>
-          </>
-        )}
-      </span>
+      <div className="flex flex-wrap items-center gap-3">
+        <span>
+          {total === 0 ? (
+            "Aucun résultat"
+          ) : (
+            <>
+              <strong className="text-foreground">{start}</strong>–
+              <strong className="text-foreground">{end}</strong> sur{" "}
+              <strong className="text-foreground">{total}</strong>
+            </>
+          )}
+        </span>
+        <label className="flex items-center gap-1.5 text-xs">
+          Afficher
+          <select
+            value={selectValue}
+            onChange={(e) => changePageSize(e.target.value)}
+            className="h-8 rounded-md border border-input bg-background px-1.5 text-sm"
+            aria-label="Nombre par page"
+          >
+            {PAGE_SIZES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+            <option value="all">Tout</option>
+          </select>
+          par page
+        </label>
+      </div>
 
       {totalPages > 1 && (
         <nav className="flex items-center gap-1" aria-label="Pagination">

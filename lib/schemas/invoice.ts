@@ -24,7 +24,7 @@ export const InvoiceListParamsSchema = z.object({
   userId: stringOptional,
   annee: z.coerce.number().int().optional(),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(10).max(200).default(50),
+  pageSize: z.coerce.number().int().min(10).max(2000).default(50),
 });
 export type InvoiceListParams = z.infer<typeof InvoiceListParamsSchema>;
 
