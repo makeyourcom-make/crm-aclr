@@ -1,13 +1,15 @@
 "use client";
 
 /**
- * Composant cliquable qui remplace l'affichage d'un numéro de téléphone.
+ * Numéro de téléphone cliquable qui démarre le SUIVI d'appel (sans passer
+ * d'appel réel) :
+ *   - clic → crée une session d'appel CRM (Activity EN_COURS + widget flottant
+ *     avec chrono) via useCallSession.
+ *   - l'utilisateur compose lui-même sur son téléphone.
+ *   - « J'ai raccroché » → modale de résultat (durée + résultat) → stats.
  *
- * Comportement :
- *   - Sur mobile : ouvre le dialer natif via protocole tel:
- *   - Sur desktop : ouvre le dialer par défaut (Skype/Teams/Webex)
- *   - Démarre simultanément une session d'appel CRM (Activity EN_COURS +
- *     widget flottant avec timer) via useCallSession.
+ * On NE déclenche PAS le dialer natif (tel:) : ça provoquait une navigation
+ * parasite et l'utilisateur ne veut pas d'appel automatique.
  */
 import { useCallSession } from "@/components/call/call-session-provider";
 import { formatPhone, normalizePhone } from "@/lib/format";
@@ -39,8 +41,6 @@ export function ClickToCall({
   const isThisProspectInCall = session?.prospectId === prospectId;
 
   const handleClick = async (e: React.MouseEvent) => {
-    // On démarre TOUJOURS la session AVANT d'ouvrir le dialer : sinon la
-    // navigation tel: peut interrompre le démarrage et le chrono ne part pas.
     e.preventDefault();
     e.stopPropagation();
     if (isCallActive && !isThisProspectInCall) {
@@ -57,24 +57,21 @@ export function ClickToCall({
         numero: normalized,
       });
     }
-    // Ouvre le dialer (mobile = appel natif, desktop = handler par défaut)
-    // une fois la session démarrée → le widget chrono est déjà affiché.
-    window.location.href = `tel:${normalized.replace(/\s/g, "")}`;
   };
 
   return (
-    <a
-      href={`tel:${normalized.replace(/\s/g, "")}`}
+    <button
+      type="button"
       onClick={handleClick}
       className={cn(
         inline
-          ? "text-primary hover:underline"
+          ? "text-left text-primary hover:underline"
           : "inline-flex items-center gap-1 rounded-md text-primary hover:underline",
         className,
       )}
-      aria-label={`Appeler ${prospectRaisonSociale} au ${display}`}
+      title={`Démarrer le suivi d'appel — ${display}`}
     >
       {display}
-    </a>
+    </button>
   );
 }

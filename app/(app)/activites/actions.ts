@@ -231,8 +231,8 @@ export async function startCall(
     return { ok: true, activityId: created.id };
   } catch (err) {
     if (err instanceof ForbiddenError) return { ok: false, error: err.message };
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: "Démarrage appel impossible : " + msg.slice(0, 200) };
+    console.error("[startCall] échec:", err);
+    return { ok: false, error: "Impossible de démarrer le suivi d'appel." };
   }
 }
 

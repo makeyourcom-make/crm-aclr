@@ -134,10 +134,8 @@ export function CallSessionProvider({
           /* quota/refus → on continue en mémoire seulement */
         }
       } catch (e) {
-        const detail =
-          e instanceof Error ? e.message : String(e);
-        toast.error("Échec appel : " + detail.slice(0, 220));
         console.error("[startCallSession] échec:", e);
+        toast.error("Impossible de démarrer le suivi d'appel. Réessaie.");
       }
     },
     [],
