@@ -1,4 +1,4 @@
-import { Icon } from "@/components/icon";
+import { GlobalSearch } from "@/components/layout/global-search";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { UserMenu } from "@/components/layout/user-menu";
 
@@ -19,19 +19,8 @@ export function Topbar({ user, badges }: TopbarProps) {
       {/* Hamburger mobile */}
       <MobileNav role={user.role} badges={badges} />
 
-      {/* Recherche globale (placeholder — Cmd+K implémenté à l'étape 4 finale) */}
-      <button
-        className="flex h-9 flex-1 max-w-md items-center gap-2 rounded-md border border-border bg-background px-3 text-sm text-muted-foreground transition-colors hover:bg-muted"
-        aria-label="Recherche globale"
-        disabled
-        title="Recherche globale — disponible bientôt"
-      >
-        <Icon name="Search" className="h-4 w-4" />
-        <span className="flex-1 text-left">Rechercher prospect, deal, contrat…</span>
-        <kbd className="hidden rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground sm:inline">
-          ⌘K
-        </kbd>
-      </button>
+      {/* Recherche globale (⌘K) — entreprises, deals, contrats */}
+      <GlobalSearch />
 
       <div className="flex-1 md:flex-none" />
 
