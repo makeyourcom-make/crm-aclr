@@ -16,14 +16,15 @@ export interface GlobalSearchResults {
 const EMPTY: GlobalSearchResults = { prospects: [], deals: [], contracts: [] };
 
 export async function globalSearch(q: string): Promise<GlobalSearchResults> {
-  const user = await requireUser();
-  const term = q.trim();
-  if (term.length < 2) return EMPTY;
-
-  const mine = user.role !== "ADMIN" ? { assigneAId: user.id } : {};
-  const ci = (s: string) => ({ contains: s, mode: "insensitive" as const });
-
+  // Tout est enveloppé : la recherche ne doit JAMAIS planter la page.
   try {
+    const user = await requireUser();
+    const term = q.trim();
+    if (term.length < 2) return EMPTY;
+
+    const mine = user.role !== "ADMIN" ? { assigneAId: user.id } : {};
+    const ci = (s: string) => ({ contains: s, mode: "insensitive" as const });
+
     const [prospects, deals, contracts] = await Promise.all([
       prisma.prospect.findMany({
         where: {
