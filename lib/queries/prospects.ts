@@ -142,6 +142,10 @@ function buildProspectWhere(
   if (params.canton) conditions.push({ canton: params.canton });
   if (params.ville)
     conditions.push({ ville: { contains: params.ville, mode: "insensitive" } });
+  if (params.avecTel === "1")
+    conditions.push({
+      OR: [{ telephone: { not: null } }, { telephoneMobile: { not: null } }],
+    });
   if (params.assigneAId) conditions.push({ assigneAId: params.assigneAId });
   // Filtre par tag : récupère les prospects ayant ce tagId via la table de jonction
   if (params.tagId) {

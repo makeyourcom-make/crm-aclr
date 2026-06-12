@@ -111,6 +111,7 @@ export function ProspectFilters({
     !!params.statut ||
     !!params.secteur ||
     !!params.ville ||
+    !!params.avecTel ||
     !!params.assigneAId ||
     !!params.tagId ||
     !!params.q;
@@ -184,6 +185,24 @@ export function ProspectFilters({
           options={tags.map((t) => ({ value: t.id, label: t.nom }))}
         />
       )}
+
+      {/* Phoning : uniquement les fiches appelables */}
+      <label
+        className={cn(
+          "flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-sm",
+          params.avecTel === "1" && "border-primary/40 bg-primary/5",
+        )}
+      >
+        <input
+          type="checkbox"
+          checked={params.avecTel === "1"}
+          onChange={(e) =>
+            handleSelectChange("avecTel", e.target.checked ? "1" : "")
+          }
+          className="h-3.5 w-3.5"
+        />
+        📞 Avec téléphone
+      </label>
 
       {hasFilters && (
         <button
