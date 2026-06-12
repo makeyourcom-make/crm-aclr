@@ -23,7 +23,9 @@ export default async function NewContractPage() {
     prisma.deal.findMany({
       where: {
         ...scopedWhere(user, {}),
-        stage: { in: ["NEGOCIATION", "SIGNE"] },
+        // Tous les deals vivants : un contrat peut se créer depuis n'importe
+        // quelle étape du pipeline (bouton « Créer le contrat avec options »).
+        stage: { not: "PERDU" },
       },
       select: {
         id: true,

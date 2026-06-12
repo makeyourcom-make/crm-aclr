@@ -363,8 +363,15 @@ export function DealDetailSheet({ dealId, onClose, isAdmin }: DealDetailSheetPro
                         </Link>
                       </div>
                     ) : (
-                      <div className="mt-3">
+                      <div className="mt-3 space-y-2">
                         <SignDealInPersonButton dealId={deal.id} />
+                        <Link
+                          href={`/contrats/nouveau?dealId=${deal.id}`}
+                          className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium hover:bg-muted"
+                        >
+                          <Icon name="FileText" className="h-4 w-4" />
+                          Créer le contrat avec options (devise, modalités…)
+                        </Link>
                       </div>
                     )}
                   </div>
