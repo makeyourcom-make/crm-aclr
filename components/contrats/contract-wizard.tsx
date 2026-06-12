@@ -32,7 +32,7 @@ import { Icon } from "@/components/icon";
 import { ProspectCombobox } from "@/components/prospects/prospect-combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatCHF } from "@/lib/format";
+import { formatCHF, formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import type { ModalitePaiement } from "@prisma/client";
@@ -157,6 +157,9 @@ export function ContractWizard({
   const [devise, setDevise] = useState<"AUTO" | "CHF" | "EUR">(
     initial?.devise ?? "AUTO",
   );
+  // Formate les montants du contrat dans la devise choisie (AUTO → CHF à
+  // l'affichage ; la devise réelle sera déterminée côté serveur).
+  const fmt = (n: number) => formatMoney(n, devise === "EUR" ? "EUR" : "CHF");
 
   // Produits "sur-mesure" créés à la volée pendant le wizard
   const [localCustomProducts, setLocalCustomProducts] = useState<
@@ -462,8 +465,8 @@ export function ContractWizard({
                 />
               ))}
               <div className="flex justify-end pt-2 text-xs text-muted-foreground tabular-nums">
-                Sous-total : {formatCHF(calc.oneShot)} one-shot ·{" "}
-                {formatCHF(calc.mensuel)}/mois
+                Sous-total : {fmt(calc.oneShot)} one-shot ·{" "}
+                {fmt(calc.mensuel)}/mois
               </div>
             </div>
           )}
@@ -607,20 +610,20 @@ export function ContractWizard({
           <div className="grid gap-4 sm:grid-cols-2">
             <RecapLine
               label="One-shot"
-              value={formatCHF(calc.oneShot)}
+              value={fmt(calc.oneShot)}
             />
             <RecapLine
               label="Récurrent mensuel"
-              value={`${formatCHF(calc.mensuel)} / mois`}
+              value={`${fmt(calc.mensuel)} / mois`}
             />
             <RecapLine
               label="Valeur an 1"
-              value={formatCHF(calc.valeurAn1)}
+              value={fmt(calc.valeurAn1)}
               big
             />
             <RecapLine
               label={`Commission totale (${(tauxCommission * 100).toFixed(0)} %)`}
-              value={formatCHF(calc.commissionTotale)}
+              value={fmt(calc.commissionTotale)}
               big
             />
           </div>
@@ -638,7 +641,7 @@ export function ContractWizard({
                   classique (× 12 mois).
                 </>
               ) : null}
-              {" "}Assiette commission : <strong>{formatCHF(calc.assietteCommission)}</strong>.
+              {" "}Assiette commission : <strong>{fmt(calc.assietteCommission)}</strong>.
             </p>
           )}
 
@@ -651,9 +654,9 @@ export function ContractWizard({
                 Numéro contrat séquentiel (ex. <code className="rounded bg-muted px-1">ACLR-{new Date().getFullYear()}-XXXX</code>)
               </li>
               <li>
-                Commission {formatCHF(calc.commissionTotale)} en{" "}
-                <strong>2 parts</strong> : {formatCHF(calc.commissionPart1)} à la
-                signature + {formatCHF(calc.commissionPart2)} étalé sur 11 mois
+                Commission {fmt(calc.commissionTotale)} en{" "}
+                <strong>2 parts</strong> : {fmt(calc.commissionPart1)} à la
+                signature + {fmt(calc.commissionPart2)} étalé sur 11 mois
               </li>
               <li>
                 Factures clients (selon modalité {modalitePaiement.replace(/_/g, " ")})
@@ -682,8 +685,8 @@ export function ContractWizard({
                   ? "Enregistrement…"
                   : "Création…"
                 : isEdit
-                  ? `Enregistrer les modifications (${formatCHF(calc.valeurAn1)})`
-                  : `Créer le contrat (${formatCHF(calc.valeurAn1)})`}
+                  ? `Enregistrer les modifications (${fmt(calc.valeurAn1)})`
+                  : `Créer le contrat (${fmt(calc.valeurAn1)})`}
             </Button>
           </div>
         </CardContent>
