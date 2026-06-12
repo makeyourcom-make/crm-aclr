@@ -190,6 +190,16 @@ export function ProspectsTable({
               className="text-muted-foreground"
             />
           )}
+          {/* Mobile affiché si présent (certaines fiches n'ont que lui) */}
+          {row.original.telephoneMobile && (
+            <ClickToCall
+              prospectId={row.original.id}
+              prospectRaisonSociale={row.original.raisonSociale}
+              numero={row.original.telephoneMobile}
+              inline
+              className="text-muted-foreground"
+            />
+          )}
         </div>
       ),
     },
