@@ -12,10 +12,12 @@ import { toast } from "sonner";
 
 import {
   AVAILABLE_TAG_COLORS,
+  type TagColorOption,
+} from "@/app/(app)/prospects/tags-constants";
+import {
   createTag,
   deleteTag,
   updateTag,
-  type TagColorOption,
 } from "@/app/(app)/prospects/tags-actions";
 import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";

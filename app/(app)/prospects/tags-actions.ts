@@ -14,20 +14,12 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import {
+  AVAILABLE_TAG_COLORS as TAG_COLORS,
+  type TagColorOption as TagColor,
+} from "@/app/(app)/prospects/tags-constants";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
-
-const TAG_COLORS = [
-  "slate",
-  "blue",
-  "emerald",
-  "amber",
-  "rose",
-  "purple",
-  "cyan",
-  "orange",
-] as const;
-type TagColor = (typeof TAG_COLORS)[number];
 
 const TagSchema = z.object({
   nom: z.string().trim().min(1).max(40),
@@ -140,5 +132,6 @@ export async function setProspectTags(
   }
 }
 
-export type TagColorOption = TagColor;
-export const AVAILABLE_TAG_COLORS = TAG_COLORS;
+// NB : ne PAS ré-exporter AVAILABLE_TAG_COLORS / TagColorOption ici.
+// Ce fichier est marqué "use server" → Next.js 16 refuse tout export qui
+// ne soit pas une async function (cf. tags-constants.ts à côté).
