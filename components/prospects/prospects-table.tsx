@@ -172,7 +172,7 @@ export function ProspectsTable({
       header: "Contact",
       cell: ({ row }) => (
         <div className="flex flex-col text-xs">
-          {row.original.email && (
+          {row.original.email ? (
             <a
               href={`mailto:${row.original.email}`}
               className="text-foreground hover:underline"
@@ -180,25 +180,37 @@ export function ProspectsTable({
             >
               {row.original.email}
             </a>
+          ) : (
+            <span className="text-muted-foreground">—</span>
           )}
+        </div>
+      ),
+    },
+    {
+      id: "telephone",
+      header: "Téléphone",
+      cell: ({ row }) => (
+        <div className="flex flex-col text-xs">
           {row.original.telephone && (
             <ClickToCall
               prospectId={row.original.id}
               prospectRaisonSociale={row.original.raisonSociale}
               numero={row.original.telephone}
               inline
-              className="text-muted-foreground"
+              className="whitespace-nowrap"
             />
           )}
-          {/* Mobile affiché si présent (certaines fiches n'ont que lui) */}
           {row.original.telephoneMobile && (
             <ClickToCall
               prospectId={row.original.id}
               prospectRaisonSociale={row.original.raisonSociale}
               numero={row.original.telephoneMobile}
               inline
-              className="text-muted-foreground"
+              className="whitespace-nowrap"
             />
+          )}
+          {!row.original.telephone && !row.original.telephoneMobile && (
+            <span className="text-muted-foreground">—</span>
           )}
         </div>
       ),
