@@ -13,6 +13,14 @@ const nextConfig: NextConfig = {
     // Activer la full-text search côté Prisma sans warning
     serverActions: {
       bodySizeLimit: "10mb", // pour l'import CSV de prospects
+      // Domaines autorisés à appeler les Server Actions. Sans ça, derrière un
+      // domaine personnalisé / reverse-proxy, Next rejette les POST d'actions
+      // (vérification Origin vs Host) → recherche, click-to-call, etc. échouent.
+      allowedOrigins: [
+        "crm.makeyourcom.ch",
+        "*.vercel.app",
+        "localhost:3000",
+      ],
     },
     // Tree-shaking auto des libs lourdes : gain ~30-50% sur le bundle client.
     // Critique pour lucide-react (~500KB sans), Radix (~200KB sans), recharts.
