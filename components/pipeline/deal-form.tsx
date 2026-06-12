@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { createCustomProduct } from "@/app/(app)/catalogue/actions";
 import { createDeal, updateDeal } from "@/app/(app)/pipeline/actions";
 import { Icon } from "@/components/icon";
+import { ProspectCombobox } from "@/components/prospects/prospect-combobox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -91,6 +92,13 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
   const [prospectId, setProspectId] = useState(
     initial?.prospectId ?? searchParams.get("prospectId") ?? "",
   );
+  // Libellé initial du prospect pré-sélectionné (pour le combobox).
+  const initialProspectLabel = useMemo(() => {
+    const pid = initial?.prospectId ?? searchParams.get("prospectId") ?? "";
+    const p = prospects.find((x) => x.id === pid);
+    return p ? `${p.raisonSociale}${p.ville ? ` · ${p.ville}` : ""}` : "";
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [titre, setTitre] = useState(initial?.titre ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [stage, setStage] = useState<DealStage>(initial?.stage ?? "DECOUVERTE");
@@ -244,22 +252,21 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
             <Label htmlFor="prospectId">
               Prospect <span className="text-red-500">*</span>
             </Label>
-            <select
-              id="prospectId"
-              value={prospectId}
-              onChange={(e) => setProspectId(e.target.value)}
-              className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-              required
-              disabled={isEdit}
-            >
-              <option value="">— Sélectionner un prospect —</option>
-              {prospects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.raisonSociale}
-                  {p.ville ? ` · ${p.ville}` : ""}
-                </option>
-              ))}
-            </select>
+            {isEdit ? (
+              <input
+                id="prospectId"
+                value={initialProspectLabel}
+                readOnly
+                className="h-9 w-full rounded-md border border-input bg-muted/40 px-2.5 text-sm text-muted-foreground"
+              />
+            ) : (
+              <ProspectCombobox
+                id="prospectId"
+                value={prospectId}
+                initialLabel={initialProspectLabel}
+                onSelect={(pid) => setProspectId(pid)}
+              />
+            )}
             {isEdit && (
               <p className="text-[11px] text-muted-foreground">
                 Le prospect ne peut pas être changé après création.

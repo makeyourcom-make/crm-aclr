@@ -29,6 +29,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Icon } from "@/components/icon";
+import { ProspectCombobox } from "@/components/prospects/prospect-combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCHF } from "@/lib/format";
@@ -358,23 +359,20 @@ export function ContractWizard({
             <Label htmlFor="prospectId">
               Prospect <span className="text-red-500">*</span>
             </Label>
-            <select
+            <ProspectCombobox
               id="prospectId"
               value={prospectId}
-              onChange={(e) => {
-                setProspectId(e.target.value);
+              initialLabel={(() => {
+                const p = prospects.find((x) => x.id === prospectId);
+                return p
+                  ? `${p.raisonSociale}${p.ville ? ` · ${p.ville}` : ""}`
+                  : "";
+              })()}
+              onSelect={(pid) => {
+                setProspectId(pid);
                 setDealId("");
               }}
-              className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-            >
-              <option value="">— Sélectionner —</option>
-              {prospects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.raisonSociale}
-                  {p.ville ? ` · ${p.ville}` : ""}
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           <div className="space-y-1.5">

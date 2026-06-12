@@ -15,6 +15,41 @@ export interface GlobalSearchResults {
 
 const EMPTY: GlobalSearchResults = { prospects: [], deals: [], contracts: [] };
 
+export interface ProspectPickerResult {
+  id: string;
+  raisonSociale: string;
+  ville: string | null;
+}
+
+/** Recherche de prospects pour un sélecteur (combobox) — scopée RLS. */
+export async function searchProspects(
+  q: string,
+): Promise<ProspectPickerResult[]> {
+  try {
+    const user = await requireUser();
+    const term = q.trim();
+    if (term.length < 1) return [];
+    const mine = user.role !== "ADMIN" ? { assigneAId: user.id } : {};
+    const ci = (s: string) => ({ contains: s, mode: "insensitive" as const });
+    return await prisma.prospect.findMany({
+      where: {
+        ...mine,
+        OR: [
+          { raisonSociale: ci(term) },
+          { ville: ci(term) },
+          { email: ci(term) },
+          { contactNom: ci(term) },
+        ],
+      },
+      select: { id: true, raisonSociale: true, ville: true },
+      take: 20,
+      orderBy: { raisonSociale: "asc" },
+    });
+  } catch {
+    return [];
+  }
+}
+
 export async function globalSearch(q: string): Promise<GlobalSearchResults> {
   // Tout est enveloppé : la recherche ne doit JAMAIS planter la page.
   try {
