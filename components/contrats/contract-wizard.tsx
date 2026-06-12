@@ -82,6 +82,7 @@ interface ContractEditInitial {
   dateDebut: string;
   dureeMois: string;
   modalitePaiement: ModalitePaiement;
+  devise?: "CHF" | "EUR";
   lines: LineState[];
 }
 
@@ -151,6 +152,10 @@ export function ContractWizard({
     useState(isEdit);
   const [modalitePaiement, setModalitePaiement] = useState<ModalitePaiement>(
     initial?.modalitePaiement ?? "CINQUANTE_CINQUANTE",
+  );
+  // Devise : AUTO = détection selon le pays du client (Suisse → CHF, sinon EUR)
+  const [devise, setDevise] = useState<"AUTO" | "CHF" | "EUR">(
+    initial?.devise ?? "AUTO",
   );
 
   // Produits "sur-mesure" créés à la volée pendant le wizard
@@ -315,6 +320,7 @@ export function ContractWizard({
       dateDebut: new Date(dateDebut),
       dureeMois: Number(dureeMois),
       modalitePaiement,
+      devise: devise === "AUTO" ? undefined : devise,
       lines: lines.map((l) => ({
         productId: l.productId,
         quantite: l.quantite,
@@ -501,6 +507,40 @@ export function ContractWizard({
                   className={cn(
                     "rounded-md border px-3 py-2 text-left text-sm",
                     modalitePaiement === opt.value
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-background hover:bg-muted",
+                  )}
+                >
+                  <p className="font-medium">{opt.label}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {opt.desc}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Devise</Label>
+            <div className="grid gap-1.5 sm:grid-cols-3">
+              {(
+                [
+                  {
+                    value: "AUTO",
+                    label: "Auto",
+                    desc: "Selon le pays du client (Suisse → CHF, sinon EUR)",
+                  },
+                  { value: "CHF", label: "CHF", desc: "Franc suisse" },
+                  { value: "EUR", label: "€ EUR", desc: "Euro" },
+                ] as { value: "AUTO" | "CHF" | "EUR"; label: string; desc: string }[]
+              ).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setDevise(opt.value)}
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-left text-sm",
+                    devise === opt.value
                       ? "border-primary bg-primary/5"
                       : "border-border bg-background hover:bg-muted",
                   )}

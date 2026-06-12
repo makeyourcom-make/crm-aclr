@@ -71,16 +71,17 @@ export async function createContractFromDeal(
   if (user.role !== "ADMIN" && prospectForDevise.assigneAId !== user.id) {
     return { ok: false, error: "Tu n'as pas accès à ce prospect." };
   }
-  // Devise par défaut basée sur le pays du client
+  // Devise : choix explicite du wizard, sinon auto selon le pays du client
   const paysLower = (prospectForDevise.pays ?? "").toLowerCase();
   const deviseDefault =
-    paysLower.includes("suisse") ||
+    parsed.data.devise ??
+    (paysLower.includes("suisse") ||
     paysLower.includes("switzerland") ||
     paysLower.includes("schweiz") ||
     paysLower === "ch" ||
     paysLower === ""
       ? "CHF"
-      : "EUR";
+      : "EUR");
 
   // Charge le taux commission de la commerciale (le créateur)
   const userFull = await prisma.user.findUnique({
@@ -437,6 +438,7 @@ export async function updateContract(
             dateDebut: parsed.data.dateDebut,
             dureeMois: parsed.data.dureeMois,
             modalitePaiement: parsed.data.modalitePaiement,
+            devise: parsed.data.devise ?? existing.devise,
             montantOneShot: centsToChf(oneShotCents),
             montantMensuel: centsToChf(mensuelCents),
             valeurAn1: centsToChf(valeurAn1Cents),
@@ -490,7 +492,7 @@ export async function updateContract(
               type: inv.type,
               periodeMoisDebut: inv.periodeMoisDebut ?? null,
               periodeMoisFin: inv.periodeMoisFin ?? null,
-              devise: existing.devise,
+              devise: parsed.data.devise ?? existing.devise,
               sousTotal: centsToChf(inv.sousTotalCents),
               totalTVA: 0,
               total: centsToChf(inv.sousTotalCents),

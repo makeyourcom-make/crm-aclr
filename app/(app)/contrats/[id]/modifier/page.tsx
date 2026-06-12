@@ -164,6 +164,7 @@ export default async function EditContractPage({ params }: PageProps) {
           dateDebut: toIso(contract.dateDebut),
           dureeMois: String(contract.dureeMois),
           modalitePaiement: contract.modalitePaiement,
+          devise: contract.devise === "EUR" ? "EUR" : "CHF",
           lines: initialLines,
         }}
       />

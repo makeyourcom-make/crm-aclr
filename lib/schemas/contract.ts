@@ -40,6 +40,8 @@ export const ContractCreateSchema = z.object({
   dateDebut: z.coerce.date(),
   dureeMois: z.coerce.number().int().min(1).max(60).default(12),
   modalitePaiement: z.nativeEnum(ModalitePaiement),
+  /** Devise du contrat. Absent → auto-détection selon le pays du client. */
+  devise: z.enum(["CHF", "EUR"]).optional(),
   lines: z.array(ContractLineSchema).min(1, "Au moins une ligne requise."),
 });
 export type ContractCreateInput = z.infer<typeof ContractCreateSchema>;
