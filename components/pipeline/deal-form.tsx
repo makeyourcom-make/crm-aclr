@@ -172,6 +172,10 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    submit(false);
+  };
+
+  const submit = (thenContract: boolean) => {
     if (!prospectId) {
       toast.error("Sélectionne un prospect.");
       return;
@@ -211,6 +215,14 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
         : await createDeal(payload);
       if (!res.ok) {
         toast.error(res.error ?? "Échec.");
+        return;
+      }
+      if (thenContract && !isEdit && res.dealId) {
+        // Enchaîne directement sur le wizard de contrat (devise, modalités,
+        // lignes, prix) pré-rempli avec ce deal.
+        toast.success("Deal créé — passons au contrat.");
+        router.push(`/contrats/nouveau?dealId=${res.dealId}`);
+        router.refresh();
         return;
       }
       toast.success(isEdit ? "Deal mis à jour." : "Deal créé.");
@@ -551,7 +563,7 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
         >
           Annuler
         </Button>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending} variant={isEdit ? "default" : "outline"}>
           {pending
             ? isEdit
               ? "Enregistrement…"
@@ -560,6 +572,17 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
               ? "Enregistrer les modifications"
               : "Créer le deal"}
         </Button>
+        {!isEdit && (
+          <Button
+            type="button"
+            onClick={() => submit(true)}
+            disabled={pending}
+          >
+            {pending
+              ? "Création…"
+              : "Créer + faire le contrat (devise, modalités…)"}
+          </Button>
+        )}
       </div>
     </form>
   );
