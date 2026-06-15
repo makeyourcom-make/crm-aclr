@@ -743,3 +743,45 @@ export async function deleteEmail(
   if (email.prospectId) revalidatePath(`/prospects/${email.prospectId}`);
   return { ok: true };
 }
+
+/**
+ * Archive en masse tous les emails d'une liste de threads (mailbox privée :
+ * scopé sur l'utilisateur connecté). Utilisé par la sélection multiple de
+ * l'inbox. Renvoie le nombre de messages archivés.
+ */
+export async function archiveThreadsBulk(
+  threadIds: string[],
+): Promise<{ ok: boolean; count?: number; error?: string }> {
+  const user = await requireUser();
+  if (threadIds.length === 0) return { ok: true, count: 0 };
+  const result = await prisma.email.updateMany({
+    where: { threadId: { in: threadIds }, userId: user.id },
+    data: { archive: true, archiveALe: new Date() },
+  });
+  revalidatePath("/emails");
+  return { ok: true, count: result.count };
+}
+
+/**
+ * Supprime définitivement tous les emails d'une liste de threads (scopé sur
+ * l'utilisateur connecté). Utilisé par la sélection multiple de l'inbox.
+ */
+export async function deleteThreadsBulk(
+  threadIds: string[],
+): Promise<{ ok: boolean; count?: number; error?: string }> {
+  const user = await requireUser();
+  if (threadIds.length === 0) return { ok: true, count: 0 };
+  // Récupère les prospectIds impactés pour revalider leurs fiches.
+  const impacted = await prisma.email.findMany({
+    where: { threadId: { in: threadIds }, userId: user.id },
+    select: { prospectId: true },
+  });
+  const result = await prisma.email.deleteMany({
+    where: { threadId: { in: threadIds }, userId: user.id },
+  });
+  revalidatePath("/emails");
+  for (const pid of new Set(impacted.map((e) => e.prospectId).filter(Boolean))) {
+    revalidatePath(`/prospects/${pid}`);
+  }
+  return { ok: true, count: result.count };
+}

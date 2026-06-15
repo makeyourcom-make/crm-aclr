@@ -15,8 +15,10 @@ import { toast } from "sonner";
 
 import {
   archiveThread,
+  archiveThreadsBulk,
   attachEmailToProspect,
   deleteEmail,
+  deleteThreadsBulk,
   markThreadRead,
   replyToEmail,
   searchProspectsForAttach,
@@ -89,9 +91,13 @@ interface InboxViewProps {
 type FolderType = "all" | "inbox" | "sent" | "draft";
 
 export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps) {
+  const router = useRouter();
+  const [bulkPending, startBulk] = useTransition();
   const [folder, setFolder] = useState<FolderType>("all");
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  // Sélection multiple (par threadId) pour archivage / suppression en masse.
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   // Note : depuis la décision "mailbox privée par user", on ne filtre plus par
   // propriétaire — la page ne sert QUE les mails du user connecté côté serveur.
 
@@ -170,6 +176,85 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
     }
   };
 
+  // ---- Sélection multiple ----
+  const toggleChecked = (threadId: string) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(threadId)) next.delete(threadId);
+      else next.add(threadId);
+      return next;
+    });
+  };
+
+  // Ne garde dans la sélection que les threads visibles dans le dossier courant.
+  const visibleCheckedIds = useMemo(
+    () => filteredThreads.filter((t) => checkedIds.has(t.threadId)),
+    [filteredThreads, checkedIds],
+  );
+  const allVisibleChecked =
+    filteredThreads.length > 0 &&
+    visibleCheckedIds.length === filteredThreads.length;
+
+  const toggleAllVisible = () => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleChecked) {
+        filteredThreads.forEach((t) => next.delete(t.threadId));
+      } else {
+        filteredThreads.forEach((t) => next.add(t.threadId));
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => setCheckedIds(new Set());
+
+  const handleBulkArchive = () => {
+    const ids = visibleCheckedIds.map((t) => t.threadId);
+    if (ids.length === 0) return;
+    if (
+      !confirm(
+        `Archiver ${ids.length} conversation(s) ? Elles quittent la boîte de réception (toujours visibles sur les fiches clients).`,
+      )
+    )
+      return;
+    startBulk(async () => {
+      const res = await archiveThreadsBulk(ids);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec de l'archivage.");
+        return;
+      }
+      toast.success(`${ids.length} conversation(s) archivée(s).`);
+      clearSelection();
+      if (selectedThreadId && ids.includes(selectedThreadId))
+        setSelectedThreadId(null);
+      router.refresh();
+    });
+  };
+
+  const handleBulkDelete = () => {
+    const ids = visibleCheckedIds.map((t) => t.threadId);
+    if (ids.length === 0) return;
+    if (
+      !confirm(
+        `Supprimer définitivement ${ids.length} conversation(s) ? Cette action est irréversible.`,
+      )
+    )
+      return;
+    startBulk(async () => {
+      const res = await deleteThreadsBulk(ids);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec de la suppression.");
+        return;
+      }
+      toast.success(`${ids.length} conversation(s) supprimée(s).`);
+      clearSelection();
+      if (selectedThreadId && ids.includes(selectedThreadId))
+        setSelectedThreadId(null);
+      router.refresh();
+    });
+  };
+
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[180px_320px_1fr]">
       {/* Sidebar */}
@@ -215,6 +300,60 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
             className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-xs"
           />
         </div>
+
+        {/* Barre de sélection multiple */}
+        {visibleCheckedIds.length > 0 ? (
+          <div className="flex items-center gap-2 border-b border-border bg-primary/5 px-3 py-2">
+            <span className="text-xs font-medium">
+              {visibleCheckedIds.length} sélectionné
+              {visibleCheckedIds.length > 1 ? "s" : ""}
+            </span>
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleBulkArchive}
+                disabled={bulkPending}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50"
+                title="Archiver la sélection"
+              >
+                <Icon name="Inbox" className="h-3 w-3" />
+                Archiver
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                disabled={bulkPending}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                title="Supprimer la sélection"
+              >
+                <Icon name="Trash2" className="h-3 w-3" />
+                Supprimer
+              </button>
+              <button
+                type="button"
+                onClick={clearSelection}
+                disabled={bulkPending}
+                className="rounded-md p-1 text-muted-foreground hover:bg-muted disabled:opacity-50"
+                title="Annuler la sélection"
+              >
+                <Icon name="X" className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          filteredThreads.length > 0 && (
+            <label className="flex cursor-pointer items-center gap-2 border-b border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:bg-muted/40">
+              <input
+                type="checkbox"
+                checked={allVisibleChecked}
+                onChange={toggleAllVisible}
+                className="h-3.5 w-3.5 cursor-pointer"
+              />
+              Tout sélectionner
+            </label>
+          )
+        )}
+
         <ul className="max-h-[calc(100vh-280px)] divide-y divide-border overflow-y-auto lg:max-h-[calc(100vh-220px)]">
           {filteredThreads.length === 0 ? (
             <li className="p-8 text-center text-xs text-muted-foreground">
@@ -226,6 +365,8 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
                 key={t.threadId}
                 thread={t}
                 isSelected={selectedThreadId === t.threadId}
+                isChecked={checkedIds.has(t.threadId)}
+                onToggleCheck={() => toggleChecked(t.threadId)}
                 onSelect={() => handleSelectThread(t.threadId)}
               />
             ))
@@ -297,10 +438,14 @@ function FolderButton({
 function ThreadListItem({
   thread,
   isSelected,
+  isChecked,
+  onToggleCheck,
   onSelect,
 }: {
   thread: { threadId: string; msgs: InboxEmail[]; last: InboxEmail; first: InboxEmail };
   isSelected: boolean;
+  isChecked: boolean;
+  onToggleCheck: () => void;
   onSelect: () => void;
 }) {
   const last = thread.last;
@@ -312,10 +457,19 @@ function ThreadListItem({
   return (
     <li
       onClick={onSelect}
-      className={`cursor-pointer px-3 py-3 transition-colors ${
-        isSelected ? "bg-primary/5" : "hover:bg-muted/50"
+      className={`flex cursor-pointer gap-2 px-3 py-3 transition-colors ${
+        isSelected ? "bg-primary/5" : isChecked ? "bg-primary/[0.03]" : "hover:bg-muted/50"
       }`}
     >
+      <input
+        type="checkbox"
+        checked={isChecked}
+        onClick={(e) => e.stopPropagation()}
+        onChange={onToggleCheck}
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer"
+        aria-label="Sélectionner la conversation"
+      />
+      <div className="min-w-0 flex-1">
       <div className="flex items-center gap-2">
         {hasUnread && (
           <span
@@ -354,6 +508,7 @@ function ThreadListItem({
           → {thread.last.prospect.raisonSociale}
         </p>
       )}
+      </div>
     </li>
   );
 }
