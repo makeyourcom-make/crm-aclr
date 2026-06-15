@@ -309,6 +309,25 @@ function prestaPrixLabel(
 export function ContractPdf({ data }: { data: ContractPdfData }) {
   const devise = data.devise ?? "CHF";
   const fmt = (n: number | null | undefined) => formatMoney(n, devise);
+
+  // Contrat sur-mesure : les prix par ligne (issus de la fiche produit)
+  // peuvent diverger des totaux configurés sur le contrat. On n'affiche le
+  // prix par ligne QUE s'il se réconcilie avec le total stocké ; sinon on
+  // liste les prestations sans prix par ligne et seuls les totaux (sources de
+  // vérité de la config) figurent. Évite un PDF où les lignes ne s'additionnent
+  // pas au total.
+  const sumMensuel = data.produits.reduce(
+    (s, p) => s + (p.prixMensuel ?? 0),
+    0,
+  );
+  const sumOneShot = data.produits.reduce(
+    (s, p) => s + (p.prixOneShot ?? 0),
+    0,
+  );
+  const lignesReconcilient =
+    Math.abs(sumMensuel - data.montantMensuel) < 0.01 &&
+    Math.abs(sumOneShot - data.montantOneShot) < 0.01;
+
   return (
     <Document
       title={`Contrat ${data.numero}`}
@@ -449,7 +468,9 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
                 </Text>
                 {desc && <Text style={styles.prestaDesc}>{desc}</Text>}
               </View>
-              <Text style={styles.prestaPrix}>{prix}</Text>
+              {lignesReconcilient && (
+                <Text style={styles.prestaPrix}>{prix}</Text>
+              )}
             </View>
           );
         })}
