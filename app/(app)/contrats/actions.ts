@@ -392,6 +392,7 @@ export async function updateContract(
     const productIds = parsed.data.lines.map((l) => l.productId);
     const products = await prisma.product.findMany({
       where: { id: { in: productIds } },
+      include: { _count: { select: { contracts: true } } },
     });
     const productById = new Map(products.map((p) => [p.id, p]));
 
@@ -471,12 +472,15 @@ export async function updateContract(
         });
 
         // 1b. Prix sur-mesure par ligne : on persiste le prix saisi sur le
-        // produit CUSTOM (description "[Custom]", créé pour ce contrat), afin
-        // que le PDF affiche exactement le prix configuré ligne par ligne.
-        // On ne touche JAMAIS un produit du catalogue partagé.
+        // produit afin que le PDF affiche exactement le prix configuré ligne
+        // par ligne. On le fait SI le produit est "[Custom]" OU s'il n'est
+        // utilisé que par ce contrat (contracts === 1) — jamais un produit du
+        // catalogue partagé par plusieurs contrats.
         for (const l of linesEnriched) {
           const prod = productById.get(l.productId);
-          if (!prod?.description?.startsWith("[Custom]")) continue;
+          const isCustom = prod?.description?.startsWith("[Custom]") ?? false;
+          const singleUse = prod?._count?.contracts === 1;
+          if (!prod || (!isCustom && !singleUse)) continue;
           const curOneShot =
             prod.prixOneShot != null ? Number(prod.prixOneShot) : 0;
           const curMensuel =
