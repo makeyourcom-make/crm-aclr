@@ -58,16 +58,38 @@ export function dateOnly(d: Date | string): Date {
   return new Date(Date.UTC(dd.getFullYear(), dd.getMonth(), dd.getDate(), 12, 0, 0));
 }
 
+/** True si la date tombe un samedi (6) ou un dimanche (0). */
+export function isWeekend(d: Date): boolean {
+  const dow = d.getDay();
+  return dow === 0 || dow === 6;
+}
+
+/**
+ * Avance de `n` JOURS OUVRABLES à partir de `start` (les week-ends ne
+ * comptent pas). `n = 0` renvoie `start` tel quel.
+ */
+export function addBusinessDays(start: Date, n: number): Date {
+  const d = new Date(start);
+  let added = 0;
+  while (added < n) {
+    d.setDate(d.getDate() + 1);
+    if (!isWeekend(d)) added++;
+  }
+  return d;
+}
+
 /**
  * À partir d'une date de démarrage, calcule la date d'une étape.
- * J+0 = demarrage ; J+2/4/6 = +2/4/6 jours CALENDAIRES (week-end inclus,
- * car les actions peuvent être faites samedi/dimanche en réalité, c'est la
- * livraison/réalisation qui glisse — décision produit).
+ * J+0 = demarrage ; J+2/4/6 = +2/4/6 JOURS OUVRABLES.
+ *
+ * Le social fait une PAUSE le samedi et le dimanche : aucune étape de
+ * séquence ne tombe un week-end. Le décompte se fait donc en jours
+ * ouvrables (lun-ven), pas en jours calendaires — décision produit
+ * MakeYourCom. La date de démarrage est elle-même toujours un jour
+ * ouvrable (la répartition saute déjà les week-ends).
  */
 export function getStepDate(demarrage: Date, step: SocialStep): Date {
-  const d = new Date(demarrage);
-  d.setDate(d.getDate() + step);
-  return d;
+  return addBusinessDays(demarrage, step);
 }
 
 /**

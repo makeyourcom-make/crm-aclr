@@ -11,6 +11,7 @@ import {
   SOCIAL_STEPS,
   dateOnly,
   getDueSteps,
+  isWeekend,
   type SocialStep,
 } from "@/lib/social-sequence";
 
@@ -97,13 +98,23 @@ export default async function SocialTodayPage({ searchParams }: PageProps) {
 
   const totalActions = byAccount.reduce((s, a) => s + a.totalDue, 0);
 
+  // Le social fait une pause le samedi et le dimanche : on n'affiche pas de
+  // tâches le week-end, la séquence reprend automatiquement le lundi.
+  const weekend = isWeekend(today);
+
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title="Social — Aujourd'hui"
-        description={`${totalActions} action(s) due(s) ${
-          dateParam ? `au ${todayOnly.toLocaleDateString("fr-CH")}` : "aujourd'hui"
-        }.`}
+        description={
+          weekend
+            ? "Pause week-end — la séquence reprend lundi."
+            : `${totalActions} action(s) due(s) ${
+                dateParam
+                  ? `au ${todayOnly.toLocaleDateString("fr-CH")}`
+                  : "aujourd'hui"
+              }.`
+        }
         actions={
           <>
             <Link
@@ -124,7 +135,18 @@ export default async function SocialTodayPage({ searchParams }: PageProps) {
         }
       />
 
-      {byAccount.length === 0 ? (
+      {weekend ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-8 text-center">
+          <span className="mx-auto block text-4xl">🌴</span>
+          <p className="mt-2 text-base font-medium text-amber-900">
+            Pause week-end
+          </p>
+          <p className="mt-1 text-xs text-amber-700">
+            Le social ne tourne pas le samedi et le dimanche. La séquence
+            reprend automatiquement lundi — repose-toi&nbsp;!
+          </p>
+        </div>
+      ) : byAccount.length === 0 ? (
         <p className="rounded-md border border-border bg-card p-8 text-center text-sm text-muted-foreground">
           Aucun compte accessible. Demande à l&apos;admin de t&apos;en
           assigner un.
