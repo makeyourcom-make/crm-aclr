@@ -133,10 +133,12 @@ export default async function ContractDetailPage({ params }: PageProps) {
               user.role === "ADMIN" && (
                 <ValidateContractButton contractId={contract.id} />
               )}
-            {/* Upload du PDF signé — visible tant qu'aucune signature client n'est faite */}
+            {/* Upload du PDF signé — visible tant qu'aucun PDF signé n'est
+                archivé (couvre aussi un contrat déjà signé dont le PDF signé
+                n'a jamais été stocké : on peut alors joindre la copie reçue). */}
             {(contract.statut === "ACTIF" ||
               contract.statut === "ATTENTE_SIGNATURE_CLIENT") &&
-              !contract.signatures.some((s) => s.signeParClient) && (
+              !contract.signatures.some((s) => s.documentSigneUrl) && (
                 <UploadSignedPdfButton contractId={contract.id} />
               )}
             {contract.statut === "ACTIF" && (
