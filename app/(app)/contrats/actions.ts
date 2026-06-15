@@ -201,6 +201,28 @@ export async function createContractFromDeal(
         },
       });
 
+      // ---- 2b. Prix sur-mesure par ligne ----
+      // On persiste le prix saisi sur le produit CUSTOM (description
+      // "[Custom]", créé pour ce contrat) pour que le PDF affiche exactement
+      // le prix configuré ligne par ligne. Jamais sur le catalogue partagé.
+      for (const l of linesEnriched) {
+        const prod = productById.get(l.productId);
+        if (!prod?.description?.startsWith("[Custom]")) continue;
+        const curOneShot =
+          prod.prixOneShot != null ? Number(prod.prixOneShot) : 0;
+        const curMensuel =
+          prod.prixMensuel != null ? Number(prod.prixMensuel) : 0;
+        if (curOneShot !== l.oneShotUnit || curMensuel !== l.mensuelUnit) {
+          await tx.product.update({
+            where: { id: l.productId },
+            data: {
+              prixOneShot: l.oneShotUnit > 0 ? l.oneShotUnit.toString() : null,
+              prixMensuel: l.mensuelUnit > 0 ? l.mensuelUnit.toString() : null,
+            },
+          });
+        }
+      }
+
       // ---- 3. Deal / Prospect : pas de changement de statut à ce stade ----
       // Le contrat existe mais n'est pas encore signé par le client.
       // Le passage du deal en SIGNE et du prospect en SIGNE se fera dans
@@ -447,6 +469,28 @@ export async function updateContract(
             },
           },
         });
+
+        // 1b. Prix sur-mesure par ligne : on persiste le prix saisi sur le
+        // produit CUSTOM (description "[Custom]", créé pour ce contrat), afin
+        // que le PDF affiche exactement le prix configuré ligne par ligne.
+        // On ne touche JAMAIS un produit du catalogue partagé.
+        for (const l of linesEnriched) {
+          const prod = productById.get(l.productId);
+          if (!prod?.description?.startsWith("[Custom]")) continue;
+          const curOneShot =
+            prod.prixOneShot != null ? Number(prod.prixOneShot) : 0;
+          const curMensuel =
+            prod.prixMensuel != null ? Number(prod.prixMensuel) : 0;
+          if (curOneShot !== l.oneShotUnit || curMensuel !== l.mensuelUnit) {
+            await tx.product.update({
+              where: { id: l.productId },
+              data: {
+                prixOneShot: l.oneShotUnit > 0 ? l.oneShotUnit.toString() : null,
+                prixMensuel: l.mensuelUnit > 0 ? l.mensuelUnit.toString() : null,
+              },
+            });
+          }
+        }
 
         // 2. Commission + versements : suppression puis recréation
         await tx.commission.deleteMany({ where: { contractId } });
