@@ -900,13 +900,20 @@ export async function sendSignatureByEmail(
 
 const UploadSignedContractSchema = z.object({
   contractId: z.string().min(1),
-  /** Data URL base64 du PDF retourné par le client (max ~5 MB). */
+  /** Data URL base64 du contrat signé retourné par le client (PDF ou image
+   *  scannée / photographiée, max ~5 MB). */
   fileDataUrl: z
     .string()
     .min(1)
-    .refine((v) => v.startsWith("data:application/pdf"), {
-      message: "Le fichier doit être un PDF.",
-    }),
+    .refine(
+      (v) =>
+        v.startsWith("data:application/pdf") ||
+        v.startsWith("data:image/jpeg") ||
+        v.startsWith("data:image/jpg") ||
+        v.startsWith("data:image/png") ||
+        v.startsWith("data:image/webp"),
+      { message: "Le fichier doit être un PDF ou une image (scan/photo)." },
+    ),
   /** Nom du fichier d'origine (pour traçabilité). */
   fileName: z.string().trim().max(200).optional(),
   /** Nom du client signataire (audit légal). */
@@ -953,15 +960,26 @@ export async function uploadSignedContract(
   }
 
   // Décodage du base64 → upload via l'abstraction de stockage (local dev / Vercel Blob prod)
+  const mime =
+    parsed.data.fileDataUrl.match(/^data:([^;]+);base64,/)?.[1] ??
+    "application/pdf";
+  const ext =
+    mime === "image/png"
+      ? "png"
+      : mime === "image/webp"
+        ? "webp"
+        : mime === "image/jpeg" || mime === "image/jpg"
+          ? "jpg"
+          : "pdf";
   const base64 = parsed.data.fileDataUrl.split(",")[1] ?? "";
-  if (!base64) return { ok: false, error: "PDF illisible." };
+  if (!base64) return { ok: false, error: "Fichier illisible." };
   const buffer = Buffer.from(base64, "base64");
 
   const upload = await uploadFile({
     prefix: `signed-contracts/${contract.id}`,
-    filename: "signed.pdf",
+    filename: `signed.${ext}`,
     buffer,
-    contentType: "application/pdf",
+    contentType: mime,
   });
   const publicUrl = upload.url;
 

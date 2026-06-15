@@ -47,14 +47,22 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
     if (inputRef.current) inputRef.current.value = "";
   };
 
+  const ACCEPTED = [
+    "application/pdf",
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+  ];
+
   const handleFile = (file: File | undefined) => {
     if (!file) return;
-    if (file.type !== "application/pdf") {
-      toast.error("Le fichier doit être un PDF.");
+    if (!ACCEPTED.includes(file.type)) {
+      toast.error("Le fichier doit être un PDF ou une image (scan/photo).");
       return;
     }
     if (file.size > 4 * 1024 * 1024) {
-      toast.error("PDF trop volumineux (max 4 MB).");
+      toast.error("Fichier trop volumineux (max 4 MB).");
       return;
     }
     const reader = new FileReader();
@@ -102,7 +110,7 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
         className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
       >
         <Icon name="Upload" className="h-4 w-4" />
-        Joindre le PDF signé
+        Joindre le contrat signé
       </button>
 
       <Dialog
@@ -126,7 +134,7 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
             {/* Drop / Pick zone */}
             <div>
               <Label htmlFor="pdf" className="text-xs">
-                Fichier PDF du contrat signé
+                Contrat signé — PDF ou image (scan / photo)
               </Label>
               <div
                 onClick={() => inputRef.current?.click()}
@@ -154,10 +162,10 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
                 ) : (
                   <>
                     <p className="mt-2 text-sm">
-                      Glisse le PDF ici ou clique pour parcourir
+                      Glisse le fichier ici ou clique pour parcourir
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      Format PDF, max 4 MB
+                      PDF ou image (JPG, PNG), max 4 MB
                     </p>
                   </>
                 )}
@@ -165,7 +173,7 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
                   ref={inputRef}
                   id="pdf"
                   type="file"
-                  accept="application/pdf"
+                  accept="application/pdf,image/jpeg,image/png,image/webp"
                   className="hidden"
                   onChange={(e) => handleFile(e.target.files?.[0])}
                 />
