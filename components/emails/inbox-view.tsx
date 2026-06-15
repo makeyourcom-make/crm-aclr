@@ -24,6 +24,7 @@ import {
   searchProspectsForAttach,
   setEmailArchive,
 } from "@/app/(app)/emails/actions";
+import { createProspectQuick } from "@/app/(app)/prospects/actions";
 import {
   AttachmentPicker,
   type PickedAttachment,
@@ -572,6 +573,16 @@ function ThreadDetail({
           <AttachProspectButton
             emailId={thread.last.id}
             currentProspectId={thread.last.prospect?.id ?? null}
+            prefillEmail={
+              thread.last.direction === "ENTRANT"
+                ? thread.last.expediteurEmail
+                : thread.last.destinataireEmail
+            }
+            prefillName={
+              thread.last.direction === "ENTRANT"
+                ? thread.last.expediteurNom ?? null
+                : null
+            }
             onDone={() => {
               /* le router.refresh() est dans le composant */
             }}
@@ -829,10 +840,16 @@ function MessageBubble({
 function AttachProspectButton({
   emailId,
   currentProspectId,
+  prefillEmail,
+  prefillName,
   onDone,
 }: {
   emailId: string;
   currentProspectId: string | null;
+  /** Email de l'autre partie — pré-remplit la fiche si on crée le client. */
+  prefillEmail?: string | null;
+  /** Nom de l'expéditeur — proposé comme raison sociale par défaut. */
+  prefillName?: string | null;
   onDone: () => void;
 }) {
   const router = useRouter();
@@ -878,11 +895,53 @@ function AttachProspectButton({
     });
   };
 
+  // Crée une nouvelle entreprise avec la raison sociale tapée (+ email de
+  // l'expéditeur pré-rempli), puis attribue immédiatement l'email à ce client.
+  const handleCreate = () => {
+    const raisonSociale = query.trim();
+    if (raisonSociale.length < 2) {
+      toast.error("Tape au moins 2 caractères pour le nom du client.");
+      return;
+    }
+    startTransition(async () => {
+      const created = await createProspectQuick({
+        raisonSociale,
+        email: prefillEmail ?? undefined,
+      });
+      if (!created.ok || !created.prospectId) {
+        toast.error(created.error ?? "Échec de la création du client.");
+        return;
+      }
+      const res = await attachEmailToProspect(emailId, created.prospectId);
+      if (!res.ok) {
+        toast.error(
+          "Client créé, mais l'attribution de l'email a échoué : " +
+            (res.error ?? ""),
+        );
+        return;
+      }
+      toast.success(`Client « ${raisonSociale} » créé et email attribué ✓`);
+      setOpen(false);
+      setQuery("");
+      setResults([]);
+      onDone();
+      router.refresh();
+    });
+  };
+
   return (
     <div className="relative">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => {
+            const next = !v;
+            // À l'ouverture, propose le nom de l'expéditeur comme point de
+            // départ (recherche + éventuelle création).
+            if (next && !query && prefillName) handleSearch(prefillName);
+            return next;
+          });
+        }}
         className="rounded-md border border-border bg-background px-2 py-0.5 text-xs hover:bg-muted"
       >
         <Icon name="UserPlus" className="mr-1 inline h-3 w-3" />
@@ -910,6 +969,25 @@ function AttachProspectButton({
               <p className="py-2 text-center text-xs text-muted-foreground">
                 Aucun client trouvé.
               </p>
+            )}
+            {/* Création d'un nouveau client avec la raison sociale tapée */}
+            {!searching && query.trim().length >= 2 && (
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={pending}
+                className="mb-1 flex w-full items-center gap-2 rounded-md border border-dashed border-primary/40 bg-primary/5 px-2 py-1.5 text-left text-xs text-primary hover:bg-primary/10 disabled:opacity-50"
+              >
+                <Icon name="Plus" className="h-3.5 w-3.5 shrink-0" />
+                <span className="min-w-0 flex-1">
+                  Créer le client «&nbsp;<strong>{query.trim()}</strong>&nbsp;»
+                  {prefillEmail ? (
+                    <span className="block text-[10px] text-primary/70">
+                      avec l&apos;email {prefillEmail}
+                    </span>
+                  ) : null}
+                </span>
+              </button>
             )}
             {!searching &&
               results.map((p) => (
