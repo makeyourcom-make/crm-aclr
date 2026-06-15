@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
+import { BackToProspects } from "@/components/prospects/back-to-prospects";
 import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badge";
 import { ProspectTagsEditor } from "@/components/prospects/prospect-tags-editor";
 import { buttonVariants } from "@/components/ui/button";
@@ -159,15 +160,7 @@ export default async function ProspectDetailPage({ params }: PageProps) {
         ]
           .filter(Boolean)
           .join(" ") || undefined}
-        breadcrumb={
-          <Link
-            href="/prospects"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Icon name="ChevronRight" className="h-3 w-3 rotate-180" />
-            Retour aux prospects
-          </Link>
-        }
+        breadcrumb={<BackToProspects />}
         actions={
           <>
             <SendEmailDialog
