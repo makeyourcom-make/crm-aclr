@@ -18,6 +18,7 @@ import {
   createContractFromDeal,
   updateContract,
 } from "@/app/(app)/contrats/actions";
+import { createSignatureRequest } from "@/app/(app)/signatures/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -384,7 +385,7 @@ export function ContractWizard({
     lines.every((l) => l.productId !== "") &&
     Number(dureeMois) > 0;
 
-  const handleSubmit = () => {
+  const handleSubmit = (thenSign = false) => {
     if (!canSubmit) {
       toast.error("Complète les sections en rouge.");
       return;
@@ -422,6 +423,25 @@ export function ContractWizard({
         );
         return;
       }
+
+      // Option « Enregistrer + Signature » : on enchaîne sur la page de
+      // signature client (tablette / RDV) en créant la demande de signature.
+      if (thenSign && res.contractId) {
+        const sig = await createSignatureRequest(res.contractId);
+        if (sig.ok && sig.lienSignature) {
+          toast.success("Contrat prêt — place à la signature client ✍️");
+          router.push(`/sign/${sig.lienSignature}`);
+          return;
+        }
+        // Repli : si la demande échoue, on va sur la fiche contrat.
+        toast.error(
+          sig.error ?? "Contrat enregistré, mais la demande de signature a échoué.",
+        );
+        router.push(`/contrats/${res.contractId}`);
+        router.refresh();
+        return;
+      }
+
       toast.success(
         initial ? `Contrat ${res.numero} mis à jour !` : `Contrat ${res.numero} créé !`,
       );
@@ -776,7 +796,7 @@ export function ContractWizard({
             </ul>
           </div>
 
-          <div className="mt-4 flex items-center justify-end gap-2">
+          <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
             <Button
               type="button"
               variant="outline"
@@ -785,18 +805,30 @@ export function ContractWizard({
             >
               Annuler
             </Button>
+            {/* Enregistrer : sauvegarde et renvoie sur la fiche du contrat
+                (on le retrouve dans le pipeline avec ses modifications). */}
             <Button
               type="button"
-              onClick={handleSubmit}
+              variant="outline"
+              onClick={() => handleSubmit(false)}
               disabled={!canSubmit || pending}
             >
+              <Icon name="Save" className="mr-1.5 h-4 w-4" />
               {pending
-                ? isEdit
-                  ? "Enregistrement…"
-                  : "Création…"
+                ? "Enregistrement…"
                 : isEdit
-                  ? `Enregistrer les modifications (${fmt(calc.valeurAn1)})`
-                  : `Créer le contrat (${fmt(calc.valeurAn1)})`}
+                  ? "Enregistrer"
+                  : "Enregistrer le contrat"}
+            </Button>
+            {/* Signature : enregistre puis ouvre la page de signature client
+                (tablette / RDV) pour enclencher la signature. */}
+            <Button
+              type="button"
+              onClick={() => handleSubmit(true)}
+              disabled={!canSubmit || pending}
+            >
+              <Icon name="PenLine" className="mr-1.5 h-4 w-4" />
+              {pending ? "…" : "Enregistrer + Signature client"}
             </Button>
           </div>
         </CardContent>
