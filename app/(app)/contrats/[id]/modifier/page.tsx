@@ -121,13 +121,51 @@ export default async function EditContractPage({ params }: PageProps) {
       })),
   ];
 
-  const initialLines = contract.products.map((p, i) => ({
-    id: `init-${i}`,
-    productId: p.id,
-    quantite: 1,
-    prixOneShot: p.prixOneShot != null ? p.prixOneShot.toString() : "",
-    prixMensuel: p.prixMensuel != null ? p.prixMensuel.toString() : "",
-  }));
+  // Recharge offert / remise / cible + prix d'ORIGINE depuis lignesMeta, pour
+  // que l'édition reflète exactement ce qui a été configuré (sinon "Offert" et
+  // remises seraient perdus, et les prix barrés afficheraient l'effectif).
+  type LigneMeta = {
+    productId: string;
+    prixOneShotOriginal?: number | null;
+    prixMensuelOriginal?: number | null;
+    offert?: boolean;
+    offertCible?: "ONESHOT" | "RECURRENT" | "DEUX" | null;
+    remiseType?: "POURCENT" | "MONTANT" | null;
+    remiseValeur?: number | null;
+    remiseCible?: "ONESHOT" | "RECURRENT" | "DEUX" | null;
+  };
+  const metaArr: LigneMeta[] = Array.isArray(contract.lignesMeta)
+    ? (contract.lignesMeta as unknown as LigneMeta[])
+    : [];
+  const metaByProduct = new Map(metaArr.map((m) => [m.productId, m]));
+
+  const initialLines = contract.products.map((p, i) => {
+    const meta = metaByProduct.get(p.id);
+    const oneShot =
+      meta?.prixOneShotOriginal != null
+        ? String(meta.prixOneShotOriginal)
+        : p.prixOneShot != null
+          ? p.prixOneShot.toString()
+          : "";
+    const mensuel =
+      meta?.prixMensuelOriginal != null
+        ? String(meta.prixMensuelOriginal)
+        : p.prixMensuel != null
+          ? p.prixMensuel.toString()
+          : "";
+    return {
+      id: `init-${i}`,
+      productId: p.id,
+      quantite: 1,
+      prixOneShot: oneShot,
+      prixMensuel: mensuel,
+      offert: meta?.offert ?? false,
+      offertCible: meta?.offertCible ?? undefined,
+      remiseType: (meta?.remiseType ?? "") as "" | "POURCENT" | "MONTANT",
+      remiseValeur: meta?.remiseValeur != null ? String(meta.remiseValeur) : "",
+      remiseCible: meta?.remiseCible ?? undefined,
+    };
+  });
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-6 lg:px-8">
