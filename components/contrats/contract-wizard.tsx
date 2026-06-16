@@ -226,6 +226,9 @@ export function ContractWizard({
   const [stagePipeline, setStagePipeline] = useState<
     "DECOUVERTE" | "PROPOSITION" | "NEGOCIATION"
   >("PROPOSITION");
+  // Détails internes (commission, cascade) masqués par défaut : si on est
+  // face client, il ne doit pas voir la commission. Dépliable au besoin.
+  const [showInternal, setShowInternal] = useState(false);
   const [devise, setDevise] = useState<"AUTO" | "CHF" | "EUR">(
     initial?.devise ?? "AUTO",
   );
@@ -737,64 +740,89 @@ export function ContractWizard({
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Visible aussi devant le client : uniquement les prix. */}
           <div className="grid gap-4 sm:grid-cols-2">
-            <RecapLine
-              label="One-shot"
-              value={fmt(calc.oneShot)}
-            />
+            <RecapLine label="One-shot" value={fmt(calc.oneShot)} />
             <RecapLine
               label="Récurrent mensuel"
               value={`${fmt(calc.mensuel)} / mois`}
             />
-            <RecapLine
-              label="Valeur an 1"
-              value={fmt(calc.valeurAn1)}
-              big
-            />
-            <RecapLine
-              label={`Commission totale (${(tauxCommission * 100).toFixed(0)} %)`}
-              value={fmt(calc.commissionTotale)}
-              big
-            />
+            <RecapLine label="Valeur an 1" value={fmt(calc.valeurAn1)} big />
           </div>
 
-          {calc.hasAdsLine && (
-            <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-              <strong>Règle ADS appliquée</strong> — les lignes Google Ads /
-              Meta Ads commissionnent sur le revenu réel ACLR pendant la
-              durée du contrat ({calc.dureeMoisNum} mois), sans extrapolation
-              sur 12 mois.
-              {calc.hasNonAdsLine ? (
-                <>
-                  {" "}
-                  Les autres lignes restent sur l&apos;assiette an 1
-                  classique (× 12 mois).
-                </>
-              ) : null}
-              {" "}Assiette commission : <strong>{fmt(calc.assietteCommission)}</strong>.
-            </p>
+          {/* Détails INTERNES (commission, automatisations) — masqués par
+              défaut pour ne pas les montrer au client. Dépliable. */}
+          <button
+            type="button"
+            onClick={() => setShowInternal((v) => !v)}
+            className="mt-4 flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            <Icon
+              name={showInternal ? "ChevronDown" : "ChevronRight"}
+              className="h-3.5 w-3.5"
+            />
+            Détails internes (commission, automatisations)
+          </button>
+
+          {showInternal && (
+            <div className="mt-3 space-y-4">
+              <RecapLine
+                label={`Commission totale (${(tauxCommission * 100).toFixed(0)} %)`}
+                value={fmt(calc.commissionTotale)}
+                big
+              />
+
+              {calc.hasAdsLine && (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                  <strong>Règle ADS appliquée</strong> — les lignes Google Ads /
+                  Meta Ads commissionnent sur le revenu réel ACLR pendant la
+                  durée du contrat ({calc.dureeMoisNum} mois), sans
+                  extrapolation sur 12 mois.
+                  {calc.hasNonAdsLine ? (
+                    <>
+                      {" "}
+                      Les autres lignes restent sur l&apos;assiette an 1
+                      classique (× 12 mois).
+                    </>
+                  ) : null}{" "}
+                  Assiette commission :{" "}
+                  <strong>{fmt(calc.assietteCommission)}</strong>.
+                </p>
+              )}
+
+              <div className="rounded-md border border-border bg-card p-3 text-xs text-muted-foreground">
+                <p className="mb-1 font-medium text-foreground">
+                  Cascade automatique à la création :
+                </p>
+                <ul className="ml-4 list-disc space-y-0.5">
+                  <li>
+                    Numéro contrat séquentiel (ex.{" "}
+                    <code className="rounded bg-muted px-1">
+                      ACLR-{new Date().getFullYear()}-XXXX
+                    </code>
+                    )
+                  </li>
+                  <li>
+                    Commission {fmt(calc.commissionTotale)} en{" "}
+                    <strong>2 parts</strong> : {fmt(calc.commissionPart1)} à la
+                    signature + {fmt(calc.commissionPart2)} étalé sur 11 mois
+                  </li>
+                  <li>
+                    Factures clients (selon modalité{" "}
+                    {modalitePaiement.replace(/_/g, " ")})
+                  </li>
+                  <li>
+                    Prospect → statut <strong>Signé</strong>
+                  </li>
+                  {dealId && (
+                    <li>
+                      Deal → stage <strong>Signé</strong>
+                    </li>
+                  )}
+                </ul>
+              </div>
+            </div>
           )}
-
-          <div className="mt-4 rounded-md border border-border bg-card p-3 text-xs text-muted-foreground">
-            <p className="mb-1 font-medium text-foreground">
-              Cascade automatique à la création :
-            </p>
-            <ul className="ml-4 list-disc space-y-0.5">
-              <li>
-                Numéro contrat séquentiel (ex. <code className="rounded bg-muted px-1">ACLR-{new Date().getFullYear()}-XXXX</code>)
-              </li>
-              <li>
-                Commission {fmt(calc.commissionTotale)} en{" "}
-                <strong>2 parts</strong> : {fmt(calc.commissionPart1)} à la
-                signature + {fmt(calc.commissionPart2)} étalé sur 11 mois
-              </li>
-              <li>
-                Factures clients (selon modalité {modalitePaiement.replace(/_/g, " ")})
-              </li>
-              <li>Prospect → statut <strong>Signé</strong></li>
-              {dealId && <li>Deal → stage <strong>Signé</strong></li>}
-            </ul>
-          </div>
 
           <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
             <Button
