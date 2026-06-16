@@ -32,7 +32,7 @@ import { Icon } from "@/components/icon";
 import { ProspectCombobox } from "@/components/prospects/prospect-combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatCHF, formatMoney } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import type { ModalitePaiement } from "@prisma/client";
@@ -377,11 +377,6 @@ export function ContractWizard({
     });
   };
 
-  // ---- Filtre deals visibles selon prospect ----
-  const dealsForProspect = prospectId
-    ? deals.filter((d) => d.prospectId === prospectId)
-    : deals;
-
   return (
     <div className="space-y-6">
       {/* ÉTAPE 1 */}
@@ -412,26 +407,6 @@ export function ContractWizard({
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="dealId">Deal d&apos;origine (optionnel)</Label>
-            <select
-              id="dealId"
-              value={dealId}
-              onChange={(e) => setDealId(e.target.value)}
-              disabled={!prospectId}
-              className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm disabled:opacity-50"
-            >
-              <option value="">— Sans deal —</option>
-              {dealsForProspect.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.titre} · {formatCHF(Number(d.montantPrevu))}
-                </option>
-              ))}
-            </select>
-            <p className="text-[11px] text-muted-foreground">
-              Si fourni, le deal passera automatiquement en stage Signé.
-            </p>
-          </div>
         </CardContent>
       </Card>
 
