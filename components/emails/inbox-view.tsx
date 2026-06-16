@@ -8,7 +8,7 @@
  * - Détail : timeline du thread (tous les messages chronologiquement)
  * - Bouton "Répondre" : modal qui appelle replyToEmail()
  */
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -99,6 +99,28 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
   const [search, setSearch] = useState("");
   // Sélection multiple (par threadId) pour archivage / suppression en masse.
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+
+  // Rafraîchissement automatique de la boîte : recharge les données serveur
+  // toutes les 30 s + au retour sur l'onglet, pour faire apparaître les
+  // nouveaux mails sans recharger la page. router.refresh() est "soft" : il
+  // conserve le thread ouvert, la sélection et un brouillon de réponse en
+  // cours d'écriture (l'état des composants client n'est pas réinitialisé).
+  useEffect(() => {
+    const REFRESH_MS = 30_000;
+    const tick = () => {
+      if (document.visibilityState === "visible") router.refresh();
+    };
+    const interval = setInterval(tick, REFRESH_MS);
+    // Recharge aussi dès que l'utilisateur revient sur l'onglet du CRM.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") router.refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [router]);
   // Note : depuis la décision "mailbox privée par user", on ne filtre plus par
   // propriétaire — la page ne sert QUE les mails du user connecté côté serveur.
 
