@@ -2,6 +2,7 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useRouter } from "next/navigation";
 
 import { DeleteDealButton } from "@/components/common/entity-delete-buttons";
 import { Icon } from "@/components/icon";
@@ -16,6 +17,7 @@ interface DealCardProps {
 }
 
 export function DealCard({ deal, onOpen }: DealCardProps) {
+  const router = useRouter();
   const {
     attributes,
     listeners,
@@ -57,7 +59,14 @@ export function DealCard({ deal, onOpen }: DealCardProps) {
         if (isDragging) return;
         // Bypass le drag listener si pointer move est court (click pur)
         e.stopPropagation();
-        onOpen(deal.id);
+        // Un clic ouvre LE MÊME écran que la création : le wizard de contrat.
+        // (La page /modifier redirige vers le détail si le contrat est déjà
+        // signé/payé.) Repli sur l'ancien panneau si pas de contrat lié.
+        if (contract) {
+          router.push(`/contrats/${contract.id}/modifier`);
+        } else {
+          onOpen(deal.id);
+        }
       }}
       className={cn(
         "cursor-grab rounded-md border border-border bg-card p-3 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing",
