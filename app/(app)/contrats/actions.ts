@@ -36,35 +36,50 @@ export interface ContractActionResult {
 }
 
 /**
- * Calcule le prix unitaire EFFECTIF d'une ligne après application de "offert"
- * ou d'une remise (par ligne).
- *  - offert        → 0 (unique = gratuit ; récurrent = gratuit sur la durée du
- *                    contrat, puis payant au renouvellement géré ailleurs).
- *  - POURCENT      → applique le % sur le one-shot ET le mensuel.
- *  - MONTANT fixe  → soustrait du one-shot s'il existe, sinon du mensuel.
+ * Calcule le prix unitaire EFFECTIF d'une ligne après "offert" ou remise, en
+ * tenant compte de la CIBLE (one-shot, récurrent, ou les deux).
+ *  - offert     → met à 0 la/les part(s) ciblée(s). Récurrent offert = gratuit
+ *                 sur la durée du contrat, puis payant au renouvellement.
+ *  - POURCENT   → applique le % sur la/les part(s) ciblée(s).
+ *  - MONTANT    → soustrait le montant de la/les part(s) ciblée(s).
+ * Cible par défaut : "DEUX".
  */
 function effectiveUnitPrices(
   baseOneShot: number,
   baseMensuel: number,
   line: {
     offert?: boolean;
+    offertCible?: "ONESHOT" | "RECURRENT" | "DEUX";
     remiseType?: "POURCENT" | "MONTANT";
     remiseValeur?: number;
+    remiseCible?: "ONESHOT" | "RECURRENT" | "DEUX";
   },
 ): { oneShot: number; mensuel: number } {
-  if (line.offert) return { oneShot: 0, mensuel: 0 };
+  let oneShot = baseOneShot;
+  let mensuel = baseMensuel;
+
+  if (line.offert) {
+    const c = line.offertCible ?? "DEUX";
+    if (c !== "RECURRENT") oneShot = 0;
+    if (c !== "ONESHOT") mensuel = 0;
+    return { oneShot, mensuel };
+  }
+
   const r = line.remiseValeur ?? 0;
   if (line.remiseType && r > 0) {
+    const c = line.remiseCible ?? "DEUX";
+    const onOneShot = c !== "RECURRENT";
+    const onMensuel = c !== "ONESHOT";
     if (line.remiseType === "POURCENT") {
       const f = Math.max(0, 1 - r / 100);
-      return { oneShot: baseOneShot * f, mensuel: baseMensuel * f };
+      if (onOneShot) oneShot = baseOneShot * f;
+      if (onMensuel) mensuel = baseMensuel * f;
+    } else {
+      if (onOneShot) oneShot = Math.max(0, baseOneShot - r);
+      if (onMensuel) mensuel = Math.max(0, baseMensuel - r);
     }
-    if (baseOneShot > 0) {
-      return { oneShot: Math.max(0, baseOneShot - r), mensuel: baseMensuel };
-    }
-    return { oneShot: baseOneShot, mensuel: Math.max(0, baseMensuel - r) };
   }
-  return { oneShot: baseOneShot, mensuel: baseMensuel };
+  return { oneShot, mensuel };
 }
 
 // ===========================================================================
@@ -166,8 +181,10 @@ export async function createContractFromDeal(
       baseOneShot,
       baseMensuel,
       offert: !!line.offert,
+      offertCible: line.offertCible ?? null,
       remiseType: line.remiseType ?? null,
       remiseValeur: line.remiseValeur ?? 0,
+      remiseCible: line.remiseCible ?? null,
       lineOneShot,
       lineMensuel,
     };
@@ -179,8 +196,10 @@ export async function createContractFromDeal(
     prixOneShotOriginal: l.baseOneShot,
     prixMensuelOriginal: l.baseMensuel,
     offert: l.offert,
+    offertCible: l.offertCible,
     remiseType: l.remiseType,
     remiseValeur: l.remiseValeur,
+    remiseCible: l.remiseCible,
   }));
 
   // "valeurAn1" du contrat (colonne DB, affichage compta) = formule
@@ -506,8 +525,10 @@ export async function updateContract(
         baseOneShot,
         baseMensuel,
         offert: !!line.offert,
+        offertCible: line.offertCible ?? null,
         remiseType: line.remiseType ?? null,
         remiseValeur: line.remiseValeur ?? 0,
+        remiseCible: line.remiseCible ?? null,
         lineOneShot,
         lineMensuel,
       };
@@ -518,8 +539,10 @@ export async function updateContract(
       prixOneShotOriginal: l.baseOneShot,
       prixMensuelOriginal: l.baseMensuel,
       offert: l.offert,
+      offertCible: l.offertCible,
       remiseType: l.remiseType,
       remiseValeur: l.remiseValeur,
+      remiseCible: l.remiseCible,
     }));
 
     const valeurAn1Cents = computeValeurAn1({ oneShotCents, mensuelCents });

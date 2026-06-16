@@ -35,6 +35,8 @@ export const ContractLineSchema = z.object({
    * pendant toute la durée du contrat, puis payant au renouvellement.
    */
   offert: z.boolean().optional(),
+  /** Sur quoi porte l'« offert » : one-shot, récurrent, ou les deux. */
+  offertCible: z.enum(["ONESHOT", "RECURRENT", "DEUX"]).optional(),
   /** Type de remise appliquée à la ligne (si non offerte). */
   remiseType: z.enum(["POURCENT", "MONTANT"]).optional(),
   /** Valeur de la remise (en % si POURCENT, en CHF/EUR si MONTANT). */
@@ -44,6 +46,8 @@ export const ContractLineSchema = z.object({
       z.number().min(0).max(1_000_000),
     )
     .optional(),
+  /** Sur quoi porte la remise : one-shot, récurrent, ou les deux. */
+  remiseCible: z.enum(["ONESHOT", "RECURRENT", "DEUX"]).optional(),
 });
 export type ContractLineInput = z.infer<typeof ContractLineSchema>;
 

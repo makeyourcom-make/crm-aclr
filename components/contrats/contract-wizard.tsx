@@ -104,30 +104,48 @@ interface LineState {
   prixMensuel: string;
   /** Ligne offerte (prix barré → 0). */
   offert?: boolean;
+  /** Cible de l'offert : one-shot, récurrent, ou les deux. */
+  offertCible?: "ONESHOT" | "RECURRENT" | "DEUX";
   /** Remise : "" (aucune) | "POURCENT" | "MONTANT". */
   remiseType?: "" | "POURCENT" | "MONTANT";
   /** Valeur de la remise (string pour input). */
   remiseValeur?: string;
+  /** Cible de la remise : one-shot, récurrent, ou les deux. */
+  remiseCible?: "ONESHOT" | "RECURRENT" | "DEUX";
 }
 
-/** Prix unitaire effectif après offert / remise (miroir du backend). */
+/** Prix unitaire effectif après offert / remise + cible (miroir du backend). */
 function effectiveUnit(
   baseOneShot: number,
   baseMensuel: number,
-  l: Pick<LineState, "offert" | "remiseType" | "remiseValeur">,
+  l: Pick<
+    LineState,
+    "offert" | "offertCible" | "remiseType" | "remiseValeur" | "remiseCible"
+  >,
 ): { oneShot: number; mensuel: number } {
-  if (l.offert) return { oneShot: 0, mensuel: 0 };
+  let oneShot = baseOneShot;
+  let mensuel = baseMensuel;
+  if (l.offert) {
+    const c = l.offertCible ?? "DEUX";
+    if (c !== "RECURRENT") oneShot = 0;
+    if (c !== "ONESHOT") mensuel = 0;
+    return { oneShot, mensuel };
+  }
   const r = l.remiseValeur ? Number(l.remiseValeur) : 0;
   if (l.remiseType && r > 0) {
+    const c = l.remiseCible ?? "DEUX";
+    const onOne = c !== "RECURRENT";
+    const onMens = c !== "ONESHOT";
     if (l.remiseType === "POURCENT") {
       const f = Math.max(0, 1 - r / 100);
-      return { oneShot: baseOneShot * f, mensuel: baseMensuel * f };
+      if (onOne) oneShot = baseOneShot * f;
+      if (onMens) mensuel = baseMensuel * f;
+    } else {
+      if (onOne) oneShot = Math.max(0, baseOneShot - r);
+      if (onMens) mensuel = Math.max(0, baseMensuel - r);
     }
-    if (baseOneShot > 0)
-      return { oneShot: Math.max(0, baseOneShot - r), mensuel: baseMensuel };
-    return { oneShot: baseOneShot, mensuel: Math.max(0, baseMensuel - r) };
   }
-  return { oneShot: baseOneShot, mensuel: baseMensuel };
+  return { oneShot, mensuel };
 }
 
 function uid() {
@@ -387,9 +405,11 @@ export function ContractWizard({
         prixOneShot: l.prixOneShot ? Number(l.prixOneShot) : undefined,
         prixMensuel: l.prixMensuel ? Number(l.prixMensuel) : undefined,
         offert: l.offert || undefined,
+        offertCible: l.offert ? l.offertCible ?? "DEUX" : undefined,
         remiseType: l.remiseType || undefined,
         remiseValeur:
           l.remiseType && l.remiseValeur ? Number(l.remiseValeur) : undefined,
+        remiseCible: l.remiseType ? l.remiseCible ?? "DEUX" : undefined,
       })),
     };
     startTransition(async () => {
@@ -965,6 +985,30 @@ function ProductCombobox({
   );
 }
 
+/** Petit sélecteur de cible (one-shot / récurrent / les deux). */
+function CibleSelect({
+  value,
+  onChange,
+}: {
+  value: "ONESHOT" | "RECURRENT" | "DEUX";
+  onChange: (v: "ONESHOT" | "RECURRENT" | "DEUX") => void;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) =>
+        onChange(e.target.value as "ONESHOT" | "RECURRENT" | "DEUX")
+      }
+      className="h-7 rounded-md border border-input bg-background px-1.5 text-xs"
+      title="Sur quoi s'applique"
+    >
+      <option value="DEUX">les deux</option>
+      <option value="ONESHOT">le one-shot</option>
+      <option value="RECURRENT">le récurrent</option>
+    </select>
+  );
+}
+
 function LineRow({
   line,
   products,
@@ -989,6 +1033,8 @@ function LineRow({
   const adjusted =
     !!line.offert ||
     (!!line.remiseType && Number(line.remiseValeur ?? 0) > 0);
+  // Cible utile seulement si la ligne a À LA FOIS un one-shot et un mensuel.
+  const hasBoth = baseOneShot > 0 && baseMensuel > 0;
 
   return (
     <div className="grid grid-cols-12 gap-2 rounded-md border border-border bg-card px-3 py-2">
@@ -1098,6 +1144,13 @@ function LineRow({
           </span>
         </label>
 
+        {line.offert && hasBoth && (
+          <CibleSelect
+            value={line.offertCible ?? "DEUX"}
+            onChange={(v) => onChange({ offertCible: v })}
+          />
+        )}
+
         {!line.offert && (
           <div className="flex items-center gap-1.5">
             <span className="text-muted-foreground">Remise :</span>
@@ -1125,6 +1178,12 @@ function LineRow({
                 className="h-7 w-24 text-right tabular-nums"
               />
             )}
+            {line.remiseType && hasBoth && (
+              <CibleSelect
+                value={line.remiseCible ?? "DEUX"}
+                onChange={(v) => onChange({ remiseCible: v })}
+              />
+            )}
           </div>
         )}
 
@@ -1132,28 +1191,44 @@ function LineRow({
           <span className="ml-auto whitespace-nowrap text-[11px]">
             {baseOneShot > 0 && (
               <>
-                <span className="text-muted-foreground line-through">
-                  {compactPrice(baseOneShot)}.-
-                </span>{" "}
-                <span className="font-semibold text-emerald-700">
-                  → {line.offert ? "Offert" : `${compactPrice(eff.oneShot)}.-`}
-                </span>
+                {eff.oneShot !== baseOneShot ? (
+                  <>
+                    <span className="text-muted-foreground line-through">
+                      {compactPrice(baseOneShot)}.-
+                    </span>{" "}
+                    <span className="font-semibold text-emerald-700">
+                      →{" "}
+                      {line.offert && eff.oneShot === 0
+                        ? "Offert"
+                        : `${compactPrice(eff.oneShot)}.-`}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">
+                    {compactPrice(baseOneShot)}.- unique
+                  </span>
+                )}
                 {baseMensuel > 0 ? "  ·  " : ""}
               </>
             )}
-            {baseMensuel > 0 && (
-              <>
-                <span className="text-muted-foreground line-through">
+            {baseMensuel > 0 &&
+              (eff.mensuel !== baseMensuel ? (
+                <>
+                  <span className="text-muted-foreground line-through">
+                    {compactPrice(baseMensuel)}.-/mois
+                  </span>{" "}
+                  <span className="font-semibold text-emerald-700">
+                    →{" "}
+                    {line.offert && eff.mensuel === 0
+                      ? "Offert (durée du contrat)"
+                      : `${compactPrice(eff.mensuel)}.-/mois`}
+                  </span>
+                </>
+              ) : (
+                <span className="text-muted-foreground">
                   {compactPrice(baseMensuel)}.-/mois
-                </span>{" "}
-                <span className="font-semibold text-emerald-700">
-                  →{" "}
-                  {line.offert
-                    ? "Offert (durée du contrat)"
-                    : `${compactPrice(eff.mensuel)}.-/mois`}
                 </span>
-              </>
-            )}
+              ))}
           </span>
         )}
       </div>
