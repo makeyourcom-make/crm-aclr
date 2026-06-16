@@ -9,7 +9,8 @@
  * Étape 4 : récap commission + bouton Créer
  */
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 import { createCustomProduct } from "@/app/(app)/catalogue/actions";
@@ -771,6 +772,160 @@ function StepBadge({ n, done }: { n: number; done: boolean }) {
   );
 }
 
+/**
+ * Sélecteur de produit enrichi : recherche intégrée + liste en colonnes
+ * (nom à gauche, prix aligné à droite), groupée par catégorie. Rendue dans un
+ * portail pour échapper à l'`overflow-hidden` des cartes.
+ */
+function ProductCombobox({
+  products,
+  value,
+  onSelect,
+}: {
+  products: ProductOption[];
+  value: string;
+  onSelect: (id: string) => void;
+}) {
+  const selected = products.find((p) => p.id === value);
+  const selectedLabel = selected?.nom ?? "";
+  const [query, setQuery] = useState(selectedLabel);
+  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Re-sync le champ si la valeur change depuis le parent.
+  useEffect(() => {
+    setQuery(products.find((p) => p.id === value)?.nom ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  const updateRect = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setRect({ top: r.bottom, left: r.left, width: r.width });
+  };
+  useEffect(() => {
+    if (!open) return;
+    updateRect();
+    const onMove = () => updateRect();
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
+    return () => {
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (boxRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
+      setQuery(products.find((p) => p.id === value)?.nom ?? "");
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [products, value]);
+
+  const term = query.trim().toLowerCase();
+  const browsing = term.length === 0 || term === selectedLabel.toLowerCase();
+  const list = browsing
+    ? products
+    : products.filter((p) => p.nom.toLowerCase().includes(term));
+  const byCat = list.reduce<Record<string, ProductOption[]>>((acc, p) => {
+    const cat = p.categorie || "AUTRE";
+    (acc[cat] ??= []).push(p);
+    return acc;
+  }, {});
+
+  const pick = (p: ProductOption) => {
+    onSelect(p.id);
+    setQuery(p.nom);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={boxRef} className="relative">
+      <div className="relative">
+        <Icon
+          name="Search"
+          className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => {
+            setOpen(true);
+            inputRef.current?.select();
+          }}
+          placeholder="Rechercher un produit…"
+          autoComplete="off"
+          className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+        />
+      </div>
+
+      {open &&
+        rect &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{
+              position: "fixed",
+              top: rect.top + 4,
+              left: rect.left,
+              width: rect.width,
+            }}
+            className="z-[200] max-h-80 overflow-y-auto rounded-md border border-border bg-popover shadow-lg"
+          >
+            {list.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-muted-foreground">
+                Aucun produit trouvé.
+              </p>
+            ) : (
+              Object.entries(byCat).map(([cat, items]) => (
+                <div key={cat}>
+                  <p className="sticky top-0 bg-muted/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur">
+                    {CATEGORIE_LABELS[cat] ?? cat}
+                  </p>
+                  {items.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => pick(p)}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted",
+                        value === p.id && "bg-primary/5",
+                      )}
+                    >
+                      <span className="min-w-0 truncate">{p.nom}</span>
+                      <span className="shrink-0 whitespace-nowrap text-xs font-medium text-muted-foreground">
+                        {productPriceSuffix(p)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}
+
 function LineRow({
   line,
   products,
@@ -786,35 +941,14 @@ function LineRow({
   const defaultOneShot = prod?.prixOneShot ? Number(prod.prixOneShot) : 0;
   const defaultMensuel = prod?.prixMensuel ? Number(prod.prixMensuel) : 0;
 
-  // Groupement par catégorie dans le select (pour catalogue large)
-  const productsByCat = useMemo(() => {
-    return products.reduce<Record<string, ProductOption[]>>((acc, p) => {
-      const cat = p.categorie || "AUTRE";
-      if (!acc[cat]) acc[cat] = [];
-      acc[cat].push(p);
-      return acc;
-    }, {});
-  }, [products]);
-
   return (
     <div className="grid grid-cols-12 gap-2 rounded-md border border-border bg-card px-3 py-2">
       <div className="col-span-12 md:col-span-5">
-        <select
+        <ProductCombobox
+          products={products}
           value={line.productId}
-          onChange={(e) => onChange({ productId: e.target.value })}
-          className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-        >
-          <option value="">— Choisir un produit —</option>
-          {Object.entries(productsByCat).map(([cat, list]) => (
-            <optgroup key={cat} label={CATEGORIE_LABELS[cat] ?? cat}>
-              {list.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nom} · {productPriceSuffix(p)}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+          onSelect={(id) => onChange({ productId: id })}
+        />
         {prod && (
           <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
             {prod.engagementMois ? (
