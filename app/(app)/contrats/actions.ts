@@ -35,6 +35,38 @@ export interface ContractActionResult {
   fieldErrors?: Record<string, string>;
 }
 
+/**
+ * Calcule le prix unitaire EFFECTIF d'une ligne après application de "offert"
+ * ou d'une remise (par ligne).
+ *  - offert        → 0 (unique = gratuit ; récurrent = gratuit sur la durée du
+ *                    contrat, puis payant au renouvellement géré ailleurs).
+ *  - POURCENT      → applique le % sur le one-shot ET le mensuel.
+ *  - MONTANT fixe  → soustrait du one-shot s'il existe, sinon du mensuel.
+ */
+function effectiveUnitPrices(
+  baseOneShot: number,
+  baseMensuel: number,
+  line: {
+    offert?: boolean;
+    remiseType?: "POURCENT" | "MONTANT";
+    remiseValeur?: number;
+  },
+): { oneShot: number; mensuel: number } {
+  if (line.offert) return { oneShot: 0, mensuel: 0 };
+  const r = line.remiseValeur ?? 0;
+  if (line.remiseType && r > 0) {
+    if (line.remiseType === "POURCENT") {
+      const f = Math.max(0, 1 - r / 100);
+      return { oneShot: baseOneShot * f, mensuel: baseMensuel * f };
+    }
+    if (baseOneShot > 0) {
+      return { oneShot: Math.max(0, baseOneShot - r), mensuel: baseMensuel };
+    }
+    return { oneShot: baseOneShot, mensuel: Math.max(0, baseMensuel - r) };
+  }
+  return { oneShot: baseOneShot, mensuel: baseMensuel };
+}
+
 // ===========================================================================
 // CREATE depuis un Deal — la cascade complète
 // ===========================================================================
@@ -108,17 +140,20 @@ export async function createContractFromDeal(
     if (!prod) {
       throw new Error(`Produit introuvable : ${line.productId}`);
     }
-    const oneShotUnit =
+    // Prix d'ORIGINE (override saisi ou prix catalogue) — pour l'affichage
+    // "prix barré" et la traçabilité.
+    const baseOneShot =
       line.prixOneShot ?? (prod.prixOneShot ? Number(prod.prixOneShot) : 0);
-    const mensuelUnit =
+    const baseMensuel =
       line.prixMensuel ?? (prod.prixMensuel ? Number(prod.prixMensuel) : 0);
+    // Prix EFFECTIF après "offert" / remise (ce qui est réellement facturé).
+    const eff = effectiveUnitPrices(baseOneShot, baseMensuel, line);
+    const oneShotUnit = eff.oneShot;
+    const mensuelUnit = eff.mensuel;
     const lineOneShot = chfToCents(oneShotUnit * line.quantite);
     const lineMensuel = chfToCents(mensuelUnit * line.quantite);
     oneShotCents += lineOneShot;
     mensuelCents += lineMensuel;
-    // Si une note libre est fournie, on l'ajoute au nom sous forme
-    // « Produit — détail libre » pour qu'elle apparaisse sur les
-    // designations des lignes de facture.
     const note = (line.note ?? "").trim();
     const nom = note ? `${prod.nom} — ${note}` : prod.nom;
     return {
@@ -128,10 +163,25 @@ export async function createContractFromDeal(
       quantite: line.quantite,
       oneShotUnit,
       mensuelUnit,
+      baseOneShot,
+      baseMensuel,
+      offert: !!line.offert,
+      remiseType: line.remiseType ?? null,
+      remiseValeur: line.remiseValeur ?? 0,
       lineOneShot,
       lineMensuel,
     };
   });
+
+  // Métadonnées par ligne (offert / remise / prix d'origine) → affichage PDF.
+  const lignesMeta = linesEnriched.map((l) => ({
+    productId: l.productId,
+    prixOneShotOriginal: l.baseOneShot,
+    prixMensuelOriginal: l.baseMensuel,
+    offert: l.offert,
+    remiseType: l.remiseType,
+    remiseValeur: l.remiseValeur,
+  }));
 
   // "valeurAn1" du contrat (colonne DB, affichage compta) = formule
   // historique an 1 standard, indépendante de la catégorie des produits.
@@ -222,6 +272,7 @@ export async function createContractFromDeal(
           montantOneShot: centsToChf(oneShotCents),
           montantMensuel: centsToChf(mensuelCents),
           valeurAn1: centsToChf(valeurAn1Cents),
+          lignesMeta,
           // Workflow : contrat naît en attente de signature client.
           // → ATTENTE_VALIDATION_ADMIN après signByClient
           // → ACTIF après validateContract (admin uniquement)
@@ -432,10 +483,13 @@ export async function updateContract(
     const linesEnriched = parsed.data.lines.map((line) => {
       const prod = productById.get(line.productId);
       if (!prod) throw new Error(`Produit introuvable : ${line.productId}`);
-      const oneShotUnit =
+      const baseOneShot =
         line.prixOneShot ?? (prod.prixOneShot ? Number(prod.prixOneShot) : 0);
-      const mensuelUnit =
+      const baseMensuel =
         line.prixMensuel ?? (prod.prixMensuel ? Number(prod.prixMensuel) : 0);
+      const eff = effectiveUnitPrices(baseOneShot, baseMensuel, line);
+      const oneShotUnit = eff.oneShot;
+      const mensuelUnit = eff.mensuel;
       const lineOneShot = chfToCents(oneShotUnit * line.quantite);
       const lineMensuel = chfToCents(mensuelUnit * line.quantite);
       oneShotCents += lineOneShot;
@@ -449,10 +503,24 @@ export async function updateContract(
         quantite: line.quantite,
         oneShotUnit,
         mensuelUnit,
+        baseOneShot,
+        baseMensuel,
+        offert: !!line.offert,
+        remiseType: line.remiseType ?? null,
+        remiseValeur: line.remiseValeur ?? 0,
         lineOneShot,
         lineMensuel,
       };
     });
+
+    const lignesMeta = linesEnriched.map((l) => ({
+      productId: l.productId,
+      prixOneShotOriginal: l.baseOneShot,
+      prixMensuelOriginal: l.baseMensuel,
+      offert: l.offert,
+      remiseType: l.remiseType,
+      remiseValeur: l.remiseValeur,
+    }));
 
     const valeurAn1Cents = computeValeurAn1({ oneShotCents, mensuelCents });
     const assietteCommissionCents = computeAssietteCommissionContrat(
@@ -496,6 +564,7 @@ export async function updateContract(
             montantOneShot: centsToChf(oneShotCents),
             montantMensuel: centsToChf(mensuelCents),
             valeurAn1: centsToChf(valeurAn1Cents),
+            lignesMeta,
             products: {
               set: linesEnriched.map((l) => ({ id: l.productId })),
             },

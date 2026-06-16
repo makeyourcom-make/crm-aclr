@@ -102,6 +102,32 @@ interface LineState {
   quantite: number;
   prixOneShot: string; // string pour input
   prixMensuel: string;
+  /** Ligne offerte (prix barré → 0). */
+  offert?: boolean;
+  /** Remise : "" (aucune) | "POURCENT" | "MONTANT". */
+  remiseType?: "" | "POURCENT" | "MONTANT";
+  /** Valeur de la remise (string pour input). */
+  remiseValeur?: string;
+}
+
+/** Prix unitaire effectif après offert / remise (miroir du backend). */
+function effectiveUnit(
+  baseOneShot: number,
+  baseMensuel: number,
+  l: Pick<LineState, "offert" | "remiseType" | "remiseValeur">,
+): { oneShot: number; mensuel: number } {
+  if (l.offert) return { oneShot: 0, mensuel: 0 };
+  const r = l.remiseValeur ? Number(l.remiseValeur) : 0;
+  if (l.remiseType && r > 0) {
+    if (l.remiseType === "POURCENT") {
+      const f = Math.max(0, 1 - r / 100);
+      return { oneShot: baseOneShot * f, mensuel: baseMensuel * f };
+    }
+    if (baseOneShot > 0)
+      return { oneShot: Math.max(0, baseOneShot - r), mensuel: baseMensuel };
+    return { oneShot: baseOneShot, mensuel: Math.max(0, baseMensuel - r) };
+  }
+  return { oneShot: baseOneShot, mensuel: baseMensuel };
 }
 
 function uid() {
@@ -246,20 +272,21 @@ export function ContractWizard({
     for (const l of lines) {
       const prod = allProducts.find((p) => p.id === l.productId);
       if (!prod) continue;
-      const po =
+      const baseOneShot =
         l.prixOneShot !== ""
           ? Number(l.prixOneShot)
           : prod.prixOneShot
             ? Number(prod.prixOneShot)
             : 0;
-      const pm =
+      const baseMensuel =
         l.prixMensuel !== ""
           ? Number(l.prixMensuel)
           : prod.prixMensuel
             ? Number(prod.prixMensuel)
             : 0;
-      oneShot += po * l.quantite;
-      mensuel += pm * l.quantite;
+      const eff = effectiveUnit(baseOneShot, baseMensuel, l);
+      oneShot += eff.oneShot * l.quantite;
+      mensuel += eff.mensuel * l.quantite;
     }
     // Valeur an 1 affichée = formule historique (× 12), indépendante de
     // la catégorie. Reflète la colonne DB `contract.valeurAn1`.
@@ -276,20 +303,21 @@ export function ContractWizard({
     for (const l of lines) {
       const prod = allProducts.find((p) => p.id === l.productId);
       if (!prod) continue;
-      const po =
+      const baseOneShot =
         l.prixOneShot !== ""
           ? Number(l.prixOneShot)
           : prod.prixOneShot
             ? Number(prod.prixOneShot)
             : 0;
-      const pm =
+      const baseMensuel =
         l.prixMensuel !== ""
           ? Number(l.prixMensuel)
           : prod.prixMensuel
             ? Number(prod.prixMensuel)
             : 0;
-      const lineOneShot = po * l.quantite;
-      const lineMensuel = pm * l.quantite;
+      const eff = effectiveUnit(baseOneShot, baseMensuel, l);
+      const lineOneShot = eff.oneShot * l.quantite;
+      const lineMensuel = eff.mensuel * l.quantite;
       if (prod.categorie === "ADS") {
         assietteCommission += lineOneShot + lineMensuel * dureeMoisNum;
         hasAdsLine = true;
@@ -358,6 +386,10 @@ export function ContractWizard({
         quantite: l.quantite,
         prixOneShot: l.prixOneShot ? Number(l.prixOneShot) : undefined,
         prixMensuel: l.prixMensuel ? Number(l.prixMensuel) : undefined,
+        offert: l.offert || undefined,
+        remiseType: l.remiseType || undefined,
+        remiseValeur:
+          l.remiseType && l.remiseValeur ? Number(l.remiseValeur) : undefined,
       })),
     };
     startTransition(async () => {
@@ -948,6 +980,16 @@ function LineRow({
   const defaultOneShot = prod?.prixOneShot ? Number(prod.prixOneShot) : 0;
   const defaultMensuel = prod?.prixMensuel ? Number(prod.prixMensuel) : 0;
 
+  // Prix de base (saisi ou catalogue) + effectif (offert/remise) pour l'aperçu.
+  const baseOneShot =
+    line.prixOneShot !== "" ? Number(line.prixOneShot) : defaultOneShot;
+  const baseMensuel =
+    line.prixMensuel !== "" ? Number(line.prixMensuel) : defaultMensuel;
+  const eff = effectiveUnit(baseOneShot, baseMensuel, line);
+  const adjusted =
+    !!line.offert ||
+    (!!line.remiseType && Number(line.remiseValeur ?? 0) > 0);
+
   return (
     <div className="grid grid-cols-12 gap-2 rounded-md border border-border bg-card px-3 py-2">
       <div className="col-span-12 md:col-span-5">
@@ -1027,6 +1069,93 @@ function LineRow({
         >
           <Icon name="LogOut" className="h-4 w-4 rotate-180" />
         </button>
+      </div>
+
+      {/* Offert / Remise + aperçu du prix effectif */}
+      <div className="col-span-12 mt-1 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/50 pt-2 text-xs">
+        <label className="flex cursor-pointer items-center gap-1.5">
+          <input
+            type="checkbox"
+            checked={!!line.offert}
+            onChange={(e) =>
+              onChange({
+                offert: e.target.checked,
+                // Offert exclut une remise simultanée.
+                ...(e.target.checked
+                  ? { remiseType: "", remiseValeur: "" }
+                  : {}),
+              })
+            }
+            className="h-3.5 w-3.5 cursor-pointer"
+          />
+          <span
+            className={cn(
+              "select-none",
+              line.offert && "font-medium text-emerald-700",
+            )}
+          >
+            🎁 Offert
+          </span>
+        </label>
+
+        {!line.offert && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">Remise :</span>
+            <select
+              value={line.remiseType ?? ""}
+              onChange={(e) =>
+                onChange({
+                  remiseType: e.target.value as LineState["remiseType"],
+                })
+              }
+              className="h-7 rounded-md border border-input bg-background px-1.5 text-xs"
+            >
+              <option value="">Aucune</option>
+              <option value="POURCENT">%</option>
+              <option value="MONTANT">Montant fixe</option>
+            </select>
+            {line.remiseType && (
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={line.remiseValeur ?? ""}
+                onChange={(e) => onChange({ remiseValeur: e.target.value })}
+                placeholder={line.remiseType === "POURCENT" ? "%" : "montant"}
+                className="h-7 w-24 text-right tabular-nums"
+              />
+            )}
+          </div>
+        )}
+
+        {adjusted && (
+          <span className="ml-auto whitespace-nowrap text-[11px]">
+            {baseOneShot > 0 && (
+              <>
+                <span className="text-muted-foreground line-through">
+                  {compactPrice(baseOneShot)}.-
+                </span>{" "}
+                <span className="font-semibold text-emerald-700">
+                  → {line.offert ? "Offert" : `${compactPrice(eff.oneShot)}.-`}
+                </span>
+                {baseMensuel > 0 ? "  ·  " : ""}
+              </>
+            )}
+            {baseMensuel > 0 && (
+              <>
+                <span className="text-muted-foreground line-through">
+                  {compactPrice(baseMensuel)}.-/mois
+                </span>{" "}
+                <span className="font-semibold text-emerald-700">
+                  →{" "}
+                  {line.offert
+                    ? "Offert (durée du contrat)"
+                    : `${compactPrice(eff.mensuel)}.-/mois`}
+                </span>
+              </>
+            )}
+          </span>
+        )}
       </div>
 
       {line.productId === "" && (

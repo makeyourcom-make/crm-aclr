@@ -30,6 +30,20 @@ export const ContractLineSchema = z.object({
     .optional(),
   /** Description / détails libre — apparaît sur le contrat et la facture */
   note: z.string().max(2000).optional(),
+  /**
+   * Ligne offerte : prix barré → 0. Unique = gratuit. Récurrent = gratuit
+   * pendant toute la durée du contrat, puis payant au renouvellement.
+   */
+  offert: z.boolean().optional(),
+  /** Type de remise appliquée à la ligne (si non offerte). */
+  remiseType: z.enum(["POURCENT", "MONTANT"]).optional(),
+  /** Valeur de la remise (en % si POURCENT, en CHF/EUR si MONTANT). */
+  remiseValeur: z
+    .preprocess(
+      (v) => (v === "" || v === undefined || v === null ? undefined : Number(v)),
+      z.number().min(0).max(1_000_000),
+    )
+    .optional(),
 });
 export type ContractLineInput = z.infer<typeof ContractLineSchema>;
 

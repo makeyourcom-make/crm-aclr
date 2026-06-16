@@ -908,6 +908,13 @@ model Contract {
   /// à chaque update — invariant testé.
   valeurAn1 Decimal @db.Decimal(12, 2)
 
+  /// Métadonnées par ligne (offert / remise / prix d'origine) pour l'affichage
+  /// PDF "prix barré + Offert/−X%". Format JSON : tableau d'objets
+  /// { productId, prixOneShotOriginal, prixMensuelOriginal, offert,
+  ///   remiseType, remiseValeur }. Les prix EFFECTIFS restent portés par les
+  /// produits/agrégats ; ce champ ne sert qu'à l'affichage du détail.
+  lignesMeta Json?
+
   dateResiliation   DateTime?
   raisonResiliation String?   @db.Text
 
