@@ -107,6 +107,27 @@ function uid() {
   return Math.random().toString(36).slice(2, 9);
 }
 
+/** Format compact d'un montant pour les libellés (ex. "1'500.-"). */
+function compactPrice(n: number): string {
+  return new Intl.NumberFormat("fr-CH", { maximumFractionDigits: 2 }).format(n);
+}
+
+/**
+ * Suffixe de prix affiché à côté du nom du produit dans la liste déroulante,
+ * pour voir d'un coup d'œil le coût unique et/ou mensuel.
+ * Ex : "1'500.- unique + 39.-/mois", "29.90/mois", "sur-mesure", "offert".
+ */
+function productPriceSuffix(p: ProductOption): string {
+  const os = p.prixOneShot ? Number(p.prixOneShot) : 0;
+  const ms = p.prixMensuel ? Number(p.prixMensuel) : 0;
+  const parts: string[] = [];
+  if (os > 0) parts.push(`${compactPrice(os)}.- unique`);
+  if (ms > 0) parts.push(`${compactPrice(ms)}.-/mois`);
+  if (p.prixVariable) parts.push(parts.length ? "(sur-mesure)" : "sur-mesure");
+  if (parts.length === 0) return "offert";
+  return parts.join(" + ");
+}
+
 function todayLocalIso(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -813,8 +834,7 @@ function LineRow({
             <optgroup key={cat} label={CATEGORIE_LABELS[cat] ?? cat}>
               {list.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.nom}
-                  {p.prixVariable ? " (prix sur-mesure)" : ""}
+                  {p.nom} · {productPriceSuffix(p)}
                 </option>
               ))}
             </optgroup>
