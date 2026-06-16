@@ -11,14 +11,16 @@
  */
 import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
 
-import { createProspectQuick } from "@/app/(app)/prospects/actions";
 import {
   searchProspects,
   type ProspectPickerResult,
 } from "@/app/(app)/search-actions";
 import { Icon } from "@/components/icon";
+import {
+  CreateClientDialog,
+  type CreatedClient,
+} from "@/components/prospects/create-client-dialog";
 import { cn } from "@/lib/utils";
 
 interface ProspectComboboxProps {
@@ -46,7 +48,7 @@ export function ProspectCombobox({
   const [results, setResults] = useState<ProspectPickerResult[]>([]);
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [creating, setCreating] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [rect, setRect] = useState<{
     top: number;
     left: number;
@@ -124,23 +126,8 @@ export function ProspectCombobox({
     onSelect(p.id, label);
   };
 
-  const handleCreate = () => {
-    const raisonSociale = query.trim();
-    if (raisonSociale.length < 2) {
-      toast.error("Tape au moins 2 caractères pour le nom du client.");
-      return;
-    }
-    setCreating(true);
-    startTransition(async () => {
-      const res = await createProspectQuick({ raisonSociale });
-      setCreating(false);
-      if (!res.ok || !res.prospectId) {
-        toast.error(res.error ?? "Échec de la création du client.");
-        return;
-      }
-      toast.success(`Client « ${raisonSociale} » créé ✓`);
-      pick({ id: res.prospectId, raisonSociale, ville: null });
-    });
+  const handleCreated = (c: CreatedClient) => {
+    pick({ id: c.id, raisonSociale: c.raisonSociale, ville: c.ville });
   };
 
   // Une création est proposée si aucun résultat ne correspond EXACTEMENT au
@@ -234,13 +221,16 @@ export function ProspectCombobox({
                 {showCreate && (
                   <button
                     type="button"
-                    onClick={handleCreate}
-                    disabled={creating}
-                    className="flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-sm text-primary hover:bg-primary/5 disabled:opacity-50"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setOpen(false);
+                      setCreateOpen(true);
+                    }}
+                    className="flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-sm text-primary hover:bg-primary/5"
                   >
                     <Icon name="Plus" className="h-3.5 w-3.5 shrink-0" />
                     <span className="truncate">
-                      Créer le client «&nbsp;<strong>{query.trim()}</strong>&nbsp;»
+                      Créer la fiche client «&nbsp;<strong>{query.trim()}</strong>&nbsp;»
                     </span>
                   </button>
                 )}
@@ -249,6 +239,13 @@ export function ProspectCombobox({
           </div>,
           document.body,
         )}
+
+      <CreateClientDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        defaultName={query.trim()}
+        onCreated={handleCreated}
+      />
     </div>
   );
 }
