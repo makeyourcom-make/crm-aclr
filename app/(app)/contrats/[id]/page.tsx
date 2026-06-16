@@ -403,7 +403,9 @@ export default async function ContractDetailPage({ params }: PageProps) {
                             : "—"}
                         </p>
                       </>
-                    ) : sig.signeParClient && user.role === "ADMIN" ? (
+                    ) : sig.signeParClient &&
+                      (user.role === "ADMIN" ||
+                        contract.assigneAId === user.id) ? (
                       <>
                         <p className="mt-1 text-sm text-amber-700">
                           En attente de ta contre-signature

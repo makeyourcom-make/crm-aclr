@@ -1313,6 +1313,10 @@ model Signature {
   dateSignatureClient DateTime?
   signeParAclr        Boolean   @default(false)
   dateSignatureAclr   DateTime?
+  /// Identité du vendeur ACLR ayant contre-signé (admin ou commercial·e).
+  /// Détermine le routage du statut : admin → ACTIF direct ; non-admin
+  /// (ex. Sophie) → ATTENTE_VALIDATION_ADMIN avant de devenir actif.
+  signeParAclrUserId  String?
 
   /// Nom complet tapé par le client au moment de la signature (audit)
   nomClient String?

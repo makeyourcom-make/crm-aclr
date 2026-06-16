@@ -154,15 +154,21 @@ export async function signByClient(
 }
 
 /**
- * Contre-signature côté ACLR (admin).
+ * Contre-signature côté ACLR (vendeur).
+ *
+ * Règle métier (refonte Contrat) : le vendeur peut être l'admin OU le
+ * commercial assigné (ex. Sophie). Le routage du statut dépend de QUI signe :
+ *   - Admin contre-signe (client a signé)   → contrat ACTIF directement
+ *     (la signature admin vaut validation, il entre dans l'espace Contrats).
+ *   - Non-admin (Sophie) contre-signe         → contrat ATTENTE_VALIDATION_ADMIN
+ *     (un admin doit encore valider avant qu'il devienne actif).
+ * Si le client n'a pas encore signé, on enregistre seulement la signature
+ * vendeur ; le statut du contrat ne bouge pas tant que les deux manquent.
  */
 export async function signByAclr(
   signatureId: string,
 ): Promise<SignatureActionResult> {
   const user = await requireUser();
-  if (user.role !== "ADMIN") {
-    return { ok: false, error: "Seul l'admin peut contre-signer." };
-  }
   const sig = await prisma.signature.findUnique({
     where: { id: signatureId },
   });
@@ -170,16 +176,54 @@ export async function signByAclr(
   if (sig.signeParAclr) {
     return { ok: false, error: "Déjà contre-signé." };
   }
-  await prisma.signature.update({
-    where: { id: sig.id },
-    data: {
-      signeParAclr: true,
-      dateSignatureAclr: new Date(),
-      statut: sig.signeParClient ? "COMPLETEE" : "SIGNEE_ACLR",
-    },
+
+  const contract = await prisma.contract.findUnique({
+    where: { id: sig.contractId },
+    select: { id: true, assigneAId: true, statut: true },
   });
-  // La contre-signature admin fait sortir le deal du pipeline (filtre dans
-  // lib/queries/deals.ts). Il faut donc rafraîchir les routes concernées.
+  if (!contract) return { ok: false, error: "Contrat introuvable." };
+
+  // Vendeur autorisé : admin OU le·la commercial·e assigné·e au contrat.
+  const isAdmin = user.role === "ADMIN";
+  if (!isAdmin && contract.assigneAId !== user.id) {
+    return {
+      ok: false,
+      error: "Seuls l'admin ou le commercial assigné peuvent contre-signer.",
+    };
+  }
+
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.signature.update({
+      where: { id: sig.id },
+      data: {
+        signeParAclr: true,
+        dateSignatureAclr: now,
+        signeParAclrUserId: user.id,
+        statut: sig.signeParClient ? "COMPLETEE" : "SIGNEE_ACLR",
+      },
+    });
+
+    // Routage du statut du contrat — uniquement si le client a déjà signé.
+    if (sig.signeParClient) {
+      if (isAdmin) {
+        // Admin = vendeur ET validateur : actif directement.
+        await tx.contract.update({
+          where: { id: contract.id },
+          data: { statut: "ACTIF", valideParAdminId: user.id, valideALe: now },
+        });
+      } else {
+        // Sophie a contre-signé : reste en attente de validation admin.
+        await tx.contract.update({
+          where: { id: contract.id },
+          data: { statut: "ATTENTE_VALIDATION_ADMIN" },
+        });
+      }
+    }
+  });
+
+  // La contre-signature fait sortir le deal du pipeline (filtre dans
+  // lib/queries/deals.ts). On rafraîchit les routes concernées.
   revalidatePath("/signatures");
   revalidatePath("/pipeline");
   revalidatePath("/contrats");
