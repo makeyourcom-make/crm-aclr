@@ -809,7 +809,12 @@ function ProductCombobox({
     const el = inputRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    setRect({ top: r.bottom, left: r.left, width: r.width });
+    // Liste large & lisible : au moins 480px (ou la largeur de l'input si plus
+    // grande), sans déborder du bord droit de l'écran.
+    const margin = 16;
+    const maxWidth = window.innerWidth - r.left - margin;
+    const width = Math.min(Math.max(r.width, 480), Math.max(maxWidth, 280));
+    setRect({ top: r.bottom, left: r.left, width });
   };
   useEffect(() => {
     if (!open) return;
@@ -888,16 +893,16 @@ function ProductCombobox({
               left: rect.left,
               width: rect.width,
             }}
-            className="z-[200] max-h-80 overflow-y-auto rounded-md border border-border bg-popover shadow-lg"
+            className="z-[200] max-h-96 overflow-y-auto rounded-lg border border-border bg-popover shadow-xl ring-1 ring-black/5"
           >
             {list.length === 0 ? (
-              <p className="px-3 py-2 text-sm text-muted-foreground">
+              <p className="px-4 py-3 text-sm text-muted-foreground">
                 Aucun produit trouvé.
               </p>
             ) : (
               Object.entries(byCat).map(([cat, items]) => (
                 <div key={cat}>
-                  <p className="sticky top-0 bg-muted/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur">
+                  <p className="sticky top-0 z-10 border-b border-border bg-muted px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     {CATEGORIE_LABELS[cat] ?? cat}
                   </p>
                   {items.map((p) => (
@@ -906,12 +911,14 @@ function ProductCombobox({
                       type="button"
                       onClick={() => pick(p)}
                       className={cn(
-                        "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted",
+                        "flex w-full items-center justify-between gap-4 border-b border-border/40 px-4 py-2.5 text-left text-sm hover:bg-muted",
                         value === p.id && "bg-primary/5",
                       )}
                     >
-                      <span className="min-w-0 truncate">{p.nom}</span>
-                      <span className="shrink-0 whitespace-nowrap text-xs font-medium text-muted-foreground">
+                      <span className="min-w-0 flex-1 truncate font-medium">
+                        {p.nom}
+                      </span>
+                      <span className="shrink-0 whitespace-nowrap text-xs font-medium text-foreground/70">
                         {productPriceSuffix(p)}
                       </span>
                     </button>
