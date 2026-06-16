@@ -42,6 +42,14 @@ export const ContractCreateSchema = z.object({
   modalitePaiement: z.nativeEnum(ModalitePaiement),
   /** Devise du contrat. Absent → auto-détection selon le pays du client. */
   devise: z.enum(["CHF", "EUR"]).optional(),
+  /**
+   * Étape du pipeline où placer le contrat à sa création (son « attribut »).
+   * Le contrat naît dans le pipeline (vente en cours) et gradue vers l'espace
+   * Contrats une fois signé + validé. Absent → PROPOSITION par défaut.
+   */
+  stagePipeline: z
+    .enum(["DECOUVERTE", "PROPOSITION", "NEGOCIATION"])
+    .optional(),
   lines: z.array(ContractLineSchema).min(1, "Au moins une ligne requise."),
 });
 export type ContractCreateInput = z.infer<typeof ContractCreateSchema>;

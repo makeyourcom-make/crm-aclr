@@ -63,7 +63,7 @@ export async function createContractFromDeal(
   // RLS prospect + récup pays (pour défaut devise)
   const prospectForDevise = await prisma.prospect.findUnique({
     where: { id: parsed.data.prospectId },
-    select: { assigneAId: true, pays: true },
+    select: { assigneAId: true, pays: true, raisonSociale: true },
   });
   if (!prospectForDevise) {
     return { ok: false, error: "Prospect introuvable." };
@@ -176,12 +176,43 @@ export async function createContractFromDeal(
       });
       const numero = `${PREFIX_CONTRAT}-${annee}-${String(counter.value).padStart(4, "0")}`;
 
+      // ---- 1b. Présence pipeline ----
+      // Tout contrat NAÎT dans le pipeline (vente en cours) puis gradue vers
+      // l'espace Contrats une fois signé + validé. Si la création ne vient pas
+      // déjà d'un deal, on crée l'affaire pipeline correspondante à l'étape
+      // choisie (son « attribut »), reliée au contrat. Un seul objet côté
+      // usage : un bouton, une carte qui avance, puis bascule dans Contrats.
+      let pipelineDealId = parsed.data.dealId ?? null;
+      if (!pipelineDealId) {
+        const stage = parsed.data.stagePipeline ?? "PROPOSITION";
+        const probaParStage: Record<string, number> = {
+          DECOUVERTE: 10,
+          PROPOSITION: 40,
+          NEGOCIATION: 70,
+        };
+        const dealCree = await tx.deal.create({
+          data: {
+            prospectId: parsed.data.prospectId,
+            assigneAId: user.id,
+            titre: `Contrat — ${prospectForDevise.raisonSociale}`,
+            montantPrevu: centsToChf(valeurAn1Cents),
+            stage,
+            probabilite: probaParStage[stage] ?? 40,
+            productsProposes: {
+              connect: linesEnriched.map((l) => ({ id: l.productId })),
+            },
+          },
+          select: { id: true },
+        });
+        pipelineDealId = dealCree.id;
+      }
+
       // ---- 2. Création du Contract ----
       const contract = await tx.contract.create({
         data: {
           numero,
           prospectId: parsed.data.prospectId,
-          dealId: parsed.data.dealId ?? null,
+          dealId: pipelineDealId,
           assigneAId: user.id,
           dateSignature: parsed.data.dateSignature,
           dateDebut: parsed.data.dateDebut,

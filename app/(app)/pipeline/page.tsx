@@ -65,22 +65,13 @@ export default async function PipelinePage({ searchParams }: PageProps) {
         title="Pipeline"
         description={`${viewLabel} · total ${formatCHF(pipeline.grandTotal)} · pondéré ${formatCHF(pipeline.grandTotalPondere)}`}
         actions={
-          <>
-            <Link
-              href="/contrats/nouveau"
-              className={buttonVariants({ variant: "outline" })}
-            >
-              <Icon name="FileText" className="mr-1.5 h-4 w-4" />
-              Nouveau contrat
-            </Link>
-            <Link
-              href="/pipeline/nouveau"
-              className={buttonVariants({ variant: "default" })}
-            >
-              <Icon name="GitBranch" className="mr-1.5 h-4 w-4" />
-              Nouveau deal
-            </Link>
-          </>
+          <Link
+            href="/contrats/nouveau"
+            className={buttonVariants({ variant: "default" })}
+          >
+            <Icon name="FileText" className="mr-1.5 h-4 w-4" />
+            Nouveau contrat
+          </Link>
         }
       />
 

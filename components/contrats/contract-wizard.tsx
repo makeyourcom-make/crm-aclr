@@ -154,6 +154,11 @@ export function ContractWizard({
     initial?.modalitePaiement ?? "CINQUANTE_CINQUANTE",
   );
   // Devise : AUTO = détection selon le pays du client (Suisse → CHF, sinon EUR)
+  // Étape du pipeline où placer le contrat à sa création (son « attribut »).
+  // Le contrat naît dans le pipeline puis gradue vers Contrats une fois signé.
+  const [stagePipeline, setStagePipeline] = useState<
+    "DECOUVERTE" | "PROPOSITION" | "NEGOCIATION"
+  >("PROPOSITION");
   const [devise, setDevise] = useState<"AUTO" | "CHF" | "EUR">(
     initial?.devise ?? "AUTO",
   );
@@ -324,6 +329,8 @@ export function ContractWizard({
       dureeMois: Number(dureeMois),
       modalitePaiement,
       devise: devise === "AUTO" ? undefined : devise,
+      // Étape pipeline où placer le contrat à sa création (ignoré en édition).
+      stagePipeline: initial ? undefined : stagePipeline,
       lines: lines.map((l) => ({
         productId: l.productId,
         quantite: l.quantite,
@@ -522,6 +529,60 @@ export function ContractWizard({
               ))}
             </div>
           </div>
+
+          {/* Étape pipeline — uniquement à la création (le contrat naît dans
+              le pipeline puis gradue vers Contrats une fois signé + validé). */}
+          {!initial && (
+            <div className="space-y-1.5">
+              <Label>Étape dans le pipeline</Label>
+              <div className="grid gap-1.5 sm:grid-cols-3">
+                {(
+                  [
+                    {
+                      value: "DECOUVERTE",
+                      label: "Découverte",
+                      desc: "Premier contact / qualification",
+                    },
+                    {
+                      value: "PROPOSITION",
+                      label: "Proposition",
+                      desc: "Offre envoyée au client",
+                    },
+                    {
+                      value: "NEGOCIATION",
+                      label: "Négociation",
+                      desc: "Discussion en cours, proche du oui",
+                    },
+                  ] as {
+                    value: "DECOUVERTE" | "PROPOSITION" | "NEGOCIATION";
+                    label: string;
+                    desc: string;
+                  }[]
+                ).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setStagePipeline(opt.value)}
+                    className={cn(
+                      "rounded-md border px-3 py-2 text-left text-sm",
+                      stagePipeline === opt.value
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-background hover:bg-muted",
+                    )}
+                  >
+                    <p className="font-medium">{opt.label}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {opt.desc}
+                    </p>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Le contrat se place dans cette colonne du pipeline. Il
+                rejoindra l&apos;espace Contrats une fois signé et validé.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label>Devise</Label>
