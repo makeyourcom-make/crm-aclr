@@ -133,19 +133,20 @@ export async function getPipeline(
     },
   });
 
-  // Règle métier : la colonne PERDU est réinitialisée à 0 chaque mois.
-  // On ne montre QUE les deals PERDU dont la date de close réel tombe
-  // dans le mois courant. Les pertes des mois précédents disparaissent
-  // automatiquement (mais restent en base pour les stats historiques).
+  // Règle métier : les colonnes SIGNÉ et PERDU sont réinitialisées à 0 chaque
+  // mois. On ne montre QUE les deals signés/perdus dont la date de close réel
+  // tombe dans le mois courant — le pipeline reflète la performance du mois.
+  // Les affaires signées/perdues des mois précédents disparaissent de la vue
+  // (mais restent en base pour l'historique, les stats et les contrats).
+  // Les étapes actives (Découverte / Proposition / Négociation) ne sont jamais
+  // filtrées par date : elles persistent tant que l'affaire vit.
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   conditions.push({
     OR: [
-      { stage: { not: "PERDU" } },
-      {
-        stage: "PERDU",
-        closeReelLe: { gte: startOfMonth },
-      },
+      { stage: { notIn: ["SIGNE", "PERDU"] } },
+      { stage: "SIGNE", closeReelLe: { gte: startOfMonth } },
+      { stage: "PERDU", closeReelLe: { gte: startOfMonth } },
     ],
   });
 
