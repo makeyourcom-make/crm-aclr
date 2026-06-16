@@ -60,7 +60,6 @@ export default async function NewContractPage() {
     <div className="mx-auto max-w-4xl px-6 py-6 lg:px-8">
       <PageHeader
         title="Nouveau contrat"
-        description="Wizard de création — la commission, les versements et les factures clients sont générés automatiquement."
         breadcrumb={
           <Link
             href="/contrats"

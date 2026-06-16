@@ -171,7 +171,6 @@ export default async function EditContractPage({ params }: PageProps) {
     <div className="mx-auto max-w-4xl px-6 py-6 lg:px-8">
       <PageHeader
         title={`Modifier le contrat ${contract.numero}`}
-        description="Modifie les produits, la modalité de paiement et les dates. La commission et les factures brouillon sont régénérées automatiquement à l'enregistrement."
         breadcrumb={
           <Link
             href={`/contrats/${id}`}
