@@ -178,8 +178,14 @@ const styles = StyleSheet.create({
   colNom: { width: "60%" },
   colOneShot: { width: "20%", textAlign: "right" },
   colMensuel: { width: "20%", textAlign: "right" },
-  prestaNomText: { fontSize: 9 },
-  prestaDesc: { fontSize: 7.5, color: c.muted, marginTop: 2, lineHeight: 1.3 },
+  prestaNomText: { fontSize: 9.5, fontFamily: "Helvetica-Bold", color: c.primary },
+  prestaDesc: {
+    fontSize: 8,
+    color: c.muted,
+    marginTop: 2,
+    marginBottom: 4,
+    lineHeight: 1.3,
+  },
 
   // En-tête du tableau des prestations
   tableHead: {
@@ -191,10 +197,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     marginTop: 2,
   },
-  // Cellules d'en-tête (gras, muet, majuscules)
+  // Cellules d'en-tête (gras, muet, majuscules) — mêmes largeurs que le corps.
   colNomHead: {
-    width: "40%",
-    fontSize: 7,
+    width: "34%",
+    fontSize: 7.5,
     fontFamily: "Helvetica-Bold",
     color: c.muted,
     textTransform: "uppercase",
@@ -202,15 +208,15 @@ const styles = StyleSheet.create({
   colQteHead: {
     width: "8%",
     textAlign: "center",
-    fontSize: 7,
+    fontSize: 7.5,
     fontFamily: "Helvetica-Bold",
     color: c.muted,
     textTransform: "uppercase",
   },
   colPrixHead: {
-    width: "18%",
+    width: "22%",
     textAlign: "right",
-    fontSize: 7,
+    fontSize: 7.5,
     fontFamily: "Helvetica-Bold",
     color: c.muted,
     textTransform: "uppercase",
@@ -218,31 +224,31 @@ const styles = StyleSheet.create({
   colReductionHead: {
     width: "14%",
     textAlign: "right",
-    fontSize: 7,
+    fontSize: 7.5,
     fontFamily: "Helvetica-Bold",
     color: c.muted,
     textTransform: "uppercase",
   },
   colTotalHead: {
-    width: "20%",
+    width: "22%",
     textAlign: "right",
-    fontSize: 7,
+    fontSize: 7.5,
     fontFamily: "Helvetica-Bold",
     color: c.muted,
     textTransform: "uppercase",
   },
-  // Cellules de corps
-  colNomCell: { width: "40%", paddingRight: 8 },
+  // Cellules de corps — police homogène, alignées à droite pour les montants.
+  colLabel: { width: "34%", fontSize: 8.5, color: c.muted, paddingLeft: 2 },
   colQte: { width: "8%", textAlign: "center", fontSize: 9, color: c.muted },
   colPrix: {
-    width: "18%",
+    width: "22%",
     textAlign: "right",
-    fontSize: 9,
-    color: c.muted,
+    fontSize: 9.5,
+    color: c.primary,
   },
-  colReduction: { width: "14%", alignItems: "flex-end" },
+  colReduction: { width: "14%", alignItems: "flex-end", justifyContent: "center" },
   colTotal: {
-    width: "20%",
+    width: "22%",
     textAlign: "right",
     fontSize: 9.5,
     fontFamily: "Helvetica-Bold",
@@ -557,7 +563,7 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
 
         {/* En-tête du tableau */}
         <View style={styles.tableHead}>
-          <Text style={styles.colNomHead}>Prestation</Text>
+          <Text style={styles.colNomHead}>Détail</Text>
           <Text style={styles.colQteHead}>Qté</Text>
           <Text style={styles.colPrixHead}>Prix</Text>
           <Text style={styles.colReductionHead}>Réduction</Text>
@@ -573,6 +579,7 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
           // quantité de lignes ; le mensuel est compté sur la DURÉE du contrat
           // (ex. 12 mois) → quantité = durée, total = prix mensuel × durée.
           const parts: Array<{
+            label: string;
             orig: number;
             eff: number;
             prixSuffix: string;
@@ -584,6 +591,7 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
           const mensEff = p.prixMensuelEff ?? mensOrig;
           if (oneOrig > 0)
             parts.push({
+              label: "Frais unique",
               orig: oneOrig,
               eff: oneEff,
               prixSuffix: "",
@@ -591,6 +599,7 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
             });
           if (mensOrig > 0)
             parts.push({
+              label: "Abonnement mensuel",
               orig: mensOrig,
               eff: mensEff,
               prixSuffix: " / mois",
@@ -599,18 +608,13 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
 
           return (
             <View key={i} style={styles.prestaGroup}>
+              {/* Nom + description en tête du groupe (sur toute la largeur) */}
+              <Text style={styles.prestaNomText}>{p.nom}</Text>
+              {desc ? <Text style={styles.prestaDesc}>{desc}</Text> : null}
+
               {parts.map((part, idx) => (
                 <View key={idx} style={styles.tableRow}>
-                  <View style={styles.colNomCell}>
-                    {idx === 0 ? (
-                      <>
-                        <Text style={styles.prestaNomText}>{p.nom}</Text>
-                        {desc && (
-                          <Text style={styles.prestaDesc}>{desc}</Text>
-                        )}
-                      </>
-                    ) : null}
-                  </View>
+                  <Text style={styles.colLabel}>{part.label}</Text>
                   <Text style={styles.colQte}>{part.rowQte}</Text>
                   <Text style={styles.colPrix}>
                     {fmt(part.orig)}
