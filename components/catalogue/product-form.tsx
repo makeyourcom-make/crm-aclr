@@ -73,14 +73,13 @@ export function ProductForm({ initial, unitaires, categories }: ProductFormProps
   const [composantsIds, setComposantsIds] = useState<string[]>(initialComposants);
 
   const isPack = type === "PACK";
-  const isOneShot = type === "ONE_SHOT";
-  const isMensuel = type === "RECURRENT_MENSUEL";
-  const isAnnuel = type === "RECURRENT_ANNUEL";
 
-  // Le PACK peut avoir oneShot ET mensuel (rare mais possible)
-  const showOneShot = isOneShot || isPack;
-  const showMensuel = isMensuel || isPack;
-  const showAnnuel = isAnnuel;
+  // Tous les prix sont éditables : un produit peut combiner un frais unique
+  // (setup) ET un récurrent (abonnement) — ex. e-commerce 999.- + 49.-/mois.
+  // Le "Type" reste une simple classification, il ne bride plus la saisie.
+  const showOneShot = true;
+  const showMensuel = true;
+  const showAnnuel = true;
 
   const toggleComposant = (id: string) => {
     setComposantsIds((prev) =>
