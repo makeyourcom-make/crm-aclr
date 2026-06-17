@@ -121,6 +121,18 @@ enum ProductCategorie {
   PACK
 }
 
+/// Méta d'affichage d'une catégorie produit : permet de RENOMMER le libellé
+/// affiché (et de réordonner) sans toucher au code de l'enum (qui pilote des
+/// règles métier comme la commission ADS). Une ligne par code de catégorie.
+model ProductCategorieMeta {
+  code      String   @id // valeur de l'enum ProductCategorie (ex. "SITE")
+  label     String
+  ordre     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@map("product_categorie_meta")
+}
+
 enum ContractStatut {
   /// Contrat créé, en attente de signature électronique du client.
   ATTENTE_SIGNATURE_CLIENT

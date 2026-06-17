@@ -23,9 +23,11 @@ interface ProductsTableProps {
   products: Product[];
   /** Si true, ne montre QUE la colonne One-shot (pour les Packs) */
   layout?: "default" | "compact";
+  /** Libellés effectifs des catégories (renommés). */
+  categorieLabels?: Record<string, string>;
 }
 
-export function ProductsTable({ products }: ProductsTableProps) {
+export function ProductsTable({ products, categorieLabels }: ProductsTableProps) {
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card">
       <table className="w-full text-sm">
@@ -52,7 +54,13 @@ export function ProductsTable({ products }: ProductsTableProps) {
               </td>
             </tr>
           ) : (
-            products.map((p) => <ProductRow key={p.id} product={p} />)
+            products.map((p) => (
+              <ProductRow
+                key={p.id}
+                product={p}
+                categorieLabels={categorieLabels}
+              />
+            ))
           )}
         </tbody>
       </table>
@@ -60,7 +68,13 @@ export function ProductsTable({ products }: ProductsTableProps) {
   );
 }
 
-function ProductRow({ product: p }: { product: Product }) {
+function ProductRow({
+  product: p,
+  categorieLabels,
+}: {
+  product: Product;
+  categorieLabels?: Record<string, string>;
+}) {
   const [pending, startTransition] = useTransition();
 
   const handleToggle = () =>
@@ -114,7 +128,7 @@ function ProductRow({ product: p }: { product: Product }) {
         )}
       </td>
       <td className="px-3 py-2 text-xs text-muted-foreground">
-        {getProductCategorieLabel(p.categorie)}
+        {categorieLabels?.[p.categorie] ?? getProductCategorieLabel(p.categorie)}
       </td>
       <td className="px-3 py-2">
         <Badge variant="secondary" className="font-normal">

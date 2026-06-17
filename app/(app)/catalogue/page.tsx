@@ -6,8 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
+import { getCategorieLabels } from "@/lib/categories";
 import { formatCHF } from "@/lib/format";
-import { getProductCategorieLabel } from "@/lib/labels";
 import { getProducts } from "@/lib/queries/products";
 import { requireAdmin } from "@/lib/session";
 
@@ -16,7 +16,11 @@ export const dynamic = "force-dynamic";
 
 export default async function CataloguePage() {
   await requireAdmin();
-  const { unitaires, packs } = await getProducts();
+  const [{ unitaires, packs }, categorieLabels] = await Promise.all([
+    getProducts(),
+    getCategorieLabels(),
+  ]);
+  const catLabel = (c: string) => categorieLabels[c] ?? c;
 
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
@@ -24,13 +28,22 @@ export default async function CataloguePage() {
         title="Catalogue produits"
         description={`${unitaires.length} produit(s) unitaire(s) + ${packs.length} pack(s).`}
         actions={
-          <Link
-            href="/catalogue/nouveau"
-            className={buttonVariants({ variant: "default" })}
-          >
-            <Icon name="Package" className="mr-1.5 h-4 w-4" />
-            Nouveau produit
-          </Link>
+          <>
+            <Link
+              href="/catalogue/categories"
+              className={buttonVariants({ variant: "outline" })}
+            >
+              <Icon name="Tag" className="mr-1.5 h-4 w-4" />
+              Gérer les catégories
+            </Link>
+            <Link
+              href="/catalogue/nouveau"
+              className={buttonVariants({ variant: "default" })}
+            >
+              <Icon name="Package" className="mr-1.5 h-4 w-4" />
+              Nouveau produit
+            </Link>
+          </>
         }
       />
 
@@ -39,7 +52,7 @@ export default async function CataloguePage() {
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Produits unitaires
         </h2>
-        <ProductsTable products={unitaires} />
+        <ProductsTable products={unitaires} categorieLabels={categorieLabels} />
         <p className="mt-2 text-xs text-muted-foreground">
           💡 Clique sur un prix pour le modifier en place. Le toggle Actif/Inactif
           masque le produit des nouveaux deals sans le supprimer.
@@ -60,7 +73,7 @@ export default async function CataloguePage() {
           </Card>
         ) : (
           <div className="space-y-4">
-            <ProductsTable products={packs} />
+            <ProductsTable products={packs} categorieLabels={categorieLabels} />
 
             {/* Composition visuelle des packs */}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -70,7 +83,7 @@ export default async function CataloguePage() {
                     <CardTitle className="text-sm">
                       {p.nom}
                       <span className="ml-2 text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
-                        {getProductCategorieLabel(p.categorie)}
+                        {catLabel(p.categorie)}
                       </span>
                     </CardTitle>
                     {(p.prixOneShot || p.prixMensuel) && (

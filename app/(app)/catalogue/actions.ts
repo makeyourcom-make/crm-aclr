@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { Prisma } from "@prisma/client";
+import { Prisma, ProductCategorie } from "@prisma/client";
 
 import { z } from "zod";
 
@@ -235,4 +235,63 @@ function prismaErrorToResult(err: unknown): ProductActionResult {
   }
   console.error("[product action] erreur inattendue", err);
   return { ok: false, error: "Erreur serveur inattendue." };
+}
+
+// ===========================================================================
+// CATÉGORIES — renommage du libellé + réaffectation des produits
+// ===========================================================================
+
+const RenameCategorieSchema = z.object({
+  code: z.nativeEnum(ProductCategorie),
+  label: z.string().trim().min(1, "Nom requis.").max(60),
+});
+
+/** Renomme le LIBELLÉ affiché d'une catégorie (le code/enum reste inchangé). */
+export async function renameCategorieLabel(
+  input: unknown,
+): Promise<ProductActionResult> {
+  try {
+    await requireAdmin();
+    const parsed = RenameCategorieSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalide." };
+    }
+    await prisma.productCategorieMeta.upsert({
+      where: { code: parsed.data.code },
+      create: { code: parsed.data.code, label: parsed.data.label },
+      update: { label: parsed.data.label },
+    });
+    revalidatePath("/catalogue");
+    revalidatePath("/catalogue/categories");
+    return { ok: true };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
+}
+
+const SetProductCategorieSchema = z.object({
+  productId: z.string().min(1),
+  code: z.nativeEnum(ProductCategorie),
+});
+
+/** Réaffecte un produit à une autre catégorie. */
+export async function setProductCategorie(
+  input: unknown,
+): Promise<ProductActionResult> {
+  try {
+    await requireAdmin();
+    const parsed = SetProductCategorieSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalide." };
+    }
+    await prisma.product.update({
+      where: { id: parsed.data.productId },
+      data: { categorie: parsed.data.code },
+    });
+    revalidatePath("/catalogue");
+    revalidatePath("/catalogue/categories");
+    return { ok: true, productId: parsed.data.productId };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
 }
