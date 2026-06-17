@@ -48,6 +48,7 @@ export async function GET(
         // prix viennent de la fiche produit et peuvent diverger des totaux
         // figés du contrat ; les totaux en bas du PDF restent la référence.
         select: {
+          id: true,
           nom: true,
           description: true,
           prixOneShot: true,
@@ -90,6 +91,21 @@ export async function GET(
   const latestSignature = contract.signatures[0];
   const banner = resolveBanner();
 
+  // Métadonnées de ligne (prix d'origine / offert / remise) pour l'affichage
+  // "prix barré + mention" sur le PDF. Stockées sur contract.lignesMeta.
+  type LigneMeta = {
+    productId: string;
+    prixOneShotOriginal?: number | null;
+    prixMensuelOriginal?: number | null;
+    offert?: boolean;
+    remiseType?: "POURCENT" | "MONTANT" | null;
+    remiseValeur?: number | null;
+  };
+  const metaArr: LigneMeta[] = Array.isArray(contract.lignesMeta)
+    ? (contract.lignesMeta as unknown as LigneMeta[])
+    : [];
+  const metaByProduct = new Map(metaArr.map((m) => [m.productId, m]));
+
   const data: ContractPdfData = {
     numero: contract.numero,
     devise: contract.devise ?? "CHF",
@@ -125,12 +141,22 @@ export async function GET(
       numeroIDE: contract.prospect.numeroIDE ?? undefined,
       numeroTVA: contract.prospect.numeroTVA ?? undefined,
     },
-    produits: contract.products.map((p) => ({
-      nom: p.nom,
-      description: p.description,
-      prixOneShot: p.prixOneShot != null ? Number(p.prixOneShot) : null,
-      prixMensuel: p.prixMensuel != null ? Number(p.prixMensuel) : null,
-    })),
+    produits: contract.products.map((p) => {
+      const meta = metaByProduct.get(p.id);
+      return {
+        nom: p.nom,
+        description: p.description,
+        // Prix EFFECTIFS (portés par le produit) + prix d'ORIGINE via meta,
+        // pour afficher le prix barré + la mention "Offert" / "−X%".
+        prixOneShot: p.prixOneShot != null ? Number(p.prixOneShot) : null,
+        prixMensuel: p.prixMensuel != null ? Number(p.prixMensuel) : null,
+        prixOneShotOriginal: meta?.prixOneShotOriginal ?? null,
+        prixMensuelOriginal: meta?.prixMensuelOriginal ?? null,
+        offert: meta?.offert ?? false,
+        remiseType: meta?.remiseType ?? null,
+        remiseValeur: meta?.remiseValeur ?? null,
+      };
+    }),
     signature: latestSignature
       ? {
           nomClient: latestSignature.nomClient,

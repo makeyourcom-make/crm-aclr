@@ -68,8 +68,15 @@ export interface ContractPdfData {
   produits: Array<{
     nom: string;
     description?: string | null;
+    /** Prix EFFECTIFS (après offert / remise) réellement facturés. */
     prixOneShot?: number | null;
     prixMensuel?: number | null;
+    /** Prix d'ORIGINE (avant offert / remise) → affichage barré. */
+    prixOneShotOriginal?: number | null;
+    prixMensuelOriginal?: number | null;
+    offert?: boolean;
+    remiseType?: "POURCENT" | "MONTANT" | null;
+    remiseValeur?: number | null;
   }>;
   signature?: {
     nomClient?: string | null;
@@ -171,6 +178,15 @@ const styles = StyleSheet.create({
     width: "38%",
     textAlign: "right",
     fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+  },
+  prixBarre: {
+    textDecoration: "line-through",
+    color: c.muted,
+    fontFamily: "Helvetica",
+  },
+  prixMention: {
+    color: c.primary,
     fontFamily: "Helvetica-Bold",
   },
   totauxBlock: {
@@ -295,15 +311,106 @@ function cleanPrestaDescription(desc?: string | null): string {
  *   - frais unique→ "CHF 499.00"
  *   - aucun prix  → "" (produit inclus / sur-mesure sans tarif ligne)
  */
-function prestaPrixLabel(
-  p: { prixOneShot?: number | null; prixMensuel?: number | null },
-  fmt: (n: number | null | undefined) => string,
-): string {
-  const parts: string[] = [];
-  if (p.prixOneShot && p.prixOneShot > 0) parts.push(fmt(p.prixOneShot));
-  if (p.prixMensuel && p.prixMensuel > 0)
-    parts.push(`${fmt(p.prixMensuel)} / mois`);
-  return parts.join(" + ");
+/**
+ * Rend une part de prix (one-shot OU mensuel) : prix d'origine BARRÉ quand il
+ * y a une remise ou un "offert", suivi du prix effectif et de la mention.
+ */
+function PrestaPartPrice({
+  orig,
+  eff,
+  offert,
+  remiseLabel,
+  suffix,
+  fmt,
+}: {
+  orig: number;
+  eff: number;
+  offert: boolean;
+  remiseLabel: string | null;
+  suffix: string;
+  fmt: (n: number | null | undefined) => string;
+}) {
+  // Offert sur cette part : prix d'origine barré + "Offert".
+  if (offert && eff === 0 && orig > 0) {
+    return (
+      <Text>
+        <Text style={styles.prixBarre}>
+          {fmt(orig)}
+          {suffix}
+        </Text>{" "}
+        <Text style={styles.prixMention}>Offert</Text>
+      </Text>
+    );
+  }
+  // Remise sur cette part : prix d'origine barré + prix réduit + mention.
+  if (eff < orig) {
+    return (
+      <Text>
+        <Text style={styles.prixBarre}>
+          {fmt(orig)}
+          {suffix}
+        </Text>{" "}
+        {fmt(eff)}
+        {suffix}
+        {remiseLabel ? (
+          <Text style={styles.prixMention}> {remiseLabel}</Text>
+        ) : null}
+      </Text>
+    );
+  }
+  // Prix normal.
+  return (
+    <Text>
+      {fmt(eff)}
+      {suffix}
+    </Text>
+  );
+}
+
+function PrestaPrice({
+  p,
+  fmt,
+}: {
+  p: ContractPdfData["produits"][number];
+  fmt: (n: number | null | undefined) => string;
+}) {
+  const oneEff = p.prixOneShot ?? 0;
+  const oneOrig = p.prixOneShotOriginal ?? oneEff;
+  const mensEff = p.prixMensuel ?? 0;
+  const mensOrig = p.prixMensuelOriginal ?? mensEff;
+  const remiseLabel =
+    p.remiseType === "POURCENT" && p.remiseValeur
+      ? `-${p.remiseValeur}%`
+      : p.remiseType === "MONTANT" && p.remiseValeur
+        ? `-${fmt(p.remiseValeur)}`
+        : null;
+  const hasOne = oneOrig > 0;
+  const hasMens = mensOrig > 0;
+  return (
+    <Text style={styles.prestaPrix}>
+      {hasOne && (
+        <PrestaPartPrice
+          orig={oneOrig}
+          eff={oneEff}
+          offert={!!p.offert}
+          remiseLabel={remiseLabel}
+          suffix=""
+          fmt={fmt}
+        />
+      )}
+      {hasOne && hasMens ? <Text>{"  +  "}</Text> : null}
+      {hasMens && (
+        <PrestaPartPrice
+          orig={mensOrig}
+          eff={mensEff}
+          offert={!!p.offert}
+          remiseLabel={remiseLabel}
+          suffix=" / mois"
+          fmt={fmt}
+        />
+      )}
+    </Text>
+  );
 }
 
 export function ContractPdf({ data }: { data: ContractPdfData }) {
@@ -440,7 +547,6 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
 
         {data.produits.map((p, i) => {
           const desc = cleanPrestaDescription(p.description);
-          const prix = prestaPrixLabel(p, fmt);
           return (
             <View key={i} style={styles.tableRow}>
               <View style={styles.prestaNom}>
@@ -450,7 +556,7 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
                 </Text>
                 {desc && <Text style={styles.prestaDesc}>{desc}</Text>}
               </View>
-              <Text style={styles.prestaPrix}>{prix}</Text>
+              <PrestaPrice p={p} fmt={fmt} />
             </View>
           );
         })}
