@@ -311,11 +311,17 @@ function ProductRow({ product: p }: { product: ExplorerProduct }) {
       router.refresh();
     });
 
+  // Un prix nul OU égal à 0 n'est pas un vrai prix → on l'ignore (badge + affichage).
+  const realPrice = (s: string | null) => (s != null && Number(s) > 0 ? s : null);
+  const oneShot = realPrice(p.prixOneShot);
+  const mensuel = realPrice(p.prixMensuel);
+  const annuel = realPrice(p.prixAnnuel);
+
   // Le "type" affiché reflète les prix réellement renseignés (un produit
   // peut cumuler un frais unique ET un abonnement).
-  const hasOneShot = p.prixOneShot != null;
-  const hasMensuel = p.prixMensuel != null;
-  const hasAnnuel = p.prixAnnuel != null;
+  const hasOneShot = oneShot != null;
+  const hasMensuel = mensuel != null;
+  const hasAnnuel = annuel != null;
   const priceBadges: string[] = [];
   if (hasOneShot) priceBadges.push("One-shot");
   if (hasMensuel) priceBadges.push("Mensuel");
@@ -355,7 +361,7 @@ function ProductRow({ product: p }: { product: ExplorerProduct }) {
         <InlinePriceCell
           productId={p.id}
           field="prixOneShot"
-          value={p.prixOneShot}
+          value={oneShot}
           inactive={!hasOneShot}
         />
       </td>
@@ -363,7 +369,7 @@ function ProductRow({ product: p }: { product: ExplorerProduct }) {
         <InlinePriceCell
           productId={p.id}
           field="prixMensuel"
-          value={p.prixMensuel}
+          value={mensuel}
           inactive={!hasMensuel}
         />
       </td>
@@ -371,7 +377,7 @@ function ProductRow({ product: p }: { product: ExplorerProduct }) {
         <InlinePriceCell
           productId={p.id}
           field="prixAnnuel"
-          value={p.prixAnnuel}
+          value={annuel}
           inactive={!hasAnnuel}
         />
       </td>
