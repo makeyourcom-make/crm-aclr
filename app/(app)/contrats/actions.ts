@@ -1061,6 +1061,145 @@ export async function sendSignatureByEmail(
   };
 }
 
+/**
+ * Envoie par email le lien de signature d'un contrat DÉJÀ créé (depuis le
+ * wizard). Réutilise une demande de signature en cours ou en crée une, puis
+ * envoie/enregistre l'email au client (même logique que sendSignatureByEmail).
+ */
+export async function sendContractSignatureEmail(
+  contractId: string,
+): Promise<{ ok: boolean; error?: string; dryRun?: boolean }> {
+  const user = await requireUser();
+  const contract = await prisma.contract.findUnique({
+    where: { id: contractId },
+    select: {
+      id: true,
+      numero: true,
+      valeurAn1: true,
+      assigneAId: true,
+      prospect: {
+        select: {
+          id: true,
+          email: true,
+          contactPrenom: true,
+        },
+      },
+      signatures: {
+        where: { signeParClient: false },
+        select: { lienSignature: true, expireA: true },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
+    },
+  });
+  if (!contract) return { ok: false, error: "Contrat introuvable." };
+  if (user.role !== "ADMIN" && contract.assigneAId !== user.id) {
+    return { ok: false, error: "Accès refusé à ce contrat." };
+  }
+  if (!contract.prospect.email) {
+    return {
+      ok: false,
+      error:
+        "Pas d'email connu pour ce client. Ajoute-le sur sa fiche avant d'envoyer.",
+    };
+  }
+
+  // Réutilise une demande de signature valide, sinon en crée une.
+  const now = new Date();
+  let token =
+    contract.signatures.find((s) => s.expireA > now)?.lienSignature ?? null;
+  if (!token) {
+    const sig = await createSignatureRequest(contractId);
+    if (!sig.ok || !sig.lienSignature) {
+      return { ok: false, error: sig.error ?? "Échec de la demande de signature." };
+    }
+    token = sig.lienSignature;
+  }
+
+  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+  const signUrl = `${appUrl}/sign/${token}`;
+  const pdfUrl = `${appUrl}/api/contrats/${contractId}/pdf?token=${token}`;
+  const greeting = contract.prospect.contactPrenom
+    ? `Bonjour ${contract.prospect.contactPrenom},`
+    : "Bonjour,";
+  const objet = `Votre contrat ${contract.numero} — Make Your Com`;
+  const valeur = Number(contract.valeurAn1).toLocaleString("fr-CH");
+  const contenuTexte = [
+    greeting,
+    "",
+    `Merci pour notre échange. Vous trouverez ci-joint le récapitulatif de votre contrat (${contract.numero}, valeur 12 mois : CHF ${valeur}).`,
+    "",
+    "Pour le signer en ligne en 2 minutes :",
+    signUrl,
+    "",
+    "Vous pouvez aussi télécharger le PDF du contrat ici :",
+    pdfUrl,
+    "",
+    "Bien cordialement,",
+    user.name,
+    "ACLR Sàrl — Make Your Com",
+  ].join("\n");
+  const contenuHtml = `
+    <p>${greeting}</p>
+    <p>Merci pour notre échange. Vous trouverez ci-joint le récapitulatif de votre contrat <strong>${contract.numero}</strong> (valeur 12 mois : CHF ${valeur}).</p>
+    <p><strong>Pour le signer en ligne en 2 minutes :</strong><br>
+    <a href="${signUrl}" style="display:inline-block;background:#0E1936;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;margin-top:8px;">Signer le contrat ✍</a></p>
+    <p>Vous pouvez aussi <a href="${pdfUrl}">télécharger le PDF du contrat</a> pour le consulter, l'imprimer, le signer à la main et nous le renvoyer scanné par retour d'email.</p>
+    <p>Bien cordialement,<br>${user.name}<br><em>ACLR Sàrl — Make Your Com</em></p>
+  `;
+
+  const userFull = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { email: true, name: true },
+  });
+  const isDryRun = process.env.EMAIL_MODE !== "live";
+  const { randomBytes } = await import("node:crypto");
+  const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@aclr.ch>`;
+  const threadId = randomBytes(8).toString("hex");
+  if (isDryRun) {
+    console.log("📧 [DRY-RUN] Lien de signature envoyé", {
+      to: contract.prospect.email,
+      objet,
+      signUrl,
+    });
+  }
+
+  await prisma.email.create({
+    data: {
+      prospectId: contract.prospect.id,
+      userId: user.id,
+      direction: "SORTANT",
+      threadId,
+      messageId,
+      expediteurEmail: userFull?.email ?? "noreply@aclr.ch",
+      expediteurNom: userFull?.name ?? "",
+      destinataireEmail: contract.prospect.email,
+      objet,
+      contenuHtml,
+      contenuTexte,
+      statut: "ENVOYE",
+      envoyeLe: new Date(),
+      labels: ["signature"],
+    },
+  });
+  await prisma.activity.create({
+    data: {
+      prospectId: contract.prospect.id,
+      userId: user.id,
+      type: "EMAIL_ENVOYE",
+      date: new Date(),
+      sujet: `Lien de signature contrat ${contract.numero}`,
+      contenu: `Lien envoyé à ${contract.prospect.email}`,
+      statut: "FAIT",
+    },
+  });
+
+  revalidatePath("/emails");
+  revalidatePath(`/prospects/${contract.prospect.id}`);
+  revalidatePath(`/contrats/${contractId}`);
+  return { ok: true, dryRun: isDryRun };
+}
+
 // ===========================================================================
 // UPLOAD MANUEL DU CONTRAT SIGNÉ (PDF retourné par le client)
 // ===========================================================================

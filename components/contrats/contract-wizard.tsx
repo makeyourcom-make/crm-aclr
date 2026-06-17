@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { createCustomProduct } from "@/app/(app)/catalogue/actions";
 import {
   createContractFromDeal,
+  sendContractSignatureEmail,
   updateContract,
 } from "@/app/(app)/contrats/actions";
 import { createSignatureRequest } from "@/app/(app)/signatures/actions";
@@ -388,7 +389,7 @@ export function ContractWizard({
     lines.every((l) => l.productId !== "") &&
     Number(dureeMois) > 0;
 
-  const handleSubmit = (thenSign = false) => {
+  const handleSubmit = (mode: "save" | "sign" | "email" = "save") => {
     if (!canSubmit) {
       toast.error("Complète les sections en rouge.");
       return;
@@ -427,19 +428,35 @@ export function ContractWizard({
         return;
       }
 
-      // Option « Enregistrer + Signature » : on enchaîne sur la page de
-      // signature client (tablette / RDV) en créant la demande de signature.
-      if (thenSign && res.contractId) {
+      // Signer EN DIRECT : on enchaîne sur la page de signature client
+      // (tablette / RDV) en créant la demande de signature.
+      if (mode === "sign" && res.contractId) {
         const sig = await createSignatureRequest(res.contractId);
         if (sig.ok && sig.lienSignature) {
           toast.success("Contrat prêt — place à la signature client ✍️");
           router.push(`/sign/${sig.lienSignature}`);
           return;
         }
-        // Repli : si la demande échoue, on va sur la fiche contrat.
         toast.error(
           sig.error ?? "Contrat enregistré, mais la demande de signature a échoué.",
         );
+        router.push(`/contrats/${res.contractId}`);
+        router.refresh();
+        return;
+      }
+
+      // ENVOYER PAR MAIL : on envoie au client le lien de signature + le PDF.
+      if (mode === "email" && res.contractId) {
+        const mailRes = await sendContractSignatureEmail(res.contractId);
+        if (mailRes.ok) {
+          toast.success(
+            mailRes.dryRun
+              ? "Email de signature préparé (mode test) — visible dans Emails."
+              : "Email de signature envoyé au client ✉️",
+          );
+        } else {
+          toast.error(mailRes.error ?? "Échec de l'envoi de l'email.");
+        }
         router.push(`/contrats/${res.contractId}`);
         router.refresh();
         return;
@@ -833,30 +850,34 @@ export function ContractWizard({
             >
               Annuler
             </Button>
-            {/* Enregistrer : sauvegarde et renvoie sur la fiche du contrat
-                (on le retrouve dans le pipeline avec ses modifications). */}
+            {/* Enregistrer : sauvegarde et renvoie sur la fiche du contrat. */}
             <Button
               type="button"
               variant="outline"
-              onClick={() => handleSubmit(false)}
+              onClick={() => handleSubmit("save")}
               disabled={!canSubmit || pending}
             >
               <Icon name="Save" className="mr-1.5 h-4 w-4" />
-              {pending
-                ? "Enregistrement…"
-                : isEdit
-                  ? "Enregistrer"
-                  : "Enregistrer le contrat"}
+              {pending ? "…" : "Enregistrer"}
             </Button>
-            {/* Signature : enregistre puis ouvre la page de signature client
-                (tablette / RDV) pour enclencher la signature. */}
+            {/* Envoyer par mail : envoie au client le lien de signature + PDF. */}
             <Button
               type="button"
-              onClick={() => handleSubmit(true)}
+              variant="outline"
+              onClick={() => handleSubmit("email")}
+              disabled={!canSubmit || pending}
+            >
+              <Icon name="Mail" className="mr-1.5 h-4 w-4" />
+              {pending ? "…" : "Envoyer par mail"}
+            </Button>
+            {/* Signer en direct : ouvre la page de signature (tablette / RDV). */}
+            <Button
+              type="button"
+              onClick={() => handleSubmit("sign")}
               disabled={!canSubmit || pending}
             >
               <Icon name="PenLine" className="mr-1.5 h-4 w-4" />
-              {pending ? "…" : "Enregistrer + Signature client"}
+              {pending ? "…" : "Signer en direct"}
             </Button>
           </div>
         </CardContent>
