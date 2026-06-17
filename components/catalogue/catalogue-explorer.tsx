@@ -311,9 +311,16 @@ function ProductRow({ product: p }: { product: ExplorerProduct }) {
       router.refresh();
     });
 
-  const expectsOneShot = p.type === "ONE_SHOT" || p.type === "PACK";
-  const expectsMensuel = p.type === "RECURRENT_MENSUEL" || p.type === "PACK";
-  const expectsAnnuel = p.type === "RECURRENT_ANNUEL";
+  // Le "type" affiché reflète les prix réellement renseignés (un produit
+  // peut cumuler un frais unique ET un abonnement).
+  const hasOneShot = p.prixOneShot != null;
+  const hasMensuel = p.prixMensuel != null;
+  const hasAnnuel = p.prixAnnuel != null;
+  const priceBadges: string[] = [];
+  if (hasOneShot) priceBadges.push("One-shot");
+  if (hasMensuel) priceBadges.push("Mensuel");
+  if (hasAnnuel) priceBadges.push("Annuel");
+  if (priceBadges.length === 0) priceBadges.push(getProductTypeLabel(p.type as never));
 
   return (
     <tr
@@ -336,16 +343,20 @@ function ProductRow({ product: p }: { product: ExplorerProduct }) {
         )}
       </td>
       <td className="px-3 py-2">
-        <Badge variant="secondary" className="font-normal">
-          {getProductTypeLabel(p.type as never)}
-        </Badge>
+        <div className="flex flex-wrap gap-1">
+          {priceBadges.map((b) => (
+            <Badge key={b} variant="secondary" className="font-normal">
+              {b}
+            </Badge>
+          ))}
+        </div>
       </td>
       <td className="px-3 py-2 text-right">
         <InlinePriceCell
           productId={p.id}
           field="prixOneShot"
           value={p.prixOneShot}
-          inactive={!expectsOneShot}
+          inactive={!hasOneShot}
         />
       </td>
       <td className="px-3 py-2 text-right">
@@ -353,7 +364,7 @@ function ProductRow({ product: p }: { product: ExplorerProduct }) {
           productId={p.id}
           field="prixMensuel"
           value={p.prixMensuel}
-          inactive={!expectsMensuel}
+          inactive={!hasMensuel}
         />
       </td>
       <td className="px-3 py-2 text-right">
@@ -361,7 +372,7 @@ function ProductRow({ product: p }: { product: ExplorerProduct }) {
           productId={p.id}
           field="prixAnnuel"
           value={p.prixAnnuel}
-          inactive={!expectsAnnuel}
+          inactive={!hasAnnuel}
         />
       </td>
       <td className="px-3 py-2 text-center">
