@@ -98,7 +98,8 @@ export function ProductForm({ initial, unitaires }: ProductFormProps) {
 
     const payload = {
       nom: nom.trim(),
-      description: description.trim() || undefined,
+      // Toujours envoyée (même vide) → permet de modifier ET d'effacer.
+      description: description.trim(),
       type,
       categorie,
       prixOneShot: prixOneShot ? Number(prixOneShot) : undefined,

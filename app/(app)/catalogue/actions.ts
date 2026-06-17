@@ -121,13 +121,18 @@ export async function updateProduct(
 
   try {
     const { composantsIds, ...rest } = parsed.data;
-    await prisma.product.update({
-      where: { id },
-      data: {
-        ...rest,
-        ...(composantsIds !== undefined && { composantsIds }),
-      },
-    });
+    // La description doit pouvoir être MODIFIÉE comme EFFACÉE : le schéma
+    // transforme "" → undefined (donc ignoré par Prisma). On la lit en brut
+    // pour la forcer (chaîne ou null) dès qu'elle est présente dans l'envoi.
+    const raw = (input ?? {}) as Record<string, unknown>;
+    const data: Record<string, unknown> = { ...rest };
+    if ("description" in raw) {
+      const d = typeof raw.description === "string" ? raw.description.trim() : "";
+      data.description = d === "" ? null : d;
+    }
+    if (composantsIds !== undefined) data.composantsIds = composantsIds;
+
+    await prisma.product.update({ where: { id }, data });
     revalidatePath("/catalogue");
     revalidatePath(`/catalogue/${id}/modifier`);
     return { ok: true, productId: id };
