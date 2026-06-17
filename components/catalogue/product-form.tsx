@@ -37,15 +37,24 @@ interface ProductFormProps {
   unitaires: Pick<Product, "id" | "nom" | "type" | "isActive">[];
   /** Catégories disponibles (système + ajoutées). */
   categories: { code: string; label: string }[];
+  /** Type pré-sélectionné à la création (ex. PACK depuis « Nouveau pack »). */
+  defaultType?: ProductType;
 }
 
-export function ProductForm({ initial, unitaires, categories }: ProductFormProps) {
+export function ProductForm({
+  initial,
+  unitaires,
+  categories,
+  defaultType,
+}: ProductFormProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   const [nom, setNom] = useState(initial?.nom ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [type, setType] = useState<ProductType>(initial?.type ?? "ONE_SHOT");
+  const [type, setType] = useState<ProductType>(
+    initial?.type ?? defaultType ?? "ONE_SHOT",
+  );
   const [categorieCode, setCategorieCode] = useState<string>(
     initial?.categorieCode ?? initial?.categorie ?? categories[0]?.code ?? "SITE",
   );

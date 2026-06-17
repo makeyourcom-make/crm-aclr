@@ -9,18 +9,28 @@ import { requireAdmin } from "@/lib/session";
 
 export const metadata = { title: "Nouveau produit" };
 
-export default async function NewProductPage() {
+interface PageProps {
+  searchParams: Promise<{ type?: string }>;
+}
+
+export default async function NewProductPage({ searchParams }: PageProps) {
   await requireAdmin();
-  const [{ unitaires }, categories] = await Promise.all([
+  const [{ unitaires }, categories, { type }] = await Promise.all([
     getProducts(),
     getCategories(),
+    searchParams,
   ]);
+  const isPack = type === "PACK";
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-6 lg:px-8">
       <PageHeader
-        title="Nouveau produit"
-        description="Ajoute un produit unitaire ou un pack au catalogue."
+        title={isPack ? "Nouveau pack" : "Nouveau produit"}
+        description={
+          isPack
+            ? "Assemble plusieurs produits unitaires en une offre groupée."
+            : "Ajoute un produit unitaire ou un pack au catalogue."
+        }
         breadcrumb={
           <Link
             href="/catalogue"
@@ -39,6 +49,7 @@ export default async function NewProductPage() {
           isActive: u.isActive,
         }))}
         categories={categories.map((c) => ({ code: c.code, label: c.label }))}
+        defaultType={isPack ? "PACK" : undefined}
       />
     </div>
   );

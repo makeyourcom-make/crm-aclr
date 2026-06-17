@@ -46,13 +46,22 @@ export default async function CataloguePage() {
         title="Catalogue produits"
         description={`${unitaires.length} produit(s) unitaire(s) + ${packs.length} pack(s).`}
         actions={
-          <Link
-            href="/catalogue/nouveau"
-            className={buttonVariants({ variant: "default" })}
-          >
-            <Icon name="Package" className="mr-1.5 h-4 w-4" />
-            Nouveau produit
-          </Link>
+          <>
+            <Link
+              href="/catalogue/nouveau?type=PACK"
+              className={buttonVariants({ variant: "outline" })}
+            >
+              <Icon name="Package" className="mr-1.5 h-4 w-4" />
+              Nouveau pack
+            </Link>
+            <Link
+              href="/catalogue/nouveau"
+              className={buttonVariants({ variant: "default" })}
+            >
+              <Icon name="Package" className="mr-1.5 h-4 w-4" />
+              Nouveau produit
+            </Link>
+          </>
         }
       />
 
