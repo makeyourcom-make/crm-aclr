@@ -16,10 +16,11 @@ import { toast } from "sonner";
 import { createCustomProduct } from "@/app/(app)/catalogue/actions";
 import {
   createContractFromDeal,
-  sendContractSignatureEmail,
+  prepareContractEmail,
   updateContract,
 } from "@/app/(app)/contrats/actions";
 import { createSignatureRequest } from "@/app/(app)/signatures/actions";
+import { ContractEmailComposer } from "@/components/contrats/contract-email-composer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -230,6 +231,14 @@ export function ContractWizard({
   // Détails internes (commission, cascade) masqués par défaut : si on est
   // face client, il ne doit pas voir la commission. Dépliable au besoin.
   const [showInternal, setShowInternal] = useState(false);
+  // Éditeur d'email (ouvert après enregistrement quand on choisit "Envoyer
+  // par mail").
+  const [emailComposer, setEmailComposer] = useState<{
+    contractId: string;
+    to: string;
+    defaultSubject: string;
+    defaultBody: string;
+  } | null>(null);
   const [devise, setDevise] = useState<"AUTO" | "CHF" | "EUR">(
     initial?.devise ?? "AUTO",
   );
@@ -445,20 +454,16 @@ export function ContractWizard({
         return;
       }
 
-      // ENVOYER PAR MAIL : on envoie au client le lien de signature + le PDF.
+      // ENVOYER PAR MAIL : on ouvre l'éditeur de message (lien signature / PDF).
       if (mode === "email" && res.contractId) {
-        const mailRes = await sendContractSignatureEmail(res.contractId);
-        if (mailRes.ok) {
-          toast.success(
-            mailRes.dryRun
-              ? "Email de signature préparé (mode test) — visible dans Emails."
-              : "Email de signature envoyé au client ✉️",
-          );
+        const prep = await prepareContractEmail(res.contractId);
+        if (prep.ok && prep.data) {
+          setEmailComposer({ contractId: res.contractId, ...prep.data });
         } else {
-          toast.error(mailRes.error ?? "Échec de l'envoi de l'email.");
+          toast.error(prep.error ?? "Impossible de préparer l'email.");
+          router.push(`/contrats/${res.contractId}`);
+          router.refresh();
         }
-        router.push(`/contrats/${res.contractId}`);
-        router.refresh();
         return;
       }
 
@@ -882,6 +887,26 @@ export function ContractWizard({
           </div>
         </CardContent>
       </Card>
+
+      {/* Éditeur d'email (ouvert après "Envoyer par mail") */}
+      {emailComposer && (
+        <ContractEmailComposer
+          open={!!emailComposer}
+          onOpenChange={(o) => {
+            if (!o) setEmailComposer(null);
+          }}
+          contractId={emailComposer.contractId}
+          to={emailComposer.to}
+          defaultSubject={emailComposer.defaultSubject}
+          defaultBody={emailComposer.defaultBody}
+          onSent={() => {
+            const id = emailComposer.contractId;
+            setEmailComposer(null);
+            router.push(`/contrats/${id}`);
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }
