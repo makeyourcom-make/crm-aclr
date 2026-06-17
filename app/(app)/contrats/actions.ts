@@ -190,9 +190,11 @@ export async function createContractFromDeal(
     };
   });
 
-  // Métadonnées par ligne (offert / remise / prix d'origine) → affichage PDF.
+  // Métadonnées par ligne (offert / remise / prix d'origine / quantité) →
+  // affichage PDF (tableau en colonnes).
   const lignesMeta = linesEnriched.map((l) => ({
     productId: l.productId,
+    quantite: l.quantite,
     prixOneShotOriginal: l.baseOneShot,
     prixMensuelOriginal: l.baseMensuel,
     offert: l.offert,
@@ -536,6 +538,7 @@ export async function updateContract(
 
     const lignesMeta = linesEnriched.map((l) => ({
       productId: l.productId,
+      quantite: l.quantite,
       prixOneShotOriginal: l.baseOneShot,
       prixMensuelOriginal: l.baseMensuel,
       offert: l.offert,

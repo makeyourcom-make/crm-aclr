@@ -68,15 +68,15 @@ export interface ContractPdfData {
   produits: Array<{
     nom: string;
     description?: string | null;
-    /** Prix EFFECTIFS (après offert / remise) réellement facturés. */
+    quantite?: number | null;
+    /** Prix d'ORIGINE par unité (avant remise) — colonnes du tableau. */
     prixOneShot?: number | null;
     prixMensuel?: number | null;
-    /** Prix d'ORIGINE (avant offert / remise) → affichage barré. */
-    prixOneShotOriginal?: number | null;
-    prixMensuelOriginal?: number | null;
     offert?: boolean;
+    offertCible?: "ONESHOT" | "RECURRENT" | "DEUX" | null;
     remiseType?: "POURCENT" | "MONTANT" | null;
     remiseValeur?: number | null;
+    remiseCible?: "ONESHOT" | "RECURRENT" | "DEUX" | null;
   }>;
   signature?: {
     nomClient?: string | null;
@@ -172,42 +172,76 @@ const styles = StyleSheet.create({
   colNom: { width: "60%" },
   colOneShot: { width: "20%", textAlign: "right" },
   colMensuel: { width: "20%", textAlign: "right" },
-  prestaNom: { width: "56%", paddingRight: 12 },
   prestaNomText: { fontSize: 9 },
-  prestaDesc: { fontSize: 8, color: c.muted, marginTop: 1 },
-  prestaPrix: {
-    width: "38%",
+  prestaDesc: { fontSize: 7.5, color: c.muted, marginTop: 2, lineHeight: 1.3 },
+
+  // En-tête du tableau des prestations
+  tableHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: c.primary,
+    paddingBottom: 5,
+    paddingHorizontal: 4,
+    marginTop: 2,
+  },
+  // Cellules d'en-tête (gras, muet, majuscules)
+  colNomHead: {
+    width: "42%",
+    fontSize: 7,
+    fontFamily: "Helvetica-Bold",
+    color: c.muted,
+    textTransform: "uppercase",
+  },
+  colQteHead: {
+    width: "10%",
+    textAlign: "center",
+    fontSize: 7,
+    fontFamily: "Helvetica-Bold",
+    color: c.muted,
+    textTransform: "uppercase",
+  },
+  colPrixHead: {
+    width: "17%",
+    textAlign: "right",
+    fontSize: 7,
+    fontFamily: "Helvetica-Bold",
+    color: c.muted,
+    textTransform: "uppercase",
+  },
+  colReductionHead: {
+    width: "14%",
+    textAlign: "right",
+    fontSize: 7,
+    fontFamily: "Helvetica-Bold",
+    color: c.muted,
+    textTransform: "uppercase",
+  },
+  // Cellules de corps
+  colNomCell: { width: "42%", paddingRight: 8 },
+  colQte: { width: "10%", textAlign: "center", fontSize: 9 },
+  colPrix: {
+    width: "17%",
     textAlign: "right",
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
-  },
-  // Bloc prix d'une prestation, présenté en colonne (aligné à droite).
-  prestaPrixCol: {
-    width: "44%",
-    flexDirection: "column",
-    alignItems: "flex-end",
-  },
-  prixBlock: { alignItems: "flex-end", marginBottom: 8 },
-  prixOrigBarre: {
-    fontSize: 8,
-    color: c.muted,
-    textDecoration: "line-through",
-    fontFamily: "Helvetica",
-    marginBottom: 3,
-  },
-  prixLine: { flexDirection: "row", alignItems: "center" },
-  prixEff: {
-    fontSize: 9.5,
-    fontFamily: "Helvetica-Bold",
     color: c.primary,
   },
+  colReduction: { width: "14%", alignItems: "flex-end" },
+  cellMuted: { fontSize: 9, color: c.muted },
+  cibleText: {
+    fontSize: 6.5,
+    color: c.muted,
+    marginTop: 2,
+    textAlign: "right",
+  },
   badge: {
-    marginLeft: 6,
     backgroundColor: "#E2E8F0",
     borderRadius: 4,
     paddingHorizontal: 5,
     paddingVertical: 2,
   },
+  badgeRemise: { backgroundColor: "#FEF3C7" },
   badgeText: {
     fontSize: 7.5,
     fontFamily: "Helvetica-Bold",
@@ -337,117 +371,61 @@ function cleanPrestaDescription(desc?: string | null): string {
  *   - frais unique→ "CHF 499.00"
  *   - aucun prix  → "" (produit inclus / sur-mesure sans tarif ligne)
  */
-/**
- * Bloc prix d'une part (one-shot OU mensuel), sur sa propre ligne :
- *  - normal  → prix simple
- *  - remise  → prix d'origine BARRÉ au-dessus, prix réduit + pastille "−X%"
- *  - offert  → prix d'origine BARRÉ au-dessus, pastille "OFFERT"
- */
-function PriceBlock({
-  orig,
-  eff,
-  offert,
-  remiseLabel,
-  suffix,
-  fmt,
-}: {
-  orig: number;
-  eff: number;
-  offert: boolean;
-  remiseLabel: string | null;
-  suffix: string;
-  fmt: (n: number | null | undefined) => string;
-}) {
-  const isOffert = offert && eff === 0 && orig > 0;
-  const isReduced = !isOffert && eff < orig;
-
-  if (isOffert) {
-    return (
-      <View style={styles.prixBlock}>
-        <Text style={styles.prixOrigBarre}>
-          {fmt(orig)}
-          {suffix}
-        </Text>
-        <View style={[styles.badge, styles.badgeOffert]}>
-          <Text style={[styles.badgeText, styles.badgeTextOffert]}>OFFERT</Text>
-        </View>
-      </View>
-    );
-  }
-
-  if (isReduced) {
-    return (
-      <View style={styles.prixBlock}>
-        <Text style={styles.prixOrigBarre}>
-          {fmt(orig)}
-          {suffix}
-        </Text>
-        <View style={styles.prixLine}>
-          <Text style={styles.prixEff}>
-            {fmt(eff)}
-            {suffix}
-          </Text>
-          {remiseLabel ? (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{remiseLabel}</Text>
-            </View>
-          ) : null}
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.prixBlock}>
-      <Text style={styles.prixEff}>
-        {fmt(eff)}
-        {suffix}
-      </Text>
-    </View>
-  );
+/** Libellé de la cible d'une remise / d'un offert. */
+function cibleLabel(c?: "ONESHOT" | "RECURRENT" | "DEUX" | null): string {
+  return c === "ONESHOT"
+    ? "sur le prix unique"
+    : c === "RECURRENT"
+      ? "sur le mensuel"
+      : "";
 }
 
-function PrestaPrice({
+/** Cellule "Réduction" du tableau : Offert / −X% / −X CHF (+ cible), ou —. */
+function ReductionCell({
   p,
   fmt,
 }: {
   p: ContractPdfData["produits"][number];
   fmt: (n: number | null | undefined) => string;
 }) {
-  const oneEff = p.prixOneShot ?? 0;
-  const oneOrig = p.prixOneShotOriginal ?? oneEff;
-  const mensEff = p.prixMensuel ?? 0;
-  const mensOrig = p.prixMensuelOriginal ?? mensEff;
-  const remiseLabel =
-    p.remiseType === "POURCENT" && p.remiseValeur
-      ? `-${p.remiseValeur}%`
-      : p.remiseType === "MONTANT" && p.remiseValeur
-        ? `-${fmt(p.remiseValeur)}`
-        : null;
-  const hasOne = oneOrig > 0;
-  const hasMens = mensOrig > 0;
+  let label: string | null = null;
+  let cible = "";
+  let offert = false;
+  if (p.offert) {
+    label = "Offert";
+    cible = cibleLabel(p.offertCible);
+    offert = true;
+  } else if (p.remiseType === "POURCENT" && p.remiseValeur) {
+    label = `−${p.remiseValeur}%`;
+    cible = cibleLabel(p.remiseCible);
+  } else if (p.remiseType === "MONTANT" && p.remiseValeur) {
+    label = `−${fmt(p.remiseValeur)}`;
+    cible = cibleLabel(p.remiseCible);
+  }
+
+  if (!label) {
+    return (
+      <View style={styles.colReduction}>
+        <Text style={styles.cellMuted}>—</Text>
+      </View>
+    );
+  }
   return (
-    <View style={styles.prestaPrixCol}>
-      {hasOne && (
-        <PriceBlock
-          orig={oneOrig}
-          eff={oneEff}
-          offert={!!p.offert}
-          remiseLabel={remiseLabel}
-          suffix=""
-          fmt={fmt}
-        />
-      )}
-      {hasMens && (
-        <PriceBlock
-          orig={mensOrig}
-          eff={mensEff}
-          offert={!!p.offert}
-          remiseLabel={remiseLabel}
-          suffix=" / mois"
-          fmt={fmt}
-        />
-      )}
+    <View style={styles.colReduction}>
+      <View
+        style={[styles.badge, offert ? styles.badgeOffert : styles.badgeRemise]}
+      >
+        <Text
+          style={
+            offert
+              ? [styles.badgeText, styles.badgeTextOffert]
+              : styles.badgeText
+          }
+        >
+          {offert ? "OFFERT" : label}
+        </Text>
+      </View>
+      {cible ? <Text style={styles.cibleText}>{cible}</Text> : null}
     </View>
   );
 }
@@ -584,18 +562,33 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
 
         <Text style={styles.sectionTitle}>Prestations</Text>
 
+        {/* En-tête du tableau */}
+        <View style={styles.tableHead}>
+          <Text style={styles.colNomHead}>Prestation</Text>
+          <Text style={styles.colQteHead}>Qté</Text>
+          <Text style={styles.colPrixHead}>Prix unique</Text>
+          <Text style={styles.colPrixHead}>Prix mensuel</Text>
+          <Text style={styles.colReductionHead}>Réduction</Text>
+        </View>
+
         {data.produits.map((p, i) => {
           const desc = cleanPrestaDescription(p.description);
           return (
             <View key={i} style={styles.tableRow}>
-              <View style={styles.prestaNom}>
-                <Text style={styles.prestaNomText}>
-                  {"• "}
-                  {p.nom}
-                </Text>
+              <View style={styles.colNomCell}>
+                <Text style={styles.prestaNomText}>{p.nom}</Text>
                 {desc && <Text style={styles.prestaDesc}>{desc}</Text>}
               </View>
-              <PrestaPrice p={p} fmt={fmt} />
+              <Text style={styles.colQte}>{p.quantite ?? 1}</Text>
+              <Text style={styles.colPrix}>
+                {p.prixOneShot && p.prixOneShot > 0 ? fmt(p.prixOneShot) : "—"}
+              </Text>
+              <Text style={styles.colPrix}>
+                {p.prixMensuel && p.prixMensuel > 0
+                  ? `${fmt(p.prixMensuel)} / mois`
+                  : "—"}
+              </Text>
+              <ReductionCell p={p} fmt={fmt} />
             </View>
           );
         })}

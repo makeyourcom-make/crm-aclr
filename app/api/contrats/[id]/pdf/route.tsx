@@ -93,13 +93,17 @@ export async function GET(
 
   // Métadonnées de ligne (prix d'origine / offert / remise) pour l'affichage
   // "prix barré + mention" sur le PDF. Stockées sur contract.lignesMeta.
+  type Cible = "ONESHOT" | "RECURRENT" | "DEUX" | null;
   type LigneMeta = {
     productId: string;
+    quantite?: number | null;
     prixOneShotOriginal?: number | null;
     prixMensuelOriginal?: number | null;
     offert?: boolean;
+    offertCible?: Cible;
     remiseType?: "POURCENT" | "MONTANT" | null;
     remiseValeur?: number | null;
+    remiseCible?: Cible;
   };
   const metaArr: LigneMeta[] = Array.isArray(contract.lignesMeta)
     ? (contract.lignesMeta as unknown as LigneMeta[])
@@ -143,18 +147,21 @@ export async function GET(
     },
     produits: contract.products.map((p) => {
       const meta = metaByProduct.get(p.id);
+      // Prix d'ORIGINE pour les colonnes (avant remise) ; à défaut de meta
+      // (anciens contrats), on reprend le prix effectif porté par le produit.
+      const effOne = p.prixOneShot != null ? Number(p.prixOneShot) : null;
+      const effMens = p.prixMensuel != null ? Number(p.prixMensuel) : null;
       return {
         nom: p.nom,
         description: p.description,
-        // Prix EFFECTIFS (portés par le produit) + prix d'ORIGINE via meta,
-        // pour afficher le prix barré + la mention "Offert" / "−X%".
-        prixOneShot: p.prixOneShot != null ? Number(p.prixOneShot) : null,
-        prixMensuel: p.prixMensuel != null ? Number(p.prixMensuel) : null,
-        prixOneShotOriginal: meta?.prixOneShotOriginal ?? null,
-        prixMensuelOriginal: meta?.prixMensuelOriginal ?? null,
+        quantite: meta?.quantite ?? 1,
+        prixOneShot: meta?.prixOneShotOriginal ?? effOne,
+        prixMensuel: meta?.prixMensuelOriginal ?? effMens,
         offert: meta?.offert ?? false,
+        offertCible: meta?.offertCible ?? null,
         remiseType: meta?.remiseType ?? null,
         remiseValeur: meta?.remiseValeur ?? null,
+        remiseCible: meta?.remiseCible ?? null,
       };
     }),
     signature: latestSignature
