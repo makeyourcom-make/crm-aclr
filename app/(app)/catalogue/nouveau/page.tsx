@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { ProductForm } from "@/components/catalogue/product-form";
+import { getCategories } from "@/lib/categories";
 import { getProducts } from "@/lib/queries/products";
 import { requireAdmin } from "@/lib/session";
 
@@ -10,7 +11,10 @@ export const metadata = { title: "Nouveau produit" };
 
 export default async function NewProductPage() {
   await requireAdmin();
-  const { unitaires } = await getProducts();
+  const [{ unitaires }, categories] = await Promise.all([
+    getProducts(),
+    getCategories(),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-6 lg:px-8">
@@ -33,6 +37,7 @@ export default async function NewProductPage() {
           nom: u.nom,
           type: u.type,
         }))}
+        categories={categories.map((c) => ({ code: c.code, label: c.label }))}
       />
     </div>
   );

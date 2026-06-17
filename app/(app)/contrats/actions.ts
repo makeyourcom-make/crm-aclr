@@ -173,7 +173,7 @@ export async function createContractFromDeal(
     const nom = note ? `${prod.nom} — ${note}` : prod.nom;
     return {
       productId: line.productId,
-      categorie: prod.categorie, // utilisé pour la règle commission ADS
+      categorie: prod.categorieCode ?? prod.categorie, // règle commission ADS (catégorie effective)
       nom,
       quantite: line.quantite,
       oneShotUnit,
@@ -502,7 +502,7 @@ export async function updateContract(
       const nom = note ? `${prod.nom} — ${note}` : prod.nom;
       return {
         productId: line.productId,
-        categorie: prod.categorie,
+        categorie: prod.categorieCode ?? prod.categorie,
         nom,
         quantite: line.quantite,
         oneShotUnit,

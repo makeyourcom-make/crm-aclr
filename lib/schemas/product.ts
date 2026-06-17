@@ -27,7 +27,10 @@ export const ProductCreateSchema = z.object({
     .max(255),
   description: stringOptional,
   type: z.nativeEnum(ProductType),
+  /** Catégorie legacy (enum) — pilote la commission ADS. */
   categorie: z.nativeEnum(ProductCategorie),
+  /** Catégorie effective (code libre) — peut être une catégorie ajoutée. */
+  categorieCode: z.string().min(1).optional(),
   prixOneShot: prixOptional,
   prixMensuel: prixOptional,
   prixAnnuel: prixOptional,

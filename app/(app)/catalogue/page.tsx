@@ -83,7 +83,7 @@ export default async function CataloguePage() {
                     <CardTitle className="text-sm">
                       {p.nom}
                       <span className="ml-2 text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
-                        {catLabel(p.categorie)}
+                        {catLabel(p.categorieCode ?? p.categorie)}
                       </span>
                     </CardTitle>
                     {(p.prixOneShot || p.prixMensuel) && (

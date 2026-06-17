@@ -3,7 +3,7 @@ import Link from "next/link";
 import { CategoriesManager } from "@/components/catalogue/categories-manager";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
-import { CATEGORIE_CODES, getCategorieLabels } from "@/lib/categories";
+import { getCategories } from "@/lib/categories";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 
@@ -13,21 +13,31 @@ export const dynamic = "force-dynamic";
 export default async function CategoriesPage() {
   await requireAdmin();
 
-  const [labels, products] = await Promise.all([
-    getCategorieLabels(),
+  const [cats, products] = await Promise.all([
+    getCategories(),
     prisma.product.findMany({
-      select: { id: true, nom: true, categorie: true, isActive: true },
+      select: {
+        id: true,
+        nom: true,
+        categorie: true,
+        categorieCode: true,
+        isActive: true,
+      },
       orderBy: { nom: "asc" },
     }),
   ]);
 
-  const categories = CATEGORIE_CODES.map((code) => {
+  const codeOf = (p: { categorie: string; categorieCode: string | null }) =>
+    p.categorieCode ?? p.categorie;
+
+  const categories = cats.map((cat) => {
     const items = products
-      .filter((p) => p.categorie === code)
+      .filter((p) => codeOf(p) === cat.code)
       .map((p) => ({ id: p.id, nom: p.nom, isActive: p.isActive }));
     return {
-      code,
-      label: labels[code] ?? code,
+      code: cat.code,
+      label: cat.label,
+      systeme: cat.systeme,
       count: items.length,
       products: items,
     };

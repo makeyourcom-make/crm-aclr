@@ -128,7 +128,8 @@ function ProductRow({
         )}
       </td>
       <td className="px-3 py-2 text-xs text-muted-foreground">
-        {categorieLabels?.[p.categorie] ?? getProductCategorieLabel(p.categorie)}
+        {categorieLabels?.[p.categorieCode ?? p.categorie] ??
+          getProductCategorieLabel(p.categorie)}
       </td>
       <td className="px-3 py-2">
         <Badge variant="secondary" className="font-normal">

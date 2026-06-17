@@ -20,31 +20,34 @@ const TYPE_OPTIONS: { value: ProductType; label: string }[] = [
   { value: "PACK", label: "Pack" },
 ];
 
-const CATEGORIE_OPTIONS: { value: ProductCategorie; label: string }[] = [
-  { value: "SITE", label: "Site web" },
-  { value: "RS", label: "Réseaux sociaux" },
-  { value: "SEO", label: "SEO" },
-  { value: "ADS", label: "Ads" },
-  { value: "CMO", label: "CMO fractionné" },
-  { value: "METRICOOL", label: "Metricool" },
-  { value: "PACK", label: "Pack" },
-];
+/** Codes des catégories système (alignent l'enum legacy). */
+const SYSTEM_CODES = new Set([
+  "SITE",
+  "RS",
+  "SEO",
+  "ADS",
+  "CMO",
+  "METRICOOL",
+  "PACK",
+]);
 
 interface ProductFormProps {
   initial?: Product;
   /** Liste des produits unitaires disponibles pour composer un pack. */
   unitaires: Pick<Product, "id" | "nom" | "type">[];
+  /** Catégories disponibles (système + ajoutées). */
+  categories: { code: string; label: string }[];
 }
 
-export function ProductForm({ initial, unitaires }: ProductFormProps) {
+export function ProductForm({ initial, unitaires, categories }: ProductFormProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   const [nom, setNom] = useState(initial?.nom ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [type, setType] = useState<ProductType>(initial?.type ?? "ONE_SHOT");
-  const [categorie, setCategorie] = useState<ProductCategorie>(
-    initial?.categorie ?? "SITE",
+  const [categorieCode, setCategorieCode] = useState<string>(
+    initial?.categorieCode ?? initial?.categorie ?? categories[0]?.code ?? "SITE",
   );
   const [prixOneShot, setPrixOneShot] = useState(
     initial?.prixOneShot?.toString() ?? "",
@@ -101,7 +104,12 @@ export function ProductForm({ initial, unitaires }: ProductFormProps) {
       // Toujours envoyée (même vide) → permet de modifier ET d'effacer.
       description: description.trim(),
       type,
-      categorie,
+      // categorieCode = vraie catégorie ; categorie (enum legacy) = le code si
+      // système, sinon "SITE" (valeur vestigiale, non-ADS, requise par la BD).
+      categorieCode,
+      categorie: (SYSTEM_CODES.has(categorieCode)
+        ? categorieCode
+        : "SITE") as ProductCategorie,
       prixOneShot: prixOneShot ? Number(prixOneShot) : undefined,
       prixMensuel: prixMensuel ? Number(prixMensuel) : undefined,
       prixAnnuel: prixAnnuel ? Number(prixAnnuel) : undefined,
@@ -189,18 +197,19 @@ export function ProductForm({ initial, unitaires }: ProductFormProps) {
             <Label htmlFor="categorie">Catégorie</Label>
             <select
               id="categorie"
-              value={categorie}
-              onChange={(e) =>
-                setCategorie(e.target.value as ProductCategorie)
-              }
+              value={categorieCode}
+              onChange={(e) => setCategorieCode(e.target.value)}
               className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
             >
-              {CATEGORIE_OPTIONS.map((c) => (
-                <option key={c.value} value={c.value}>
+              {categories.map((c) => (
+                <option key={c.code} value={c.code}>
                   {c.label}
                 </option>
               ))}
             </select>
+            <p className="text-[11px] text-muted-foreground">
+              Gère les catégories depuis Catalogue → « Gérer les catégories ».
+            </p>
           </div>
         </CardContent>
       </Card>

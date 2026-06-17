@@ -2,8 +2,8 @@ import { ProductCategorie } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 
-/** Tous les codes de catégorie (ordre par défaut). */
-export const CATEGORIE_CODES: ProductCategorie[] = [
+/** Codes des catégories SYSTÈME (liées à l'enum, pilotent la commission ADS). */
+export const SYSTEM_CATEGORIE_CODES: ProductCategorie[] = [
   "SITE",
   "RS",
   "SEO",
@@ -13,8 +13,8 @@ export const CATEGORIE_CODES: ProductCategorie[] = [
   "PACK",
 ];
 
-/** Libellés par défaut (utilisés si aucun renommage en base). */
-export const DEFAULT_CATEGORIE_LABELS: Record<ProductCategorie, string> = {
+/** Libellés par défaut des catégories système (repli si rien en base). */
+export const DEFAULT_CATEGORIE_LABELS: Record<string, string> = {
   SITE: "Site web",
   RS: "Réseaux sociaux",
   SEO: "Référencement",
@@ -24,13 +24,39 @@ export const DEFAULT_CATEGORIE_LABELS: Record<ProductCategorie, string> = {
   PACK: "Pack",
 };
 
-/**
- * Libellés EFFECTIFS des catégories : défauts surchargés par les renommages
- * stockés en base (ProductCategorieMeta). À appeler côté serveur.
- */
+export interface Categorie {
+  code: string;
+  label: string;
+  ordre: number;
+  systeme: boolean;
+}
+
+/** Toutes les catégories (système + ajoutées), triées. Côté serveur. */
+export async function getCategories(): Promise<Categorie[]> {
+  const rows = await prisma.productCategorieMeta.findMany({
+    orderBy: [{ systeme: "desc" }, { ordre: "asc" }, { label: "asc" }],
+  });
+  if (rows.length === 0) {
+    // Repli défensif (avant seed) : renvoie les catégories système par défaut.
+    return SYSTEM_CATEGORIE_CODES.map((code, i) => ({
+      code,
+      label: DEFAULT_CATEGORIE_LABELS[code] ?? code,
+      ordre: i,
+      systeme: true,
+    }));
+  }
+  return rows.map((r) => ({
+    code: r.code,
+    label: r.label,
+    ordre: r.ordre,
+    systeme: r.systeme,
+  }));
+}
+
+/** Map code → libellé (toutes catégories). Côté serveur. */
 export async function getCategorieLabels(): Promise<Record<string, string>> {
-  const overrides = await prisma.productCategorieMeta.findMany();
+  const cats = await getCategories();
   const map: Record<string, string> = { ...DEFAULT_CATEGORIE_LABELS };
-  for (const o of overrides) map[o.code] = o.label;
+  for (const c of cats) map[c.code] = c.label;
   return map;
 }

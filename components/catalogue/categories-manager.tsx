@@ -5,6 +5,8 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
+  createCategorie,
+  deleteCategorie,
   renameCategorieLabel,
   setProductCategorie,
 } from "@/app/(app)/catalogue/actions";
@@ -21,6 +23,7 @@ interface CatProduct {
 interface Category {
   code: string;
   label: string;
+  systeme: boolean;
   count: number;
   products: CatProduct[];
 }
@@ -30,8 +33,46 @@ export function CategoriesManager({
 }: {
   categories: Category[];
 }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [newLabel, setNewLabel] = useState("");
+
+  const handleCreate = () => {
+    if (newLabel.trim().length < 2) {
+      toast.error("Donne un nom à la catégorie.");
+      return;
+    }
+    startTransition(async () => {
+      const res = await createCategorie({ label: newLabel.trim() });
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success(`Catégorie « ${newLabel.trim()} » créée ✓`);
+      setNewLabel("");
+      router.refresh();
+    });
+  };
+
   return (
     <div className="mt-4 space-y-3">
+      {/* Ajouter une catégorie */}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3">
+        <Icon name="Plus" className="h-4 w-4 text-primary" />
+        <Input
+          value={newLabel}
+          onChange={(e) => setNewLabel(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleCreate();
+          }}
+          placeholder="Nom d'une nouvelle catégorie…"
+          className="h-9 max-w-xs"
+        />
+        <Button type="button" size="sm" onClick={handleCreate} disabled={pending}>
+          Ajouter la catégorie
+        </Button>
+      </div>
+
       {categories.map((cat) => (
         <CategoryCard key={cat.code} cat={cat} allCategories={categories} />
       ))}
@@ -77,6 +118,19 @@ function CategoryCard({
     });
   };
 
+  const handleDelete = () => {
+    if (!confirm(`Supprimer la catégorie « ${cat.label} » ?`)) return;
+    startTransition(async () => {
+      const res = await deleteCategorie(cat.code);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success("Catégorie supprimée ✓");
+      router.refresh();
+    });
+  };
+
   return (
     <Card>
       <CardContent className="space-y-3">
@@ -84,6 +138,11 @@ function CategoryCard({
           <span className="rounded bg-muted px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
             {cat.code}
           </span>
+          {cat.systeme && (
+            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-medium uppercase text-blue-700">
+              système
+            </span>
+          )}
           <Input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
@@ -102,6 +161,17 @@ function CategoryCard({
           <span className="text-sm text-muted-foreground">
             {cat.count} produit{cat.count > 1 ? "s" : ""}
           </span>
+          {!cat.systeme && cat.count === 0 && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={pending}
+              className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+              title="Supprimer cette catégorie"
+            >
+              <Icon name="Trash2" className="h-3.5 w-3.5" />
+            </button>
+          )}
           {cat.count > 0 && (
             <button
               type="button"

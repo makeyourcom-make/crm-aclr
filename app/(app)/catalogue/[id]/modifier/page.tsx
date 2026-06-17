@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { ProductForm } from "@/components/catalogue/product-form";
+import { getCategories } from "@/lib/categories";
 import { getProductById, getProducts } from "@/lib/queries/products";
 import { requireAdmin } from "@/lib/session";
 
@@ -16,9 +17,10 @@ export const metadata = { title: "Modifier produit" };
 export default async function EditProductPage({ params }: PageProps) {
   await requireAdmin();
   const { id } = await params;
-  const [product, { unitaires }] = await Promise.all([
+  const [product, { unitaires }, categories] = await Promise.all([
     getProductById(id),
     getProducts(),
+    getCategories(),
   ]);
 
   if (!product) notFound();
@@ -42,6 +44,7 @@ export default async function EditProductPage({ params }: PageProps) {
         unitaires={unitaires
           .filter((u) => u.id !== product.id)
           .map((u) => ({ id: u.id, nom: u.nom, type: u.type }))}
+        categories={categories.map((c) => ({ code: c.code, label: c.label }))}
       />
     </div>
   );

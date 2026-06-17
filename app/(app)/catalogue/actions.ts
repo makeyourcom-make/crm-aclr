@@ -246,12 +246,14 @@ function prismaErrorToResult(err: unknown): ProductActionResult {
 // CATÉGORIES — renommage du libellé + réaffectation des produits
 // ===========================================================================
 
+const SYSTEM_CODES = new Set(Object.values(ProductCategorie) as string[]);
+
 const RenameCategorieSchema = z.object({
-  code: z.nativeEnum(ProductCategorie),
+  code: z.string().min(1),
   label: z.string().trim().min(1, "Nom requis.").max(60),
 });
 
-/** Renomme le LIBELLÉ affiché d'une catégorie (le code/enum reste inchangé). */
+/** Renomme le LIBELLÉ affiché d'une catégorie (le code reste inchangé). */
 export async function renameCategorieLabel(
   input: unknown,
 ): Promise<ProductActionResult> {
@@ -261,11 +263,92 @@ export async function renameCategorieLabel(
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalide." };
     }
-    await prisma.productCategorieMeta.upsert({
+    await prisma.productCategorieMeta.update({
       where: { code: parsed.data.code },
-      create: { code: parsed.data.code, label: parsed.data.label },
-      update: { label: parsed.data.label },
+      data: { label: parsed.data.label },
     });
+    revalidatePath("/catalogue");
+    revalidatePath("/catalogue/categories");
+    return { ok: true };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
+}
+
+/** Génère un code unique à partir d'un libellé (slug majuscule). */
+async function genCategorieCode(label: string): Promise<string> {
+  const base =
+    label
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 24) || "CAT";
+  let code = base;
+  let n = 1;
+  // Assure l'unicité.
+  while (await prisma.productCategorieMeta.findUnique({ where: { code } })) {
+    code = `${base}_${n++}`;
+  }
+  return code;
+}
+
+const CreateCategorieSchema = z.object({
+  label: z.string().trim().min(1, "Nom requis.").max(60),
+});
+
+/** Crée une nouvelle catégorie (non-système, supprimable). */
+export async function createCategorie(
+  input: unknown,
+): Promise<ProductActionResult & { code?: string }> {
+  try {
+    await requireAdmin();
+    const parsed = CreateCategorieSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalide." };
+    }
+    const code = await genCategorieCode(parsed.data.label);
+    const max = await prisma.productCategorieMeta.aggregate({
+      _max: { ordre: true },
+    });
+    await prisma.productCategorieMeta.create({
+      data: {
+        code,
+        label: parsed.data.label,
+        ordre: (max._max.ordre ?? 0) + 1,
+        systeme: false,
+      },
+    });
+    revalidatePath("/catalogue");
+    revalidatePath("/catalogue/categories");
+    return { ok: true, code };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
+}
+
+/** Supprime une catégorie ajoutée (jamais une catégorie système), si vide. */
+export async function deleteCategorie(
+  code: string,
+): Promise<ProductActionResult> {
+  try {
+    await requireAdmin();
+    const cat = await prisma.productCategorieMeta.findUnique({
+      where: { code },
+    });
+    if (!cat) return { ok: false, error: "Catégorie introuvable." };
+    if (cat.systeme) {
+      return { ok: false, error: "Les catégories système ne sont pas supprimables." };
+    }
+    const used = await prisma.product.count({ where: { categorieCode: code } });
+    if (used > 0) {
+      return {
+        ok: false,
+        error: `${used} produit(s) utilisent encore cette catégorie. Réaffecte-les d'abord.`,
+      };
+    }
+    await prisma.productCategorieMeta.delete({ where: { code } });
     revalidatePath("/catalogue");
     revalidatePath("/catalogue/categories");
     return { ok: true };
@@ -276,10 +359,10 @@ export async function renameCategorieLabel(
 
 const SetProductCategorieSchema = z.object({
   productId: z.string().min(1),
-  code: z.nativeEnum(ProductCategorie),
+  code: z.string().min(1),
 });
 
-/** Réaffecte un produit à une autre catégorie. */
+/** Réaffecte un produit à une autre catégorie (système ou ajoutée). */
 export async function setProductCategorie(
   input: unknown,
 ): Promise<ProductActionResult> {
@@ -289,9 +372,15 @@ export async function setProductCategorie(
     if (!parsed.success) {
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalide." };
     }
+    // categorieCode = source de vérité. L'enum `categorie` (legacy, requis)
+    // est aligné si le code est un code système, sinon laissé tel quel.
+    const data: Record<string, unknown> = { categorieCode: parsed.data.code };
+    if (SYSTEM_CODES.has(parsed.data.code)) {
+      data.categorie = parsed.data.code;
+    }
     await prisma.product.update({
       where: { id: parsed.data.productId },
-      data: { categorie: parsed.data.code },
+      data,
     });
     revalidatePath("/catalogue");
     revalidatePath("/catalogue/categories");

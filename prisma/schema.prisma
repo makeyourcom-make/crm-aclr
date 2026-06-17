@@ -125,9 +125,12 @@ enum ProductCategorie {
 /// affiché (et de réordonner) sans toucher au code de l'enum (qui pilote des
 /// règles métier comme la commission ADS). Une ligne par code de catégorie.
 model ProductCategorieMeta {
-  code      String   @id // valeur de l'enum ProductCategorie (ex. "SITE")
+  code      String   @id // code de la catégorie (ex. "SITE" ou un code libre)
   label     String
   ordre     Int      @default(0)
+  /// true = catégorie SYSTÈME (les 7 d'origine, liées à l'enum). false =
+  /// catégorie ajoutée librement par l'utilisateur (supprimable).
+  systeme   Boolean  @default(false)
   updatedAt DateTime @updatedAt
 
   @@map("product_categorie_meta")
@@ -840,7 +843,13 @@ model Product {
   description String? @db.Text
 
   type      ProductType
+  /// Catégorie LEGACY (enum) — conservée car elle pilote la règle de commission
+  /// ADS. Reste la valeur "système" pour les 7 catégories d'origine.
   categorie ProductCategorie
+  /// Catégorie EFFECTIVE (code texte) — source de vérité pour l'affichage et le
+  /// regroupement. Permet d'ajouter des catégories libres au-delà de l'enum.
+  /// Backfill = valeur de `categorie`. Voir ProductCategorieMeta.
+  categorieCode String?
 
   prixOneShot Decimal? @db.Decimal(12, 2)
   prixMensuel Decimal? @db.Decimal(12, 2)
