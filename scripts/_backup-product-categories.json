@@ -1,0 +1,287 @@
+[
+ {
+  "id": "cmppd1pdc0002uarox54x009i",
+  "nom": "Site web simple",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmppd1ph60005uaroznuioocu",
+  "nom": "SEO local — basique",
+  "categorie": "SEO"
+ },
+ {
+  "id": "cmppd1pin0007uaroo6rx79ph",
+  "nom": "CMO fractionné — basique",
+  "categorie": "CMO"
+ },
+ {
+  "id": "cmppd1pjl0008uarozljspn0q",
+  "nom": "Licence Metricool",
+  "categorie": "METRICOOL"
+ },
+ {
+  "id": "cmq0s1tq90006uaegrcgd9go3",
+  "nom": "Option : Module abonnement récurrent",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmq0s1u8q000huaegjjpld68e",
+  "nom": "Gestion Ads — Budget 2 500 CHF/mois",
+  "categorie": "ADS"
+ },
+ {
+  "id": "cmppd1pfl0004uarok0jxhofz",
+  "nom": "Gestion réseaux sociaux — basique",
+  "categorie": "RS"
+ },
+ {
+  "id": "cmpvnrc1y0000jr046j2lzbox",
+  "nom": "Site Internet",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmq0s1thf0001uaegqea1e486",
+  "nom": "Site E-commerce sur mesure",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmq0s1ttk0008uaegtqc5fswx",
+  "nom": "Option — Support prioritaire 7j/7",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmq0s1tv90009uaegkz1awg75",
+  "nom": "Référencement Naturel Complet",
+  "categorie": "SEO"
+ },
+ {
+  "id": "cmq0s1tyn000buaeg9kyn9ka5",
+  "nom": "Option — SEO multilingue",
+  "categorie": "SEO"
+ },
+ {
+  "id": "cmq0s1u0a000cuaegczr30ngm",
+  "nom": "Audit SEO ponctuel one-shot",
+  "categorie": "SEO"
+ },
+ {
+  "id": "cmq0s1u23000duaegyin2tl83",
+  "nom": "Setup Google Ads (création initiale)",
+  "categorie": "ADS"
+ },
+ {
+  "id": "cmq0s1u3q000euaegln15zefq",
+  "nom": "Gestion Ads — Budget 150 CHF/mois",
+  "categorie": "ADS"
+ },
+ {
+  "id": "cmq0s1u5e000fuaeg1b3uj0a6",
+  "nom": "Gestion Ads — Budget 500 CHF/mois",
+  "categorie": "ADS"
+ },
+ {
+  "id": "cmq0s1u73000guaegc0vtpvq6",
+  "nom": "Gestion Ads — Budget 1 000 CHF/mois",
+  "categorie": "ADS"
+ },
+ {
+  "id": "cmq0s1uby000juaegbx4mz24t",
+  "nom": "Social Media — Niveau 1 BASE",
+  "categorie": "RS"
+ },
+ {
+  "id": "cmq0s1udl000kuaeg22r9ihym",
+  "nom": "Social Media — Niveau 2 STANDARD",
+  "categorie": "RS"
+ },
+ {
+  "id": "cmppd1pnc000buaros2x847zm",
+  "nom": "Pack Gestion",
+  "categorie": "PACK"
+ },
+ {
+  "id": "cmppd1pos000cuarouxrtukw7",
+  "nom": "Pack CMO Plus",
+  "categorie": "PACK"
+ },
+ {
+  "id": "cmq0s1te10000uaeg8r4m4zld",
+  "nom": "Site Vitrine sur mesure",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmq0s1twz000auaegt7iiwkif",
+  "nom": "Référencement et Suivi",
+  "categorie": "SEO"
+ },
+ {
+  "id": "cmppd1pev0003uaroxe4he4x3",
+  "nom": "Site web haut de gamme",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmq0s1toi0005uaeg24c0u65f",
+  "nom": "Option : Import catalogue automatisé",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmq0s1tl30003uaeg8azarkgv",
+  "nom": "Option : Langue supplémentaire",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmq0s1trs0007uaegaprt3zui",
+  "nom": "Option : Programme fidélité",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmq0s1tj90002uaeg3dexxoru",
+  "nom": "Site CRM Entreprise sur mesure",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmq0s1uf7000luaegdciusudw",
+  "nom": "Social Media — Niveau 3 GROWTH",
+  "categorie": "RS"
+ },
+ {
+  "id": "cmq0s1ugw000muaegatc2hmoy",
+  "nom": "Social Media — Niveau 4 PREMIUM",
+  "categorie": "RS"
+ },
+ {
+  "id": "cmq0s1uim000nuaeg18tf8ex5",
+  "nom": "Social Media — Niveau 5 EXPERT",
+  "categorie": "RS"
+ },
+ {
+  "id": "cmq0s1ukc000ouaegitgb3zh2",
+  "nom": "Option — Production Reels semi-pro",
+  "categorie": "RS"
+ },
+ {
+  "id": "cmq0s1um1000puaeg0inzac4s",
+  "nom": "CMO externalisé — Light",
+  "categorie": "CMO"
+ },
+ {
+  "id": "cmq0s1uny000quaegun7nxs1s",
+  "nom": "CMO externalisé — Standard",
+  "categorie": "CMO"
+ },
+ {
+  "id": "cmq0s1upq000ruaegvirb68dh",
+  "nom": "CMO externalisé — Premium",
+  "categorie": "CMO"
+ },
+ {
+  "id": "cmq0s1urf000suaegqiwwykfw",
+  "nom": "CMO externalisé — Full",
+  "categorie": "CMO"
+ },
+ {
+  "id": "cmppd1pl60009uaro1jkzvflg",
+  "nom": "Pack Web",
+  "categorie": "PACK"
+ },
+ {
+  "id": "cmppd1pmm000auarorbk6nzem",
+  "nom": "Pack Web Complet",
+  "categorie": "PACK"
+ },
+ {
+  "id": "cmq0s1v2f000tuaegbnjcfhz0",
+  "nom": "Pack Visibilité",
+  "categorie": "PACK"
+ },
+ {
+  "id": "cmppd1ppi000duarobqa1razs",
+  "nom": "Pack Premium",
+  "categorie": "PACK"
+ },
+ {
+  "id": "cmq0s1vee000uuaeg1cnk5z12",
+  "nom": "Pack E-commerce",
+  "categorie": "PACK"
+ },
+ {
+  "id": "cmq0s1vhp000vuaegsw142etz",
+  "nom": "Pack E-commerce Plus",
+  "categorie": "PACK"
+ },
+ {
+  "id": "cmq0ta4ii0000l104v45jzb7h",
+  "nom": "Test",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmq0s1uac000iuaegxluwc03k",
+  "nom": "Gestion Ads — Gros budget (5 000+ CHF/mois)",
+  "categorie": "ADS"
+ },
+ {
+  "id": "cmq7w4x390000ji5oobc67zqn",
+  "nom": "Site internet sur-mesure",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmq7w4xcn0001ji5oh2lravwf",
+  "nom": "Suivi et référencement",
+  "categorie": "SEO"
+ },
+ {
+  "id": "cmqfinkaq0000l704jznejqso",
+  "nom": "SEO",
+  "categorie": "SEO"
+ },
+ {
+  "id": "cmqfiqufu0000jo05irbxb0fl",
+  "nom": "Creation Campagne",
+  "categorie": "ADS"
+ },
+ {
+  "id": "cmqfjriwy0000l404ey5uqbp2",
+  "nom": "Serge",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmqfjudul0001l404txvg3wk1",
+  "nom": "SEO",
+  "categorie": "SEO"
+ },
+ {
+  "id": "cmqfjur3n0002l404bsqdexqb",
+  "nom": "Modifications barre menu",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmqfjv9av0000l404o9bjmbap",
+  "nom": "Investissement de base",
+  "categorie": "ADS"
+ },
+ {
+  "id": "cmqfjz1is0001l404goyys9pz",
+  "nom": "Set Up Google Ads ( 400 CHF initial OFFERT )",
+  "categorie": "SITE"
+ },
+ {
+  "id": "cmqfk5ox90002l404o2hqap1x",
+  "nom": "Création de la campagne Google ADS",
+  "categorie": "ADS"
+ },
+ {
+  "id": "cmqfk6yd90000ld049uaydk5s",
+  "nom": "Gestion et Budget Campagne Google ADS",
+  "categorie": "ADS"
+ },
+ {
+  "id": "cmqfkd9qw0000ie04zvoy3y62",
+  "nom": "Création de la Campagne Google ADS : Valeur 400 -.",
+  "categorie": "ADS"
+ },
+ {
+  "id": "cmq7ow1ql0000ky04ok8nz3ik",
+  "nom": "Site Internet sur-mesure",
+  "categorie": "SITE"
+ }
+]
