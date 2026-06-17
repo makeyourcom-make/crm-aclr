@@ -1,14 +1,12 @@
 import Link from "next/link";
 
 import { CatalogueExplorer } from "@/components/catalogue/catalogue-explorer";
-import { PackComposition } from "@/components/catalogue/pack-composition";
 import { ProductsTable } from "@/components/catalogue/products-table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { getCategories, getCategorieLabels } from "@/lib/categories";
-import { formatCHF } from "@/lib/format";
 import { getProducts } from "@/lib/queries/products";
 import { requireAdmin } from "@/lib/session";
 
@@ -22,7 +20,6 @@ export default async function CataloguePage() {
     getCategories(),
     getCategorieLabels(),
   ]);
-  const catLabel = (c: string) => categorieLabels[c] ?? c;
 
   // Sérialise les unitaires pour la vue accordéon (prix Decimal → string)
   const explorerProducts = unitaires.map((p) => ({
@@ -91,37 +88,7 @@ export default async function CataloguePage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
-            <ProductsTable products={packs} categorieLabels={categorieLabels} />
-
-            {/* Composition visuelle des packs */}
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {packs.map((p) => (
-                <Card key={p.id} className="overflow-hidden">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">
-                      {p.nom}
-                      <span className="ml-2 text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
-                        {catLabel(p.categorieCode ?? p.categorie)}
-                      </span>
-                    </CardTitle>
-                    {(p.prixOneShot || p.prixMensuel) && (
-                      <p className="text-xs text-muted-foreground tabular-nums">
-                        {p.prixOneShot &&
-                          `${formatCHF(Number(p.prixOneShot))} one-shot`}
-                        {p.prixOneShot && p.prixMensuel && " + "}
-                        {p.prixMensuel &&
-                          `${formatCHF(Number(p.prixMensuel))}/mois`}
-                      </p>
-                    )}
-                  </CardHeader>
-                  <CardContent>
-                    <PackComposition composantsIds={p.composantsIds} />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
+          <ProductsTable products={packs} categorieLabels={categorieLabels} />
         )}
       </section>
     </div>
