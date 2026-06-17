@@ -69,14 +69,15 @@ export interface ContractPdfData {
     nom: string;
     description?: string | null;
     quantite?: number | null;
-    /** Prix d'ORIGINE par unité (avant remise) — colonnes du tableau. */
+    /** Prix d'ORIGINE par unité (avant remise) — colonne "Prix". */
     prixOneShot?: number | null;
     prixMensuel?: number | null;
+    /** Prix EFFECTIF par unité (après remise / offert) — colonne "Total". */
+    prixOneShotEff?: number | null;
+    prixMensuelEff?: number | null;
     offert?: boolean;
-    offertCible?: "ONESHOT" | "RECURRENT" | "DEUX" | null;
     remiseType?: "POURCENT" | "MONTANT" | null;
     remiseValeur?: number | null;
-    remiseCible?: "ONESHOT" | "RECURRENT" | "DEUX" | null;
   }>;
   signature?: {
     nomClient?: string | null;
@@ -161,13 +162,18 @@ const styles = StyleSheet.create({
     color: c.muted,
     textTransform: "uppercase",
   },
-  tableRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingVertical: 10,
-    paddingHorizontal: 4,
+  // Un "groupe prestation" = nom + 1-2 lignes (one-shot / mensuel).
+  prestaGroup: {
+    flexDirection: "column",
+    paddingVertical: 6,
     borderBottomWidth: 0.5,
     borderBottomColor: c.border,
+  },
+  tableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 3,
+    paddingHorizontal: 4,
   },
   colNom: { width: "60%" },
   colOneShot: { width: "20%", textAlign: "right" },
@@ -187,14 +193,14 @@ const styles = StyleSheet.create({
   },
   // Cellules d'en-tête (gras, muet, majuscules)
   colNomHead: {
-    width: "42%",
+    width: "40%",
     fontSize: 7,
     fontFamily: "Helvetica-Bold",
     color: c.muted,
     textTransform: "uppercase",
   },
   colQteHead: {
-    width: "10%",
+    width: "8%",
     textAlign: "center",
     fontSize: 7,
     fontFamily: "Helvetica-Bold",
@@ -202,7 +208,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   colPrixHead: {
-    width: "17%",
+    width: "18%",
     textAlign: "right",
     fontSize: 7,
     fontFamily: "Helvetica-Bold",
@@ -217,23 +223,30 @@ const styles = StyleSheet.create({
     color: c.muted,
     textTransform: "uppercase",
   },
+  colTotalHead: {
+    width: "20%",
+    textAlign: "right",
+    fontSize: 7,
+    fontFamily: "Helvetica-Bold",
+    color: c.muted,
+    textTransform: "uppercase",
+  },
   // Cellules de corps
-  colNomCell: { width: "42%", paddingRight: 8 },
-  colQte: { width: "10%", textAlign: "center", fontSize: 9 },
+  colNomCell: { width: "40%", paddingRight: 8 },
+  colQte: { width: "8%", textAlign: "center", fontSize: 9, color: c.muted },
   colPrix: {
-    width: "17%",
+    width: "18%",
     textAlign: "right",
     fontSize: 9,
-    fontFamily: "Helvetica-Bold",
-    color: c.primary,
+    color: c.muted,
   },
   colReduction: { width: "14%", alignItems: "flex-end" },
-  cellMuted: { fontSize: 9, color: c.muted },
-  cibleText: {
-    fontSize: 6.5,
-    color: c.muted,
-    marginTop: 2,
+  colTotal: {
+    width: "20%",
     textAlign: "right",
+    fontSize: 9.5,
+    fontFamily: "Helvetica-Bold",
+    color: c.primary,
   },
   badge: {
     backgroundColor: "#E2E8F0",
@@ -371,61 +384,41 @@ function cleanPrestaDescription(desc?: string | null): string {
  *   - frais unique→ "CHF 499.00"
  *   - aucun prix  → "" (produit inclus / sur-mesure sans tarif ligne)
  */
-/** Libellé de la cible d'une remise / d'un offert. */
-function cibleLabel(c?: "ONESHOT" | "RECURRENT" | "DEUX" | null): string {
-  return c === "ONESHOT"
-    ? "sur le prix unique"
-    : c === "RECURRENT"
-      ? "sur le mensuel"
-      : "";
+/** Libellé court de la remise d'une ligne (−X% ou −X CHF), ou null. */
+function remiseLabelOf(
+  p: ContractPdfData["produits"][number],
+  fmt: (n: number | null | undefined) => string,
+): string | null {
+  if (p.remiseType === "POURCENT" && p.remiseValeur) return `−${p.remiseValeur}%`;
+  if (p.remiseType === "MONTANT" && p.remiseValeur) return `−${fmt(p.remiseValeur)}`;
+  return null;
 }
 
-/** Cellule "Réduction" du tableau : Offert / −X% / −X CHF (+ cible), ou —. */
-function ReductionCell({
-  p,
-  fmt,
+/** Pastille de réduction pour UNE part — affichée seulement si réduction. */
+function ReductionBadge({
+  orig,
+  eff,
+  offert,
+  remiseLabel,
 }: {
-  p: ContractPdfData["produits"][number];
-  fmt: (n: number | null | undefined) => string;
+  orig: number;
+  eff: number;
+  offert: boolean;
+  remiseLabel: string | null;
 }) {
-  let label: string | null = null;
-  let cible = "";
-  let offert = false;
-  if (p.offert) {
-    label = "Offert";
-    cible = cibleLabel(p.offertCible);
-    offert = true;
-  } else if (p.remiseType === "POURCENT" && p.remiseValeur) {
-    label = `−${p.remiseValeur}%`;
-    cible = cibleLabel(p.remiseCible);
-  } else if (p.remiseType === "MONTANT" && p.remiseValeur) {
-    label = `−${fmt(p.remiseValeur)}`;
-    cible = cibleLabel(p.remiseCible);
-  }
-
-  if (!label) {
-    return (
-      <View style={styles.colReduction}>
-        <Text style={styles.cellMuted}>—</Text>
-      </View>
-    );
-  }
+  if (eff >= orig) return null; // pas de réduction sur cette part
+  const isOffert = offert && eff === 0;
   return (
-    <View style={styles.colReduction}>
-      <View
-        style={[styles.badge, offert ? styles.badgeOffert : styles.badgeRemise]}
+    <View
+      style={[styles.badge, isOffert ? styles.badgeOffert : styles.badgeRemise]}
+    >
+      <Text
+        style={
+          isOffert ? [styles.badgeText, styles.badgeTextOffert] : styles.badgeText
+        }
       >
-        <Text
-          style={
-            offert
-              ? [styles.badgeText, styles.badgeTextOffert]
-              : styles.badgeText
-          }
-        >
-          {offert ? "OFFERT" : label}
-        </Text>
-      </View>
-      {cible ? <Text style={styles.cibleText}>{cible}</Text> : null}
+        {isOffert ? "OFFERT" : (remiseLabel ?? "Remise")}
+      </Text>
     </View>
   );
 }
@@ -566,29 +559,59 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
         <View style={styles.tableHead}>
           <Text style={styles.colNomHead}>Prestation</Text>
           <Text style={styles.colQteHead}>Qté</Text>
-          <Text style={styles.colPrixHead}>Prix unique</Text>
-          <Text style={styles.colPrixHead}>Prix mensuel</Text>
+          <Text style={styles.colPrixHead}>Prix</Text>
           <Text style={styles.colReductionHead}>Réduction</Text>
+          <Text style={styles.colTotalHead}>Total</Text>
         </View>
 
         {data.produits.map((p, i) => {
           const desc = cleanPrestaDescription(p.description);
+          const qte = p.quantite ?? 1;
+          const remiseLabel = remiseLabelOf(p, fmt);
+          // Une part par type de prix présent (one-shot et/ou mensuel).
+          const parts: Array<{ orig: number; eff: number; suffix: string }> = [];
+          const oneOrig = p.prixOneShot ?? 0;
+          const oneEff = p.prixOneShotEff ?? oneOrig;
+          const mensOrig = p.prixMensuel ?? 0;
+          const mensEff = p.prixMensuelEff ?? mensOrig;
+          if (oneOrig > 0)
+            parts.push({ orig: oneOrig, eff: oneEff, suffix: "" });
+          if (mensOrig > 0)
+            parts.push({ orig: mensOrig, eff: mensEff, suffix: " / mois" });
+
           return (
-            <View key={i} style={styles.tableRow}>
-              <View style={styles.colNomCell}>
-                <Text style={styles.prestaNomText}>{p.nom}</Text>
-                {desc && <Text style={styles.prestaDesc}>{desc}</Text>}
-              </View>
-              <Text style={styles.colQte}>{p.quantite ?? 1}</Text>
-              <Text style={styles.colPrix}>
-                {p.prixOneShot && p.prixOneShot > 0 ? fmt(p.prixOneShot) : "—"}
-              </Text>
-              <Text style={styles.colPrix}>
-                {p.prixMensuel && p.prixMensuel > 0
-                  ? `${fmt(p.prixMensuel)} / mois`
-                  : "—"}
-              </Text>
-              <ReductionCell p={p} fmt={fmt} />
+            <View key={i} style={styles.prestaGroup}>
+              {parts.map((part, idx) => (
+                <View key={idx} style={styles.tableRow}>
+                  <View style={styles.colNomCell}>
+                    {idx === 0 ? (
+                      <>
+                        <Text style={styles.prestaNomText}>{p.nom}</Text>
+                        {desc && (
+                          <Text style={styles.prestaDesc}>{desc}</Text>
+                        )}
+                      </>
+                    ) : null}
+                  </View>
+                  <Text style={styles.colQte}>{idx === 0 ? qte : ""}</Text>
+                  <Text style={styles.colPrix}>
+                    {fmt(part.orig)}
+                    {part.suffix}
+                  </Text>
+                  <View style={styles.colReduction}>
+                    <ReductionBadge
+                      orig={part.orig}
+                      eff={part.eff}
+                      offert={!!p.offert}
+                      remiseLabel={remiseLabel}
+                    />
+                  </View>
+                  <Text style={styles.colTotal}>
+                    {fmt(part.eff * qte)}
+                    {part.suffix}
+                  </Text>
+                </View>
+              ))}
             </View>
           );
         })}

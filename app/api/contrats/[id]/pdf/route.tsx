@@ -155,13 +155,15 @@ export async function GET(
         nom: p.nom,
         description: p.description,
         quantite: meta?.quantite ?? 1,
+        // Prix d'ORIGINE (colonne "Prix") + prix EFFECTIF par part (colonne
+        // "Total", = ce qui est facturé après remise/offert).
         prixOneShot: meta?.prixOneShotOriginal ?? effOne,
         prixMensuel: meta?.prixMensuelOriginal ?? effMens,
+        prixOneShotEff: effOne,
+        prixMensuelEff: effMens,
         offert: meta?.offert ?? false,
-        offertCible: meta?.offertCible ?? null,
         remiseType: meta?.remiseType ?? null,
         remiseValeur: meta?.remiseValeur ?? null,
-        remiseCible: meta?.remiseCible ?? null,
       };
     }),
     signature: latestSignature
