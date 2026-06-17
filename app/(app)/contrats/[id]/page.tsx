@@ -82,6 +82,24 @@ export default async function ContractDetailPage({ params }: PageProps) {
 
   const commission = contract.commissions[0]; // 1 commission par contrat
 
+  // Prix par ligne PROPRES au contrat (lignesMeta) — pas le prix catalogue.
+  const lignesMetaArr = Array.isArray(contract.lignesMeta)
+    ? (contract.lignesMeta as unknown as Array<{
+        productId: string;
+        prixOneShotOriginal?: number | null;
+        prixMensuelOriginal?: number | null;
+      }>)
+    : [];
+  const prixLigneByProduct = new Map(
+    lignesMetaArr.map((m) => [
+      m.productId,
+      {
+        oneShot: m.prixOneShotOriginal ?? null,
+        mensuel: m.prixMensuelOriginal ?? null,
+      },
+    ]),
+  );
+
   return (
     <div className="mx-auto max-w-5xl px-6 py-6 lg:px-8">
       <PageHeader
@@ -291,21 +309,28 @@ export default async function ContractDetailPage({ params }: PageProps) {
             <p className="text-sm text-muted-foreground">Aucun produit lié.</p>
           ) : (
             <ul className="space-y-1.5">
-              {contract.products.map((p) => (
-                <li
-                  key={p.id}
-                  className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2 text-sm"
-                >
-                  <span>{p.nom}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {p.prixOneShot &&
-                      `${formatCHF(Number(p.prixOneShot))} one-shot`}
-                    {p.prixOneShot && p.prixMensuel && " · "}
-                    {p.prixMensuel &&
-                      `${formatCHF(Number(p.prixMensuel))}/mois`}
-                  </span>
-                </li>
-              ))}
+              {contract.products.map((p) => {
+                const ligne = prixLigneByProduct.get(p.id);
+                const oneShot =
+                  ligne?.oneShot ??
+                  (p.prixOneShot != null ? Number(p.prixOneShot) : null);
+                const mensuel =
+                  ligne?.mensuel ??
+                  (p.prixMensuel != null ? Number(p.prixMensuel) : null);
+                return (
+                  <li
+                    key={p.id}
+                    className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2 text-sm"
+                  >
+                    <span>{p.nom}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {oneShot ? `${formatCHF(oneShot)} one-shot` : ""}
+                      {oneShot && mensuel ? " · " : ""}
+                      {mensuel ? `${formatCHF(mensuel)}/mois` : ""}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CardContent>

@@ -110,6 +110,34 @@ export async function GET(
     : [];
   const metaByProduct = new Map(metaArr.map((m) => [m.productId, m]));
 
+  // Prix EFFECTIF par part (après offert / remise + cible) — calculé depuis
+  // les méta du CONTRAT, jamais depuis le produit du catalogue (qui garde son
+  // prix de base, propre à un autre contrat).
+  const effectivePart = (
+    base: number,
+    part: "ONESHOT" | "RECURRENT",
+    m?: LigneMeta,
+  ): number => {
+    if (!m) return base;
+    if (m.offert) {
+      const c = m.offertCible ?? "DEUX";
+      if (part === "ONESHOT" && c !== "RECURRENT") return 0;
+      if (part === "RECURRENT" && c !== "ONESHOT") return 0;
+      return base;
+    }
+    const r = m.remiseValeur ?? 0;
+    if (m.remiseType && r > 0) {
+      const c = m.remiseCible ?? "DEUX";
+      const applies =
+        (part === "ONESHOT" && c !== "RECURRENT") ||
+        (part === "RECURRENT" && c !== "ONESHOT");
+      if (!applies) return base;
+      if (m.remiseType === "POURCENT") return base * Math.max(0, 1 - r / 100);
+      return Math.max(0, base - r);
+    }
+    return base;
+  };
+
   const data: ContractPdfData = {
     numero: contract.numero,
     devise: contract.devise ?? "CHF",
@@ -147,20 +175,22 @@ export async function GET(
     },
     produits: contract.products.map((p) => {
       const meta = metaByProduct.get(p.id);
-      // Prix d'ORIGINE pour les colonnes (avant remise) ; à défaut de meta
-      // (anciens contrats), on reprend le prix effectif porté par le produit.
-      const effOne = p.prixOneShot != null ? Number(p.prixOneShot) : null;
-      const effMens = p.prixMensuel != null ? Number(p.prixMensuel) : null;
+      // Prix produit = repli pour les anciens contrats sans méta.
+      const prodOne = p.prixOneShot != null ? Number(p.prixOneShot) : null;
+      const prodMens = p.prixMensuel != null ? Number(p.prixMensuel) : null;
+      // Colonne "Prix" = prix de la ligne DU CONTRAT (méta) — sinon prix produit.
+      const baseOne = meta?.prixOneShotOriginal ?? prodOne;
+      const baseMens = meta?.prixMensuelOriginal ?? prodMens;
       return {
         nom: p.nom,
         description: p.description,
         quantite: meta?.quantite ?? 1,
-        // Prix d'ORIGINE (colonne "Prix") + prix EFFECTIF par part (colonne
-        // "Total", = ce qui est facturé après remise/offert).
-        prixOneShot: meta?.prixOneShotOriginal ?? effOne,
-        prixMensuel: meta?.prixMensuelOriginal ?? effMens,
-        prixOneShotEff: effOne,
-        prixMensuelEff: effMens,
+        prixOneShot: baseOne,
+        prixMensuel: baseMens,
+        // Colonne "Total" = effectif après offert/remise, calculé depuis la
+        // méta du contrat (jamais depuis le catalogue).
+        prixOneShotEff: effectivePart(baseOne ?? 0, "ONESHOT", meta),
+        prixMensuelEff: effectivePart(baseMens ?? 0, "RECURRENT", meta),
         offert: meta?.offert ?? false,
         remiseType: meta?.remiseType ?? null,
         remiseValeur: meta?.remiseValeur ?? null,
