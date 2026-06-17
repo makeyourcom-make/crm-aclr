@@ -180,15 +180,39 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
   },
-  prixBarre: {
-    textDecoration: "line-through",
+  // Bloc prix d'une prestation, présenté en colonne (aligné à droite).
+  prestaPrixCol: {
+    width: "38%",
+    flexDirection: "column",
+    alignItems: "flex-end",
+  },
+  prixBlock: { alignItems: "flex-end", marginBottom: 2 },
+  prixOrigBarre: {
+    fontSize: 8,
     color: c.muted,
+    textDecoration: "line-through",
     fontFamily: "Helvetica",
   },
-  prixMention: {
-    color: c.primary,
+  prixLine: { flexDirection: "row", alignItems: "center" },
+  prixEff: {
+    fontSize: 9,
     fontFamily: "Helvetica-Bold",
+    color: c.primary,
   },
+  badge: {
+    marginLeft: 4,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 3,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+  },
+  badgeText: {
+    fontSize: 7,
+    fontFamily: "Helvetica-Bold",
+    color: c.primary,
+  },
+  badgeOffert: { backgroundColor: "#DCFCE7" },
+  badgeTextOffert: { color: "#15803D" },
   totauxBlock: {
     marginTop: 16,
     alignSelf: "flex-end",
@@ -312,10 +336,12 @@ function cleanPrestaDescription(desc?: string | null): string {
  *   - aucun prix  → "" (produit inclus / sur-mesure sans tarif ligne)
  */
 /**
- * Rend une part de prix (one-shot OU mensuel) : prix d'origine BARRÉ quand il
- * y a une remise ou un "offert", suivi du prix effectif et de la mention.
+ * Bloc prix d'une part (one-shot OU mensuel), sur sa propre ligne :
+ *  - normal  → prix simple
+ *  - remise  → prix d'origine BARRÉ au-dessus, prix réduit + pastille "−X%"
+ *  - offert  → prix d'origine BARRÉ au-dessus, pastille "OFFERT"
  */
-function PrestaPartPrice({
+function PriceBlock({
   orig,
   eff,
   offert,
@@ -330,40 +356,52 @@ function PrestaPartPrice({
   suffix: string;
   fmt: (n: number | null | undefined) => string;
 }) {
-  // Offert sur cette part : prix d'origine barré + "Offert".
-  if (offert && eff === 0 && orig > 0) {
+  const isOffert = offert && eff === 0 && orig > 0;
+  const isReduced = !isOffert && eff < orig;
+
+  if (isOffert) {
     return (
-      <Text>
-        <Text style={styles.prixBarre}>
+      <View style={styles.prixBlock}>
+        <Text style={styles.prixOrigBarre}>
           {fmt(orig)}
           {suffix}
-        </Text>{" "}
-        <Text style={styles.prixMention}>Offert</Text>
-      </Text>
+        </Text>
+        <View style={[styles.badge, styles.badgeOffert]}>
+          <Text style={[styles.badgeText, styles.badgeTextOffert]}>OFFERT</Text>
+        </View>
+      </View>
     );
   }
-  // Remise sur cette part : prix d'origine barré + prix réduit + mention.
-  if (eff < orig) {
+
+  if (isReduced) {
     return (
-      <Text>
-        <Text style={styles.prixBarre}>
+      <View style={styles.prixBlock}>
+        <Text style={styles.prixOrigBarre}>
           {fmt(orig)}
           {suffix}
-        </Text>{" "}
+        </Text>
+        <View style={styles.prixLine}>
+          <Text style={styles.prixEff}>
+            {fmt(eff)}
+            {suffix}
+          </Text>
+          {remiseLabel ? (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{remiseLabel}</Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.prixBlock}>
+      <Text style={styles.prixEff}>
         {fmt(eff)}
         {suffix}
-        {remiseLabel ? (
-          <Text style={styles.prixMention}> {remiseLabel}</Text>
-        ) : null}
       </Text>
-    );
-  }
-  // Prix normal.
-  return (
-    <Text>
-      {fmt(eff)}
-      {suffix}
-    </Text>
+    </View>
   );
 }
 
@@ -387,9 +425,9 @@ function PrestaPrice({
   const hasOne = oneOrig > 0;
   const hasMens = mensOrig > 0;
   return (
-    <Text style={styles.prestaPrix}>
+    <View style={styles.prestaPrixCol}>
       {hasOne && (
-        <PrestaPartPrice
+        <PriceBlock
           orig={oneOrig}
           eff={oneEff}
           offert={!!p.offert}
@@ -398,9 +436,8 @@ function PrestaPrice({
           fmt={fmt}
         />
       )}
-      {hasOne && hasMens ? <Text>{"  +  "}</Text> : null}
       {hasMens && (
-        <PrestaPartPrice
+        <PriceBlock
           orig={mensOrig}
           eff={mensEff}
           offert={!!p.offert}
@@ -409,7 +446,7 @@ function PrestaPrice({
           fmt={fmt}
         />
       )}
-    </Text>
+    </View>
   );
 }
 
