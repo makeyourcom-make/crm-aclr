@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { createProduct, updateProduct } from "@/app/(app)/catalogue/actions";
@@ -34,7 +34,7 @@ const SYSTEM_CODES = new Set([
 interface ProductFormProps {
   initial?: Product;
   /** Liste des produits unitaires disponibles pour composer un pack. */
-  unitaires: Pick<Product, "id" | "nom" | "type">[];
+  unitaires: Pick<Product, "id" | "nom" | "type" | "isActive">[];
   /** Catégories disponibles (système + ajoutées). */
   categories: { code: string; label: string }[];
 }
@@ -71,6 +71,15 @@ export function ProductForm({ initial, unitaires, categories }: ProductFormProps
       ? (initial.composantsIds as string[])
       : [];
   const [composantsIds, setComposantsIds] = useState<string[]>(initialComposants);
+
+  // Composition d'un pack : on ne propose que les produits EN LIGNE (actifs).
+  // Exception : un composant déjà sélectionné qui aurait été désactivé reste
+  // visible, sinon il serait silencieusement retiré du pack lors d'une édition.
+  const composableUnitaires = useMemo(
+    () =>
+      unitaires.filter((u) => u.isActive || composantsIds.includes(u.id)),
+    [unitaires, composantsIds],
+  );
 
   const isPack = type === "PACK";
 
@@ -282,14 +291,14 @@ export function ProductForm({ initial, unitaires, categories }: ProductFormProps
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {unitaires.length === 0 ? (
+            {composableUnitaires.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Aucun produit unitaire disponible. Crée d&apos;abord les
-                composants individuels.
+                Aucun produit unitaire en ligne. Crée ou réactive d&apos;abord
+                les composants individuels.
               </p>
             ) : (
               <div className="grid gap-1.5 sm:grid-cols-2">
-                {unitaires.map((u) => {
+                {composableUnitaires.map((u) => {
                   const checked = composantsIds.includes(u.id);
                   return (
                     <label

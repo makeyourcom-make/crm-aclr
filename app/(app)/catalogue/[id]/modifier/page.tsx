@@ -43,7 +43,12 @@ export default async function EditProductPage({ params }: PageProps) {
         initial={product}
         unitaires={unitaires
           .filter((u) => u.id !== product.id)
-          .map((u) => ({ id: u.id, nom: u.nom, type: u.type }))}
+          .map((u) => ({
+            id: u.id,
+            nom: u.nom,
+            type: u.type,
+            isActive: u.isActive,
+          }))}
         categories={categories.map((c) => ({ code: c.code, label: c.label }))}
       />
     </div>
