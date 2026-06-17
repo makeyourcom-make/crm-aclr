@@ -63,12 +63,12 @@ export async function createProspect(
   }
 
   try {
+    // Règle : un·e commercial·e (non-admin) qui crée une entreprise se la voit
+    // TOUJOURS assignée. Seul l'admin peut l'attribuer à quelqu'un d'autre.
+    const assigneAId =
+      user.role === "ADMIN" ? (parsed.data.assigneAId ?? user.id) : user.id;
     const created = await prisma.prospect.create({
-      data: {
-        ...parsed.data,
-        // Si pas d'assignation explicite, le créateur est l'assigné
-        assigneAId: parsed.data.assigneAId ?? user.id,
-      },
+      data: { ...parsed.data, assigneAId },
     });
     revalidatePath("/prospects");
     return { ok: true, prospectId: created.id };
@@ -115,11 +115,11 @@ export async function createProspectQuick(
     return zodErrorToResult(parsed.error);
   }
   try {
+    // Non-admin → toujours auto-assigné ; admin → choix possible.
+    const assigneAId =
+      user.role === "ADMIN" ? (parsed.data.assigneAId ?? user.id) : user.id;
     const created = await prisma.prospect.create({
-      data: {
-        ...parsed.data,
-        assigneAId: parsed.data.assigneAId ?? user.id,
-      },
+      data: { ...parsed.data, assigneAId },
     });
     revalidatePath("/prospects");
     return { ok: true, prospectId: created.id };
