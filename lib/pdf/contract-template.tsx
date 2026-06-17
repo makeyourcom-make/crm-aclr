@@ -567,17 +567,35 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
         {data.produits.map((p, i) => {
           const desc = cleanPrestaDescription(p.description);
           const qte = p.quantite ?? 1;
+          const duree = data.dureeMois ?? 12;
           const remiseLabel = remiseLabelOf(p, fmt);
-          // Une part par type de prix présent (one-shot et/ou mensuel).
-          const parts: Array<{ orig: number; eff: number; suffix: string }> = [];
+          // Une part par type de prix présent. Le one-shot est compté en
+          // quantité de lignes ; le mensuel est compté sur la DURÉE du contrat
+          // (ex. 12 mois) → quantité = durée, total = prix mensuel × durée.
+          const parts: Array<{
+            orig: number;
+            eff: number;
+            prixSuffix: string;
+            rowQte: number;
+          }> = [];
           const oneOrig = p.prixOneShot ?? 0;
           const oneEff = p.prixOneShotEff ?? oneOrig;
           const mensOrig = p.prixMensuel ?? 0;
           const mensEff = p.prixMensuelEff ?? mensOrig;
           if (oneOrig > 0)
-            parts.push({ orig: oneOrig, eff: oneEff, suffix: "" });
+            parts.push({
+              orig: oneOrig,
+              eff: oneEff,
+              prixSuffix: "",
+              rowQte: qte,
+            });
           if (mensOrig > 0)
-            parts.push({ orig: mensOrig, eff: mensEff, suffix: " / mois" });
+            parts.push({
+              orig: mensOrig,
+              eff: mensEff,
+              prixSuffix: " / mois",
+              rowQte: duree * qte,
+            });
 
           return (
             <View key={i} style={styles.prestaGroup}>
@@ -593,10 +611,10 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
                       </>
                     ) : null}
                   </View>
-                  <Text style={styles.colQte}>{idx === 0 ? qte : ""}</Text>
+                  <Text style={styles.colQte}>{part.rowQte}</Text>
                   <Text style={styles.colPrix}>
                     {fmt(part.orig)}
-                    {part.suffix}
+                    {part.prixSuffix}
                   </Text>
                   <View style={styles.colReduction}>
                     <ReductionBadge
@@ -606,10 +624,7 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
                       remiseLabel={remiseLabel}
                     />
                   </View>
-                  <Text style={styles.colTotal}>
-                    {fmt(part.eff * qte)}
-                    {part.suffix}
-                  </Text>
+                  <Text style={styles.colTotal}>{fmt(part.eff * part.rowQte)}</Text>
                 </View>
               ))}
             </View>
