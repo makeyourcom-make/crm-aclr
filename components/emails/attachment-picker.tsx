@@ -8,6 +8,7 @@
  * - État local de la liste pour affichage / retrait
  * - Notifie le parent via onChange à chaque mise à jour
  */
+import { upload } from "@vercel/blob/client";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -61,19 +62,40 @@ export function AttachmentPicker({
     startTransition(async () => {
       const added: PickedAttachment[] = [];
       for (const file of list) {
-        const formData = new FormData();
-        formData.append("file", file);
-        const res = await uploadEmailAttachment(formData);
-        if (!res.ok || !res.url) {
-          toast.error(`${file.name}: ${res.error ?? "Échec d'upload."}`);
+        // 1) Voie principale (prod) : upload DIRECT navigateur → Vercel Blob.
+        //    Contourne la limite 4.5 MB des fonctions serverless (cause des
+        //    crashs sur les fichiers volumineux).
+        try {
+          const blob = await upload(`email-attachments/${file.name}`, file, {
+            access: "public",
+            handleUploadUrl: "/api/emails/attachments/upload",
+            contentType: file.type || undefined,
+          });
+          added.push({
+            url: blob.url,
+            filename: file.name,
+            mimeType: file.type || "application/octet-stream",
+            size: file.size,
+          });
           continue;
+        } catch {
+          // 2) Repli (dev local / Blob non configuré) : via server action.
+          const formData = new FormData();
+          formData.append("file", file);
+          const res = await uploadEmailAttachment(formData);
+          if (!res.ok || !res.url) {
+            toast.error(
+              `${file.name}: ${res.error ?? "Stockage des pièces jointes non configuré (Vercel Blob)."}`,
+            );
+            continue;
+          }
+          added.push({
+            url: res.url,
+            filename: res.filename ?? file.name,
+            mimeType: res.mimeType ?? file.type,
+            size: res.size ?? file.size,
+          });
         }
-        added.push({
-          url: res.url,
-          filename: res.filename ?? file.name,
-          mimeType: res.mimeType ?? file.type,
-          size: res.size ?? file.size,
-        });
       }
       if (added.length > 0) {
         onChange([...value, ...added]);

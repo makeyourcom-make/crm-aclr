@@ -47,7 +47,15 @@ export interface UploadAttachmentResult {
 export async function uploadEmailAttachment(
   formData: FormData,
 ): Promise<UploadAttachmentResult> {
-  const user = await requireUser();
+  // Ne JAMAIS throw : une erreur non gérée d'une server action déclenche la
+  // frontière d'erreur côté client (« This page couldn't load »). On renvoie
+  // toujours un résultat structuré que le picker peut afficher en toast.
+  let user;
+  try {
+    user = await requireUser();
+  } catch {
+    return { ok: false, error: "Session expirée — reconnecte-toi." };
+  }
   const file = formData.get("file");
 
   if (!(file instanceof File)) {
