@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import {
+  saveEmailDraft,
   searchProspectsForAttach,
   sendEmailToProspect,
   sendFreeFormEmail,
@@ -100,6 +101,34 @@ export function ComposeEmailButton() {
       return;
     }
     setSelected(prospect);
+  };
+
+  const handleSaveDraft = () => {
+    if (!hasRecipient) {
+      toast.error("Choisis d'abord un destinataire.");
+      return;
+    }
+    if (!objet.trim() && !contenu.trim()) {
+      toast.error("Rien à enregistrer (sujet et contenu vides).");
+      return;
+    }
+    startTransition(async () => {
+      const res = await saveEmailDraft({
+        prospectId: mode === "client" && selected ? selected.id : undefined,
+        to: mode === "freeform" ? freeEmail.trim() : undefined,
+        objet: objet.trim(),
+        contenu: contenu.trim(),
+        attachments: attachments.length > 0 ? attachments : undefined,
+      });
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec de l'enregistrement.");
+        return;
+      }
+      toast.success("Brouillon enregistré — retrouve-le dans « Brouillons » ✓");
+      reset();
+      setOpen(false);
+      router.refresh();
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -355,6 +384,15 @@ export function ComposeEmailButton() {
                 disabled={pending}
               >
                 Annuler
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSaveDraft}
+                disabled={pending}
+              >
+                <Icon name="Save" className="mr-1.5 h-3.5 w-3.5" />
+                Enregistrer le brouillon
               </Button>
               <Button type="submit" disabled={pending}>
                 {pending ? "Envoi…" : "Envoyer"}

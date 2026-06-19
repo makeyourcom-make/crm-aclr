@@ -21,7 +21,9 @@ import {
   deleteThreadsBulk,
   markThreadRead,
   replyToEmail,
+  saveEmailDraft,
   searchProspectsForAttach,
+  sendDraft,
   setEmailArchive,
 } from "@/app/(app)/emails/actions";
 import { createProspectQuick } from "@/app/(app)/prospects/actions";
@@ -77,10 +79,15 @@ export interface InboxEmail {
   envoyeLe: string | null;
   createdAt: string;
   lu: boolean;
+  labels: string[];
   prospect: { id: string; raisonSociale: string } | null;
   user: { name: string } | null;
   attachments: InboxAttachment[];
 }
+
+/** Vrai brouillon = enregistré volontairement (pas un mail dry-run). */
+const isGenuineDraft = (m: InboxEmail) =>
+  m.statut === "BROUILLON" && m.labels.includes("draft");
 
 interface InboxViewProps {
   emails: InboxEmail[];
@@ -160,9 +167,11 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
     if (folder === "inbox") {
       t = t.filter((th) => th.msgs.some((m) => m.direction === "ENTRANT"));
     } else if (folder === "sent") {
-      t = t.filter((th) => th.msgs.some((m) => m.direction === "SORTANT" && m.statut !== "BROUILLON"));
+      t = t.filter((th) =>
+        th.msgs.some((m) => m.direction === "SORTANT" && !isGenuineDraft(m)),
+      );
     } else if (folder === "draft") {
-      t = t.filter((th) => th.msgs.some((m) => m.statut === "BROUILLON"));
+      t = t.filter((th) => th.msgs.some(isGenuineDraft));
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -182,8 +191,10 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
     () => ({
       all: threads.length,
       inbox: threads.filter((t) => t.msgs.some((m) => m.direction === "ENTRANT")).length,
-      sent: threads.filter((t) => t.msgs.some((m) => m.direction === "SORTANT" && m.statut !== "BROUILLON")).length,
-      draft: threads.filter((t) => t.msgs.some((m) => m.statut === "BROUILLON")).length,
+      sent: threads.filter((t) =>
+        t.msgs.some((m) => m.direction === "SORTANT" && !isGenuineDraft(m)),
+      ).length,
+      draft: threads.filter((t) => t.msgs.some(isGenuineDraft)).length,
     }),
     [threads],
   );
@@ -536,6 +547,180 @@ function ThreadListItem({
   );
 }
 
+/**
+ * Éditeur de brouillon : terminer un message enregistré, modifier ses pièces
+ * jointes, le ré-enregistrer ou l'envoyer maintenant.
+ */
+function DraftEditor({ draft }: { draft: InboxEmail }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [objet, setObjet] = useState(
+    draft.objet === "(brouillon sans objet)" ? "" : draft.objet,
+  );
+  const [contenu, setContenu] = useState(draft.contenuTexte);
+  const [attachments, setAttachments] = useState<PickedAttachment[]>(
+    draft.attachments.map((a) => ({
+      url: a.url,
+      filename: a.nom,
+      mimeType: a.mimeType,
+      size: a.taille,
+    })),
+  );
+
+  // Destinataire figé (stocké dans le brouillon) — client lié ou adresse libre.
+  const recipientArgs = draft.prospect
+    ? { prospectId: draft.prospect.id }
+    : { to: draft.destinataireEmail };
+
+  const handleSaveDraft = () => {
+    if (!objet.trim() && !contenu.trim()) {
+      toast.error("Rien à enregistrer.");
+      return;
+    }
+    startTransition(async () => {
+      const res = await saveEmailDraft({
+        draftId: draft.id,
+        ...recipientArgs,
+        objet: objet.trim(),
+        contenu: contenu.trim(),
+        attachments: attachments.length > 0 ? attachments : undefined,
+      });
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success("Brouillon mis à jour ✓");
+      router.refresh();
+    });
+  };
+
+  const handleSendNow = () => {
+    if (!contenu.trim()) {
+      toast.error("Le brouillon est vide.");
+      return;
+    }
+    startTransition(async () => {
+      // On enregistre d'abord les dernières modifs, puis on envoie.
+      const saved = await saveEmailDraft({
+        draftId: draft.id,
+        ...recipientArgs,
+        objet: objet.trim(),
+        contenu: contenu.trim(),
+        attachments: attachments.length > 0 ? attachments : undefined,
+      });
+      if (!saved.ok) {
+        toast.error(saved.error ?? "Échec de l'enregistrement.");
+        return;
+      }
+      const res = await sendDraft(draft.id);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec de l'envoi.");
+        return;
+      }
+      toast.success(res.dryRun ? "Brouillon (dry-run, pas d'envoi réel)." : "Brouillon envoyé ✓");
+      router.refresh();
+    });
+  };
+
+  const handleDelete = () => {
+    if (!confirm("Supprimer ce brouillon ?")) return;
+    startTransition(async () => {
+      const res = await deleteEmail(draft.id);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success("Brouillon supprimé.");
+      router.refresh();
+    });
+  };
+
+  return (
+    <div className="flex h-[calc(100vh-280px)] flex-col lg:h-[calc(100vh-220px)]">
+      <div className="border-b border-border bg-muted/30 p-4">
+        <div className="flex items-center gap-2">
+          <Badge className="bg-slate-100 text-slate-600">Brouillon</Badge>
+          <h2 className="text-base font-semibold">
+            {objet.trim() || "(sans objet)"}
+          </h2>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Destinataire :{" "}
+          <strong>
+            {draft.prospect
+              ? draft.prospect.raisonSociale
+              : draft.destinataireEmail || "—"}
+          </strong>
+        </p>
+      </div>
+
+      <div className="flex-1 space-y-3 overflow-y-auto p-4">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">
+            Sujet
+          </label>
+          <input
+            value={objet}
+            onChange={(e) => setObjet(e.target.value)}
+            placeholder="Sujet du message"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">
+            Message
+          </label>
+          <textarea
+            value={contenu}
+            onChange={(e) => setContenu(e.target.value)}
+            rows={12}
+            placeholder="Écris ton message…"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">
+            Pièces jointes
+          </label>
+          <AttachmentPicker
+            value={attachments}
+            onChange={setAttachments}
+            disabled={pending}
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-2 border-t border-border bg-card p-3">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={handleDelete}
+          disabled={pending}
+          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+        >
+          <Icon name="Trash2" className="mr-1.5 h-3.5 w-3.5" />
+          Supprimer
+        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleSaveDraft}
+            disabled={pending}
+          >
+            <Icon name="Save" className="mr-1.5 h-3.5 w-3.5" />
+            Enregistrer
+          </Button>
+          <Button type="button" onClick={handleSendNow} disabled={pending}>
+            <Icon name="MailPlus" className="mr-1.5 h-3.5 w-3.5" />
+            {pending ? "…" : "Envoyer"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ThreadDetail({
   thread,
   currentUserEmail,
@@ -550,6 +735,16 @@ function ThreadDetail({
   const [replyAttachments, setReplyAttachments] = useState<PickedAttachment[]>([]);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+
+  // Un thread d'un seul message qui est un vrai brouillon → éditeur dédié
+  // (terminer / modifier / envoyer plus tard).
+  const draftMsg =
+    thread.msgs.length === 1 && isGenuineDraft(thread.msgs[0]!)
+      ? thread.msgs[0]!
+      : null;
+  if (draftMsg) {
+    return <DraftEditor key={draftMsg.id} draft={draftMsg} />;
+  }
 
   const handleSend = () => {
     if (!replyContent.trim()) {

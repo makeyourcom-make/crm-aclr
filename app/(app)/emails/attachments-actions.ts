@@ -10,8 +10,7 @@
  * Le quota est limité côté UI à 20MB par fichier et 25MB total
  * (limite Resend pour les emails).
  */
-import { put } from "@vercel/blob";
-
+import { uploadFile } from "@/lib/file-storage";
 import { requireUser } from "@/lib/session";
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20MB par fichier
@@ -76,21 +75,22 @@ export async function uploadEmailAttachment(
   }
 
   try {
-    // Nom du blob : userId/timestamp-filename pour éviter les collisions
-    const safeName = file.name.replace(/[^\w.\-]/g, "_");
-    const blobPath = `email-attachments/${user.id}/${Date.now()}-${safeName}`;
-
-    const blob = await put(blobPath, file, {
-      access: "public",
+    // Passe par l'abstraction de stockage (file-storage) qui gère les deux
+    // modes : Vercel Blob en prod (STORAGE_MODE=blob) ou disque /public en dev.
+    // Évite l'échec « No token » de @vercel/blob quand le token n'est pas posé.
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const result = await uploadFile({
+      prefix: `email-attachments/${user.id}`,
+      filename: file.name,
+      buffer,
       contentType: mimeType,
-      addRandomSuffix: true,
     });
 
     return {
       ok: true,
-      url: blob.url,
+      url: result.url,
       filename: file.name,
-      size: file.size,
+      size: result.size,
       mimeType,
     };
   } catch (err) {

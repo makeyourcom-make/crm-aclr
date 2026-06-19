@@ -33,6 +33,25 @@ const SendFreeFormEmailSchema = z.object({
   attachments: z.array(AttachmentSchema).optional(),
 });
 
+/**
+ * Marqueur de brouillon « vrai » (créé volontairement via « Enregistrer le
+ * brouillon »), pour le distinguer d'un mail enregistré en BROUILLON par le
+ * mode dry-run. Stocké dans Email.labels.
+ */
+const DRAFT_LABEL = "draft";
+
+const SaveDraftSchema = z.object({
+  /** Si fourni → on met à jour un brouillon existant au lieu d'en créer un. */
+  draftId: z.string().optional(),
+  /** Destinataire = client enregistré… */
+  prospectId: z.string().optional(),
+  /** …ou adresse libre. */
+  to: z.string().optional(),
+  objet: z.string().optional(),
+  contenu: z.string().optional(),
+  attachments: z.array(AttachmentSchema).optional(),
+});
+
 export interface SendEmailResult {
   ok: boolean;
   emailId?: string;
@@ -784,4 +803,251 @@ export async function deleteThreadsBulk(
     revalidatePath(`/prospects/${pid}`);
   }
   return { ok: true, count: result.count };
+}
+
+const PRE_HTML = (txt: string) =>
+  `<pre style="font-family: sans-serif; white-space: pre-wrap;">${txt
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")}</pre>`;
+
+/**
+ * Enregistre un message en brouillon (sans l'envoyer) pour le terminer/l'envoyer
+ * plus tard. Crée un nouvel Email BROUILLON, ou met à jour un brouillon existant
+ * si `draftId` est fourni. Le destinataire peut être un client (`prospectId`) ou
+ * une adresse libre (`to`). Les pièces jointes sont persistées.
+ */
+export async function saveEmailDraft(input: unknown): Promise<SendEmailResult> {
+  const user = await requireUser();
+  const parsed = SaveDraftSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Formulaire invalide." };
+
+  const { draftId, prospectId, to, attachments } = parsed.data;
+  const objet = (parsed.data.objet ?? "").trim();
+  const contenu = (parsed.data.contenu ?? "").trim();
+
+  if (!objet && !contenu) {
+    return { ok: false, error: "Rien à enregistrer (sujet et contenu vides)." };
+  }
+
+  // Résout le destinataire (client enregistré ou adresse libre).
+  let destinataireEmail = "";
+  let resolvedProspectId: string | null = null;
+  if (prospectId) {
+    const prospect = await prisma.prospect.findUnique({
+      where: { id: prospectId },
+      select: { id: true, email: true, assigneAId: true },
+    });
+    if (!prospect) return { ok: false, error: "Client introuvable." };
+    if (user.role !== "ADMIN" && prospect.assigneAId !== user.id) {
+      return { ok: false, error: "Pas d'accès à ce client." };
+    }
+    destinataireEmail = prospect.email ?? "";
+    resolvedProspectId = prospect.id;
+  } else if (to && /^\S+@\S+\.\S+$/.test(to.trim())) {
+    destinataireEmail = to.trim();
+  } else {
+    return { ok: false, error: "Choisis un destinataire." };
+  }
+
+  const userFull = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { email: true, name: true },
+  });
+  const { from, fromName } = resolveFromAddress({
+    email: userFull?.email ?? "contact@makeyourcom.ch",
+    name: userFull?.name ?? null,
+  });
+
+  const objetStored = objet || "(brouillon sans objet)";
+  const contenuHtml = PRE_HTML(contenu);
+  const attachmentsCreate =
+    attachments && attachments.length > 0
+      ? {
+          create: attachments.map((a) => ({
+            nom: a.filename,
+            taille: a.size,
+            mimeType: a.mimeType,
+            url: a.url,
+          })),
+        }
+      : undefined;
+
+  // --- Mise à jour d'un brouillon existant ---
+  if (draftId) {
+    const existing = await prisma.email.findUnique({
+      where: { id: draftId },
+      select: { userId: true, statut: true, labels: true },
+    });
+    if (!existing) return { ok: false, error: "Brouillon introuvable." };
+    if (existing.userId !== user.id) return { ok: false, error: "Accès refusé." };
+    if (existing.statut !== "BROUILLON") {
+      return { ok: false, error: "Ce message a déjà été envoyé." };
+    }
+    await prisma.$transaction(async (tx) => {
+      await tx.emailAttachment.deleteMany({ where: { emailId: draftId } });
+      await tx.email.update({
+        where: { id: draftId },
+        data: {
+          prospectId: resolvedProspectId,
+          destinataireEmail,
+          objet: objetStored,
+          contenuTexte: contenu,
+          contenuHtml,
+          labels: existing.labels.includes(DRAFT_LABEL)
+            ? existing.labels
+            : [...existing.labels, DRAFT_LABEL],
+          attachments: attachmentsCreate,
+        },
+      });
+    });
+    revalidatePath("/emails");
+    return { ok: true, emailId: draftId };
+  }
+
+  // --- Nouveau brouillon ---
+  const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@makeyourcom.ch>`;
+  const threadId = randomBytes(8).toString("hex");
+  const created = await prisma.email.create({
+    data: {
+      prospectId: resolvedProspectId,
+      userId: user.id,
+      direction: "SORTANT",
+      threadId,
+      messageId,
+      expediteurEmail: from,
+      expediteurNom: fromName,
+      destinataireEmail,
+      objet: objetStored,
+      contenuHtml,
+      contenuTexte: contenu,
+      statut: "BROUILLON",
+      envoyeLe: null,
+      labels: [DRAFT_LABEL],
+      attachments: attachmentsCreate,
+    },
+  });
+  revalidatePath("/emails");
+  return { ok: true, emailId: created.id };
+}
+
+/**
+ * Envoie un brouillon précédemment enregistré. Reprend le contenu/les PJ stockés,
+ * substitue les variables {{…}} si un client est lié, envoie via Resend, puis
+ * bascule le mail en ENVOYE (ou le laisse en brouillon en mode dry-run).
+ */
+export async function sendDraft(draftId: string): Promise<SendEmailResult> {
+  const user = await requireUser();
+  const draft = await prisma.email.findUnique({
+    where: { id: draftId },
+    include: {
+      attachments: true,
+      prospect: {
+        select: {
+          id: true,
+          email: true,
+          contactPrenom: true,
+          contactNom: true,
+          raisonSociale: true,
+          ville: true,
+        },
+      },
+    },
+  });
+  if (!draft) return { ok: false, error: "Brouillon introuvable." };
+  if (draft.userId !== user.id) return { ok: false, error: "Accès refusé." };
+  if (draft.statut !== "BROUILLON") {
+    return { ok: false, error: "Ce message a déjà été envoyé." };
+  }
+  const destinataire = draft.destinataireEmail?.trim();
+  if (!destinataire || !/^\S+@\S+\.\S+$/.test(destinataire)) {
+    return { ok: false, error: "Destinataire manquant ou invalide." };
+  }
+  if (!draft.contenuTexte.trim()) {
+    return { ok: false, error: "Le brouillon est vide." };
+  }
+
+  const vars: Record<string, string> = {
+    prenomContact: draft.prospect?.contactPrenom ?? "",
+    nomContact: draft.prospect?.contactNom ?? "",
+    raisonSociale: draft.prospect?.raisonSociale ?? "",
+    ville: draft.prospect?.ville ?? "",
+    commerciale: user.name,
+  };
+  const apply = (s: string) =>
+    s.replace(/\{\{(\w+)\}\}/g, (_m, k) => vars[k] ?? "");
+
+  const objet = apply(draft.objet);
+  const contenuTexte = apply(draft.contenuTexte);
+  const contenuHtml = PRE_HTML(contenuTexte);
+
+  const userFull = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { email: true, name: true },
+  });
+  const { from, replyTo, fromName } = resolveFromAddress({
+    email: userFull?.email ?? "contact@makeyourcom.ch",
+    name: userFull?.name ?? null,
+  });
+
+  const sendResult = await sendMail({
+    from,
+    fromName,
+    to: destinataire,
+    subject: objet,
+    html: contenuHtml,
+    text: contenuTexte,
+    replyTo,
+    messageId: draft.messageId,
+    attachments:
+      draft.attachments.length > 0
+        ? draft.attachments.map((a) => ({
+            filename: a.nom,
+            path: a.url,
+            contentType: a.mimeType,
+          }))
+        : undefined,
+  });
+  const isDryRun = sendResult.dryRun;
+  if (!sendResult.ok && !isDryRun) {
+    return { ok: false, error: sendResult.error ?? "Échec d'envoi via Resend." };
+  }
+
+  // En envoi réel : retire le marqueur draft + passe en ENVOYE.
+  // En dry-run : on garde le brouillon tel quel (pas de vrai envoi).
+  const labels = isDryRun
+    ? draft.labels
+    : draft.labels.filter((l) => l !== DRAFT_LABEL);
+  if (!isDryRun && sendResult.resendId) labels.push(`resend:${sendResult.resendId}`);
+
+  await prisma.email.update({
+    where: { id: draftId },
+    data: {
+      objet,
+      contenuTexte,
+      contenuHtml,
+      statut: isDryRun ? "BROUILLON" : "ENVOYE",
+      envoyeLe: isDryRun ? null : new Date(),
+      labels,
+    },
+  });
+
+  if (!isDryRun && draft.prospect) {
+    await prisma.activity.create({
+      data: {
+        prospectId: draft.prospect.id,
+        userId: user.id,
+        type: "EMAIL_ENVOYE",
+        date: new Date(),
+        sujet: objet,
+        contenu: contenuTexte.slice(0, 200),
+        statut: "FAIT",
+        emailId: draft.id,
+      },
+    });
+    revalidatePath(`/prospects/${draft.prospect.id}`);
+  }
+
+  revalidatePath("/emails");
+  revalidatePath("/activites");
+  return { ok: true, emailId: draft.id, dryRun: isDryRun };
 }

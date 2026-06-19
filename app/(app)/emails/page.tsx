@@ -50,6 +50,7 @@ export default async function EmailsPage() {
     envoyeLe: e.envoyeLe ? e.envoyeLe.toISOString() : null,
     createdAt: e.createdAt.toISOString(),
     lu: e.lu,
+    labels: e.labels,
     prospect: e.prospect,
     user: e.user,
     attachments: e.attachments,
