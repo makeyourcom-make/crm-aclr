@@ -78,23 +78,26 @@ export async function createProspect(
 }
 
 /**
- * Variante non-formulaire pour appels programmatiques (ex. depuis l'import CSV).
+ * Variante non-formulaire (objet simple) — utilisée par la page « Nouvelle
+ * entreprise ». Applique la MÊME règle d'assignation que createProspect :
+ * un·e commercial·e (non-admin) qui crée une fiche se la voit TOUJOURS
+ * attribuée ; seul l'admin peut l'attribuer à quelqu'un d'autre.
  */
 export async function createProspectRaw(
   input: unknown,
-  fallbackAssigneAId?: string,
 ): Promise<ProspectActionResult> {
+  const user = await requireUser();
   const parsed = ProspectCreateSchema.safeParse(input);
   if (!parsed.success) {
     return zodErrorToResult(parsed.error);
   }
   try {
+    const assigneAId =
+      user.role === "ADMIN" ? (parsed.data.assigneAId ?? user.id) : user.id;
     const created = await prisma.prospect.create({
-      data: {
-        ...parsed.data,
-        assigneAId: parsed.data.assigneAId ?? fallbackAssigneAId,
-      },
+      data: { ...parsed.data, assigneAId },
     });
+    revalidatePath("/prospects");
     return { ok: true, prospectId: created.id };
   } catch (err) {
     return prismaErrorToResult(err);
