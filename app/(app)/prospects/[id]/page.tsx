@@ -196,7 +196,7 @@ export default async function ProspectDetailPage({ params }: PageProps) {
         )}
       </div>
 
-      {/* Tags — admin peut éditer, Sophie lit seulement */}
+      {/* Tags — éditable par l'admin ou le commercial propriétaire du client */}
       <div className="mb-6">
         <ProspectTagsEditor
           prospectId={prospect.id}
@@ -206,7 +206,7 @@ export default async function ProspectDetailPage({ params }: PageProps) {
             couleur: t.tag.couleur,
           }))}
           allTags={allTags}
-          canEdit={user.role === "ADMIN"}
+          canEdit={user.role === "ADMIN" || prospect.assigneAId === user.id}
         />
       </div>
 

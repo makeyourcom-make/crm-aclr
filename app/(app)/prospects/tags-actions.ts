@@ -4,9 +4,13 @@
  * Server actions pour les tags d'entreprises.
  *
  * Règles :
- *  - Création / modification / suppression : ADMIN uniquement
- *  - Assignation / retrait sur une fiche : ADMIN uniquement
- *  - Lecture / filtrage : tous les users (admin + commerciale)
+ *  - Création d'un tag : tous les users (admin + commerciale) — pour pouvoir
+ *    poser un nouveau label (ex. "Passeport Beauté") directement depuis une fiche
+ *  - Modification / suppression d'un tag : ADMIN uniquement (gestion de la
+ *    taxonomie, renommage, couleurs, purge)
+ *  - Assignation / retrait sur une fiche : admin OU le commercial à qui le
+ *    client est attribué
+ *  - Lecture / filtrage : tous les users
  *
  * Les tags sont des labels libres (ex. "Passeport Beauté", "VIP",
  * "Onboarding prioritaire") qu'on attache aux Prospects pour regroupement.
@@ -30,10 +34,9 @@ const TagSchema = z.object({
 export async function createTag(
   input: unknown,
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
-  const user = await requireUser();
-  if (user.role !== "ADMIN") {
-    return { ok: false, error: "Seul un admin peut créer des tags." };
-  }
+  // Ouvert à tous les utilisateurs connectés : un commercial peut créer un
+  // nouveau tag (ex. "Passeport Beauté") pour l'appliquer à son client.
+  await requireUser();
   const parsed = TagSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Formulaire invalide." };
   try {
@@ -109,8 +112,14 @@ export async function setProspectTags(
   tagIds: string[],
 ): Promise<{ ok: boolean; error?: string }> {
   const user = await requireUser();
-  if (user.role !== "ADMIN") {
-    return { ok: false, error: "Seul un admin peut modifier les tags." };
+  // Admin OU le commercial à qui le client est attribué peut gérer ses tags.
+  const prospect = await prisma.prospect.findUnique({
+    where: { id: prospectId },
+    select: { assigneAId: true },
+  });
+  if (!prospect) return { ok: false, error: "Client introuvable." };
+  if (user.role !== "ADMIN" && prospect.assigneAId !== user.id) {
+    return { ok: false, error: "Pas d'accès à ce client." };
   }
 
   try {
