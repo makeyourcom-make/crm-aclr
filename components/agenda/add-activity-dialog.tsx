@@ -6,7 +6,7 @@
  * pré-remplie sur le jour cliqué.
  */
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type ReactNode } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { createActivity, updateActivity } from "@/app/(app)/activites/actions";
@@ -142,6 +142,39 @@ export function AddActivityDialog({
     ...localProspects,
   ];
 
+  // Préremplissage à l'ouverture. IMPORTANT : on le fait dans un useEffect (pas
+  // dans onOpenChange) car le dialog peut être ouvert en mode CONTRÔLÉ via la
+  // prop `open` (bouton « Modifier » de l'agenda) — dans ce cas Radix
+  // n'appelle PAS onOpenChange, donc le préremplissage ne se faisait jamais et
+  // le formulaire repartait à zéro. On clé l'effet sur `editActivity?.id`
+  // (primitif stable) et non sur l'objet, que le parent recrée à chaque rendu —
+  // sinon la saisie en cours serait écrasée à chaque re-render.
+  useEffect(() => {
+    if (!open) return;
+    if (editActivity) {
+      setProspectId(editActivity.prospectId);
+      setAssigneAId(editActivity.userId || currentUserId || "");
+      setType(editActivity.type);
+      setSujet(editActivity.sujet);
+      setDate(editActivity.dateIso);
+      setHeure(editActivity.heure);
+      setHeureFin(editActivity.heureFin);
+      setAdresseRdv(editActivity.adresseRdv);
+      setContenu(editActivity.contenu);
+    } else {
+      setProspectId("");
+      setAssigneAId(currentUserId ?? "");
+      setType("RDV_PHYSIQUE");
+      setSujet("");
+      setAdresseRdv("");
+      setContenu("");
+      setDate(defaultDate);
+      setHeure(defaultTime);
+      setHeureFin(addMinutesToTime(defaultTime, 60));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editActivity?.id]);
+
   const createNewProspect = () => {
     if (newNom.trim().length < 2) {
       toast.error("Nom du client (min. 2 caractères).");
@@ -232,32 +265,7 @@ export function AddActivityDialog({
   return (
     <Dialog
       open={open}
-      onOpenChange={(o) => {
-        setOpen(o);
-        if (!o) return;
-        // À l'ouverture : pré-remplit depuis l'activité (édition) ou réinitialise
-        if (editActivity) {
-          setProspectId(editActivity.prospectId);
-          setAssigneAId(editActivity.userId || currentUserId || "");
-          setType(editActivity.type);
-          setSujet(editActivity.sujet);
-          setDate(editActivity.dateIso);
-          setHeure(editActivity.heure);
-          setHeureFin(editActivity.heureFin);
-          setAdresseRdv(editActivity.adresseRdv);
-          setContenu(editActivity.contenu);
-        } else {
-          setProspectId("");
-          setAssigneAId(currentUserId ?? "");
-          setType("RDV_PHYSIQUE");
-          setSujet("");
-          setAdresseRdv("");
-          setContenu("");
-          setDate(defaultDate);
-          setHeure(defaultTime);
-          setHeureFin(addMinutesToTime(defaultTime, 60));
-        }
-      }}
+      onOpenChange={setOpen}
     >
       {!hideTrigger && (
         <DialogTrigger className={triggerClass}>
