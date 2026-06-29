@@ -15,6 +15,7 @@ import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { BackToProspects } from "@/components/prospects/back-to-prospects";
 import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badge";
+import { GdprTools } from "@/components/prospects/gdpr-tools";
 import { ProspectTagsEditor } from "@/components/prospects/prospect-tags-editor";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -209,6 +210,16 @@ export default async function ProspectDetailPage({ params }: PageProps) {
           canEdit={user.role === "ADMIN" || prospect.assigneAId === user.id}
         />
       </div>
+
+      {/* Outils LPD/RGPD — admin uniquement */}
+      {user.role === "ADMIN" && (
+        <div className="mb-6">
+          <GdprTools
+            prospectId={prospect.id}
+            raisonSociale={prospect.raisonSociale}
+          />
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Coordonnées */}
