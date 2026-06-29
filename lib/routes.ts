@@ -249,6 +249,14 @@ export const ROUTES: RouteDef[] = [
     etape: 18,
     adminOnly: true,
   },
+  {
+    href: "/audit",
+    label: "Journal d'audit",
+    icon: "Eye",
+    group: "config",
+    etape: 99,
+    adminOnly: true,
+  },
 ];
 
 /** Filtre les routes accessibles pour un rôle donné. */

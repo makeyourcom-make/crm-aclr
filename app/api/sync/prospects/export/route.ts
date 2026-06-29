@@ -15,6 +15,7 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 
+import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { mapStatutToMaster } from "@/lib/sync/prospect-sync";
 
@@ -32,6 +33,7 @@ function authorized(req: Request): boolean {
 
 export async function GET(req: Request): Promise<NextResponse> {
   if (!authorized(req)) {
+    await audit("sync.auth_fail", { metadata: { route: "export" } });
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 

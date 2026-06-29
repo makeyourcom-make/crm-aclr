@@ -15,6 +15,7 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 
+import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import {
   masterContactFields,
@@ -38,6 +39,7 @@ function authorized(req: Request): boolean {
 
 export async function POST(req: Request): Promise<NextResponse> {
   if (!authorized(req)) {
+    await audit("sync.auth_fail", { metadata: { route: "ingest" } });
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 

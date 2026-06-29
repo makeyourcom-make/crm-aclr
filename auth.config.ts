@@ -42,7 +42,9 @@ export const authConfig: NextAuthConfig = {
       // /api/sync/* : synchro master ↔ CRM, authentifiée par sa propre clé
       // (en-tête x-sync-key) et non par la session → exempté du middleware.
       const isOnSyncApi = pathname.startsWith("/api/sync");
-      const isPublic = isOnLogin || isOnAuthApi || isOnSyncApi;
+      // /api/csp-report : rapports CSP envoyés par le navigateur (sans session).
+      const isCspReport = pathname.startsWith("/api/csp-report");
+      const isPublic = isOnLogin || isOnAuthApi || isOnSyncApi || isCspReport;
 
       if (isPublic) {
         // Si déjà connecté, on rebascule vers le dashboard depuis /login

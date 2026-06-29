@@ -31,6 +31,28 @@ const nextConfig: NextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
           },
+          // CSP en Report-Only : NE BLOQUE RIEN, signale juste ce qui serait
+          // bloqué (→ /api/csp-report + console). Permet d'observer puis de
+          // basculer en mode bloquant sans casser l'app. Les directives sûres
+          // (object-src, base-uri, form-action, frame-ancestors) sont déjà
+          // strictes ; script/style restent permissifs (Next inline).
+          {
+            key: "Content-Security-Policy-Report-Only",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https:",
+              "font-src 'self' data:",
+              "connect-src 'self' https:",
+              "frame-src 'self'",
+              "object-src 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+              "frame-ancestors 'none'",
+              "report-uri /api/csp-report",
+            ].join("; "),
+          },
         ],
       },
     ];

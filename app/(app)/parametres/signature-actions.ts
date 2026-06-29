@@ -9,6 +9,7 @@ import { z } from "zod";
 
 import { prisma } from "@/lib/db";
 import { buildSignatureHtml } from "@/lib/email-signature";
+import { sanitizeSignatureHtml } from "@/lib/sanitize";
 import { requireUser } from "@/lib/session";
 
 export interface SignatureActionResult {
@@ -44,7 +45,7 @@ export async function createSignature(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalide." };
   }
   const d = parsed.data;
-  const html = buildSignatureHtml(d);
+  const html = sanitizeSignatureHtml(buildSignatureHtml(d));
   try {
     const created = await prisma.$transaction(async (tx) => {
       if (d.isDefault) {
@@ -94,7 +95,7 @@ export async function updateSignature(
     return { ok: false, error: "Signature introuvable." };
   }
   const d = parsed.data;
-  const html = buildSignatureHtml(d);
+  const html = sanitizeSignatureHtml(buildSignatureHtml(d));
   try {
     await prisma.$transaction(async (tx) => {
       if (d.isDefault) {
