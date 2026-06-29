@@ -47,6 +47,27 @@ const clean = (v: unknown): string | null => {
   return s === "" ? null : s;
 };
 
+/**
+ * Valide un numéro de téléphone suisse ou français. Retourne le numéro
+ * d'origine (format conservé) s'il est plausible, sinon null.
+ *
+ * Règle : après retrait du préfixe international (+41/0041/+33/0033) ou du 0
+ * national, le numéro significatif doit faire exactement 9 chiffres et ne pas
+ * commencer par 0. Rejette les placeholders et fragments :
+ * "000000000000001", "026", "067247263" (incomplet), "036854775808" (overflow)…
+ */
+export function cleanPhone(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const original = String(raw).trim();
+  let d = original.replace(/[^\d+]/g, "").replace(/^\+/, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  let nat: string;
+  if (d.startsWith("41") || d.startsWith("33")) nat = d.slice(2);
+  else if (d.startsWith("0")) nat = d.slice(1);
+  else nat = d;
+  return /^[1-9]\d{8}$/.test(nat) ? original : null;
+}
+
 /** Mappe le « Statut Prospection » texte du master vers l'enum CRM. */
 export function mapStatutFromMaster(raw: string | null | undefined): ProspectStatut {
   const s = (raw ?? "").trim().toLowerCase();
@@ -94,8 +115,8 @@ export function masterOwnedFields(row: MasterRow) {
 export function masterContactFields(row: MasterRow) {
   return {
     contactNom: clean(row.contact),
-    telephone: clean(row.telephone),
-    telephoneMobile: clean(row.mobile),
+    telephone: cleanPhone(row.telephone),
+    telephoneMobile: cleanPhone(row.mobile),
     email: clean(row.email),
   };
 }
