@@ -153,5 +153,15 @@ export async function POST(req: Request): Promise<NextResponse> {
     await prisma.$transaction(updateOps.slice(i, i + 200));
   }
 
+  // Recale masterSyncedAt = updatedAt pour TOUTES les fiches du lot : ainsi
+  // `updatedAt > masterSyncedAt` est faux juste après l'ingest (pas de
+  // ré-export parasite), et ne devient vrai qu'à la prochaine modif humaine.
+  const ingestedIds = masterIds.filter((n) => Number.isInteger(n));
+  if (ingestedIds.length > 0) {
+    await prisma.$executeRawUnsafe(
+      `UPDATE prospects SET "masterSyncedAt" = "updatedAt" WHERE "masterId" IN (${ingestedIds.join(",")})`,
+    );
+  }
+
   return NextResponse.json({ ok: true, created, updated, linked });
 }
