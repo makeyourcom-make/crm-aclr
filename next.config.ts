@@ -31,11 +31,25 @@ const nextConfig: NextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
           },
-          // CSP en Report-Only : NE BLOQUE RIEN, signale juste ce qui serait
-          // bloqué (→ /api/csp-report + console). Permet d'observer puis de
-          // basculer en mode bloquant sans casser l'app. Les directives sûres
-          // (object-src, base-uri, form-action, frame-ancestors) sont déjà
-          // strictes ; script/style restent permissifs (Next inline).
+          // CSP — passe finale en 2 temps :
+          //
+          // (A) Mode BLOQUANT pour les directives à fort impact et SANS risque
+          //     de casse (pas de default-src → scripts/styles/images/iframe
+          //     restent libres). Protège contre clickjacking, injection de
+          //     <base>, plugins, et détournement de formulaire.
+          {
+            key: "Content-Security-Policy",
+            value: [
+              "object-src 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+              "frame-ancestors 'none'",
+            ].join("; "),
+          },
+          // (B) Politique COMPLÈTE en Report-Only : ne bloque rien, signale ce
+          //     qui serait bloqué (→ /api/csp-report). On l'observe en usage
+          //     réel (notamment l'aperçu des emails en iframe + les polices),
+          //     puis on bascule le reste en bloquant une fois confirmé propre.
           {
             key: "Content-Security-Policy-Report-Only",
             value: [
@@ -43,7 +57,7 @@ const nextConfig: NextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https:",
-              "font-src 'self' data:",
+              "font-src 'self' data: https:",
               "connect-src 'self' https:",
               "frame-src 'self'",
               "object-src 'none'",
