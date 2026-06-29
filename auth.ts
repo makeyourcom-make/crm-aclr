@@ -13,8 +13,10 @@ import bcrypt from "bcryptjs";
 
 import { audit } from "@/lib/audit";
 import { authConfig } from "@/auth.config";
+import { decryptPassword } from "@/lib/caldav";
 import { prisma } from "@/lib/db";
 import { LoginSchema } from "@/lib/schemas/auth";
+import { verifyTotp } from "@/lib/totp";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -69,6 +71,43 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             metadata: { count, locked: count >= MAX },
           });
           return null;
+        }
+
+        // 4bis. Second facteur (TOTP) si activé sur ce compte.
+        if (user.totpEnabled && user.totpSecretEnc) {
+          const code = (parsed.data.totp ?? "").trim();
+          if (!code) {
+            await audit("login.2fa_required", { userId: user.id });
+            return null; // pas de code → refus (le formulaire propose le champ)
+          }
+          let ok2fa = false;
+          try {
+            ok2fa = verifyTotp(decryptPassword(user.totpSecretEnc), code);
+          } catch {
+            ok2fa = false;
+          }
+          // Sinon : code de secours (haché, usage unique → consommé).
+          if (!ok2fa && user.totpRecoveryCodes.length > 0) {
+            for (const hash of user.totpRecoveryCodes) {
+              if (await bcrypt.compare(code, hash)) {
+                ok2fa = true;
+                await prisma.user.update({
+                  where: { id: user.id },
+                  data: {
+                    totpRecoveryCodes: user.totpRecoveryCodes.filter(
+                      (h) => h !== hash,
+                    ),
+                  },
+                });
+                await audit("login.2fa_recovery_used", { userId: user.id });
+                break;
+              }
+            }
+          }
+          if (!ok2fa) {
+            await audit("login.2fa_fail", { userId: user.id });
+            return null;
+          }
         }
 
         // 5. Succès → remet les compteurs à zéro si nécessaire.

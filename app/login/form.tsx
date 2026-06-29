@@ -70,6 +70,26 @@ export function LoginForm() {
         )}
       </div>
 
+      {/* Code 2FA (optionnel — uniquement si la double authentification est activée) */}
+      <div className="space-y-1.5">
+        <label htmlFor="totp" className="text-sm font-medium text-slate-700">
+          Code 2FA <span className="font-normal text-slate-400">(si activée)</span>
+        </label>
+        <input
+          id="totp"
+          name="totp"
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          placeholder="123456"
+          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-primary-600 focus:ring-2 focus:ring-primary-600/20"
+        />
+        <p className="text-xs text-slate-400">
+          Laisse vide si tu n&apos;as pas activé la 2FA. Code de l&apos;app
+          d&apos;authentification ou code de secours.
+        </p>
+      </div>
+
       {/* Erreur globale */}
       {state.error && !state.fieldErrors && (
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

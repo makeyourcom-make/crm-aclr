@@ -77,6 +77,14 @@ export function UserMenu({ user }: UserMenuProps) {
           Synchroniser l&apos;agenda
         </Link>
 
+        <Link
+          href="/settings/securite"
+          className="flex w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+        >
+          <Icon name="Settings" className="h-4 w-4" />
+          Sécurité &amp; 2FA
+        </Link>
+
         <DropdownMenuSeparator />
 
         {/*

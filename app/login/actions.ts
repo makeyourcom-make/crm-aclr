@@ -32,6 +32,7 @@ export async function loginAction(
   const parsed = LoginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
+    totp: formData.get("totp") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -49,6 +50,7 @@ export async function loginAction(
     await signIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
+      totp: parsed.data.totp ?? "",
       redirectTo: "/",
     });
     return { ok: true };

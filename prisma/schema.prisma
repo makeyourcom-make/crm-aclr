@@ -325,6 +325,12 @@ model User {
   lockedUntil      DateTime?
   lastFailedAt     DateTime?
 
+  // 2FA (TOTP) — opt-in par compte. Secret chiffré AES-GCM (clé = AUTH_SECRET).
+  totpSecretEnc     String?
+  totpEnabled       Boolean  @default(false)
+  /// Codes de secours hachés (bcrypt) — consommés à usage unique.
+  totpRecoveryCodes String[]
+
   // Paramètres rémunération — surchargent les défauts globaux
   tauxCommissionSignature      Decimal @default("0.25") @db.Decimal(5, 4)
   tauxCommissionRenouvellement Decimal @default("0.10") @db.Decimal(5, 4)
