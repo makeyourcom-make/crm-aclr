@@ -39,7 +39,10 @@ export const authConfig: NextAuthConfig = {
 
       const isOnLogin = pathname.startsWith("/login");
       const isOnAuthApi = pathname.startsWith("/api/auth");
-      const isPublic = isOnLogin || isOnAuthApi;
+      // /api/sync/* : synchro master ↔ CRM, authentifiée par sa propre clé
+      // (en-tête x-sync-key) et non par la session → exempté du middleware.
+      const isOnSyncApi = pathname.startsWith("/api/sync");
+      const isPublic = isOnLogin || isOnAuthApi || isOnSyncApi;
 
       if (isPublic) {
         // Si déjà connecté, on rebascule vers le dashboard depuis /login
