@@ -293,6 +293,11 @@ model User {
   role         Role    @default(COMMERCIAL)
   isActive     Boolean @default(true)
 
+  // Anti brute-force : compteur d'échecs de login + verrou temporaire du compte.
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+  lastFailedAt     DateTime?
+
   // Paramètres rémunération — surchargent les défauts globaux
   tauxCommissionSignature      Decimal @default("0.25") @db.Decimal(5, 4)
   tauxCommissionRenouvellement Decimal @default("0.10") @db.Decimal(5, 4)

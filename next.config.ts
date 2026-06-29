@@ -4,6 +4,38 @@ const nextConfig: NextConfig = {
   // Output standalone : pour le build Docker (image finale ~150 Mo au lieu de >1 Go)
   output: "standalone",
 
+  // Ne pas révéler la techno serveur (retire l'en-tête X-Powered-By: Next.js).
+  poweredByHeader: false,
+
+  // En-têtes de sécurité appliqués à TOUTES les réponses.
+  // (CSP volontairement laissée pour une passe dédiée — elle nécessite des
+  //  nonces côté Next et un test applicatif pour ne rien casser.)
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          // Force HTTPS pendant 2 ans (navigateur refuse le HTTP ensuite).
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+          // Anti-clickjacking : le CRM ne doit jamais être affiché en iframe.
+          { key: "X-Frame-Options", value: "DENY" },
+          // Empêche le navigateur de "deviner" un type MIME (anti drive-by).
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Ne fuite pas l'URL complète vers les sites tiers.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Désactive les API puissantes non utilisées par le CRM.
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
+          },
+        ],
+      },
+    ];
+  },
+
   // Packages serveur exclus du bundling Next (génèrent des PDF avec fonts natives)
   serverExternalPackages: ["pdfkit", "swissqrbill", "@react-pdf/renderer"],
 
