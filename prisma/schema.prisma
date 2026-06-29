@@ -674,6 +674,20 @@ model Prospect {
 
   notesGenerales String? @db.Text
 
+  // ── Synchronisation avec le fichier master (BASE_PROSPECTS) ──────────────
+  /// id stable de la ligne dans le master (.db). NULL = créé dans le CRM, pas
+  /// (encore) lié au master.
+  masterId       Int?      @unique
+  /// Nom normalisé (lowercase + espaces compactés) — sert à rattacher une fiche
+  /// CRM existante à une ligne master sans masterId (matching sans doublon).
+  nameNorm       String?
+  /// Dernière écriture provenant du master. Une fiche est "modifiée côté CRM"
+  /// (à repousser vers le master) si updatedAt > masterSyncedAt.
+  masterSyncedAt DateTime?
+  /// Données scrapées additionnelles du master sans colonne dédiée (scores,
+  /// Google, TikTok/YouTube/Twitter, Dirigeant, Domaine, Segment, infos…).
+  masterData     Json?
+
   // Relations
   activities          Activity[]
   deals               Deal[]
@@ -689,6 +703,7 @@ model Prospect {
   @@index([secteur])
   @@index([canton])
   @@index([raisonSociale]) // recherche par nom
+  @@index([nameNorm]) // matching master ↔ CRM
   @@map("prospects")
 }
 
