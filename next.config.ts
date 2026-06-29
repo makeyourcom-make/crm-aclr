@@ -31,35 +31,24 @@ const nextConfig: NextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
           },
-          // CSP — passe finale en 2 temps :
-          //
-          // (A) Mode BLOQUANT pour les directives à fort impact et SANS risque
-          //     de casse (pas de default-src → scripts/styles/images/iframe
-          //     restent libres). Protège contre clickjacking, injection de
-          //     <base>, plugins, et détournement de formulaire.
+          // CSP — politique COMPLÈTE en mode BLOQUANT (anti-XSS).
+          // - script/style : 'unsafe-inline'/'unsafe-eval' requis par Next ;
+          //   blob: pour ses workers/chunks dynamiques.
+          // - img/font/connect : 'self' + https/data (logos clients, polices).
+          // - frame-src 'self' : autorise l'aperçu email (iframe srcdoc).
+          // - object-src 'none', base-uri, form-action, frame-ancestors : strict.
+          // report-uri conservé → toute violation résiduelle reste visible.
           {
             key: "Content-Security-Policy",
             value: [
-              "object-src 'none'",
-              "base-uri 'self'",
-              "form-action 'self'",
-              "frame-ancestors 'none'",
-            ].join("; "),
-          },
-          // (B) Politique COMPLÈTE en Report-Only : ne bloque rien, signale ce
-          //     qui serait bloqué (→ /api/csp-report). On l'observe en usage
-          //     réel (notamment l'aperçu des emails en iframe + les polices),
-          //     puis on bascule le reste en bloquant une fois confirmé propre.
-          {
-            key: "Content-Security-Policy-Report-Only",
-            value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https:",
               "font-src 'self' data: https:",
               "connect-src 'self' https:",
               "frame-src 'self'",
+              "worker-src 'self' blob:",
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",
