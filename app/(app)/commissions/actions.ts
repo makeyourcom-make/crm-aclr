@@ -7,7 +7,7 @@ import {
   processContractAnniversaries,
   processOverdueEtalements,
 } from "@/lib/commissions-engine";
-import { requireAdmin, requireUser } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 
 export interface RecomputeResult {
   ok: boolean;
@@ -32,7 +32,9 @@ export interface RecomputeResult {
  * Idempotent : peut être appelé plusieurs fois sans effet de bord.
  */
 export async function recomputeOverdueEtalements(): Promise<RecomputeResult> {
-  await requireUser(); // sans danger : idempotent
+  // Tâche financière (génère renouvellements + factures + commissions) :
+  // réservée à l'admin, même si idempotente.
+  await requireAdmin();
 
   try {
     // 1. Auto-renouvellements en premier (générera les CommissionPayment

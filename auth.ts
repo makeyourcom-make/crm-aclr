@@ -11,6 +11,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 
+import { audit } from "@/lib/audit";
 import { authConfig } from "@/auth.config";
 import { prisma } from "@/lib/db";
 import { LoginSchema } from "@/lib/schemas/auth";
@@ -40,6 +41,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // 3. Anti brute-force : compte verrouillé temporairement ?
         const now = new Date();
         if (user.lockedUntil && user.lockedUntil > now) {
+          await audit("login.locked", { userId: user.id });
           return null; // verrou actif → refus sans révéler la raison
         }
 
@@ -62,6 +64,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               lockedUntil: count >= MAX ? new Date(now.getTime() + LOCK_MS) : null,
             },
           });
+          await audit("login.fail", {
+            userId: user.id,
+            metadata: { count, locked: count >= MAX },
+          });
           return null;
         }
 
@@ -74,6 +80,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         // 6. Retourne le User minimal — NextAuth gère le reste (JWT, cookies)
+        await audit("login.success", { userId: user.id });
         return {
           id: user.id,
           email: user.email,

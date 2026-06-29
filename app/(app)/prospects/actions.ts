@@ -13,6 +13,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 
+import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import {
   ProspectCreateSchema,
@@ -211,10 +212,15 @@ export async function updateProspectStatut(
 // ===========================================================================
 
 export async function deleteProspect(id: string): Promise<ProspectActionResult> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   try {
     await prisma.prospect.delete({ where: { id } });
+    await audit("prospect.delete", {
+      userId: admin.id,
+      entity: "Prospect",
+      entityId: id,
+    });
     revalidatePath("/prospects");
     return { ok: true };
   } catch (err) {
@@ -231,7 +237,7 @@ export async function bulkReassignProspects(input: {
   prospectIds: string[];
   newAssigneeId: string | null;
 }): Promise<{ ok: boolean; count?: number; error?: string }> {
-  await requireAdmin();
+  const admin = await requireAdmin();
   if (!Array.isArray(input.prospectIds) || input.prospectIds.length === 0) {
     return { ok: false, error: "Aucune entreprise sélectionnée." };
   }
@@ -249,6 +255,10 @@ export async function bulkReassignProspects(input: {
     const res = await prisma.prospect.updateMany({
       where: { id: { in: input.prospectIds } },
       data: { assigneAId: input.newAssigneeId },
+    });
+    await audit("prospects.bulk_reassign", {
+      userId: admin.id,
+      metadata: { count: res.count, newAssigneeId: input.newAssigneeId },
     });
     revalidatePath("/prospects");
     return { ok: true, count: res.count };

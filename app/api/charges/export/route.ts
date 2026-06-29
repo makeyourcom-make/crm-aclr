@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
+import { audit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/session";
 
 import type { Prisma } from "@prisma/client";
@@ -54,7 +55,8 @@ function fmtNum(n: number | string | { toString(): string }): string {
 }
 
 export async function GET(req: Request) {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  await audit("charges.export", { userId: admin.id });
   const url = new URL(req.url);
   const sp = url.searchParams;
 

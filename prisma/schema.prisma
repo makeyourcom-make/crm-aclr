@@ -282,6 +282,33 @@ enum EmailTemplateType {
 // USER
 // ============================================================================
 
+/// Journal d'audit : trace des actions sensibles (accès/modif/export/suppression)
+/// pour la détection d'abus et la conformité LPD/RGPD. Append-only en pratique.
+model AuditLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  /// Auteur de l'action (null si système / non authentifié).
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId String?
+
+  /// Verbe d'action, ex. "login.success", "login.fail", "prospect.delete",
+  /// "contract.sign", "charges.export", "prospects.bulk_reassign".
+  action String
+  /// Type de ressource concernée (ex. "Prospect", "Contract") — optionnel.
+  entity   String?
+  entityId String?
+  /// Adresse IP de la requête (best-effort via x-forwarded-for).
+  ip       String?
+  /// Détails additionnels (compteurs, cible, etc.).
+  metadata Json?
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
+
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -354,6 +381,7 @@ model User {
   expensesCreated   Expense[]
   socialAccounts    SocialAccount[]
   emailSignatures   EmailSignature[]
+  auditLogs         AuditLog[]
 
   @@index([email])
   @@map("users")
