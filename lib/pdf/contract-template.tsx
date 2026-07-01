@@ -690,8 +690,8 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
           </Text>
         </View>
 
-        {/* Bloc signatures */}
-        <View style={styles.signatureBlock}>
+        {/* Bloc signatures — insécable : ne doit jamais être coupé entre 2 pages */}
+        <View style={styles.signatureBlock} wrap={false}>
           <View style={styles.signatureBox}>
             <Text style={styles.signatureBoxLabel}>Pour le Client</Text>
             {data.signature?.signatureClientDataUrl ? (
