@@ -115,6 +115,7 @@ export default async function ProjectsProfitabilityPage() {
                   <Th className="text-right">Coûts directs</Th>
                   <Th className="text-right">Commission</Th>
                   <Th className="text-right">Frais alloués</Th>
+                  <Th className="text-right">Charges réelles</Th>
                   <Th className="text-right">Marge brute</Th>
                   <Th className="text-right">%</Th>
                 </tr>
@@ -151,6 +152,11 @@ export default async function ProjectsProfitabilityPage() {
                     <td className="px-3 py-2 text-right tabular-nums text-red-700">
                       -{formatCHFCompact(p.quotePartFrais)}
                     </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-red-700">
+                      {p.chargesReelles > 0
+                        ? `-${formatCHFCompact(p.chargesReelles)}`
+                        : "—"}
+                    </td>
                     <td
                       className={`px-3 py-2 text-right font-semibold tabular-nums ${
                         p.margeBrute >= 0
@@ -181,6 +187,9 @@ export default async function ProjectsProfitabilityPage() {
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-red-700">
                     -{formatCHFCompact(data.totals.quotePartFrais)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-red-700">
+                    -{formatCHFCompact(data.totals.chargesReelles)}
                   </td>
                   <td
                     className={`px-3 py-2 text-right font-semibold tabular-nums ${

@@ -35,6 +35,9 @@ export interface ProjectMargin {
   coutsDirects: number;
   commission: number;
   quotePartFrais: number;
+  /** Charges RÉELLES rattachées au client (factures directes + allocations),
+   *  réparties sur ses contrats actifs. Ex. sous-traitant, ad spend, etc. */
+  chargesReelles: number;
   margeBrute: number;
   /** marge brute / revenu — entre -∞ et 1. */
   rentabilite: number;
@@ -49,6 +52,7 @@ export interface ProjectMarginCockpit {
     coutsDirects: number;
     commissions: number;
     quotePartFrais: number;
+    chargesReelles: number;
     margeBrute: number;
   };
 }
@@ -67,6 +71,7 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
           valeurAn1: true,
           modalitePaiement: true,
           statut: true,
+          prospectId: true,
           assigneA: {
             select: {
               name: true,
@@ -104,6 +109,41 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
       }),
     ]);
 
+  // ----- Charges RÉELLES rattachées par client ---------------------------
+  // (factures directes Expense.prospectId + allocations multi-clients).
+  const [directByProspect, allocByProspect] = await Promise.all([
+    prisma.expense.groupBy({
+      by: ["prospectId"],
+      where: { prospectId: { not: null } },
+      _sum: { montantTTC: true },
+    }),
+    prisma.expenseAllocation.groupBy({
+      by: ["prospectId"],
+      _sum: { montantHT: true },
+    }),
+  ]);
+  const clientCharges = new Map<string, number>();
+  for (const d of directByProspect) {
+    if (d.prospectId)
+      clientCharges.set(
+        d.prospectId,
+        (clientCharges.get(d.prospectId) ?? 0) + Number(d._sum.montantTTC ?? 0),
+      );
+  }
+  for (const a of allocByProspect) {
+    clientCharges.set(
+      a.prospectId,
+      (clientCharges.get(a.prospectId) ?? 0) + Number(a._sum.montantHT ?? 0),
+    );
+  }
+  // Nombre de contrats actifs par client (pour répartir sans double compte).
+  const contratsParClient = new Map<string, number>();
+  for (const c of contracts)
+    contratsParClient.set(
+      c.prospectId,
+      (contratsParClient.get(c.prospectId) ?? 0) + 1,
+    );
+
   // ----- Quote-part frais généraux ---------------------------------------
   // Charges TTC moyennes mensuelles sur 6 mois + salaires fixes non-commerciaux
   const chargesMoyennesMensuelles =
@@ -132,7 +172,12 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
     const tauxCom = Number(c.assigneA.tauxCommissionSignature);
     const commission = revenu * tauxCom;
     const quotePartFrais = quotePartAnnuelleParContrat;
-    const margeBrute = revenu - coutsDirects - commission - quotePartFrais;
+    // Charges réelles du client réparties sur ses contrats actifs.
+    const chargesReelles =
+      (clientCharges.get(c.prospectId) ?? 0) /
+      Math.max(contratsParClient.get(c.prospectId) ?? 1, 1);
+    const margeBrute =
+      revenu - coutsDirects - commission - quotePartFrais - chargesReelles;
     const rentabilite = revenu > 0 ? margeBrute / revenu : 0;
 
     return {
@@ -147,6 +192,7 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
       coutsDirects,
       commission,
       quotePartFrais,
+      chargesReelles,
       margeBrute,
       rentabilite,
     };
@@ -161,6 +207,7 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
       acc.coutsDirects += p.coutsDirects;
       acc.commissions += p.commission;
       acc.quotePartFrais += p.quotePartFrais;
+      acc.chargesReelles += p.chargesReelles;
       acc.margeBrute += p.margeBrute;
       return acc;
     },
@@ -169,6 +216,7 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
       coutsDirects: 0,
       commissions: 0,
       quotePartFrais: 0,
+      chargesReelles: 0,
       margeBrute: 0,
     },
   );
@@ -206,6 +254,7 @@ export async function getProjectMarginForContract(
           dateSignature: true,
           modalitePaiement: true,
           statut: true,
+          prospectId: true,
           prospect: { select: { raisonSociale: true } },
           products: {
             select: { coutOneShot: true, coutMensuel: true },
@@ -228,6 +277,25 @@ export async function getProjectMarginForContract(
 
   if (!contract) return null;
 
+  // Charges réelles du client, réparties sur ses contrats actifs.
+  const [directAgg, allocAgg, activeContractsClient] = await Promise.all([
+    prisma.expense.aggregate({
+      where: { prospectId: contract.prospectId },
+      _sum: { montantTTC: true },
+    }),
+    prisma.expenseAllocation.aggregate({
+      where: { prospectId: contract.prospectId },
+      _sum: { montantHT: true },
+    }),
+    prisma.contract.count({
+      where: { prospectId: contract.prospectId, statut: "ACTIF" },
+    }),
+  ]);
+  const chargesReelles =
+    (Number(directAgg._sum.montantTTC ?? 0) +
+      Number(allocAgg._sum.montantHT ?? 0)) /
+    Math.max(activeContractsClient, 1);
+
   const chargesMoyennesMensuelles =
     expensesLast6m.reduce((s, e) => s + Number(e.montantTTC), 0) / 6;
   const salaireFixeNonCommercial = nonCommercialsActifs.reduce(
@@ -246,7 +314,8 @@ export async function getProjectMarginForContract(
   }, 0);
   const tauxCom = Number(contract.assigneA.tauxCommissionSignature);
   const commission = revenu * tauxCom;
-  const margeBrute = revenu - coutsDirects - commission - quotePartFrais;
+  const margeBrute =
+    revenu - coutsDirects - commission - quotePartFrais - chargesReelles;
   const rentabilite = revenu > 0 ? margeBrute / revenu : 0;
 
   return {
@@ -261,6 +330,7 @@ export async function getProjectMarginForContract(
     coutsDirects,
     commission,
     quotePartFrais,
+    chargesReelles,
     margeBrute,
     rentabilite,
   };

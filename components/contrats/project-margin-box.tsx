@@ -78,6 +78,13 @@ export function ProjectMarginBox({ margin }: ProjectMarginBoxProps) {
             value={`- ${formatCHF(m.quotePartFrais)}`}
             danger
           />
+          {m.chargesReelles > 0 && (
+            <Row
+              label="Charges réelles rattachées"
+              value={`- ${formatCHF(m.chargesReelles)}`}
+              danger
+            />
+          )}
           <div className="border-t-2 border-foreground pt-2">
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-sm font-semibold uppercase tracking-wider">
