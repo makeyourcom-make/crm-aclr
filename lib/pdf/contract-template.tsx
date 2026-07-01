@@ -650,10 +650,10 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
           </View>
           <View style={styles.totalFinal}>
             <Text style={styles.totalFinalLabel}>
-              Valeur engagée 12 mois
+              Valeur engagée {data.dureeMois} mois
             </Text>
             <Text style={styles.totalFinalValue}>
-              {fmt(data.valeurAn1)}
+              {fmt(data.montantOneShot + data.montantMensuel * data.dureeMois)}
             </Text>
           </View>
         </View>
