@@ -5,6 +5,7 @@
   "description": "CRM commercial ACLR Sàrl / Make Your Com",
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/copy-pdf-worker.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

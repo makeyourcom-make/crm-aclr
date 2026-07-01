@@ -234,8 +234,10 @@ function PdfRender({
     import("react-pdf")
       .then((mod) => {
         if (canceled) return;
-        // Worker via CDN unpkg (taille minime, déjà cache CDN)
-        mod.pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${mod.pdfjs.version}/build/pdf.worker.min.mjs`;
+        // Worker servi en LOCAL (même origine) — compatible CSP 'self', pas de
+        // dépendance CDN. Copié dans /public par scripts/copy-pdf-worker.mjs
+        // (prebuild), version alignée sur pdfjs-dist.
+        mod.pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
         setDoc(mod);
       })
       .catch((e) => {
