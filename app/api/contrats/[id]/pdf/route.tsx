@@ -145,6 +145,7 @@ export async function GET(
     dateDebut: contract.dateDebut,
     dureeMois: contract.dureeMois,
     modalitePaiement: contract.modalitePaiement,
+    note: contract.note,
     montantOneShot: Number(contract.montantOneShot),
     montantMensuel: Number(contract.montantMensuel),
     valeurAn1: Number(contract.valeurAn1),

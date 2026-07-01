@@ -68,6 +68,8 @@ export const ContractCreateSchema = z.object({
   stagePipeline: z
     .enum(["DECOUVERTE", "PROPOSITION", "NEGOCIATION"])
     .optional(),
+  /** Note libre du contrat (affichée sur le PDF). "" ou absent → pas de note. */
+  note: z.string().max(4000).optional(),
   lines: z.array(ContractLineSchema).min(1, "Au moins une ligne requise."),
 });
 export type ContractCreateInput = z.infer<typeof ContractCreateSchema>;

@@ -22,6 +22,7 @@ export interface ContractPdfData {
   dateDebut: Date;
   dureeMois: number;
   modalitePaiement: string;
+  note?: string | null;
   montantOneShot: number;
   montantMensuel: number;
   valeurAn1: number;
@@ -657,6 +658,27 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
             </Text>
           </View>
         </View>
+
+        {/* Note libre du contrat (saisie dans le wizard) */}
+        {data.note && data.note.trim() !== "" && (
+          <View style={{ marginTop: 16 }} wrap={false}>
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "bold",
+                color: "#1e293b",
+                marginBottom: 4,
+              }}
+            >
+              Note
+            </Text>
+            <Text
+              style={{ fontSize: 9, color: "#334155", lineHeight: 1.4 }}
+            >
+              {data.note.trim()}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.cgvBanner}>
           <Text>

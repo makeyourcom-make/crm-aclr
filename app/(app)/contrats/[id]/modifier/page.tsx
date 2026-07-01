@@ -202,6 +202,7 @@ export default async function EditContractPage({ params }: PageProps) {
           dureeMois: String(contract.dureeMois),
           modalitePaiement: contract.modalitePaiement,
           devise: contract.devise === "EUR" ? "EUR" : "CHF",
+          note: contract.note,
           lines: initialLines,
         }}
       />

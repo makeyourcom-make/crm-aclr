@@ -990,6 +990,10 @@ model Contract {
   /// produits/agrégats ; ce champ ne sert qu'à l'affichage du détail.
   lignesMeta Json?
 
+  /// Note libre saisie sur le contrat (conditions particulières, précisions).
+  /// Affichée sur le PDF, sous les prestations.
+  note String? @db.Text
+
   dateResiliation   DateTime?
   raisonResiliation String?   @db.Text
 

@@ -87,6 +87,7 @@ interface ContractEditInitial {
   dureeMois: string;
   modalitePaiement: ModalitePaiement;
   devise?: "CHF" | "EUR";
+  note?: string | null;
   lines: LineState[];
 }
 
@@ -222,6 +223,8 @@ export function ContractWizard({
   const [modalitePaiement, setModalitePaiement] = useState<ModalitePaiement>(
     initial?.modalitePaiement ?? "CINQUANTE_CINQUANTE",
   );
+  // Note libre ajoutée au contrat (affichée sur le PDF, sous les prestations).
+  const [note, setNote] = useState(initial?.note ?? "");
   // Devise : AUTO = détection selon le pays du client (Suisse → CHF, sinon EUR)
   // Étape du pipeline où placer le contrat à sa création (son « attribut »).
   // Le contrat naît dans le pipeline puis gradue vers Contrats une fois signé.
@@ -411,6 +414,8 @@ export function ContractWizard({
       dureeMois: Number(dureeMois),
       modalitePaiement,
       devise: devise === "AUTO" ? undefined : devise,
+      // Note libre (envoyée telle quelle : "" → effacée côté serveur).
+      note,
       // Étape pipeline où placer le contrat à sa création (ignoré en édition).
       stagePipeline: initial ? undefined : stagePipeline,
       lines: lines.map((l) => ({
@@ -571,6 +576,22 @@ export function ContractWizard({
               </div>
             </div>
           )}
+
+          {/* Note libre du contrat — apparaît sur le PDF, sous les prestations */}
+          <div className="space-y-1.5 border-t border-border pt-3">
+            <Label htmlFor="contract-note">Note (optionnel)</Label>
+            <textarea
+              id="contract-note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={3}
+              placeholder="Note libre ajoutée au contrat (conditions particulières, précisions…)"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Ce texte apparaîtra sur le PDF du contrat, sous les prestations.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
