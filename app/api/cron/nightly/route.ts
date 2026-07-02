@@ -19,6 +19,7 @@
  */
 import { NextResponse } from "next/server";
 
+import { generateDueClientInvoices } from "@/app/(app)/contrats/actions";
 import {
   processAnnualContractAnniversaries,
   processContractAnniversaries,
@@ -67,6 +68,11 @@ async function handler(req: Request) {
         amount: r.amount,
       }));
     }
+
+    // 1ter. Factures clients du mois échu (mois-par-mois, BROUILLON).
+    const dueInvoices = await generateDueClientInvoices();
+    results.clientInvoicesGenerated = dueInvoices.created;
+    if (!dueInvoices.ok) results.clientInvoicesError = dueInvoices.error;
 
     // 2. Étalements échus
     const etalements = await processOverdueEtalements();

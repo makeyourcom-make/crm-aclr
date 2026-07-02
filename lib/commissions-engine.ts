@@ -440,10 +440,15 @@ async function renewContractForYear(
         },
       });
 
-      // 2. 12 ClientInvoices mensualité pour la nouvelle année
+      // 2. ClientInvoices mensualité — mois-par-mois : on ne crée QUE jusqu'au
+      //    mois courant. Les mois suivants sont générés par le cron
+      //    (generateDueClientInvoices).
+      const now = new Date();
+      const cutoff = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
       let invoicesCreated = 0;
       for (let m = 0; m < 12; m++) {
         const dateEmission = addMonthsKeepEndOfMonth(anniversaryDate, m);
+        if (dateEmission > cutoff) continue;
         const periodeFin = new Date(dateEmission);
         periodeFin.setMonth(periodeFin.getMonth() + 1);
         periodeFin.setDate(periodeFin.getDate() - 1);

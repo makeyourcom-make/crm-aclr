@@ -44,6 +44,13 @@ export interface ContractActionResult {
  *  - MONTANT    → soustrait le montant de la/les part(s) ciblée(s).
  * Cible par défaut : "DEUX".
  */
+/** Dernier instant du mois d'une date (23:59:59.999). Sert de plafond : on ne
+ *  persiste JAMAIS de factures au-delà du mois courant — elles sont générées
+ *  mois par mois par le cron (generateDueClientInvoices). */
+function endOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+}
+
 function effectiveUnitPrices(
   baseOneShot: number,
   baseMensuel: number,
@@ -357,7 +364,11 @@ export async function createContractFromDeal(
         lines: linesEnriched,
       });
 
+      const cutoffCreate = endOfMonth(new Date());
       for (const inv of invoicesData) {
+        // Mois-par-mois : on ne crée pas les factures futures à l'avance,
+        // le cron les génère au fil des mois (generateDueClientInvoices).
+        if (inv.dateEmission > cutoffCreate) continue;
         const cAnnee = inv.dateEmission.getFullYear();
         const cCounter = await tx.counter.upsert({
           where: { scope_year: { scope: "client_invoice", year: cAnnee } },
@@ -610,9 +621,12 @@ export async function updateContract(
           });
         }
 
-        // 3. Factures brouillon : suppression puis régénération
+        // 3. Factures brouillon : suppression puis régénération (jusqu'au mois
+        //    courant uniquement — le cron génère les mois suivants).
         await tx.clientInvoice.deleteMany({ where: { contractId } });
+        const cutoffUpd = endOfMonth(new Date());
         for (const inv of invoicesData) {
+          if (inv.dateEmission > cutoffUpd) continue;
           const cAnnee = inv.dateEmission.getFullYear();
           const cCounter = await tx.counter.upsert({
             where: { scope_year: { scope: "client_invoice", year: cAnnee } },
@@ -1978,4 +1992,164 @@ function prismaErrorToResult(err: unknown): ContractActionResult {
   }
   console.error("[contract action] erreur inattendue", err);
   return { ok: false, error: "Erreur serveur inattendue." };
+}
+
+/**
+ * Générateur MENSUEL des factures clients (appelé par le cron nocturne).
+ *
+ * Pour chaque contrat ACTIF, rejoue EXACTEMENT le même calcul que la création
+ * (buildClientInvoicesForContract, params reconstruits depuis lignesMeta), et
+ * crée en BROUILLON les mensualités ÉCHUES qui manquent (dateEmission ≤ fin du
+ * mois courant), sans jamais dépasser le mois courant ni créer de doublon
+ * (dédup par période mois). Idempotent : peut tourner chaque nuit sans risque.
+ *
+ * Résultat : une facture par mois par contrat, générée au fil de l'eau — plus
+ * jamais 12 mois d'avance.
+ */
+export async function generateDueClientInvoices(): Promise<{
+  ok: boolean;
+  created: number;
+  error?: string;
+}> {
+  try {
+    const now = new Date();
+    const cutoff = endOfMonth(now);
+    // Plancher = 1er du mois courant : on ne génère QUE le mois courant (pas de
+    // backfill des mois passés — évite de recréer d'anciennes factures).
+    const floorMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const contracts = await prisma.contract.findMany({
+      where: { statut: "ACTIF" },
+      select: {
+        id: true,
+        modalitePaiement: true,
+        dateSignature: true,
+        dateDebut: true,
+        dureeMois: true,
+        devise: true,
+        lignesMeta: true,
+        products: {
+          select: { id: true, nom: true, prixOneShot: true, prixMensuel: true },
+        },
+        clientInvoices: { select: { periodeMoisDebut: true } },
+      },
+    });
+
+    let created = 0;
+    for (const c of contracts) {
+      const meta = Array.isArray(c.lignesMeta)
+        ? (c.lignesMeta as Array<Record<string, unknown>>)
+        : [];
+      if (meta.length === 0) continue; // contrats sans meta (anciens) → ignorés
+
+      const prodById = new Map(c.products.map((p) => [p.id, p]));
+      let oneShotCents = 0;
+      let mensuelCents = 0;
+      const lines: Parameters<typeof buildClientInvoicesForContract>[0]["lines"] =
+        [];
+      for (const m of meta) {
+        const prod = prodById.get(String(m.productId));
+        if (!prod) continue;
+        const baseOneShot = Number(
+          m.prixOneShotOriginal ?? (prod.prixOneShot ? Number(prod.prixOneShot) : 0),
+        );
+        const baseMensuel = Number(
+          m.prixMensuelOriginal ?? (prod.prixMensuel ? Number(prod.prixMensuel) : 0),
+        );
+        const eff = effectiveUnitPrices(baseOneShot, baseMensuel, {
+          offert: Boolean(m.offert),
+          offertCible: (m.offertCible as never) ?? null,
+          remiseType: (m.remiseType as never) ?? null,
+          remiseValeur: Number(m.remiseValeur ?? 0),
+          remiseCible: (m.remiseCible as never) ?? null,
+        });
+        const qte = Number(m.quantite ?? 1);
+        const lineOneShot = chfToCents(eff.oneShot * qte);
+        const lineMensuel = chfToCents(eff.mensuel * qte);
+        oneShotCents += lineOneShot;
+        mensuelCents += lineMensuel;
+        lines.push({
+          productId: String(m.productId),
+          nom: prod.nom,
+          quantite: qte,
+          oneShotUnit: eff.oneShot,
+          mensuelUnit: eff.mensuel,
+          lineOneShot,
+          lineMensuel,
+        });
+      }
+      if (mensuelCents === 0) continue; // pas de récurrent → rien à générer
+
+      const schedule = buildClientInvoicesForContract({
+        modalite: c.modalitePaiement as never,
+        dateSignature: c.dateSignature,
+        dateDebut: c.dateDebut,
+        dureeMois: c.dureeMois,
+        oneShotCents,
+        mensuelCents,
+        lines,
+      });
+
+      const existing = new Set(
+        c.clientInvoices
+          .filter((i) => i.periodeMoisDebut)
+          .map((i) => i.periodeMoisDebut!.toISOString().slice(0, 7)),
+      );
+
+      for (const inv of schedule) {
+        if (inv.type !== "MENSUALITE") continue; // acompte/solde créés à la signature
+        if (inv.dateEmission > cutoff) continue; // pas d'avance
+        if (inv.dateEmission < floorMonth) continue; // pas de backfill (mois courant seul)
+        const key = (inv.periodeMoisDebut ?? inv.dateEmission)
+          .toISOString()
+          .slice(0, 7);
+        if (existing.has(key)) continue; // déjà générée
+
+        const annee = inv.dateEmission.getFullYear();
+        const counter = await prisma.counter.upsert({
+          where: { scope_year: { scope: "client_invoice", year: annee } },
+          create: { scope: "client_invoice", year: annee, value: 1 },
+          update: { value: { increment: 1 } },
+        });
+        const facNumero = `${PREFIX_FACTURE_CLIENT}-${annee}-${String(counter.value).padStart(4, "0")}`;
+
+        await prisma.clientInvoice.create({
+          data: {
+            contractId: c.id,
+            numero: facNumero,
+            dateEmission: inv.dateEmission,
+            dateEcheance: inv.dateEcheance,
+            type: inv.type,
+            periodeMoisDebut: inv.periodeMoisDebut ?? null,
+            periodeMoisFin: inv.periodeMoisFin ?? null,
+            devise: c.devise ?? "CHF",
+            sousTotal: centsToChf(inv.sousTotalCents),
+            totalTVA: 0,
+            total: centsToChf(inv.sousTotalCents),
+            statut: "BROUILLON",
+            lignes: {
+              create: inv.lines.map((l, idx) => ({
+                designation: l.designation,
+                quantite: l.quantite,
+                prixUnitaire: l.prixUnitaire,
+                montantHT: l.montantHT,
+                tauxTVA: 0,
+                ordre: idx,
+                productId: l.productId ?? null,
+              })),
+            },
+          },
+        });
+        existing.add(key);
+        created++;
+      }
+    }
+    return { ok: true, created };
+  } catch (e) {
+    console.error("[generateDueClientInvoices]", e);
+    return {
+      ok: false,
+      created: 0,
+      error: e instanceof Error ? e.message : "Erreur",
+    };
+  }
 }
