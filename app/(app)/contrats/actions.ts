@@ -353,58 +353,12 @@ export async function createContractFromDeal(
         });
       }
 
-      // ---- 6. ClientInvoices selon modalité ----
-      const invoicesData = buildClientInvoicesForContract({
-        modalite: parsed.data.modalitePaiement,
-        dateSignature: parsed.data.dateSignature,
-        dateDebut: parsed.data.dateDebut,
-        dureeMois: parsed.data.dureeMois,
-        oneShotCents,
-        mensuelCents,
-        lines: linesEnriched,
-      });
-
-      const cutoffCreate = endOfMonth(new Date());
-      for (const inv of invoicesData) {
-        // Mois-par-mois : on ne crée pas les factures futures à l'avance,
-        // le cron les génère au fil des mois (generateDueClientInvoices).
-        if (inv.dateEmission > cutoffCreate) continue;
-        const cAnnee = inv.dateEmission.getFullYear();
-        const cCounter = await tx.counter.upsert({
-          where: { scope_year: { scope: "client_invoice", year: cAnnee } },
-          create: { scope: "client_invoice", year: cAnnee, value: 1 },
-          update: { value: { increment: 1 } },
-        });
-        const facNumero = `${PREFIX_FACTURE_CLIENT}-${cAnnee}-${String(cCounter.value).padStart(4, "0")}`;
-
-        await tx.clientInvoice.create({
-          data: {
-            contractId: contract.id,
-            numero: facNumero,
-            dateEmission: inv.dateEmission,
-            dateEcheance: inv.dateEcheance,
-            type: inv.type,
-            periodeMoisDebut: inv.periodeMoisDebut ?? null,
-            periodeMoisFin: inv.periodeMoisFin ?? null,
-            devise: deviseDefault,
-            sousTotal: centsToChf(inv.sousTotalCents),
-            totalTVA: 0,
-            total: centsToChf(inv.sousTotalCents),
-            statut: "BROUILLON",
-            lignes: {
-              create: inv.lines.map((l, idx) => ({
-                designation: l.designation,
-                quantite: l.quantite,
-                prixUnitaire: l.prixUnitaire,
-                montantHT: l.montantHT,
-                tauxTVA: 0,
-                ordre: idx,
-                productId: l.productId ?? null,
-              })),
-            },
-          },
-        });
-      }
+      // ---- 6. ClientInvoices ----
+      // RÈGLE MÉTIER : contrat non signé = ZÉRO facture. Le contrat naît en
+      // ATTENTE_SIGNATURE_CLIENT → aucune facture n'est créée ici. Les factures
+      // sont générées à l'ACTIVATION (validateContract, après signature +
+      // validation admin), puis mois par mois par le cron nocturne
+      // (generateDueClientInvoices). Cf. createDueInvoicesForContract.
 
       return { contractId: contract.id, numero };
     }, { timeout: 30_000 });
@@ -561,16 +515,6 @@ export async function updateContract(
       taux: tauxCommission,
       dateSignature: parsed.data.dateSignature,
     });
-    const invoicesData = buildClientInvoicesForContract({
-      modalite: parsed.data.modalitePaiement,
-      dateSignature: parsed.data.dateSignature,
-      dateDebut: parsed.data.dateDebut,
-      dureeMois: parsed.data.dureeMois,
-      oneShotCents,
-      mensuelCents,
-      lines: linesEnriched,
-    });
-
     await prisma.$transaction(
       async (tx) => {
         // 1. Contrat : montants + paramètres + liaison produits (remplace tout)
@@ -621,47 +565,11 @@ export async function updateContract(
           });
         }
 
-        // 3. Factures brouillon : suppression puis régénération (jusqu'au mois
-        //    courant uniquement — le cron génère les mois suivants).
+        // 3. Factures : un contrat NON signé n'a AUCUNE facture. On purge donc
+        //    d'éventuels brouillons résiduels (ex. issus d'une ancienne
+        //    version). La génération se fait à l'ACTIVATION (validateContract),
+        //    jamais avant signature.
         await tx.clientInvoice.deleteMany({ where: { contractId } });
-        const cutoffUpd = endOfMonth(new Date());
-        for (const inv of invoicesData) {
-          if (inv.dateEmission > cutoffUpd) continue;
-          const cAnnee = inv.dateEmission.getFullYear();
-          const cCounter = await tx.counter.upsert({
-            where: { scope_year: { scope: "client_invoice", year: cAnnee } },
-            create: { scope: "client_invoice", year: cAnnee, value: 1 },
-            update: { value: { increment: 1 } },
-          });
-          const facNumero = `${PREFIX_FACTURE_CLIENT}-${cAnnee}-${String(cCounter.value).padStart(4, "0")}`;
-          await tx.clientInvoice.create({
-            data: {
-              contractId,
-              numero: facNumero,
-              dateEmission: inv.dateEmission,
-              dateEcheance: inv.dateEcheance,
-              type: inv.type,
-              periodeMoisDebut: inv.periodeMoisDebut ?? null,
-              periodeMoisFin: inv.periodeMoisFin ?? null,
-              devise: parsed.data.devise ?? existing.devise,
-              sousTotal: centsToChf(inv.sousTotalCents),
-              totalTVA: 0,
-              total: centsToChf(inv.sousTotalCents),
-              statut: "BROUILLON",
-              lignes: {
-                create: inv.lines.map((l, idx) => ({
-                  designation: l.designation,
-                  quantite: l.quantite,
-                  prixUnitaire: l.prixUnitaire,
-                  montantHT: l.montantHT,
-                  tauxTVA: 0,
-                  ordre: idx,
-                  productId: l.productId ?? null,
-                })),
-              },
-            },
-          });
-        }
       },
       { timeout: 30_000 },
     );
@@ -1899,7 +1807,25 @@ export async function validateContract(
   try {
     const contract = await prisma.contract.findUnique({
       where: { id: contractId },
-      select: { statut: true, numero: true },
+      select: {
+        id: true,
+        statut: true,
+        numero: true,
+        modalitePaiement: true,
+        dateSignature: true,
+        dateDebut: true,
+        dureeMois: true,
+        devise: true,
+        montantOneShot: true,
+        montantMensuel: true,
+        lignesMeta: true,
+        products: {
+          select: { id: true, nom: true, prixOneShot: true, prixMensuel: true },
+        },
+        clientInvoices: {
+          select: { periodeMoisDebut: true, type: true, dateEmission: true },
+        },
+      },
     });
     if (!contract) return { ok: false, error: "Contrat introuvable." };
     if (contract.statut !== "ATTENTE_VALIDATION_ADMIN") {
@@ -1908,19 +1834,40 @@ export async function validateContract(
         error: `Le contrat ne peut pas être validé (statut actuel : ${contract.statut}). Il doit être en ATTENTE_VALIDATION_ADMIN.`,
       };
     }
-    await prisma.contract.update({
-      where: { id: contractId },
-      data: {
-        statut: "ACTIF",
-        valideParAdminId: user.id,
-        valideALe: new Date(),
-      },
+
+    const billing = reconstructContractBilling(contract);
+    let invoicesCreated = 0;
+    await prisma.$transaction(async (tx) => {
+      await tx.contract.update({
+        where: { id: contractId },
+        data: {
+          statut: "ACTIF",
+          valideParAdminId: user.id,
+          valideALe: new Date(),
+        },
+      });
+      // Génération des factures ÉCHUES à l'activation : le contrat est
+      // désormais signé + validé, on peut facturer. One-shot (acompte / solde /
+      // ponctuelle) + mensualité(s) échues jusqu'au mois courant. Les mois
+      // suivants sont générés par le cron. Dédup interne → aucun doublon même
+      // si l'activation est rejouée.
+      invoicesCreated = await createDueInvoicesForContract(
+        tx,
+        contract,
+        billing,
+        {
+          includeOneShot: true,
+          floorMonth: null,
+          cutoff: endOfMonth(new Date()),
+        },
+      );
     });
+
     revalidatePath("/contrats");
     revalidatePath(`/contrats/${contractId}`);
     revalidatePath("/pipeline");
     console.info(
-      `[validateContract] ${user.name} valide ${contract.numero} → ACTIF`,
+      `[validateContract] ${user.name} valide ${contract.numero} → ACTIF (${invoicesCreated} facture(s) générée(s))`,
     );
     return { ok: true, contractId };
   } catch (err) {
@@ -1995,6 +1942,202 @@ function prismaErrorToResult(err: unknown): ContractActionResult {
 }
 
 /**
+ * Reconstruit les montants (en cents) et les lignes de facturation d'un
+ * contrat. Depuis `lignesMeta` si présent (prix/offert/remise d'origine),
+ * sinon repli sur les montants AUTORITAIRES du contrat (contrats anciens /
+ * importés sans meta). Partagé par l'activation et le cron mensuel.
+ */
+function reconstructContractBilling(c: {
+  montantOneShot: Prisma.Decimal | number;
+  montantMensuel: Prisma.Decimal | number;
+  lignesMeta: Prisma.JsonValue | null;
+  products: Array<{
+    id: string;
+    nom: string;
+    prixOneShot: Prisma.Decimal | null;
+    prixMensuel: Prisma.Decimal | null;
+  }>;
+}): {
+  oneShotCents: number;
+  mensuelCents: number;
+  lines: Parameters<typeof buildClientInvoicesForContract>[0]["lines"];
+} {
+  const meta = Array.isArray(c.lignesMeta)
+    ? (c.lignesMeta as Array<Record<string, unknown>>)
+    : [];
+  const prodById = new Map(c.products.map((p) => [p.id, p]));
+  let oneShotCents = 0;
+  let mensuelCents = 0;
+  const lines: Parameters<typeof buildClientInvoicesForContract>[0]["lines"] =
+    [];
+
+  if (meta.length > 0) {
+    // Chemin normal : reconstruction ligne par ligne depuis lignesMeta.
+    for (const m of meta) {
+      const prod = prodById.get(String(m.productId));
+      if (!prod) continue;
+      const baseOneShot = Number(
+        m.prixOneShotOriginal ??
+          (prod.prixOneShot ? Number(prod.prixOneShot) : 0),
+      );
+      const baseMensuel = Number(
+        m.prixMensuelOriginal ??
+          (prod.prixMensuel ? Number(prod.prixMensuel) : 0),
+      );
+      const eff = effectiveUnitPrices(baseOneShot, baseMensuel, {
+        offert: Boolean(m.offert),
+        offertCible: (m.offertCible as never) ?? null,
+        remiseType: (m.remiseType as never) ?? null,
+        remiseValeur: Number(m.remiseValeur ?? 0),
+        remiseCible: (m.remiseCible as never) ?? null,
+      });
+      const qte = Number(m.quantite ?? 1);
+      const lineOneShot = chfToCents(eff.oneShot * qte);
+      const lineMensuel = chfToCents(eff.mensuel * qte);
+      oneShotCents += lineOneShot;
+      mensuelCents += lineMensuel;
+      lines.push({
+        productId: String(m.productId),
+        nom: prod.nom,
+        quantite: qte,
+        oneShotUnit: eff.oneShot,
+        mensuelUnit: eff.mensuel,
+        lineOneShot,
+        lineMensuel,
+      });
+    }
+  } else {
+    // Repli — contrats SANS lignesMeta (anciens / importés). On facture les
+    // montants AUTORITAIRES du contrat via une ligne synthétique (désignation =
+    // produits liés). Sans ce repli, ces contrats ne seraient jamais facturés.
+    oneShotCents = chfToCents(Number(c.montantOneShot));
+    mensuelCents = chfToCents(Number(c.montantMensuel));
+    const designation = c.products.length
+      ? c.products.map((prod) => prod.nom).join(" + ")
+      : "Prestation mensuelle";
+    lines.push({
+      productId: c.products[0]?.id ?? "",
+      nom: designation,
+      quantite: 1,
+      oneShotUnit: centsToChf(oneShotCents),
+      mensuelUnit: centsToChf(mensuelCents),
+      lineOneShot: oneShotCents,
+      lineMensuel: mensuelCents,
+    });
+  }
+  return { oneShotCents, mensuelCents, lines };
+}
+
+/**
+ * Crée en BROUILLON les factures ÉCHUES d'UN contrat qui n'existent pas encore.
+ * Partagé par l'activation (validateContract → includeOneShot=true) et le cron
+ * mensuel (generateDueClientInvoices → includeOneShot=false + plancher mois).
+ *
+ * Dédup stricte (jamais de doublon) : MENSUALITE par période (YYYY-MM),
+ * one-shot par (type + date d'émission). Ne crée jamais au-delà de `cutoff`
+ * (fin du mois courant) → jamais de factures d'avance.
+ */
+async function createDueInvoicesForContract(
+  client: Prisma.TransactionClient,
+  c: {
+    id: string;
+    modalitePaiement: string;
+    dateSignature: Date;
+    dateDebut: Date;
+    dureeMois: number;
+    devise: string;
+    clientInvoices: Array<{
+      periodeMoisDebut: Date | null;
+      type: string;
+      dateEmission: Date;
+    }>;
+  },
+  billing: {
+    oneShotCents: number;
+    mensuelCents: number;
+    lines: Parameters<typeof buildClientInvoicesForContract>[0]["lines"];
+  },
+  opts: { includeOneShot: boolean; floorMonth: Date | null; cutoff: Date },
+): Promise<number> {
+  const schedule = buildClientInvoicesForContract({
+    modalite: c.modalitePaiement as never,
+    dateSignature: c.dateSignature,
+    dateDebut: c.dateDebut,
+    dureeMois: c.dureeMois,
+    oneShotCents: billing.oneShotCents,
+    mensuelCents: billing.mensuelCents,
+    lines: billing.lines,
+  });
+
+  const existingPeriods = new Set(
+    c.clientInvoices
+      .filter((i) => i.periodeMoisDebut)
+      .map((i) => i.periodeMoisDebut!.toISOString().slice(0, 7)),
+  );
+  const existingOneShot = new Set(
+    c.clientInvoices
+      .filter((i) => i.type !== "MENSUALITE")
+      .map((i) => `${i.type}|${i.dateEmission.toISOString().slice(0, 10)}`),
+  );
+
+  let created = 0;
+  for (const inv of schedule) {
+    if (inv.dateEmission > opts.cutoff) continue; // jamais d'avance
+    if (inv.type === "MENSUALITE") {
+      if (opts.floorMonth && inv.dateEmission < opts.floorMonth) continue;
+      const key = (inv.periodeMoisDebut ?? inv.dateEmission)
+        .toISOString()
+        .slice(0, 7);
+      if (existingPeriods.has(key)) continue; // déjà générée ce mois
+      existingPeriods.add(key);
+    } else {
+      if (!opts.includeOneShot) continue; // one-shot créé à l'activation
+      const key = `${inv.type}|${inv.dateEmission.toISOString().slice(0, 10)}`;
+      if (existingOneShot.has(key)) continue; // acompte/solde déjà émis
+      existingOneShot.add(key);
+    }
+
+    const annee = inv.dateEmission.getFullYear();
+    const counter = await client.counter.upsert({
+      where: { scope_year: { scope: "client_invoice", year: annee } },
+      create: { scope: "client_invoice", year: annee, value: 1 },
+      update: { value: { increment: 1 } },
+    });
+    const facNumero = `${PREFIX_FACTURE_CLIENT}-${annee}-${String(counter.value).padStart(4, "0")}`;
+
+    await client.clientInvoice.create({
+      data: {
+        contractId: c.id,
+        numero: facNumero,
+        dateEmission: inv.dateEmission,
+        dateEcheance: inv.dateEcheance,
+        type: inv.type,
+        periodeMoisDebut: inv.periodeMoisDebut ?? null,
+        periodeMoisFin: inv.periodeMoisFin ?? null,
+        devise: c.devise ?? "CHF",
+        sousTotal: centsToChf(inv.sousTotalCents),
+        totalTVA: 0,
+        total: centsToChf(inv.sousTotalCents),
+        statut: "BROUILLON",
+        lignes: {
+          create: inv.lines.map((l, idx) => ({
+            designation: l.designation,
+            quantite: l.quantite,
+            prixUnitaire: l.prixUnitaire,
+            montantHT: l.montantHT,
+            tauxTVA: 0,
+            ordre: idx,
+            productId: l.productId || null,
+          })),
+        },
+      },
+    });
+    created++;
+  }
+  return created;
+}
+
+/**
  * Générateur MENSUEL des factures clients (appelé par le cron nocturne).
  *
  * Pour chaque contrat ACTIF, rejoue EXACTEMENT le même calcul que la création
@@ -2032,142 +2175,23 @@ export async function generateDueClientInvoices(): Promise<{
         products: {
           select: { id: true, nom: true, prixOneShot: true, prixMensuel: true },
         },
-        clientInvoices: { select: { periodeMoisDebut: true } },
+        clientInvoices: {
+          select: { periodeMoisDebut: true, type: true, dateEmission: true },
+        },
       },
     });
 
     let created = 0;
     for (const c of contracts) {
-      const meta = Array.isArray(c.lignesMeta)
-        ? (c.lignesMeta as Array<Record<string, unknown>>)
-        : [];
-
-      const prodById = new Map(c.products.map((p) => [p.id, p]));
-      let oneShotCents = 0;
-      let mensuelCents = 0;
-      const lines: Parameters<typeof buildClientInvoicesForContract>[0]["lines"] =
-        [];
-
-      if (meta.length > 0) {
-        // Chemin normal : reconstruction ligne par ligne depuis lignesMeta
-        // (contrats créés via le flux Deal → prix/offert/remise d'origine).
-        for (const m of meta) {
-          const prod = prodById.get(String(m.productId));
-          if (!prod) continue;
-          const baseOneShot = Number(
-            m.prixOneShotOriginal ?? (prod.prixOneShot ? Number(prod.prixOneShot) : 0),
-          );
-          const baseMensuel = Number(
-            m.prixMensuelOriginal ?? (prod.prixMensuel ? Number(prod.prixMensuel) : 0),
-          );
-          const eff = effectiveUnitPrices(baseOneShot, baseMensuel, {
-            offert: Boolean(m.offert),
-            offertCible: (m.offertCible as never) ?? null,
-            remiseType: (m.remiseType as never) ?? null,
-            remiseValeur: Number(m.remiseValeur ?? 0),
-            remiseCible: (m.remiseCible as never) ?? null,
-          });
-          const qte = Number(m.quantite ?? 1);
-          const lineOneShot = chfToCents(eff.oneShot * qte);
-          const lineMensuel = chfToCents(eff.mensuel * qte);
-          oneShotCents += lineOneShot;
-          mensuelCents += lineMensuel;
-          lines.push({
-            productId: String(m.productId),
-            nom: prod.nom,
-            quantite: qte,
-            oneShotUnit: eff.oneShot,
-            mensuelUnit: eff.mensuel,
-            lineOneShot,
-            lineMensuel,
-          });
-        }
-      } else {
-        // Repli — contrats SANS lignesMeta (anciens / importés, ~92% du
-        // portefeuille historique). On facture le montant mensuel AUTORITAIRE
-        // porté par le contrat, via une ligne synthétique (désignation =
-        // produits liés). Sans ce repli, ces contrats ne seraient jamais
-        // facturés automatiquement → sous-facturation silencieuse.
-        oneShotCents = chfToCents(Number(c.montantOneShot));
-        mensuelCents = chfToCents(Number(c.montantMensuel));
-        const designation = c.products.length
-          ? c.products.map((prod) => prod.nom).join(" + ")
-          : "Prestation mensuelle";
-        lines.push({
-          productId: c.products[0]?.id ?? "",
-          nom: designation,
-          quantite: 1,
-          oneShotUnit: centsToChf(oneShotCents),
-          mensuelUnit: centsToChf(mensuelCents),
-          lineOneShot: oneShotCents,
-          lineMensuel: mensuelCents,
-        });
-      }
-      if (mensuelCents === 0) continue; // pas de récurrent → rien à générer
-
-      const schedule = buildClientInvoicesForContract({
-        modalite: c.modalitePaiement as never,
-        dateSignature: c.dateSignature,
-        dateDebut: c.dateDebut,
-        dureeMois: c.dureeMois,
-        oneShotCents,
-        mensuelCents,
-        lines,
-      });
-
-      const existing = new Set(
-        c.clientInvoices
-          .filter((i) => i.periodeMoisDebut)
-          .map((i) => i.periodeMoisDebut!.toISOString().slice(0, 7)),
+      const billing = reconstructContractBilling(c);
+      if (billing.mensuelCents === 0) continue; // pas de récurrent → rien
+      created += await prisma.$transaction((tx) =>
+        createDueInvoicesForContract(tx, c, billing, {
+          includeOneShot: false, // one-shot créé à l'activation, pas ici
+          floorMonth, // mois courant uniquement (pas de backfill)
+          cutoff,
+        }),
       );
-
-      for (const inv of schedule) {
-        if (inv.type !== "MENSUALITE") continue; // acompte/solde créés à la signature
-        if (inv.dateEmission > cutoff) continue; // pas d'avance
-        if (inv.dateEmission < floorMonth) continue; // pas de backfill (mois courant seul)
-        const key = (inv.periodeMoisDebut ?? inv.dateEmission)
-          .toISOString()
-          .slice(0, 7);
-        if (existing.has(key)) continue; // déjà générée
-
-        const annee = inv.dateEmission.getFullYear();
-        const counter = await prisma.counter.upsert({
-          where: { scope_year: { scope: "client_invoice", year: annee } },
-          create: { scope: "client_invoice", year: annee, value: 1 },
-          update: { value: { increment: 1 } },
-        });
-        const facNumero = `${PREFIX_FACTURE_CLIENT}-${annee}-${String(counter.value).padStart(4, "0")}`;
-
-        await prisma.clientInvoice.create({
-          data: {
-            contractId: c.id,
-            numero: facNumero,
-            dateEmission: inv.dateEmission,
-            dateEcheance: inv.dateEcheance,
-            type: inv.type,
-            periodeMoisDebut: inv.periodeMoisDebut ?? null,
-            periodeMoisFin: inv.periodeMoisFin ?? null,
-            devise: c.devise ?? "CHF",
-            sousTotal: centsToChf(inv.sousTotalCents),
-            totalTVA: 0,
-            total: centsToChf(inv.sousTotalCents),
-            statut: "BROUILLON",
-            lignes: {
-              create: inv.lines.map((l, idx) => ({
-                designation: l.designation,
-                quantite: l.quantite,
-                prixUnitaire: l.prixUnitaire,
-                montantHT: l.montantHT,
-                tauxTVA: 0,
-                ordre: idx,
-                productId: l.productId || null,
-              })),
-            },
-          },
-        });
-        existing.add(key);
-        created++;
-      }
     }
     return { ok: true, created };
   } catch (e) {
