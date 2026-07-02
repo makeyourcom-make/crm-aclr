@@ -2026,6 +2026,8 @@ export async function generateDueClientInvoices(): Promise<{
         dateDebut: true,
         dureeMois: true,
         devise: true,
+        montantOneShot: true,
+        montantMensuel: true,
         lignesMeta: true,
         products: {
           select: { id: true, nom: true, prixOneShot: true, prixMensuel: true },
@@ -2039,42 +2041,66 @@ export async function generateDueClientInvoices(): Promise<{
       const meta = Array.isArray(c.lignesMeta)
         ? (c.lignesMeta as Array<Record<string, unknown>>)
         : [];
-      if (meta.length === 0) continue; // contrats sans meta (anciens) → ignorés
 
       const prodById = new Map(c.products.map((p) => [p.id, p]));
       let oneShotCents = 0;
       let mensuelCents = 0;
       const lines: Parameters<typeof buildClientInvoicesForContract>[0]["lines"] =
         [];
-      for (const m of meta) {
-        const prod = prodById.get(String(m.productId));
-        if (!prod) continue;
-        const baseOneShot = Number(
-          m.prixOneShotOriginal ?? (prod.prixOneShot ? Number(prod.prixOneShot) : 0),
-        );
-        const baseMensuel = Number(
-          m.prixMensuelOriginal ?? (prod.prixMensuel ? Number(prod.prixMensuel) : 0),
-        );
-        const eff = effectiveUnitPrices(baseOneShot, baseMensuel, {
-          offert: Boolean(m.offert),
-          offertCible: (m.offertCible as never) ?? null,
-          remiseType: (m.remiseType as never) ?? null,
-          remiseValeur: Number(m.remiseValeur ?? 0),
-          remiseCible: (m.remiseCible as never) ?? null,
-        });
-        const qte = Number(m.quantite ?? 1);
-        const lineOneShot = chfToCents(eff.oneShot * qte);
-        const lineMensuel = chfToCents(eff.mensuel * qte);
-        oneShotCents += lineOneShot;
-        mensuelCents += lineMensuel;
+
+      if (meta.length > 0) {
+        // Chemin normal : reconstruction ligne par ligne depuis lignesMeta
+        // (contrats créés via le flux Deal → prix/offert/remise d'origine).
+        for (const m of meta) {
+          const prod = prodById.get(String(m.productId));
+          if (!prod) continue;
+          const baseOneShot = Number(
+            m.prixOneShotOriginal ?? (prod.prixOneShot ? Number(prod.prixOneShot) : 0),
+          );
+          const baseMensuel = Number(
+            m.prixMensuelOriginal ?? (prod.prixMensuel ? Number(prod.prixMensuel) : 0),
+          );
+          const eff = effectiveUnitPrices(baseOneShot, baseMensuel, {
+            offert: Boolean(m.offert),
+            offertCible: (m.offertCible as never) ?? null,
+            remiseType: (m.remiseType as never) ?? null,
+            remiseValeur: Number(m.remiseValeur ?? 0),
+            remiseCible: (m.remiseCible as never) ?? null,
+          });
+          const qte = Number(m.quantite ?? 1);
+          const lineOneShot = chfToCents(eff.oneShot * qte);
+          const lineMensuel = chfToCents(eff.mensuel * qte);
+          oneShotCents += lineOneShot;
+          mensuelCents += lineMensuel;
+          lines.push({
+            productId: String(m.productId),
+            nom: prod.nom,
+            quantite: qte,
+            oneShotUnit: eff.oneShot,
+            mensuelUnit: eff.mensuel,
+            lineOneShot,
+            lineMensuel,
+          });
+        }
+      } else {
+        // Repli — contrats SANS lignesMeta (anciens / importés, ~92% du
+        // portefeuille historique). On facture le montant mensuel AUTORITAIRE
+        // porté par le contrat, via une ligne synthétique (désignation =
+        // produits liés). Sans ce repli, ces contrats ne seraient jamais
+        // facturés automatiquement → sous-facturation silencieuse.
+        oneShotCents = chfToCents(Number(c.montantOneShot));
+        mensuelCents = chfToCents(Number(c.montantMensuel));
+        const designation = c.products.length
+          ? c.products.map((prod) => prod.nom).join(" + ")
+          : "Prestation mensuelle";
         lines.push({
-          productId: String(m.productId),
-          nom: prod.nom,
-          quantite: qte,
-          oneShotUnit: eff.oneShot,
-          mensuelUnit: eff.mensuel,
-          lineOneShot,
-          lineMensuel,
+          productId: c.products[0]?.id ?? "",
+          nom: designation,
+          quantite: 1,
+          oneShotUnit: centsToChf(oneShotCents),
+          mensuelUnit: centsToChf(mensuelCents),
+          lineOneShot: oneShotCents,
+          lineMensuel: mensuelCents,
         });
       }
       if (mensuelCents === 0) continue; // pas de récurrent → rien à générer
@@ -2134,7 +2160,7 @@ export async function generateDueClientInvoices(): Promise<{
                 montantHT: l.montantHT,
                 tauxTVA: 0,
                 ordre: idx,
-                productId: l.productId ?? null,
+                productId: l.productId || null,
               })),
             },
           },
