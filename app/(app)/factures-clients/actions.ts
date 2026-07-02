@@ -12,6 +12,7 @@ import { randomBytes } from "node:crypto";
 import { put } from "@vercel/blob";
 import { revalidatePath } from "next/cache";
 
+import { FACTURE_CLIENT_ECHEANCE_JOURS_DEFAULT } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { resolveFromAddress, sendMail } from "@/lib/mailer";
 import { buildClientInvoicePdf } from "@/lib/pdf/build-client-invoice-pdf";
@@ -154,6 +155,25 @@ export async function sendClientInvoiceByEmail(
     };
   }
 
+  // RÈGLE MÉTIER : la date de la facture est celle de l'ENVOI. Au 1er envoi
+  // (facture encore en BROUILLON), on (re)date à aujourd'hui, échéance à +30 j,
+  // AVANT de générer le PDF pour qu'il porte les bonnes dates. Évite qu'une
+  // facture générée à l'avance parte avec une date d'émission passée / déjà
+  // échue. Un renvoi d'une facture déjà envoyée ne re-date pas (échéance figée).
+  let effEcheance = invoice.dateEcheance;
+  if (invoice.statut === "BROUILLON") {
+    const emission = new Date();
+    const echeance = new Date(emission);
+    echeance.setDate(
+      echeance.getDate() + FACTURE_CLIENT_ECHEANCE_JOURS_DEFAULT,
+    );
+    await prisma.clientInvoice.update({
+      where: { id: invoice.id },
+      data: { dateEmission: emission, dateEcheance: echeance },
+    });
+    effEcheance = echeance;
+  }
+
   // 1. Build PDF complet (facture + QR-bill + CGV)
   const built = await buildClientInvoicePdf(invoiceId);
   if (!built) return { ok: false, error: "Échec de génération PDF." };
@@ -186,7 +206,7 @@ export async function sendClientInvoiceByEmail(
     }).format(n) + " " + devise;
 
   const prenom = invoice.contract.prospect.contactPrenom?.trim() || "";
-  const echeanceStr = invoice.dateEcheance.toLocaleDateString("fr-CH", {
+  const echeanceStr = effEcheance.toLocaleDateString("fr-CH", {
     day: "2-digit",
     month: "long",
     year: "numeric",
