@@ -320,3 +320,209 @@ export async function sendClientInvoiceByEmail(
     recipient: invoice.contract.prospect.email!,
   };
 }
+
+/**
+ * Relance automatique "J+20" — appelée par le cron nocturne.
+ *
+ * Pour chaque facture ENVOYEE (impayée) dont l'échéance approche (≤ 10 jours)
+ * mais n'est PAS encore dépassée, on envoie UNE fois un email de rappel
+ * courtois + PDF, pour inviter au règlement AVANT le cap des 30 jours et éviter
+ * tout frais de rappel. L'échéance étant à 30 j, ce déclenchement correspond à
+ * ~J+20 après l'émission.
+ *
+ * Idempotent : le champ `rappelJ20EnvoyeLe` empêche tout second envoi. Envoi
+ * au nom de la commerciale assignée. Respecte EMAIL_MODE (dry-run tant que
+ * ≠ live). Les factures DÉJÀ en retard (échéance passée) ne sont pas concernées
+ * (elles relèvent d'une relance de retard, pas de ce rappel préventif).
+ */
+export async function sendDueSoonReminders(): Promise<{
+  ok: boolean;
+  sent: number;
+  errors: number;
+}> {
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 10 * 86_400_000); // échéance ≤ 10 j
+
+  const invoices = await prisma.clientInvoice.findMany({
+    where: {
+      statut: "ENVOYEE",
+      rappelJ20EnvoyeLe: null,
+      dateEcheance: { gte: now, lte: horizon },
+      contract: { prospect: { email: { not: null } } },
+    },
+    select: {
+      id: true,
+      numero: true,
+      total: true,
+      devise: true,
+      dateEcheance: true,
+      contract: {
+        select: {
+          id: true,
+          assigneAId: true,
+          assigneA: { select: { email: true, name: true } },
+          prospect: {
+            select: {
+              id: true,
+              raisonSociale: true,
+              email: true,
+              contactPrenom: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  let sent = 0;
+  let errors = 0;
+
+  for (const inv of invoices) {
+    const email = inv.contract.prospect.email;
+    if (!email) continue;
+    try {
+      const built = await buildClientInvoicePdf(inv.id);
+      if (!built) {
+        errors++;
+        continue;
+      }
+      const blob = await put(
+        `client-invoices/${inv.numero}-rappel-${Date.now()}.pdf`,
+        built.buffer,
+        {
+          access: "public",
+          contentType: "application/pdf",
+          addRandomSuffix: true,
+        },
+      );
+
+      const { from, replyTo, fromName } = resolveFromAddress({
+        email: inv.contract.assigneA?.email ?? "contact@makeyourcom.ch",
+        name: inv.contract.assigneA?.name ?? null,
+      });
+
+      const prenom = inv.contract.prospect.contactPrenom?.trim() || "";
+      const echeanceStr = inv.dateEcheance.toLocaleDateString("fr-CH", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
+      const totalLabel =
+        new Intl.NumberFormat("fr-CH", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(Number(inv.total)) +
+        " " +
+        inv.devise;
+
+      const greeting = prenom ? `Bonjour ${prenom},` : "Bonjour,";
+      const subject = `Rappel — facture ${inv.numero} à échéance le ${echeanceStr}`;
+      const text = [
+        greeting,
+        "",
+        `Nous nous permettons un petit rappel concernant la facture ${inv.numero}, d'un montant de ${totalLabel}, dont l'échéance est fixée au ${echeanceStr}.`,
+        "",
+        `Sauf erreur de notre part, son règlement ne nous est pas encore parvenu. Afin d'éviter tout frais de rappel, nous vous invitons à procéder au paiement avant cette date.`,
+        "",
+        `Le règlement peut être effectué par virement bancaire (coordonnées en bas du PDF ci-joint) ou via le QR-bill suisse. Si le paiement a déjà été effectué entre-temps, merci de ne pas tenir compte de ce message.`,
+        "",
+        "Pour toute question, n'hésitez pas à me répondre directement.",
+        "",
+        "Cordialement,",
+        fromName,
+      ].join("\n");
+
+      const escapeHtml = (s: string) =>
+        s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const html = `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#0f172a">${text
+        .split(/\n{2,}/)
+        .map((pp) => `<p>${escapeHtml(pp).replace(/\n/g, "<br/>")}</p>`)
+        .join("")}</div>`;
+
+      const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@makeyourcom.ch>`;
+      const threadId = randomBytes(8).toString("hex");
+
+      const sendResult = await sendMail({
+        from,
+        fromName,
+        to: email,
+        subject,
+        html,
+        text,
+        replyTo,
+        messageId,
+        attachments: [
+          {
+            filename: `${inv.numero}.pdf`,
+            path: blob.url,
+            contentType: "application/pdf",
+          },
+        ],
+      });
+      const isDryRun = sendResult.dryRun;
+      if (!sendResult.ok && !isDryRun) {
+        errors++;
+        continue;
+      }
+
+      await prisma.$transaction(async (tx) => {
+        const emailRec = await tx.email.create({
+          data: {
+            prospectId: inv.contract.prospect.id,
+            contractId: inv.contract.id,
+            userId: inv.contract.assigneAId,
+            direction: "SORTANT",
+            threadId,
+            messageId,
+            expediteurEmail: from,
+            expediteurNom: fromName,
+            destinataireEmail: email,
+            objet: subject,
+            contenuHtml: html,
+            contenuTexte: text,
+            statut: isDryRun ? "BROUILLON" : "ENVOYE",
+            envoyeLe: isDryRun ? null : new Date(),
+            labels: sendResult.resendId
+              ? [`resend:${sendResult.resendId}`, "rappel-j20"]
+              : ["rappel-j20"],
+            attachments: {
+              create: [
+                {
+                  nom: `${inv.numero}.pdf`,
+                  taille: built.buffer.length,
+                  mimeType: "application/pdf",
+                  url: blob.url,
+                },
+              ],
+            },
+          },
+        });
+
+        await tx.activity.create({
+          data: {
+            prospectId: inv.contract.prospect.id,
+            userId: inv.contract.assigneAId,
+            type: "EMAIL_ENVOYE",
+            date: new Date(),
+            sujet: `Relance J+20 — facture ${inv.numero}`,
+            contenu: `Relance automatique (échéance ${echeanceStr}) envoyée à ${email} pour la facture ${inv.numero} (${totalLabel}).`,
+            statut: "FAIT",
+            emailId: emailRec.id,
+          },
+        });
+
+        // Marque comme relancée pour ne jamais renvoyer (idempotence).
+        await tx.clientInvoice.update({
+          where: { id: inv.id },
+          data: { rappelJ20EnvoyeLe: new Date() },
+        });
+      });
+      sent++;
+    } catch (e) {
+      console.error("[sendDueSoonReminders]", inv.numero, e);
+      errors++;
+    }
+  }
+
+  return { ok: true, sent, errors };
+}

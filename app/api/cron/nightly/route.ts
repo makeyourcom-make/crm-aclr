@@ -20,6 +20,7 @@
 import { NextResponse } from "next/server";
 
 import { generateDueClientInvoices } from "@/app/(app)/contrats/actions";
+import { sendDueSoonReminders } from "@/app/(app)/factures-clients/actions";
 import {
   processAnnualContractAnniversaries,
   processContractAnniversaries,
@@ -73,6 +74,12 @@ async function handler(req: Request) {
     const dueInvoices = await generateDueClientInvoices();
     results.clientInvoicesGenerated = dueInvoices.created;
     if (!dueInvoices.ok) results.clientInvoicesError = dueInvoices.error;
+
+    // 1quater. Relances "J+20" : rappel courtois pour les factures dont
+    // l'échéance approche (≤ 10 j), avant le cap des 30 j / frais de rappel.
+    const reminders = await sendDueSoonReminders();
+    results.remindersSent = reminders.sent;
+    if (reminders.errors > 0) results.remindersErrors = reminders.errors;
 
     // 2. Étalements échus
     const etalements = await processOverdueEtalements();

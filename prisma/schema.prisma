@@ -1321,6 +1321,11 @@ model ClientInvoice {
 
   notesClient String? @db.Text
 
+  /// Horodatage de l'envoi de la relance automatique "J+20" (≈10 j avant
+  /// l'échéance de 30 j), envoyée par le cron pour inviter au règlement avant
+  /// tout frais de rappel. Null = pas encore relancée. Empêche les doublons.
+  rappelJ20EnvoyeLe DateTime?
+
   lignes   ClientInvoiceLine[]
   payments Payment[]
 
