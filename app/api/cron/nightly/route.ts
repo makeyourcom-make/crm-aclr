@@ -81,6 +81,14 @@ async function handler(req: Request) {
     results.remindersSent = reminders.sent;
     if (reminders.errors > 0) results.remindersErrors = reminders.errors;
 
+    // 1quinquies. Bascule auto EN_RETARD : toute facture ENVOYEE dont
+    // l'échéance (30 j) est dépassée passe en retard → remonte seule.
+    const overdue = await prisma.clientInvoice.updateMany({
+      where: { statut: "ENVOYEE", dateEcheance: { lt: new Date() } },
+      data: { statut: "EN_RETARD" },
+    });
+    results.markedOverdue = overdue.count;
+
     // 2. Étalements échus
     const etalements = await processOverdueEtalements();
     results.etalementsProcessed = etalements.total;
