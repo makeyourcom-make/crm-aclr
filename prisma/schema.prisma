@@ -1321,6 +1321,12 @@ model ClientInvoice {
 
   notesClient String? @db.Text
 
+  /// Horodatage du 1er envoi RÉEL de la facture au client par email
+  /// (sendClientInvoiceByEmail, hors dry-run). Null = facture jamais envoyée
+  /// au client → aucune relance ne doit partir. Distinct du statut ENVOYEE,
+  /// qui peut être posé sans envoi effectif (import, changement manuel).
+  envoiClientLe DateTime?
+
   /// Horodatage de l'envoi de la relance automatique "J+20" (≈10 j avant
   /// l'échéance de 30 j), envoyée par le cron pour inviter au règlement avant
   /// tout frais de rappel. Null = pas encore relancée. Empêche les doublons.

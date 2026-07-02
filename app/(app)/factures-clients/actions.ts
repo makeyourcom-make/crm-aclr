@@ -301,11 +301,17 @@ export async function sendClientInvoiceByEmail(
       },
     });
 
-    // Marque la facture comme ENVOYEE (uniquement si encore en BROUILLON)
-    if (invoice.statut === "BROUILLON") {
+    // Marque ENVOYEE (si encore BROUILLON) et, sur envoi RÉEL uniquement,
+    // horodate l'envoi client. Ce timestamp — et non le statut — conditionne
+    // les relances : une facture jamais réellement envoyée n'est jamais
+    // relancée (un envoi dry-run ne pose pas d'horodatage).
+    const invUpdate: { statut?: "ENVOYEE"; envoiClientLe?: Date } = {};
+    if (invoice.statut === "BROUILLON") invUpdate.statut = "ENVOYEE";
+    if (!isDryRun) invUpdate.envoiClientLe = new Date();
+    if (Object.keys(invUpdate).length > 0) {
       await tx.clientInvoice.update({
         where: { id: invoice.id },
-        data: { statut: "ENVOYEE" },
+        data: invUpdate,
       });
     }
   });
@@ -346,6 +352,7 @@ export async function sendDueSoonReminders(): Promise<{
   const invoices = await prisma.clientInvoice.findMany({
     where: {
       statut: "ENVOYEE",
+      envoiClientLe: { not: null }, // uniquement les factures réellement envoyées
       rappelJ20EnvoyeLe: null,
       dateEcheance: { gte: now, lte: horizon },
       contract: { prospect: { email: { not: null } } },
