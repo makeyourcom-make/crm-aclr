@@ -40,10 +40,10 @@ export function Sidebar({ role, onNavigate, badges }: SidebarProps) {
         <Image
           src="/brand/wordmark-light.png"
           alt="Make Your Com"
-          width={94}
-          height={32}
+          width={70}
+          height={24}
           priority
-          style={{ height: 32, width: "auto" }}
+          style={{ height: 24, width: "auto" }}
         />
         <p className="px-0.5 text-[11px] leading-tight text-muted-foreground">
           CRM — ACLR Sàrl
