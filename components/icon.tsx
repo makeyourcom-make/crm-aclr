@@ -64,6 +64,7 @@ import {
   ChevronUp,
   ChevronDown,
   UserPlus,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -126,6 +127,7 @@ const ICONS = {
   ChevronUp,
   ChevronDown,
   UserPlus,
+  ClipboardList,
 } as const satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

@@ -389,6 +389,9 @@ model User {
   socialAccounts    SocialAccount[]
   emailSignatures   EmailSignature[]
   auditLogs         AuditLog[]
+  dossiersAssignes  Dossier[]          @relation("DossierAssignee")
+  dossiersCrees     Dossier[]          @relation("DossierCreateur")
+  dossierUpdates    DossierUpdate[]
 
   @@index([email])
   @@map("users")
@@ -737,6 +740,7 @@ model Prospect {
   expenseAllocations  ExpenseAllocation[] // parts de charges multi-clients
   expenseRecurrences  ExpenseRecurrence[] // templates de charges récurrentes liées
   tags                ProspectTagAssignment[] // tags libres (admin uniquement)
+  dossiers            Dossier[] // dossiers/tâches de suivi rattachés
 
   @@index([statut])
   @@index([assigneAId])
@@ -1647,4 +1651,76 @@ model SocialProspect {
   @@index([accountId, dateDemarrage])
   @@index([statut])
   @@map("social_prospects")
+}
+
+// ===========================================================================
+// DOSSIERS / TÂCHES — pipeline de suivi (kanban)
+// ===========================================================================
+
+enum DossierStatut {
+  A_FAIRE
+  EN_COURS
+  EN_ATTENTE
+  TERMINE
+}
+
+enum DossierPriorite {
+  BASSE
+  NORMALE
+  HAUTE
+}
+
+/// Dossier/tâche de suivi, déplaçable dans un kanban (À faire → En cours →
+/// En attente → Terminé). Attribuable à un collaborateur, rattachable à un
+/// client (prospect), avec un fil de mises à jour horodatées.
+model Dossier {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  titre       String
+  description String? @db.Text
+
+  statut   DossierStatut   @default(A_FAIRE)
+  priorite DossierPriorite @default(NORMALE)
+  echeance DateTime?
+
+  /// Exécutant (celui qui fait avancer le dossier). RESTRICT : on ne supprime
+  /// pas un user qui a des dossiers.
+  assigneA   User   @relation("DossierAssignee", fields: [assigneAId], references: [id], onDelete: Restrict)
+  assigneAId String
+
+  /// Créateur (traçabilité + visibilité RLS).
+  creePar   User   @relation("DossierCreateur", fields: [creeParId], references: [id], onDelete: Restrict)
+  creeParId String
+
+  /// Client rattaché (optionnel).
+  prospect   Prospect? @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+  prospectId String?
+
+  termineLe DateTime?
+
+  updates DossierUpdate[]
+
+  @@index([assigneAId, statut])
+  @@index([statut])
+  @@index([prospectId])
+  @@map("dossiers")
+}
+
+/// Mise à jour / commentaire horodaté sur un dossier (fil de suivi).
+model DossierUpdate {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  dossier   Dossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  dossierId String
+
+  auteur   User   @relation(fields: [auteurId], references: [id], onDelete: Restrict)
+  auteurId String
+
+  contenu String @db.Text
+
+  @@index([dossierId])
+  @@map("dossier_updates")
 }
