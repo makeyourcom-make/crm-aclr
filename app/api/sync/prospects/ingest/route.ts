@@ -56,6 +56,18 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 
   const now = new Date();
+
+  // Les nouvelles entreprises arrivant par la synchro sont auto-attribuées à la
+  // commerciale active (Sophie) — elles atterrissent directement dans son
+  // portefeuille au lieu de rester sans responsable. (Uniquement les créations ;
+  // les fiches existantes gardent leur attribution.)
+  const commerciale = await prisma.user.findFirst({
+    where: { role: "COMMERCIAL", isActive: true },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  const defaultAssigneeId = commerciale?.id ?? null;
+
   const masterIds = rows.map((r) => r.masterId).filter((n) => Number.isInteger(n));
   const nameNorms = [...new Set(rows.map((r) => normalizeName(r.nom)).filter(Boolean))];
 
@@ -140,6 +152,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       raisonSociale: row.nom.trim().slice(0, 255),
       statut: mapStatutFromMaster(row.statutMaster),
       source: "FICHIER_IMPORT",
+      ...(defaultAssigneeId ? { assigneAId: defaultAssigneeId } : {}),
       ...owned,
       ...contact,
     });
