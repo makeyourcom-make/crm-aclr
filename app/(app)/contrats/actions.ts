@@ -51,6 +51,22 @@ function endOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
 }
 
+/**
+ * Clé "AAAA-MM" du mois LOCAL d'une date. ROBUSTE au fuseau / DST : on lit les
+ * composants locaux (getMonth) plutôt que l'UTC (toISOString), sinon une date
+ * stockée en UTC-minuit bascule sur le mois précédent en heure d'été (UTC+2) —
+ * ce qui faisait croire au générateur qu'une mensualité de juillet appartenait
+ * à juin, et la faisait sauter (doublon apparent).
+ */
+function moisKeyLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** 1er du mois LOCAL d'une date, normalisé en UTC-minuit (stockage propre). */
+function firstOfMonthUTC(d: Date): Date {
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), 1));
+}
+
 function effectiveUnitPrices(
   baseOneShot: number,
   baseMensuel: number,
@@ -2072,7 +2088,7 @@ async function createDueInvoicesForContract(
   const existingPeriods = new Set(
     c.clientInvoices
       .filter((i) => i.periodeMoisDebut)
-      .map((i) => i.periodeMoisDebut!.toISOString().slice(0, 7)),
+      .map((i) => moisKeyLocal(i.periodeMoisDebut!)),
   );
   const existingOneShot = new Set(
     c.clientInvoices
@@ -2085,9 +2101,7 @@ async function createDueInvoicesForContract(
     if (inv.dateEmission > opts.cutoff) continue; // jamais d'avance
     if (inv.type === "MENSUALITE") {
       if (opts.floorMonth && inv.dateEmission < opts.floorMonth) continue;
-      const key = (inv.periodeMoisDebut ?? inv.dateEmission)
-        .toISOString()
-        .slice(0, 7);
+      const key = moisKeyLocal(inv.periodeMoisDebut ?? inv.dateEmission);
       if (existingPeriods.has(key)) continue; // déjà générée ce mois
       existingPeriods.add(key);
     } else {
@@ -2112,7 +2126,11 @@ async function createDueInvoicesForContract(
         dateEmission: inv.dateEmission,
         dateEcheance: inv.dateEcheance,
         type: inv.type,
-        periodeMoisDebut: inv.periodeMoisDebut ?? null,
+        // Normalise la période au 1er du mois LOCAL, stocké en UTC-minuit
+        // (évite les dates décalées type 2026-06-30T23:00Z pour "juillet").
+        periodeMoisDebut: inv.periodeMoisDebut
+          ? firstOfMonthUTC(inv.periodeMoisDebut)
+          : null,
         periodeMoisFin: inv.periodeMoisFin ?? null,
         devise: c.devise ?? "CHF",
         sousTotal: centsToChf(inv.sousTotalCents),

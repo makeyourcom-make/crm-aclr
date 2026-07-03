@@ -364,6 +364,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                               invoiceNumero={inv.numero}
                               clientName={inv.contract.prospect.raisonSociale}
                               clientEmail={inv.contract.prospect.email}
+                              alreadySent={inv.statut === "ENVOYEE"}
                             />
                           )}
                           {(inv.statut === "BROUILLON" ||

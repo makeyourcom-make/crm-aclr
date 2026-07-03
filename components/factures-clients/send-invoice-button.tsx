@@ -27,6 +27,8 @@ interface SendInvoiceButtonProps {
   invoiceNumero: string;
   clientName: string;
   clientEmail: string | null;
+  /** Facture déjà envoyée : le bouton devient « Renvoyer ». */
+  alreadySent?: boolean;
 }
 
 export function SendInvoiceButton({
@@ -34,7 +36,9 @@ export function SendInvoiceButton({
   invoiceNumero,
   clientName,
   clientEmail,
+  alreadySent = false,
 }: SendInvoiceButtonProps) {
+  const actionLabel = alreadySent ? "Renvoyer" : "Envoyer";
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -103,17 +107,22 @@ export function SendInvoiceButton({
         className="inline-flex h-7 items-center gap-1 rounded-md border border-primary/40 bg-primary/5 px-2 text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
         title={
           clientEmail
-            ? `Envoyer la facture par email`
+            ? `${actionLabel} la facture par email`
             : "Pas d'email sur la fiche client"
         }
       >
         <Icon name="MailPlus" className="h-3 w-3" />
-        Envoyer
+        {actionLabel}
       </DialogTrigger>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>
-            Envoyer la facture {invoiceNumero}
+            {actionLabel} la facture {invoiceNumero}
+            {alreadySent && (
+              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 align-middle">
+                déjà envoyée
+              </span>
+            )}
           </DialogTitle>
           <DialogDescription>
             À : <strong>{clientName}</strong>. Tu peux modifier le sujet et le
