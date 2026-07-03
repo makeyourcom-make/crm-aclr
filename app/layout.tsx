@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({
@@ -19,6 +20,13 @@ export const metadata: Metadata = {
   applicationName: "CRM Make Your Com",
   authors: [{ name: "ACLR Sàrl" }],
   robots: { index: false, follow: false }, // app interne, jamais indexée
+  // PWA installable sur iOS : icône (app/apple-icon.png auto), titre, barre
+  // d'état navy pour coller au thème.
+  appleWebApp: {
+    capable: true,
+    title: "MakeYourCom",
+    statusBarStyle: "black",
+  },
 };
 
 export const viewport: Viewport = {
@@ -38,6 +46,7 @@ export default function RootLayout({
       className={cn("h-full antialiased", inter.variable, "font-sans")}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
+        <ServiceWorkerRegister />
         {children}
       </body>
     </html>
