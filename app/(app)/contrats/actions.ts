@@ -2152,6 +2152,67 @@ async function createDueInvoicesForContract(
     });
     created++;
   }
+
+  // ── Filet RENOUVELLEMENT ──────────────────────────────────────────────────
+  // Les contrats auto-renouvelés dépassent leur planning initial de 12 mois :
+  // le `schedule` (ancré sur dateDebut, 12 mois) ne couvre alors PAS le mois
+  // courant. Si le contrat est actif ce mois-ci et qu'AUCUNE mensualité du mois
+  // courant n'existe (ni générée ci-dessus, ni déjà en base), on crée la
+  // mensualité RÉCURRENTE seule (sans setup — amorti en année 1). Ne s'exécute
+  // qu'en mode cron mensuel (floorMonth défini), pas à l'activation.
+  if (
+    opts.floorMonth &&
+    billing.mensuelCents > 0 &&
+    c.modalitePaiement === "MENSUEL" // pas les 100%-signature ni 50/50 (facturés d'avance)
+  ) {
+    const curKey = moisKeyLocal(opts.floorMonth);
+    if (!existingPeriods.has(curKey)) {
+      const emission = firstOfMonthUTC(opts.floorMonth);
+      const echeance = new Date(emission);
+      echeance.setDate(echeance.getDate() + FACTURE_CLIENT_ECHEANCE_JOURS_DEFAULT);
+      const periodeFin = new Date(
+        Date.UTC(emission.getUTCFullYear(), emission.getUTCMonth() + 1, 0),
+      );
+      const lignes = billing.lines
+        .filter((l) => l.lineMensuel > 0)
+        .map((l, idx) => ({
+          designation: `${l.nom} — mensualité (renouvellement)`,
+          quantite: l.quantite,
+          prixUnitaire: l.mensuelUnit,
+          montantHT: centsToChf(l.lineMensuel),
+          tauxTVA: 0,
+          ordre: idx,
+          productId: l.productId || null,
+        }));
+      const annee = emission.getUTCFullYear();
+      const counter = await client.counter.upsert({
+        where: { scope_year: { scope: "client_invoice", year: annee } },
+        create: { scope: "client_invoice", year: annee, value: 1 },
+        update: { value: { increment: 1 } },
+      });
+      const facNumero = `${PREFIX_FACTURE_CLIENT}-${annee}-${String(counter.value).padStart(4, "0")}`;
+      await client.clientInvoice.create({
+        data: {
+          contractId: c.id,
+          numero: facNumero,
+          dateEmission: emission,
+          dateEcheance: echeance,
+          type: "MENSUALITE",
+          periodeMoisDebut: emission,
+          periodeMoisFin: periodeFin,
+          devise: c.devise ?? "CHF",
+          sousTotal: centsToChf(billing.mensuelCents),
+          totalTVA: 0,
+          total: centsToChf(billing.mensuelCents),
+          statut: "BROUILLON",
+          lignes: { create: lignes },
+        },
+      });
+      existingPeriods.add(curKey);
+      created++;
+    }
+  }
+
   return created;
 }
 
