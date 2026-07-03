@@ -310,10 +310,13 @@ export async function recordCallResult(
 
       let prochainId: string | undefined;
       if (isRappelable && parsed.data.rappelDelai) {
-        const nextDate =
+        const rawDate =
           parsed.data.rappelDelai === "custom"
             ? parsed.data.rappelDateCustom!
             : addDays(new Date(), RAPPEL_DELAI_JOURS[parsed.data.rappelDelai]);
+        // L'entreprise est fermée le week-end : un rappel qui tomberait un
+        // samedi/dimanche est reporté au lundi suivant (jour ouvrable).
+        const nextDate = rollToBusinessDay(rawDate);
 
         const rappel = await tx.activity.create({
           data: {
@@ -356,6 +359,19 @@ export async function recordCallResult(
 function addDays(d: Date, days: number): Date {
   const copy = new Date(d);
   copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+/**
+ * Reporte une date tombant un week-end (entreprise fermée) au lundi suivant.
+ * Samedi → +2 jours, dimanche → +1 jour. Les jours ouvrables sont inchangés.
+ * L'heure est préservée.
+ */
+function rollToBusinessDay(d: Date): Date {
+  const copy = new Date(d);
+  const day = copy.getDay();
+  if (day === 6) copy.setDate(copy.getDate() + 2); // samedi → lundi
+  else if (day === 0) copy.setDate(copy.getDate() + 1); // dimanche → lundi
   return copy;
 }
 
