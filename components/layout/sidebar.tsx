@@ -1,9 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { Logo } from "@/components/brand/logo";
 import { Icon } from "@/components/icon";
 import { cn } from "@/lib/utils";
 import {
@@ -35,9 +35,16 @@ export function Sidebar({ role, onNavigate, badges }: SidebarProps) {
       className="flex h-full flex-col gap-1 overflow-y-auto bg-sidebar px-3 py-4"
       aria-label="Navigation principale"
     >
-      {/* Marque — vrai logo MakeYourCom */}
-      <div className="mb-4 flex flex-col gap-1.5 px-2 pt-1">
-        <Logo variant="full" size={30} className="rounded-md shadow-sm" />
+      {/* Marque — wordmark MakeYourCom (navy + COM coral, fond transparent) */}
+      <div className="mb-5 flex flex-col gap-1 px-2 pt-1">
+        <Image
+          src="/brand/wordmark-light.png"
+          alt="Make Your Com"
+          width={94}
+          height={32}
+          priority
+          style={{ height: 32, width: "auto" }}
+        />
         <p className="px-0.5 text-[11px] leading-tight text-muted-foreground">
           CRM — ACLR Sàrl
         </p>
