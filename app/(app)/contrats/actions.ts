@@ -2163,7 +2163,11 @@ async function createDueInvoicesForContract(
   if (
     opts.floorMonth &&
     billing.mensuelCents > 0 &&
-    c.modalitePaiement === "MENSUEL" // pas les 100%-signature ni 50/50 (facturés d'avance)
+    // Exclut UNIQUEMENT le 100%-à-la-signature (mensuel facturé d'avance dans la
+    // ponctuelle). MENSUEL et 50/50 ont un récurrent facturé mois par mois, qui
+    // doit continuer au renouvellement (ex. forfait site 29.90 après un site
+    // payé en 50/50).
+    c.modalitePaiement !== "CENT_AU_SIGNING"
   ) {
     const curKey = moisKeyLocal(opts.floorMonth);
     if (!existingPeriods.has(curKey)) {
