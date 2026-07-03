@@ -15,6 +15,7 @@ import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { BackToProspects } from "@/components/prospects/back-to-prospects";
 import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badge";
+import { MarkOpenedOnMount } from "@/components/prospects/mark-opened-on-mount";
 import { GdprTools } from "@/components/prospects/gdpr-tools";
 import { ProspectTagsEditor } from "@/components/prospects/prospect-tags-editor";
 import { buttonVariants } from "@/components/ui/button";
@@ -152,6 +153,7 @@ export default async function ProspectDetailPage({ params }: PageProps) {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-6 lg:px-8">
+      <MarkOpenedOnMount prospectId={prospect.id} />
       <PageHeader
         title={prospect.raisonSociale}
         description={[

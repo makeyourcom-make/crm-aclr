@@ -207,6 +207,30 @@ export async function updateProspectStatut(
   }
 }
 
+/**
+ * « Ouverture » d'une fiche : appelée au montage RÉEL de la page détail (pas au
+ * prefetch/survol). Fait passer une fiche jamais consultée NOUVEAU → VIERGE
+ * (vue par Sophie ou l'admin, mais pas encore contactée). Le `where` sur
+ * statut = NOUVEAU rend l'opération atomique et idempotente : aucun autre
+ * statut n'est jamais modifié. Best-effort, silencieux.
+ */
+export async function markProspectOpened(id: string): Promise<void> {
+  const user = await requireUser();
+  try {
+    await assertCanEditProspect(user, id);
+  } catch {
+    return; // pas d'accès à cette fiche → on ne fait rien
+  }
+  const res = await prisma.prospect.updateMany({
+    where: { id, statut: "NOUVEAU" },
+    data: { statut: "VIERGE" },
+  });
+  if (res.count > 0) {
+    revalidatePath("/prospects");
+    revalidatePath(`/prospects/${id}`);
+  }
+}
+
 // ===========================================================================
 // DELETE (admin only)
 // ===========================================================================

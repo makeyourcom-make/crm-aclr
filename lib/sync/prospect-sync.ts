@@ -83,6 +83,7 @@ export function mapStatutFromMaster(raw: string | null | undefined): ProspectSta
 export function mapStatutToMaster(statut: ProspectStatut): string {
   const M: Record<ProspectStatut, string> = {
     NOUVEAU: "",
+    VIERGE: "", // vu mais pas contacté → rien à remonter au master
     CONTACTE: "Contacté",
     QUALIFIE: "Qualifié",
     RDV_PRIS: "RDV pris",

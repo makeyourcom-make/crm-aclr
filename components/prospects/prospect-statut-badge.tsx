@@ -8,6 +8,8 @@ import {
 import { cn } from "@/lib/utils";
 
 export function ProspectStatutBadge({ statut }: { statut: ProspectStatut }) {
+  // « Vierge » = fiche ouverte mais pas encore contactée → aucun badge (vide).
+  if (statut === "VIERGE") return null;
   return (
     <Badge
       variant="secondary"

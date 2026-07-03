@@ -32,6 +32,7 @@ enum Role {
 
 enum ProspectStatut {
   NOUVEAU
+  VIERGE
   CONTACTE
   QUALIFIE
   RDV_PRIS

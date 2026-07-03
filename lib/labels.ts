@@ -65,6 +65,7 @@ export const getRoleLabel = (v: Role) => ROLE_LABELS[v];
 
 const PROSPECT_STATUT_LABELS: Record<ProspectStatut, string> = {
   NOUVEAU: "Nouveau",
+  VIERGE: "Vierge",
   CONTACTE: "Contacté",
   QUALIFIE: "Qualifié",
   RDV_PRIS: "RDV pris",
@@ -83,6 +84,7 @@ export const PROSPECT_STATUT_OPTIONS: SelectOption<ProspectStatut>[] = (
 /** Couleur Tailwind pour les badges statut prospect. */
 export const PROSPECT_STATUT_COLORS: Record<ProspectStatut, string> = {
   NOUVEAU: "bg-slate-100 text-slate-700",
+  VIERGE: "", // badge non rendu (statut « vierge » = vu, pas contacté)
   CONTACTE: "bg-blue-100 text-blue-700",
   QUALIFIE: "bg-cyan-100 text-cyan-700",
   RDV_PRIS: "bg-violet-100 text-violet-700",
