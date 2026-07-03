@@ -35,15 +35,12 @@ export function Sidebar({ role, onNavigate, badges }: SidebarProps) {
       className="flex h-full flex-col gap-1 overflow-y-auto bg-sidebar px-3 py-4"
       aria-label="Navigation principale"
     >
-      {/* Marque */}
-      <div className="mb-4 flex items-center gap-2.5 px-2">
-        <Logo variant="mark" size={36} className="rounded-md" />
-        <div>
-          <p className="text-sm font-semibold leading-tight">Make Your Com</p>
-          <p className="text-[11px] leading-tight text-muted-foreground">
-            CRM — ACLR Sàrl
-          </p>
-        </div>
+      {/* Marque — vrai logo MakeYourCom */}
+      <div className="mb-4 flex flex-col gap-1.5 px-2 pt-1">
+        <Logo variant="full" size={30} className="rounded-md shadow-sm" />
+        <p className="px-0.5 text-[11px] leading-tight text-muted-foreground">
+          CRM — ACLR Sàrl
+        </p>
       </div>
 
       {/* Liens groupés */}
