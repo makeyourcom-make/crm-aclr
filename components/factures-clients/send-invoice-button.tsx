@@ -104,14 +104,20 @@ export function SendInvoiceButton({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         disabled={!clientEmail}
-        className="inline-flex h-7 items-center gap-1 rounded-md border border-primary/40 bg-primary/5 px-2 text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
+        className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium disabled:opacity-50 ${
+          alreadySent
+            ? "border-border bg-muted/40 text-muted-foreground hover:bg-muted"
+            : "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
+        }`}
         title={
           clientEmail
-            ? `${actionLabel} la facture par email`
+            ? alreadySent
+              ? "Cette facture a déjà été envoyée — la renvoyer"
+              : "Envoyer la facture par email"
             : "Pas d'email sur la fiche client"
         }
       >
-        <Icon name="MailPlus" className="h-3 w-3" />
+        <Icon name={alreadySent ? "Repeat" : "MailPlus"} className="h-3 w-3" />
         {actionLabel}
       </DialogTrigger>
       <DialogContent className="sm:max-w-xl">
