@@ -94,10 +94,15 @@ export function getStepDate(demarrage: Date, step: SocialStep): Date {
 
 /**
  * À une date donnée, renvoie pour un prospect les étapes "dues" :
- *  - chaque étape dont stepDate <= today ET stepDone === null
+ *  - chaque étape NON faite dont la date planifiée == aujourd'hui.
  *
- * Si plusieurs étapes accumulent (ex. on revient lundi et 3 étapes sont
- * en retard), on les renvoie toutes.
+ * Boucle propre lundi→vendredi : une action n'apparaît QUE le jour ouvrable
+ * exact où elle est prévue (J+0/2/4/6 en jours ouvrables). On n'accumule PAS
+ * le retard des jours précédents — sinon le lundi (et chaque jour) hériterait
+ * d'un backlog qui grossit sans fin. Une étape non faite le jour même n'est
+ * pas rattrapée : la séquence continue son cours. Le samedi/dimanche, aucune
+ * étape ne tombe (les dates sont calculées en jours ouvrables), donc rien
+ * n'est dû — décision produit MakeYourCom.
  */
 export function getDueSteps(
   demarrage: Date,
@@ -105,12 +110,13 @@ export function getDueSteps(
   today: Date,
 ): SocialStep[] {
   const due: SocialStep[] = [];
+  const todayKey = dateOnly(today).getTime();
   for (const s of SOCIAL_STEPS) {
-    const stepDate = getStepDate(demarrage, s);
+    const stepKey = dateOnly(getStepDate(demarrage, s)).getTime();
     const done = (
       s === 0 ? steps.step0Done : s === 2 ? steps.step2Done : s === 4 ? steps.step4Done : steps.step6Done
     );
-    if (!done && stepDate <= today) due.push(s);
+    if (!done && stepKey === todayKey) due.push(s);
   }
   return due;
 }
