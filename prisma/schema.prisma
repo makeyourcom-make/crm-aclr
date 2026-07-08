@@ -827,6 +827,11 @@ model Activity {
   resultat      ActivityResultat? // valide pour APPEL_* et RDV_*
   notesResultat String?           @db.Text // qualitatif libre saisi après l'appel
 
+  /// Couleur libre (hex, ex. "#2563eb") choisie dans une palette pour
+  /// classer visuellement la tâche dans l'agenda. NULL = couleur dérivée
+  /// du statut (comportement historique).
+  couleur String?
+
   // Self-relations pour la chaîne de relances :
   //   - rappelLeDeId : l'activité parente qui a généré CE rappel auto
   //   - prochaineActivityId : le rappel auto déclenché APRÈS celle-ci

@@ -132,6 +132,7 @@ function toEditInput(a: AgendaActivity): EditActivityInput {
     heureFin: hhmm(end),
     adresseRdv: a.adresseRdv ?? "",
     contenu: a.contenu ?? "",
+    couleur: a.couleur ?? null,
   };
 }
 
@@ -626,11 +627,21 @@ function DraggableEvent({
         zIndex: isDragging || resizing ? 50 : undefined,
         cursor: "grab",
         touchAction: "none",
+        // Couleur choisie manuellement : accent gauche + fond teinté (~13%).
+        ...(a.couleur
+          ? {
+              borderLeftColor: a.couleur,
+              backgroundColor: `${a.couleur}22`,
+              color: "#0f172a",
+            }
+          : {}),
       }}
       className={cn(
         "group absolute z-10 overflow-hidden rounded-md border border-l-4 px-1.5 py-0.5 text-left text-[11px] leading-tight shadow-sm transition-shadow hover:z-30 hover:shadow-md",
         (isDragging || resizing) && "opacity-80 shadow-lg",
-        STATUT_BLOCK[a.statut] ?? STATUT_BLOCK.PLANIFIE,
+        a.couleur
+          ? cn("border-border", a.statut === "ANNULE" && "line-through opacity-60")
+          : (STATUT_BLOCK[a.statut] ?? STATUT_BLOCK.PLANIFIE),
       )}
       title={`${formatTime(a.date)} · ${a.sujet}`}
     >

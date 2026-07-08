@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 import { createActivity, updateActivity } from "@/app/(app)/activites/actions";
 import { createProspectQuick } from "@/app/(app)/prospects/actions";
+import { AGENDA_COLORS } from "@/lib/agenda-colors";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -93,6 +94,7 @@ export interface EditActivityInput {
   heureFin: string;
   adresseRdv: string;
   contenu: string;
+  couleur: string | null;
 }
 
 export function AddActivityDialog({
@@ -129,6 +131,7 @@ export function AddActivityDialog({
   );
   const [adresseRdv, setAdresseRdv] = useState("");
   const [contenu, setContenu] = useState("");
+  const [couleur, setCouleur] = useState<string | null>(null);
 
   // Création de client inline (depuis la ligne "prospect")
   const [localProspects, setLocalProspects] = useState<ProspectOption[]>([]);
@@ -161,6 +164,7 @@ export function AddActivityDialog({
       setHeureFin(editActivity.heureFin);
       setAdresseRdv(editActivity.adresseRdv);
       setContenu(editActivity.contenu);
+      setCouleur(editActivity.couleur);
     } else {
       setProspectId("");
       setAssigneAId(currentUserId ?? "");
@@ -168,6 +172,7 @@ export function AddActivityDialog({
       setSujet("");
       setAdresseRdv("");
       setContenu("");
+      setCouleur(null);
       setDate(defaultDate);
       setHeure(defaultTime);
       setHeureFin(addMinutesToTime(defaultTime, 60));
@@ -234,6 +239,7 @@ export function AddActivityDialog({
       duree: diffMinutes(heure, heureFin),
       adresseRdv: adresseRdv.trim() || undefined,
       contenu: contenu.trim() || undefined,
+      couleur, // string (hex) ou null pour retirer la couleur
     };
     startTransition(async () => {
       const res = editActivity
@@ -473,6 +479,47 @@ export function AddActivityDialog({
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
               placeholder="Ajouter une description"
             />
+          </FieldRow>
+
+          {/* Couleur / classement — palette pour repérer la tâche dans l'agenda */}
+          <FieldRow icon="Tag">
+            <div className="flex flex-wrap items-center gap-1.5 py-1">
+              {AGENDA_COLORS.map((c) => {
+                const selected = couleur === c.value;
+                return (
+                  <button
+                    key={c.value}
+                    type="button"
+                    title={c.label}
+                    aria-label={c.label}
+                    aria-pressed={selected}
+                    onClick={() => setCouleur(selected ? null : c.value)}
+                    className={`h-6 w-6 rounded-full border transition-transform hover:scale-110 ${
+                      selected
+                        ? "ring-2 ring-offset-1 ring-slate-400"
+                        : "border-black/10"
+                    }`}
+                    style={{ backgroundColor: c.value }}
+                  >
+                    {selected && (
+                      <Icon
+                        name="Check"
+                        className="mx-auto h-3.5 w-3.5 text-white drop-shadow"
+                      />
+                    )}
+                  </button>
+                );
+              })}
+              {couleur && (
+                <button
+                  type="button"
+                  onClick={() => setCouleur(null)}
+                  className="ml-1 text-[11px] text-muted-foreground underline hover:text-foreground"
+                >
+                  Aucune
+                </button>
+              )}
+            </div>
           </FieldRow>
 
           <DialogFooter className="mt-3">

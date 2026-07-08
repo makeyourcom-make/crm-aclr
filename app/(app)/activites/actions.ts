@@ -14,6 +14,7 @@ import {
   deleteActivityFromCaldav,
   pushActivityToCaldav,
 } from "@/app/(app)/settings/calendar/caldav-actions";
+import { normalizeAgendaColor } from "@/lib/agenda-colors";
 import { prisma } from "@/lib/db";
 import {
   ActivityCreateSchema,
@@ -72,6 +73,7 @@ export async function createActivity(
         contenu: parsed.data.contenu,
         adresseRdv: parsed.data.adresseRdv,
         duree: parsed.data.duree,
+        couleur: normalizeAgendaColor(parsed.data.couleur),
         statut: parsed.data.statut,
         resultat: parsed.data.resultat,
         notesResultat: parsed.data.notesResultat,
@@ -111,7 +113,13 @@ export async function updateActivity(
   try {
     const updated = await prisma.activity.update({
       where: { id },
-      data: parsed.data,
+      data: {
+        ...parsed.data,
+        // Normalise la couleur si le champ est fourni (undefined = on ne touche pas).
+        ...(parsed.data.couleur !== undefined
+          ? { couleur: normalizeAgendaColor(parsed.data.couleur) }
+          : {}),
+      },
     });
     revalidatePath(`/prospects/${updated.prospectId}`);
     revalidatePath("/activites");

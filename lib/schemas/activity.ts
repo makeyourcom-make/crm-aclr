@@ -37,6 +37,12 @@ export const ActivityCreateSchema = z.object({
   /** Adresse/lieu du RDV — texte libre, cliquable vers Google Maps */
   adresseRdv: stringOptional,
   duree: z.coerce.number().int().min(0).max(1440).optional(), // minutes
+  /**
+   * Couleur de classement (hex de la palette agenda) — optionnelle.
+   * `null` explicite = on retire la couleur ; `undefined` = champ non fourni
+   * (le patch d'update ne touche pas à la couleur existante).
+   */
+  couleur: z.string().trim().max(9).optional().nullable(),
   statut: z.nativeEnum(ActivityStatut).default("FAIT"),
   resultat: z.nativeEnum(ActivityResultat).optional(),
   notesResultat: stringOptional,

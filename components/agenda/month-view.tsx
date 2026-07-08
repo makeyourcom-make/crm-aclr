@@ -117,8 +117,9 @@ export function MonthView({
                     <span
                       className={cn(
                         "h-1.5 w-1.5 shrink-0 rounded-full",
-                        STATUT_DOT[a.statut] ?? STATUT_DOT.PLANIFIE,
+                        !a.couleur && (STATUT_DOT[a.statut] ?? STATUT_DOT.PLANIFIE),
                       )}
+                      style={a.couleur ? { backgroundColor: a.couleur } : undefined}
                     />
                     <span className="font-medium tabular-nums">
                       {formatTime(a.date)}
