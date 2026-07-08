@@ -11,32 +11,43 @@ export default async function EmailsPage() {
   const user = await requireUser();
   // Boîte privée par utilisateur : même l'admin ne voit pas les mails de l'équipe.
   // Si supervision croisée nécessaire un jour, ajouter un toggle explicite.
-  const emails = await prisma.email.findMany({
-    where: { userId: user.id, archive: false },
-    include: {
-      prospect: { select: { id: true, raisonSociale: true } },
-      user: { select: { name: true } },
-      attachments: {
-        select: {
-          id: true,
-          nom: true,
-          taille: true,
-          mimeType: true,
-          url: true,
-        },
+  const emailInclude = {
+    prospect: { select: { id: true, raisonSociale: true } },
+    user: { select: { name: true } },
+    attachments: {
+      select: {
+        id: true,
+        nom: true,
+        taille: true,
+        mimeType: true,
+        url: true,
       },
     },
-    orderBy: { createdAt: "desc" },
-    // 80 = compromis : couvre la vue active (les threads inactifs > 80 derniers
-    // sont rarement consultés depuis l'inbox). Avec index userId+createdAt DESC,
-    // requête sub-ms. Pour rechercher plus loin, la fiche prospect montre tout.
-    take: 80,
-  });
+  } as const;
+
+  // Boîte active (hors archivés, hors corbeille) + Corbeille en parallèle.
+  const [emails, trashedEmails] = await Promise.all([
+    prisma.email.findMany({
+      where: { userId: user.id, archive: false, supprime: false },
+      include: emailInclude,
+      orderBy: { createdAt: "desc" },
+      // 80 = compromis : couvre la vue active (les threads inactifs > 80 derniers
+      // sont rarement consultés depuis l'inbox). Avec index userId+createdAt DESC,
+      // requête sub-ms. Pour rechercher plus loin, la fiche prospect montre tout.
+      take: 80,
+    }),
+    prisma.email.findMany({
+      where: { userId: user.id, supprime: true },
+      include: emailInclude,
+      orderBy: { supprimeeLe: "desc" },
+      take: 80,
+    }),
+  ]);
 
   const isDryRun = process.env.EMAIL_MODE !== "live";
 
   // Sérialise pour le composant client (Date → string)
-  const serialized = emails.map((e) => ({
+  const serialize = (e: (typeof emails)[number]) => ({
     id: e.id,
     direction: e.direction as "SORTANT" | "ENTRANT",
     threadId: e.threadId,
@@ -54,7 +65,9 @@ export default async function EmailsPage() {
     prospect: e.prospect,
     user: e.user,
     attachments: e.attachments,
-  }));
+  });
+  const serialized = emails.map(serialize);
+  const serializedTrash = trashedEmails.map(serialize);
 
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
@@ -76,6 +89,7 @@ export default async function EmailsPage() {
 
       <InboxView
         emails={serialized}
+        trashedEmails={serializedTrash}
         isAdmin={user.role === "ADMIN"}
         currentUserEmail={user.email}
       />

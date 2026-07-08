@@ -19,8 +19,12 @@ import {
   attachEmailToProspect,
   deleteEmail,
   deleteThreadsBulk,
+  emptyTrash,
   markThreadRead,
+  purgeEmail,
   replyToEmail,
+  restoreEmail,
+  restoreThreadsBulk,
   saveEmailDraft,
   searchProspectsForAttach,
   sendDraft,
@@ -31,9 +35,11 @@ import {
   AttachmentPicker,
   type PickedAttachment,
 } from "@/components/emails/attachment-picker";
+import { RichTextEditor } from "@/components/emails/rich-text-editor";
 import { Icon } from "@/components/icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { htmlToPlainText } from "@/lib/email-html";
 
 const STATUT_LABEL: Record<string, string> = {
   BROUILLON: "Brouillon",
@@ -89,16 +95,58 @@ export interface InboxEmail {
 const isGenuineDraft = (m: InboxEmail) =>
   m.statut === "BROUILLON" && m.labels.includes("draft");
 
+interface ThreadGroup {
+  threadId: string;
+  msgs: InboxEmail[];
+  last: InboxEmail;
+  first: InboxEmail;
+}
+
+/** Regroupe les emails par thread (1er message en haut, threads triés desc). */
+function groupThreads(emails: InboxEmail[]): ThreadGroup[] {
+  const map = new Map<string, InboxEmail[]>();
+  for (const e of emails) {
+    if (!map.has(e.threadId)) map.set(e.threadId, []);
+    map.get(e.threadId)!.push(e);
+  }
+  for (const arr of map.values()) {
+    arr.sort(
+      (a, b) =>
+        new Date(a.envoyeLe ?? a.createdAt).getTime() -
+        new Date(b.envoyeLe ?? b.createdAt).getTime(),
+    );
+  }
+  return Array.from(map.entries())
+    .map(([threadId, msgs]) => ({
+      threadId,
+      msgs,
+      last: msgs[msgs.length - 1]!,
+      first: msgs[0]!,
+    }))
+    .sort(
+      (a, b) =>
+        new Date(b.last.envoyeLe ?? b.last.createdAt).getTime() -
+        new Date(a.last.envoyeLe ?? a.last.createdAt).getTime(),
+    );
+}
+
 interface InboxViewProps {
   emails: InboxEmail[];
+  /** Emails à la corbeille (soft-deleted) — dossier « Corbeille ». */
+  trashedEmails?: InboxEmail[];
   isAdmin: boolean;
   /** Email courant de l'user (pour identifier "soi-même") */
   currentUserEmail: string;
 }
 
-type FolderType = "all" | "inbox" | "sent" | "draft";
+type FolderType = "all" | "inbox" | "sent" | "draft" | "trash";
 
-export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps) {
+export function InboxView({
+  emails,
+  trashedEmails = [],
+  isAdmin,
+  currentUserEmail,
+}: InboxViewProps) {
   const router = useRouter();
   const [bulkPending, startBulk] = useTransition();
   const [folder, setFolder] = useState<FolderType>("all");
@@ -131,39 +179,18 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
   // Note : depuis la décision "mailbox privée par user", on ne filtre plus par
   // propriétaire — la page ne sert QUE les mails du user connecté côté serveur.
 
-  // Regroupe les emails par thread, garde le dernier en haut
-  const threads = useMemo(() => {
-    const map = new Map<string, InboxEmail[]>();
-    for (const e of emails) {
-      if (!map.has(e.threadId)) map.set(e.threadId, []);
-      map.get(e.threadId)!.push(e);
-    }
-    // Trie chaque thread par date asc (le 1er message en haut)
-    for (const arr of map.values()) {
-      arr.sort(
-        (a, b) =>
-          new Date(a.envoyeLe ?? a.createdAt).getTime() -
-          new Date(b.envoyeLe ?? b.createdAt).getTime(),
-      );
-    }
-    // Liste de threads triés par dernier message desc
-    return Array.from(map.entries())
-      .map(([threadId, msgs]) => ({
-        threadId,
-        msgs,
-        last: msgs[msgs.length - 1]!,
-        first: msgs[0]!,
-      }))
-      .sort(
-        (a, b) =>
-          new Date(b.last.envoyeLe ?? b.last.createdAt).getTime() -
-          new Date(a.last.envoyeLe ?? a.last.createdAt).getTime(),
-      );
-  }, [emails]);
+  const inTrash = folder === "trash";
+
+  // Regroupe les emails par thread (boîte active + corbeille séparément).
+  const threads = useMemo(() => groupThreads(emails), [emails]);
+  const trashThreads = useMemo(
+    () => groupThreads(trashedEmails),
+    [trashedEmails],
+  );
 
   // Filtre par dossier
   const filteredThreads = useMemo(() => {
-    let t = threads;
+    let t = inTrash ? trashThreads : threads;
     if (folder === "inbox") {
       t = t.filter((th) => th.msgs.some((m) => m.direction === "ENTRANT"));
     } else if (folder === "sent") {
@@ -185,7 +212,7 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
       );
     }
     return t;
-  }, [threads, folder, search]);
+  }, [threads, trashThreads, inTrash, folder, search]);
 
   const counts = useMemo(
     () => ({
@@ -195,8 +222,9 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
         t.msgs.some((m) => m.direction === "SORTANT" && !isGenuineDraft(m)),
       ).length,
       draft: threads.filter((t) => t.msgs.some(isGenuineDraft)).length,
+      trash: trashThreads.length,
     }),
-    [threads],
+    [threads, trashThreads],
   );
 
   const selectedThread = filteredThreads.find((t) => t.threadId === selectedThreadId);
@@ -271,7 +299,7 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
     if (ids.length === 0) return;
     if (
       !confirm(
-        `Supprimer définitivement ${ids.length} conversation(s) ? Cette action est irréversible.`,
+        `Mettre ${ids.length} conversation(s) à la corbeille ? Tu pourras les restaurer.`,
       )
     )
       return;
@@ -281,10 +309,47 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
         toast.error(res.error ?? "Échec de la suppression.");
         return;
       }
-      toast.success(`${ids.length} conversation(s) supprimée(s).`);
+      toast.success(`${ids.length} conversation(s) mise(s) à la corbeille.`);
       clearSelection();
       if (selectedThreadId && ids.includes(selectedThreadId))
         setSelectedThreadId(null);
+      router.refresh();
+    });
+  };
+
+  const handleBulkRestore = () => {
+    const ids = visibleCheckedIds.map((t) => t.threadId);
+    if (ids.length === 0) return;
+    startBulk(async () => {
+      const res = await restoreThreadsBulk(ids);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec de la restauration.");
+        return;
+      }
+      toast.success(`${ids.length} conversation(s) restaurée(s).`);
+      clearSelection();
+      if (selectedThreadId && ids.includes(selectedThreadId))
+        setSelectedThreadId(null);
+      router.refresh();
+    });
+  };
+
+  const handleEmptyTrash = () => {
+    if (
+      !confirm(
+        "Vider la corbeille ? Tous les emails qui s'y trouvent seront supprimés définitivement (irréversible).",
+      )
+    )
+      return;
+    startBulk(async () => {
+      const res = await emptyTrash();
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success(`Corbeille vidée (${res.count ?? 0} email(s) purgé(s)).`);
+      clearSelection();
+      setSelectedThreadId(null);
       router.refresh();
     });
   };
@@ -321,6 +386,25 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
           active={folder === "draft"}
           onClick={() => setFolder("draft")}
         />
+        <div className="my-1 border-t border-border" />
+        <FolderButton
+          label="Corbeille"
+          icon="Trash2"
+          count={counts.trash}
+          active={folder === "trash"}
+          onClick={() => setFolder("trash")}
+        />
+        {inTrash && counts.trash > 0 && (
+          <button
+            type="button"
+            onClick={handleEmptyTrash}
+            disabled={bulkPending}
+            className="mt-1 flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-50"
+          >
+            <Icon name="Trash2" className="h-3 w-3" />
+            Vider la corbeille
+          </button>
+        )}
       </aside>
 
       {/* Liste threads */}
@@ -343,26 +427,41 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
               {visibleCheckedIds.length > 1 ? "s" : ""}
             </span>
             <div className="ml-auto flex items-center gap-1">
-              <button
-                type="button"
-                onClick={handleBulkArchive}
-                disabled={bulkPending}
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50"
-                title="Archiver la sélection"
-              >
-                <Icon name="Inbox" className="h-3 w-3" />
-                Archiver
-              </button>
-              <button
-                type="button"
-                onClick={handleBulkDelete}
-                disabled={bulkPending}
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
-                title="Supprimer la sélection"
-              >
-                <Icon name="Trash2" className="h-3 w-3" />
-                Supprimer
-              </button>
+              {inTrash ? (
+                <button
+                  type="button"
+                  onClick={handleBulkRestore}
+                  disabled={bulkPending}
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
+                  title="Restaurer la sélection"
+                >
+                  <Icon name="RotateCcw" className="h-3 w-3" />
+                  Restaurer
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleBulkArchive}
+                    disabled={bulkPending}
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50"
+                    title="Archiver la sélection"
+                  >
+                    <Icon name="Inbox" className="h-3 w-3" />
+                    Archiver
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleBulkDelete}
+                    disabled={bulkPending}
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                    title="Mettre la sélection à la corbeille"
+                  >
+                    <Icon name="Trash2" className="h-3 w-3" />
+                    Corbeille
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={clearSelection}
@@ -391,7 +490,7 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
         <ul className="max-h-[calc(100vh-280px)] divide-y divide-border overflow-y-auto lg:max-h-[calc(100vh-220px)]">
           {filteredThreads.length === 0 ? (
             <li className="p-8 text-center text-xs text-muted-foreground">
-              Aucun email dans ce dossier.
+              {inTrash ? "La corbeille est vide." : "Aucun email dans ce dossier."}
             </li>
           ) : (
             filteredThreads.map((t) => (
@@ -415,6 +514,7 @@ export function InboxView({ emails, isAdmin, currentUserEmail }: InboxViewProps)
             thread={selectedThread}
             currentUserEmail={currentUserEmail}
             isAdmin={isAdmin}
+            inTrash={inTrash}
           />
         ) : (
           <div className="flex h-[calc(100vh-280px)] items-center justify-center text-center lg:h-[calc(100vh-220px)]">
@@ -557,7 +657,8 @@ function DraftEditor({ draft }: { draft: InboxEmail }) {
   const [objet, setObjet] = useState(
     draft.objet === "(brouillon sans objet)" ? "" : draft.objet,
   );
-  const [contenu, setContenu] = useState(draft.contenuTexte);
+  const [contenuHtml, setContenuHtml] = useState(draft.contenuHtml);
+  const contenu = htmlToPlainText(contenuHtml);
   const [attachments, setAttachments] = useState<PickedAttachment[]>(
     draft.attachments.map((a) => ({
       url: a.url,
@@ -583,6 +684,7 @@ function DraftEditor({ draft }: { draft: InboxEmail }) {
         ...recipientArgs,
         objet: objet.trim(),
         contenu: contenu.trim(),
+        contenuHtml,
         attachments: attachments.length > 0 ? attachments : undefined,
       });
       if (!res.ok) {
@@ -606,6 +708,7 @@ function DraftEditor({ draft }: { draft: InboxEmail }) {
         ...recipientArgs,
         objet: objet.trim(),
         contenu: contenu.trim(),
+        contenuHtml,
         attachments: attachments.length > 0 ? attachments : undefined,
       });
       if (!saved.ok) {
@@ -670,12 +773,11 @@ function DraftEditor({ draft }: { draft: InboxEmail }) {
           <label className="text-xs font-medium text-muted-foreground">
             Message
           </label>
-          <textarea
-            value={contenu}
-            onChange={(e) => setContenu(e.target.value)}
-            rows={12}
+          <RichTextEditor
+            initialHtml={draft.contenuHtml}
+            onChange={setContenuHtml}
+            disabled={pending}
             placeholder="Écris ton message…"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
         <div className="space-y-1.5">
@@ -725,21 +827,25 @@ function ThreadDetail({
   thread,
   currentUserEmail,
   isAdmin,
+  inTrash = false,
 }: {
   thread: { threadId: string; msgs: InboxEmail[]; last: InboxEmail };
   currentUserEmail: string;
   isAdmin: boolean;
+  inTrash?: boolean;
 }) {
   const [showReply, setShowReply] = useState(false);
-  const [replyContent, setReplyContent] = useState("");
+  const [replyHtml, setReplyHtml] = useState("");
+  const [replyKey, setReplyKey] = useState(0);
   const [replyAttachments, setReplyAttachments] = useState<PickedAttachment[]>([]);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const replyText = htmlToPlainText(replyHtml);
 
   // Un thread d'un seul message qui est un vrai brouillon → éditeur dédié
-  // (terminer / modifier / envoyer plus tard).
+  // (terminer / modifier / envoyer plus tard). Pas dans la corbeille.
   const draftMsg =
-    thread.msgs.length === 1 && isGenuineDraft(thread.msgs[0]!)
+    !inTrash && thread.msgs.length === 1 && isGenuineDraft(thread.msgs[0]!)
       ? thread.msgs[0]!
       : null;
   if (draftMsg) {
@@ -747,23 +853,25 @@ function ThreadDetail({
   }
 
   const handleSend = () => {
-    if (!replyContent.trim()) {
+    if (!replyText.trim()) {
       toast.error("Écris un contenu.");
       return;
     }
     startTransition(async () => {
       const res = await replyToEmail(
         thread.last.id,
-        replyContent.trim(),
+        replyText.trim(),
         undefined,
         replyAttachments.length > 0 ? replyAttachments : undefined,
+        replyHtml,
       );
       if (!res.ok) {
         toast.error(res.error ?? "Échec d'envoi.");
         return;
       }
       toast.success(res.dryRun ? "Réponse enregistrée (dry-run)." : "Réponse envoyée ✓");
-      setReplyContent("");
+      setReplyHtml("");
+      setReplyKey((k) => k + 1);
       setReplyAttachments([]);
       setShowReply(false);
       router.refresh();
@@ -818,12 +926,16 @@ function ThreadDetail({
               m.expediteurEmail.toLowerCase() === currentUserEmail.toLowerCase()
             }
             isAdmin={isAdmin}
+            inTrash={inTrash}
             onRefresh={() => router.refresh()}
           />
         ))}
       </div>
 
-      {/* Zone de réponse */}
+      {/* Zone de réponse — remplacée par les actions corbeille si on y est */}
+      {inTrash ? (
+        <TrashActionsBar thread={thread} onRefresh={() => router.refresh()} />
+      ) : (
       <div className="border-t border-border bg-card p-3">
         {!showReply ? (
           <Button
@@ -845,12 +957,12 @@ function ThreadDetail({
                   : thread.last.destinataireEmail}
               </strong>
             </p>
-            <textarea
-              value={replyContent}
-              onChange={(e) => setReplyContent(e.target.value)}
-              rows={6}
+            <RichTextEditor
+              key={replyKey}
+              onChange={setReplyHtml}
+              disabled={pending}
               placeholder="Tape ta réponse…"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              minHeightClass="min-h-[120px]"
             />
             <AttachmentPicker
               value={replyAttachments}
@@ -863,7 +975,8 @@ function ThreadDetail({
                 variant="outline"
                 onClick={() => {
                   setShowReply(false);
-                  setReplyContent("");
+                  setReplyHtml("");
+                  setReplyKey((k) => k + 1);
                   setReplyAttachments([]);
                 }}
                 disabled={pending}
@@ -877,6 +990,80 @@ function ThreadDetail({
           </div>
         )}
       </div>
+      )}
+    </div>
+  );
+}
+
+/** Barre d'actions affichée sous un thread ouvert depuis la Corbeille. */
+function TrashActionsBar({
+  thread,
+  onRefresh,
+}: {
+  thread: { threadId: string; msgs: InboxEmail[] };
+  onRefresh: () => void;
+}) {
+  const [pending, startTransition] = useTransition();
+
+  const handleRestore = () => {
+    startTransition(async () => {
+      const res = await restoreThreadsBulk([thread.threadId]);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec de la restauration.");
+        return;
+      }
+      toast.success("Conversation restaurée ✓");
+      onRefresh();
+    });
+  };
+
+  const handlePurge = () => {
+    if (
+      !confirm(
+        "Supprimer définitivement cette conversation ? Cette action est irréversible.",
+      )
+    )
+      return;
+    startTransition(async () => {
+      // Purge message par message (chaque email déjà à la corbeille).
+      for (const m of thread.msgs) {
+        const res = await purgeEmail(m.id);
+        if (!res.ok) {
+          toast.error(res.error ?? "Échec de la suppression définitive.");
+          return;
+        }
+      }
+      toast.success("Conversation supprimée définitivement.");
+      onRefresh();
+    });
+  };
+
+  return (
+    <div className="flex items-center justify-between gap-2 border-t border-border bg-card p-3">
+      <p className="text-xs text-muted-foreground">
+        Cette conversation est à la corbeille.
+      </p>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleRestore}
+          disabled={pending}
+        >
+          <Icon name="RotateCcw" className="mr-1.5 h-3.5 w-3.5" />
+          Restaurer
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={handlePurge}
+          disabled={pending}
+          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+        >
+          <Icon name="Trash2" className="mr-1.5 h-3.5 w-3.5" />
+          Supprimer définitivement
+        </Button>
+      </div>
     </div>
   );
 }
@@ -885,25 +1072,52 @@ function MessageBubble({
   message,
   isMine,
   isAdmin,
+  inTrash = false,
   onRefresh,
 }: {
   message: InboxEmail;
   isMine: boolean;
   isAdmin: boolean;
+  inTrash?: boolean;
   onRefresh: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const [pending, startTransition] = useTransition();
 
   const handleDelete = () => {
-    if (!confirm("Supprimer ce message ? Action définitive.")) return;
+    if (!confirm("Mettre ce message à la corbeille ?")) return;
     startTransition(async () => {
       const res = await deleteEmail(message.id);
       if (!res.ok) {
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success("Message supprimé.");
+      toast.success("Message mis à la corbeille.");
+      onRefresh();
+    });
+  };
+
+  const handleRestore = () => {
+    startTransition(async () => {
+      const res = await restoreEmail(message.id);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success("Message restauré ✓");
+      onRefresh();
+    });
+  };
+
+  const handlePurge = () => {
+    if (!confirm("Supprimer définitivement ce message ? Irréversible.")) return;
+    startTransition(async () => {
+      const res = await purgeEmail(message.id);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success("Message supprimé définitivement.");
       onRefresh();
     });
   };
@@ -962,30 +1176,56 @@ function MessageBubble({
           >
             <Icon name={expanded ? "ChevronUp" : "ChevronDown"} className="h-3 w-3" />
           </button>
-          {/* Mailbox privée : tout mail visible appartient à l'user connecté
-              → on peut toujours archiver + supprimer. */}
-          <button
-            type="button"
-            onClick={handleArchive}
-            disabled={pending}
-            className="rounded-md p-1 text-muted-foreground hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50"
-            title={
-              message.prospect
-                ? `Archiver (reste sur la fiche ${message.prospect.raisonSociale})`
-                : "Archiver"
-            }
-          >
-            <Icon name="Inbox" className="h-3 w-3" />
-          </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={pending}
-            className="rounded-md p-1 text-muted-foreground hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
-            title="Supprimer définitivement"
-          >
-            <Icon name="Trash2" className="h-3 w-3" />
-          </button>
+          {/* Mailbox privée : tout mail visible appartient à l'user connecté.
+              Dans la corbeille → restaurer / purger ; sinon → archiver /
+              mettre à la corbeille. */}
+          {inTrash ? (
+            <>
+              <button
+                type="button"
+                onClick={handleRestore}
+                disabled={pending}
+                className="rounded-md p-1 text-muted-foreground hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
+                title="Restaurer le message"
+              >
+                <Icon name="RotateCcw" className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                onClick={handlePurge}
+                disabled={pending}
+                className="rounded-md p-1 text-muted-foreground hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                title="Supprimer définitivement"
+              >
+                <Icon name="Trash2" className="h-3 w-3" />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={handleArchive}
+                disabled={pending}
+                className="rounded-md p-1 text-muted-foreground hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50"
+                title={
+                  message.prospect
+                    ? `Archiver (reste sur la fiche ${message.prospect.raisonSociale})`
+                    : "Archiver"
+                }
+              >
+                <Icon name="Inbox" className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={pending}
+                className="rounded-md p-1 text-muted-foreground hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                title="Mettre à la corbeille"
+              >
+                <Icon name="Trash2" className="h-3 w-3" />
+              </button>
+            </>
+          )}
         </div>
       </div>
       {expanded && (

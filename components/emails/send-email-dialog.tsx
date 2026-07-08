@@ -13,6 +13,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { sendEmailToProspect } from "@/app/(app)/emails/actions";
+import { RichTextEditor } from "@/components/emails/rich-text-editor";
+import { htmlToPlainText } from "@/lib/email-html";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -65,18 +67,28 @@ export function SendEmailDialog({
 
   const [templateId, setTemplateId] = useState("");
   const [objet, setObjet] = useState("");
-  const [contenu, setContenu] = useState("");
+  const [contenuHtml, setContenuHtml] = useState("");
+  // HTML initial STABLE de l'éditeur (ne change qu'au montage / chargement de
+  // template) — surtout PAS la valeur live, sinon le curseur sauterait à chaque
+  // frappe. Le remontage est déclenché par `editorKey`.
+  const [editorInitial, setEditorInitial] = useState("");
+  const [editorKey, setEditorKey] = useState(0);
   const [signatureId, setSignatureId] = useState(
     signatures.find((s) => s.isDefault)?.id ?? "",
   );
   const selectedSig = signatures.find((s) => s.id === signatureId);
+  const contenuTexte = htmlToPlainText(contenuHtml);
 
   const handleTemplateChange = (id: string) => {
     setTemplateId(id);
     const t = templates.find((x) => x.id === id);
     if (t) {
       setObjet(t.objet);
-      setContenu(t.contenu);
+      // Le template est en texte brut → converti en HTML pour l'éditeur riche.
+      const html = plainToHtml(t.contenu);
+      setEditorInitial(html);
+      setContenuHtml(html);
+      setEditorKey((k) => k + 1);
     }
   };
 
@@ -90,7 +102,7 @@ export function SendEmailDialog({
       toast.error("Donne un sujet.");
       return;
     }
-    if (!contenu.trim()) {
+    if (!contenuTexte.trim()) {
       toast.error("Le contenu est vide.");
       return;
     }
@@ -99,7 +111,8 @@ export function SendEmailDialog({
         prospectId,
         templateId: templateId || undefined,
         objet: objet.trim(),
-        contenu: contenu.trim(),
+        contenu: contenuTexte.trim(),
+        contenuHtml,
         signatureId: signatureId || undefined,
       });
       if (!res.ok) {
@@ -114,7 +127,9 @@ export function SendEmailDialog({
       // Reset + close
       setTemplateId("");
       setObjet("");
-      setContenu("");
+      setContenuHtml("");
+      setEditorInitial("");
+      setEditorKey((k) => k + 1);
       setOpen(false);
       router.refresh();
     });
@@ -183,17 +198,15 @@ export function SendEmailDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="contenu">
+            <Label>
               Contenu <span className="text-red-500">*</span>
             </Label>
-            <textarea
-              id="contenu"
-              value={contenu}
-              onChange={(e) => setContenu(e.target.value)}
-              rows={10}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              placeholder={`Bonjour {{prenomContact}},\n\n...`}
-              required
+            <RichTextEditor
+              key={editorKey}
+              initialHtml={editorInitial}
+              onChange={setContenuHtml}
+              disabled={pending}
+              placeholder="Bonjour {{prenomContact}}, …"
             />
             <p className="text-[11px] text-muted-foreground">
               Tu recevras automatiquement une copie sur ton Gmail.
@@ -243,4 +256,13 @@ export function SendEmailDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Convertit un texte brut (template) en HTML simple pour l'éditeur riche. */
+function plainToHtml(text: string): string {
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return escaped.replace(/\r?\n/g, "<br>");
 }

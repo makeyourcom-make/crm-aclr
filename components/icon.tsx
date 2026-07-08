@@ -36,6 +36,7 @@ import {
   Plus,
   Receipt,
   Repeat,
+  RotateCcw,
   Save,
   Settings,
   Smartphone,
@@ -65,6 +66,10 @@ import {
   ChevronDown,
   UserPlus,
   ClipboardList,
+  Bold,
+  Italic,
+  Underline,
+  List,
   type LucideIcon,
 } from "lucide-react";
 
@@ -99,6 +104,7 @@ const ICONS = {
   Plus,
   Receipt,
   Repeat,
+  RotateCcw,
   Save,
   Settings,
   Smartphone,
@@ -128,6 +134,10 @@ const ICONS = {
   ChevronDown,
   UserPlus,
   ClipboardList,
+  Bold,
+  Italic,
+  Underline,
+  List,
 } as const satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

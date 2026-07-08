@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { prisma } from "@/lib/db";
+import { htmlToPlainText, sanitizeEmailHtml } from "@/lib/email-html";
 import { resolveFromAddress, sendMail } from "@/lib/mailer";
 import { requireUser } from "@/lib/session";
 
@@ -21,6 +22,8 @@ const SendEmailSchema = z.object({
   templateId: z.string().optional(),
   objet: z.string().min(1),
   contenu: z.string().min(1),
+  /** Corps riche (gras/italique/…) — optionnel ; prime sur le texte brut. */
+  contenuHtml: z.string().optional(),
   attachments: z.array(AttachmentSchema).optional(),
   /** Signature email à ajouter (id d'une EmailSignature de l'utilisateur). */
   signatureId: z.string().optional(),
@@ -30,6 +33,8 @@ const SendFreeFormEmailSchema = z.object({
   to: z.string().trim().toLowerCase().email("Adresse email invalide."),
   objet: z.string().min(1),
   contenu: z.string().min(1),
+  /** Corps riche (gras/italique/…) — optionnel ; prime sur le texte brut. */
+  contenuHtml: z.string().optional(),
   attachments: z.array(AttachmentSchema).optional(),
 });
 
@@ -49,6 +54,8 @@ const SaveDraftSchema = z.object({
   to: z.string().optional(),
   objet: z.string().optional(),
   contenu: z.string().optional(),
+  /** Corps riche (gras/italique/…) — optionnel. */
+  contenuHtml: z.string().optional(),
   attachments: z.array(AttachmentSchema).optional(),
 });
 
@@ -109,7 +116,14 @@ export async function sendEmailToProspect(
 
   const objet = apply(parsed.data.objet);
   const contenuTexte = apply(parsed.data.contenu);
-  const contenuHtmlBase = `<pre style="font-family: sans-serif; white-space: pre-wrap;">${contenuTexte.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
+  // Corps riche fourni (gras/italique/…) → on l'utilise (nettoyé) ; sinon on
+  // enveloppe le texte brut dans un <pre> comme historiquement.
+  const richHtml = parsed.data.contenuHtml
+    ? sanitizeEmailHtml(apply(parsed.data.contenuHtml))
+    : "";
+  const contenuHtmlBase = richHtml
+    ? richHtml
+    : `<pre style="font-family: sans-serif; white-space: pre-wrap;">${contenuTexte.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
 
   // Signature email choisie (scopée à l'utilisateur) — ajoutée au contenu.
   let signatureHtml = "";
@@ -269,9 +283,14 @@ export async function sendFreeFormEmail(
 
   const objet = parsed.data.objet.trim();
   const contenuTexte = parsed.data.contenu.trim();
-  const contenuHtml = `<pre style="font-family: sans-serif; white-space: pre-wrap;">${contenuTexte
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")}</pre>`;
+  const richHtml = parsed.data.contenuHtml
+    ? sanitizeEmailHtml(parsed.data.contenuHtml)
+    : "";
+  const contenuHtml = richHtml
+    ? richHtml
+    : `<pre style="font-family: sans-serif; white-space: pre-wrap;">${contenuTexte
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")}</pre>`;
 
   const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@makeyourcom.ch>`;
   const threadId = randomBytes(8).toString("hex");
@@ -366,6 +385,7 @@ export async function replyToEmail(
   contenu: string,
   objetOverride?: string,
   attachmentsInput?: Array<{ url: string; filename: string; mimeType: string; size: number }>,
+  contenuHtmlInput?: string,
 ): Promise<SendEmailResult> {
   const user = await requireUser();
   const original = await prisma.email.findUnique({
@@ -425,9 +445,14 @@ export async function replyToEmail(
   );
 
   const contenuTexte = apply(contenu);
-  const contenuHtml = `<pre style="font-family: sans-serif; white-space: pre-wrap;">${contenuTexte
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")}</pre>`;
+  const richHtml = contenuHtmlInput
+    ? sanitizeEmailHtml(apply(contenuHtmlInput))
+    : "";
+  const contenuHtml = richHtml
+    ? richHtml
+    : `<pre style="font-family: sans-serif; white-space: pre-wrap;">${contenuTexte
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")}</pre>`;
 
   // Adresse expéditeur (Arthur ou Sophie selon user connecté)
   const userFull = await prisma.user.findUnique({
@@ -740,8 +765,10 @@ export async function archiveThread(
 }
 
 /**
- * Supprime un email (envoyé ou brouillon).
- * RLS : admin OR créateur (email.userId === user.id).
+ * Met un email à la corbeille (soft-delete) : il disparaît de la boîte de
+ * réception mais reste restaurable depuis la Corbeille. Aucune destruction —
+ * la purge définitive se fait via `purgeEmail`.
+ * RLS : uniquement le propriétaire du mail (mailbox privée).
  */
 export async function deleteEmail(
   id: string,
@@ -757,10 +784,106 @@ export async function deleteEmail(
   if (email.userId !== user.id) {
     return { ok: false, error: "Accès refusé." };
   }
+  await prisma.email.update({
+    where: { id },
+    data: { supprime: true, supprimeeLe: new Date() },
+  });
+  revalidatePath("/emails");
+  if (email.prospectId) revalidatePath(`/prospects/${email.prospectId}`);
+  return { ok: true };
+}
+
+/**
+ * Restaure un email depuis la corbeille (il repart dans son dossier d'origine).
+ * RLS : propriétaire uniquement.
+ */
+export async function restoreEmail(
+  id: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireUser();
+  const email = await prisma.email.findUnique({
+    where: { id },
+    select: { userId: true, prospectId: true },
+  });
+  if (!email) return { ok: false, error: "Email introuvable." };
+  if (email.userId !== user.id) {
+    return { ok: false, error: "Accès refusé." };
+  }
+  await prisma.email.update({
+    where: { id },
+    data: { supprime: false, supprimeeLe: null },
+  });
+  revalidatePath("/emails");
+  if (email.prospectId) revalidatePath(`/prospects/${email.prospectId}`);
+  return { ok: true };
+}
+
+/**
+ * Restaure en masse tous les emails d'une liste de threads (scopé user).
+ */
+export async function restoreThreadsBulk(
+  threadIds: string[],
+): Promise<{ ok: boolean; count?: number; error?: string }> {
+  const user = await requireUser();
+  if (threadIds.length === 0) return { ok: true, count: 0 };
+  const result = await prisma.email.updateMany({
+    where: { threadId: { in: threadIds }, userId: user.id, supprime: true },
+    data: { supprime: false, supprimeeLe: null },
+  });
+  revalidatePath("/emails");
+  return { ok: true, count: result.count };
+}
+
+/**
+ * Supprime DÉFINITIVEMENT un email — uniquement s'il est déjà à la corbeille.
+ * Vrai delete en base (irréversible).
+ */
+export async function purgeEmail(
+  id: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireUser();
+  const email = await prisma.email.findUnique({
+    where: { id },
+    select: { userId: true, prospectId: true, supprime: true },
+  });
+  if (!email) return { ok: false, error: "Email introuvable." };
+  if (email.userId !== user.id) {
+    return { ok: false, error: "Accès refusé." };
+  }
+  if (!email.supprime) {
+    return {
+      ok: false,
+      error: "Mets d'abord l'email à la corbeille avant de le purger.",
+    };
+  }
   await prisma.email.delete({ where: { id } });
   revalidatePath("/emails");
   if (email.prospectId) revalidatePath(`/prospects/${email.prospectId}`);
   return { ok: true };
+}
+
+/**
+ * Vide la corbeille : supprime définitivement tous les emails déjà à la
+ * corbeille de l'utilisateur. Renvoie le nombre purgé.
+ */
+export async function emptyTrash(): Promise<{
+  ok: boolean;
+  count?: number;
+  error?: string;
+}> {
+  const user = await requireUser();
+  const impacted = await prisma.email.findMany({
+    where: { userId: user.id, supprime: true },
+    select: { prospectId: true },
+  });
+  const result = await prisma.email.deleteMany({
+    where: { userId: user.id, supprime: true },
+  });
+  revalidatePath("/emails");
+  for (const pid of new Set(impacted.map((e) => e.prospectId).filter(Boolean))) {
+    revalidatePath(`/prospects/${pid}`);
+  }
+  return { ok: true, count: result.count };
 }
 
 /**
@@ -782,8 +905,9 @@ export async function archiveThreadsBulk(
 }
 
 /**
- * Supprime définitivement tous les emails d'une liste de threads (scopé sur
- * l'utilisateur connecté). Utilisé par la sélection multiple de l'inbox.
+ * Met à la corbeille (soft-delete) tous les emails d'une liste de threads
+ * (scopé sur l'utilisateur connecté). Utilisé par la sélection multiple de
+ * l'inbox. Réversible via la Corbeille.
  */
 export async function deleteThreadsBulk(
   threadIds: string[],
@@ -795,8 +919,9 @@ export async function deleteThreadsBulk(
     where: { threadId: { in: threadIds }, userId: user.id },
     select: { prospectId: true },
   });
-  const result = await prisma.email.deleteMany({
-    where: { threadId: { in: threadIds }, userId: user.id },
+  const result = await prisma.email.updateMany({
+    where: { threadId: { in: threadIds }, userId: user.id, supprime: false },
+    data: { supprime: true, supprimeeLe: new Date() },
   });
   revalidatePath("/emails");
   for (const pid of new Set(impacted.map((e) => e.prospectId).filter(Boolean))) {
@@ -823,7 +948,11 @@ export async function saveEmailDraft(input: unknown): Promise<SendEmailResult> {
 
   const { draftId, prospectId, to, attachments } = parsed.data;
   const objet = (parsed.data.objet ?? "").trim();
-  const contenu = (parsed.data.contenu ?? "").trim();
+  const richHtml = parsed.data.contenuHtml
+    ? sanitizeEmailHtml(parsed.data.contenuHtml)
+    : "";
+  // Texte brut : fourni, sinon dérivé du HTML riche (pour la partie text/plain).
+  const contenu = ((parsed.data.contenu ?? "") || htmlToPlainText(richHtml)).trim();
 
   if (!objet && !contenu) {
     return { ok: false, error: "Rien à enregistrer (sujet et contenu vides)." };
@@ -859,7 +988,7 @@ export async function saveEmailDraft(input: unknown): Promise<SendEmailResult> {
   });
 
   const objetStored = objet || "(brouillon sans objet)";
-  const contenuHtml = PRE_HTML(contenu);
+  const contenuHtml = richHtml || PRE_HTML(contenu);
   const attachmentsCreate =
     attachments && attachments.length > 0
       ? {
@@ -978,7 +1107,11 @@ export async function sendDraft(draftId: string): Promise<SendEmailResult> {
 
   const objet = apply(draft.objet);
   const contenuTexte = apply(draft.contenuTexte);
-  const contenuHtml = PRE_HTML(contenuTexte);
+  // Le brouillon stocke déjà le HTML (riche si mis en forme, sinon <pre>) ;
+  // on applique juste les variables {{…}}. Repli sur <pre> si vide.
+  const contenuHtml = draft.contenuHtml
+    ? apply(draft.contenuHtml)
+    : PRE_HTML(contenuTexte);
 
   const userFull = await prisma.user.findUnique({
     where: { id: user.id },

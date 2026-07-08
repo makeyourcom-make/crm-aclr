@@ -22,7 +22,9 @@ import {
   AttachmentPicker,
   type PickedAttachment,
 } from "@/components/emails/attachment-picker";
+import { RichTextEditor } from "@/components/emails/rich-text-editor";
 import { Icon } from "@/components/icon";
+import { htmlToPlainText } from "@/lib/email-html";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -62,10 +64,14 @@ export function ComposeEmailButton() {
   // Étape 1 (mode freeform) : email libre
   const [freeEmail, setFreeEmail] = useState("");
 
-  // Étape 2 : rédaction
+  // Étape 2 : rédaction (le corps est du HTML riche via l'éditeur).
   const [objet, setObjet] = useState("");
-  const [contenu, setContenu] = useState("");
+  const [contenuHtml, setContenuHtml] = useState("");
   const [attachments, setAttachments] = useState<PickedAttachment[]>([]);
+  // Change à chaque reset pour re-monter l'éditeur (vide son contenu).
+  const [editorKey, setEditorKey] = useState(0);
+
+  const contenuTexte = htmlToPlainText(contenuHtml);
 
   const reset = () => {
     setMode("client");
@@ -74,8 +80,9 @@ export function ComposeEmailButton() {
     setResults([]);
     setFreeEmail("");
     setObjet("");
-    setContenu("");
+    setContenuHtml("");
     setAttachments([]);
+    setEditorKey((k) => k + 1);
   };
 
   /** Vrai si l'utilisateur a fini l'étape 1 (a un destinataire valide). */
@@ -108,7 +115,7 @@ export function ComposeEmailButton() {
       toast.error("Choisis d'abord un destinataire.");
       return;
     }
-    if (!objet.trim() && !contenu.trim()) {
+    if (!objet.trim() && !contenuTexte.trim()) {
       toast.error("Rien à enregistrer (sujet et contenu vides).");
       return;
     }
@@ -117,7 +124,8 @@ export function ComposeEmailButton() {
         prospectId: mode === "client" && selected ? selected.id : undefined,
         to: mode === "freeform" ? freeEmail.trim() : undefined,
         objet: objet.trim(),
-        contenu: contenu.trim(),
+        contenu: contenuTexte.trim(),
+        contenuHtml,
         attachments: attachments.length > 0 ? attachments : undefined,
       });
       if (!res.ok) {
@@ -138,7 +146,7 @@ export function ComposeEmailButton() {
       toast.error("Donne un sujet.");
       return;
     }
-    if (!contenu.trim()) {
+    if (!contenuTexte.trim()) {
       toast.error("Le contenu est vide.");
       return;
     }
@@ -148,13 +156,15 @@ export function ComposeEmailButton() {
           ? await sendEmailToProspect({
               prospectId: selected.id,
               objet: objet.trim(),
-              contenu: contenu.trim(),
+              contenu: contenuTexte.trim(),
+              contenuHtml,
               attachments: attachments.length > 0 ? attachments : undefined,
             })
           : await sendFreeFormEmail({
               to: freeEmail.trim(),
               objet: objet.trim(),
-              contenu: contenu.trim(),
+              contenu: contenuTexte.trim(),
+              contenuHtml,
               attachments: attachments.length > 0 ? attachments : undefined,
             });
       if (!res.ok) {
@@ -346,17 +356,14 @@ export function ComposeEmailButton() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="contenu">
+              <Label>
                 Contenu <span className="text-red-500">*</span>
               </Label>
-              <textarea
-                id="contenu"
-                value={contenu}
-                onChange={(e) => setContenu(e.target.value)}
-                rows={10}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                placeholder={`Bonjour {{prenomContact}},\n\n…`}
-                required
+              <RichTextEditor
+                key={editorKey}
+                onChange={setContenuHtml}
+                disabled={pending}
+                placeholder="Bonjour {{prenomContact}}, …"
               />
               {mode === "client" && (
                 <p className="text-[11px] text-muted-foreground">

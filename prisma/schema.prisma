@@ -1257,6 +1257,11 @@ model Email {
   archive    Boolean   @default(false)
   archiveALe DateTime?
 
+  /// Vrai = email dans la corbeille (supprimé côté CRM sans être détruit).
+  /// Reste restaurable ; une purge définitive fait un vrai delete.
+  supprime    Boolean   @default(false)
+  supprimeeLe DateTime?
+
   templateUtilise   EmailTemplate? @relation(fields: [templateUtiliseId], references: [id], onDelete: SetNull)
   templateUtiliseId String?
 
