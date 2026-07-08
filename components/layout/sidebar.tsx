@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { Icon } from "@/components/icon";
+import { InstallAppButton } from "@/components/pwa/install-app-button";
 import { cn } from "@/lib/utils";
 import {
   ROUTE_GROUPS,
@@ -76,6 +77,9 @@ export function Sidebar({ role, onNavigate, badges }: SidebarProps) {
           </div>
         );
       })}
+
+      {/* Installer la PWA — visible seulement si installable / pas déjà installé */}
+      <InstallAppButton />
     </nav>
   );
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { CommissionsChart } from "@/components/dashboard/commissions-chart";
+import { CommissionsChartLazy as CommissionsChart } from "@/components/dashboard/commissions-chart-lazy";
 import { MonthlyGoals } from "@/components/dashboard/monthly-goals";
 import { SignAclrButton } from "@/components/signatures/sign-aclr-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

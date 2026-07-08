@@ -748,6 +748,12 @@ model Prospect {
   @@index([canton])
   @@index([raisonSociale]) // recherche par nom
   @@index([nameNorm]) // matching master ↔ CRM
+  // Listes paginées : tri par défaut createdAt DESC, scopé par assigneAId (RLS
+  // commercial) ou filtré par statut (admin). Évite un tri complet des ~89k
+  // lignes à chaque affichage.
+  @@index([createdAt(sort: Desc)])
+  @@index([assigneAId, createdAt(sort: Desc)])
+  @@index([statut, createdAt(sort: Desc)])
   @@map("prospects")
 }
 
