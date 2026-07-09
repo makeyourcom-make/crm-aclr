@@ -61,8 +61,16 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // Packages serveur exclus du bundling Next (génèrent des PDF avec fonts natives)
-  serverExternalPackages: ["pdfkit", "swissqrbill", "@react-pdf/renderer"],
+  // Packages serveur exclus du bundling Next (PDF à fonts natives + driver
+  // serverless Neon : `ws` a des deps natives optionnelles à ne pas bundler).
+  serverExternalPackages: [
+    "pdfkit",
+    "swissqrbill",
+    "@react-pdf/renderer",
+    "@prisma/adapter-neon",
+    "@neondatabase/serverless",
+    "ws",
+  ],
 
   // Reverse proxy (Caddy/Traefik) terminera le TLS, on doit accepter le X-Forwarded-Host
   // Ce flag sera utile en prod Hetzner
