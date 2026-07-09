@@ -34,6 +34,14 @@ export async function getProspects(
     [params.sortBy]: params.sortDir,
   };
 
+  // Sur la table prospects (~124k lignes), un count(*) exact non filtré coûte
+  // ~150 ms à chaque affichage de la liste par défaut. Comme la pagination n'a
+  // pas besoin d'un total au prospect près sur des dizaines de milliers de
+  // lignes, on utilise l'estimation Postgres (reltuples, quasi instantanée)
+  // UNIQUEMENT quand aucun filtre n'est appliqué. Dès qu'il y a un filtre ou une
+  // recherche, on garde le count exact (rapide car sélectif / indexé trgm).
+  const isUnfiltered = Object.keys(where).length === 0;
+
   const [items, total] = await Promise.all([
     prisma.prospect.findMany({
       where,
@@ -48,7 +56,9 @@ export async function getProspects(
         },
       },
     }),
-    prisma.prospect.count({ where }),
+    isUnfiltered
+      ? estimatedProspectTotal()
+      : prisma.prospect.count({ where }),
   ]);
 
   return {
@@ -58,6 +68,20 @@ export async function getProspects(
     pageSize: params.pageSize,
     totalPages: Math.max(1, Math.ceil(total / params.pageSize)),
   };
+}
+
+/**
+ * Total approximatif de la table prospects via les statistiques Postgres
+ * (`pg_class.reltuples`, tenues à jour par autovacuum/ANALYZE). Quasi instantané
+ * — suffisant pour paginer une liste non filtrée de ~124k lignes. Repli sur un
+ * count exact si l'estimation n'est pas disponible (table jamais analysée).
+ */
+async function estimatedProspectTotal(): Promise<number> {
+  const rows = await prisma.$queryRawUnsafe<Array<{ n: bigint | number }>>(
+    `SELECT reltuples::bigint AS n FROM pg_class WHERE relname = 'prospects'`,
+  );
+  const n = Number(rows[0]?.n ?? 0);
+  return n > 0 ? n : prisma.prospect.count();
 }
 
 /**

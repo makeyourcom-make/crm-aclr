@@ -749,11 +749,16 @@ model Prospect {
   @@index([raisonSociale]) // recherche par nom
   @@index([nameNorm]) // matching master ↔ CRM
   // Listes paginées : tri par défaut createdAt DESC, scopé par assigneAId (RLS
-  // commercial) ou filtré par statut (admin). Évite un tri complet des ~89k
+  // commercial) ou filtré par statut (admin). Évite un tri complet des ~124k
   // lignes à chaque affichage.
   @@index([createdAt(sort: Desc)])
   @@index([assigneAId, createdAt(sort: Desc)])
   @@index([statut, createdAt(sort: Desc)])
+  // NB : la recherche texte (ILIKE '%q%' sur raisonSociale/ville/email/
+  // contactNom/contactPrenom) est accélérée par des index GIN trigramme
+  // (pg_trgm) posés hors Prisma via scripts/ddl-prospect-search-trgm.ts
+  // (Prisma n'exprime pas gin_trgm_ops sans preview feature). Ne pas les
+  // supprimer : sans eux la recherche fait un seq scan de ~124k lignes.
   @@map("prospects")
 }
 
