@@ -1832,6 +1832,7 @@ export async function validateContract(
         dateDebut: true,
         dureeMois: true,
         devise: true,
+        facturationReprendLe: true,
         montantOneShot: true,
         montantMensuel: true,
         lignesMeta: true,
@@ -2062,6 +2063,7 @@ async function createDueInvoicesForContract(
     dateDebut: Date;
     dureeMois: number;
     devise: string;
+    facturationReprendLe: Date | null;
     clientInvoices: Array<{
       periodeMoisDebut: Date | null;
       type: string;
@@ -2096,10 +2098,22 @@ async function createDueInvoicesForContract(
       .map((i) => `${i.type}|${i.dateEmission.toISOString().slice(0, 10)}`),
   );
 
+  // Pause de facturation : si le mois courant (floorMonth) est AVANT le mois de
+  // reprise, on ne crée AUCUNE mensualité pour ce contrat (ni via le planning,
+  // ni via le filet renouvellement). Comparaison par clé de mois locale pour
+  // éviter le piège fuseau/DST au mois de reprise. N'affecte que le cron
+  // (floorMonth défini) ; les one-shots ne sont pas concernés.
+  const facturationEnPause = !!(
+    opts.floorMonth &&
+    c.facturationReprendLe &&
+    moisKeyLocal(opts.floorMonth) < moisKeyLocal(c.facturationReprendLe)
+  );
+
   let created = 0;
   for (const inv of schedule) {
     if (inv.dateEmission > opts.cutoff) continue; // jamais d'avance
     if (inv.type === "MENSUALITE") {
+      if (facturationEnPause) continue; // forfait en pause ce mois-ci
       if (opts.floorMonth && inv.dateEmission < opts.floorMonth) continue;
       const key = moisKeyLocal(inv.periodeMoisDebut ?? inv.dateEmission);
       if (existingPeriods.has(key)) continue; // déjà générée ce mois
@@ -2163,6 +2177,7 @@ async function createDueInvoicesForContract(
   if (
     opts.floorMonth &&
     billing.mensuelCents > 0 &&
+    !facturationEnPause && // forfait en pause → pas de mensualité de renouvellement
     // Exclut UNIQUEMENT le 100%-à-la-signature (mensuel facturé d'avance dans la
     // ponctuelle). MENSUEL et 50/50 ont un récurrent facturé mois par mois, qui
     // doit continuer au renouvellement (ex. forfait site 29.90 après un site
@@ -2252,6 +2267,7 @@ export async function generateDueClientInvoices(): Promise<{
         dateDebut: true,
         dureeMois: true,
         devise: true,
+        facturationReprendLe: true,
         montantOneShot: true,
         montantMensuel: true,
         lignesMeta: true,

@@ -1018,6 +1018,12 @@ model Contract {
   dateResiliation   DateTime?
   raisonResiliation String?   @db.Text
 
+  /// Pause de la facturation mensuelle : tant que le mois courant est AVANT ce
+  /// mois, le générateur (cron) ne crée aucune mensualité pour ce contrat. La
+  /// facturation reprend automatiquement au mois de cette date. NULL = pas de
+  /// pause. Ex. forfait suspendu jusqu'au 15.03.2027.
+  facturationReprendLe DateTime?
+
   // Relations
   products       Product[]        @relation("ContractProducts")
   payments       Payment[]
