@@ -358,17 +358,22 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                             icon="Eye"
                           />
                           {(inv.statut === "BROUILLON" ||
-                            inv.statut === "ENVOYEE") && (
+                            inv.statut === "ENVOYEE" ||
+                            inv.statut === "EN_RETARD") && (
                             <SendInvoiceButton
                               invoiceId={inv.id}
                               invoiceNumero={inv.numero}
                               clientName={inv.contract.prospect.raisonSociale}
                               clientEmail={inv.contract.prospect.email}
-                              alreadySent={inv.statut === "ENVOYEE"}
+                              alreadySent={inv.statut !== "BROUILLON"}
                             />
                           )}
+                          {/* Marquer payée : toute facture non encore payée
+                              (brouillon, envoyée OU en retard). Une facture en
+                              retard est justement celle qu'on veut pointer payée. */}
                           {(inv.statut === "BROUILLON" ||
-                            inv.statut === "ENVOYEE") && (
+                            inv.statut === "ENVOYEE" ||
+                            inv.statut === "EN_RETARD") && (
                             <MarkInvoicePaidButton invoiceId={inv.id} />
                           )}
                           <DeleteClientInvoiceButton
