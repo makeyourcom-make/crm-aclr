@@ -2292,6 +2292,85 @@ export async function generateDueClientInvoices(): Promise<{
         }),
       );
     }
+
+    // ── Renouvellements ANNUELS ─────────────────────────────────────────────
+    // Contrats payés en une fois par an (montantOneShot, ex. Coiffure 1800/an,
+    // CENT_AU_SIGNING donc exclus du renouvellement mensuel). Quand le mois
+    // courant atteint le mois de renouvellement, on crée une PONCTUELLE de
+    // montantOneShot puis on avance renouvellementAnnuelLe de +12 mois
+    // (l'avancement fait la dédup : un 2e passage le même mois voit la date
+    // désormais dans le futur → skip). Comparaison par clé de mois locale.
+    const MOIS_FR = [
+      "janvier", "février", "mars", "avril", "mai", "juin",
+      "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+    ];
+    const annualContracts = await prisma.contract.findMany({
+      where: { statut: "ACTIF", renouvellementAnnuelLe: { not: null } },
+      select: {
+        id: true,
+        devise: true,
+        montantOneShot: true,
+        renouvellementAnnuelLe: true,
+      },
+    });
+    for (const c of annualContracts) {
+      const due = c.renouvellementAnnuelLe!;
+      if (moisKeyLocal(due) > moisKeyLocal(floorMonth)) continue; // pas encore
+      const montant = Number(c.montantOneShot);
+      if (montant <= 0) continue;
+      created += await prisma.$transaction(async (tx) => {
+        const emission = firstOfMonthUTC(due);
+        const echeance = new Date(emission);
+        echeance.setDate(echeance.getDate() + FACTURE_CLIENT_ECHEANCE_JOURS_DEFAULT);
+        const periodeFin = new Date(
+          Date.UTC(emission.getUTCFullYear() + 1, emission.getUTCMonth(), 0),
+        );
+        const debutLbl = `${MOIS_FR[emission.getUTCMonth()]} ${emission.getUTCFullYear()}`;
+        const finLbl = `${MOIS_FR[periodeFin.getUTCMonth()]} ${periodeFin.getUTCFullYear()}`;
+        const annee = emission.getUTCFullYear();
+        const counter = await tx.counter.upsert({
+          where: { scope_year: { scope: "client_invoice", year: annee } },
+          create: { scope: "client_invoice", year: annee, value: 1 },
+          update: { value: { increment: 1 } },
+        });
+        const facNumero = `${PREFIX_FACTURE_CLIENT}-${annee}-${String(counter.value).padStart(4, "0")}`;
+        await tx.clientInvoice.create({
+          data: {
+            contractId: c.id,
+            numero: facNumero,
+            dateEmission: emission,
+            dateEcheance: echeance,
+            type: "PONCTUELLE",
+            periodeMoisDebut: emission,
+            periodeMoisFin: periodeFin,
+            devise: c.devise ?? "CHF",
+            sousTotal: montant,
+            totalTVA: 0,
+            total: montant,
+            statut: "BROUILLON",
+            lignes: {
+              create: [
+                {
+                  designation: `Forfait annuel — renouvellement (${debutLbl} à ${finLbl})`,
+                  quantite: 1,
+                  prixUnitaire: montant,
+                  montantHT: montant,
+                  tauxTVA: 0,
+                  ordre: 0,
+                },
+              ],
+            },
+          },
+        });
+        const next = new Date(due);
+        next.setFullYear(next.getFullYear() + 1);
+        await tx.contract.update({
+          where: { id: c.id },
+          data: { renouvellementAnnuelLe: next },
+        });
+        return 1;
+      });
+    }
     return { ok: true, created };
   } catch (e) {
     console.error("[generateDueClientInvoices]", e);

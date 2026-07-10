@@ -1024,6 +1024,13 @@ model Contract {
   /// pause. Ex. forfait suspendu jusqu'au 15.03.2027.
   facturationReprendLe DateTime?
 
+  /// Renouvellement ANNUEL : date de la prochaine facture annuelle à générer
+  /// automatiquement (contrats payés en une fois par an — ex. forfait
+  /// 150 CHF/mois facturé 1800/an). Quand le mois courant atteint ce mois, le
+  /// cron crée une PONCTUELLE de `montantOneShot` puis avance ce champ de
+  /// +12 mois (l'avancement fait la dédup). NULL = pas de renouvellement annuel.
+  renouvellementAnnuelLe DateTime?
+
   // Relations
   products       Product[]        @relation("ContractProducts")
   payments       Payment[]
