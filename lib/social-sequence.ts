@@ -94,15 +94,16 @@ export function getStepDate(demarrage: Date, step: SocialStep): Date {
 
 /**
  * À une date donnée, renvoie pour un prospect les étapes "dues" :
- *  - chaque étape NON faite dont la date planifiée == aujourd'hui.
+ *  - chaque étape NON faite dont la date planifiée <= aujourd'hui (due OU en
+ *    retard). Le travail non fait reste visible — sinon on affiche un faux
+ *    « tout est à jour » alors que des actions attendent.
  *
- * Boucle propre lundi→vendredi : une action n'apparaît QUE le jour ouvrable
- * exact où elle est prévue (J+0/2/4/6 en jours ouvrables). On n'accumule PAS
- * le retard des jours précédents — sinon le lundi (et chaque jour) hériterait
- * d'un backlog qui grossit sans fin. Une étape non faite le jour même n'est
- * pas rattrapée : la séquence continue son cours. Le samedi/dimanche, aucune
- * étape ne tombe (les dates sont calculées en jours ouvrables), donc rien
- * n'est dû — décision produit MakeYourCom.
+ * Le VOLUME (éviter le mur du lundi) n'est PAS géré ici mais par un plafond
+ * journalier côté vue `/social/aujourdhui` (les plus anciennes d'abord, ~10
+ * prospects/compte/jour) : chaque jour ouvrable présente une liste finie et
+ * gérable, et on avance dans le retard. Le samedi/dimanche, aucune étape ne
+ * tombe (dates en jours ouvrables) → rien de nouveau, mais l'écran de pause
+ * week-end reste affiché.
  */
 export function getDueSteps(
   demarrage: Date,
@@ -116,7 +117,7 @@ export function getDueSteps(
     const done = (
       s === 0 ? steps.step0Done : s === 2 ? steps.step2Done : s === 4 ? steps.step4Done : steps.step6Done
     );
-    if (!done && stepKey === todayKey) due.push(s);
+    if (!done && stepKey <= todayKey) due.push(s);
   }
   return due;
 }

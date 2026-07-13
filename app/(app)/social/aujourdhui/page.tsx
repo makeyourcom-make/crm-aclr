@@ -56,9 +56,15 @@ export default async function SocialTodayPage({ searchParams }: PageProps) {
     orderBy: [{ reseau: "asc" }, { nom: "asc" }],
   });
 
+  // Plafond journalier : ~10 prospects/compte/jour PAR étape (objectif de
+  // charge MakeYourCom). On affiche les plus anciens d'abord (les prospects
+  // sont déjà triés dateDemarrage asc) → chaque jour = liste finie et gérable,
+  // et on avance dans le retard. Le reste s'affiche les jours suivants.
+  const DAILY_CAP = 10;
+
   // Calcule les actions dues par étape pour chaque compte
   const byAccount = accounts.map((a) => {
-    const dueByStep: Record<
+    const full: Record<
       SocialStep,
       Array<{ id: string; nom: string; profilUrl: string; dateDemarrage: string }>
     > = { 0: [], 2: [], 4: [], 6: [] };
@@ -74,7 +80,7 @@ export default async function SocialTodayPage({ searchParams }: PageProps) {
         todayOnly,
       );
       for (const s of due) {
-        dueByStep[s].push({
+        full[s].push({
           id: p.id,
           nom: p.nom,
           profilUrl: p.profilUrl,
@@ -82,21 +88,36 @@ export default async function SocialTodayPage({ searchParams }: PageProps) {
         });
       }
     }
+    // Applique le plafond par étape (plus anciens d'abord).
+    const dueByStep = {
+      0: full[0].slice(0, DAILY_CAP),
+      2: full[2].slice(0, DAILY_CAP),
+      4: full[4].slice(0, DAILY_CAP),
+      6: full[6].slice(0, DAILY_CAP),
+    } as Record<
+      SocialStep,
+      Array<{ id: string; nom: string; profilUrl: string; dateDemarrage: string }>
+    >;
+    const totalFull =
+      full[0].length + full[2].length + full[4].length + full[6].length;
+    const totalDue =
+      dueByStep[0].length +
+      dueByStep[2].length +
+      dueByStep[4].length +
+      dueByStep[6].length;
     return {
       id: a.id,
       nom: a.nom,
       reseau: a.reseau,
       responsable: a.responsable.name,
       dueByStep,
-      totalDue:
-        dueByStep[0].length +
-        dueByStep[2].length +
-        dueByStep[4].length +
-        dueByStep[6].length,
+      totalDue,
+      backlog: totalFull - totalDue, // en retard, reporté aux jours suivants
     };
   });
 
   const totalActions = byAccount.reduce((s, a) => s + a.totalDue, 0);
+  const totalBacklog = byAccount.reduce((s, a) => s + a.backlog, 0);
 
   // Le social fait une pause le samedi et le dimanche : on n'affiche pas de
   // tâches le week-end, la séquence reprend automatiquement le lundi.
@@ -109,10 +130,14 @@ export default async function SocialTodayPage({ searchParams }: PageProps) {
         description={
           weekend
             ? "Pause week-end — la séquence reprend lundi."
-            : `${totalActions} action(s) due(s) ${
+            : `${totalActions} action(s) à faire ${
                 dateParam
                   ? `au ${todayOnly.toLocaleDateString("fr-CH")}`
                   : "aujourd'hui"
+              }${
+                totalBacklog > 0
+                  ? ` · ${totalBacklog} en retard (reporté·es aux jours suivants)`
+                  : ""
               }.`
         }
         actions={
