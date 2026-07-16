@@ -10,7 +10,7 @@ import { ClickToCall } from "@/components/call/click-to-call";
 import { DataTable } from "@/components/ui/data-table";
 import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badge";
 import { getProspectSecteurLabel } from "@/lib/labels";
-import { formatRelative } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 
 import type { Prospect } from "@prisma/client";
 
@@ -254,23 +254,23 @@ export function ProspectsTable({
       ),
       cell: ({ row }) =>
         row.original.derniereActionLe ? (
-          <span className="whitespace-nowrap text-xs text-muted-foreground">
-            {formatRelative(row.original.derniereActionLe)}
+          <span className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+            {formatDate(row.original.derniereActionLe)}
           </span>
         ) : (
           <span className="text-xs text-muted-foreground/50">—</span>
         ),
-      size: 130,
+      size: 120,
     },
     {
       id: "createdAt",
       header: () => <SortableHeader field="createdAt" label="Date d'ajout" />,
       cell: ({ row }) => (
-        <span className="whitespace-nowrap text-xs text-muted-foreground">
-          {formatRelative(row.original.createdAt)}
+        <span className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+          {formatDate(row.original.createdAt)}
         </span>
       ),
-      size: 120,
+      size: 110,
     },
   ];
 
