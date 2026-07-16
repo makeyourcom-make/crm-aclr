@@ -132,16 +132,20 @@ export function ProspectsTable({
     {
       id: "raisonSociale",
       header: () => <SortableHeader field="raisonSociale" label="Raison sociale" />,
+      // Largeur bornée : sans `size`, TanStack renvoie 150 (défaut) et la
+      // DataTable laisse alors la colonne absorber toute la place restante.
+      size: 240,
       cell: ({ row }) => (
-        <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-1">
           <Link
             href={`/prospects/${row.original.id}`}
-            className="font-medium text-foreground hover:underline"
+            title={row.original.raisonSociale}
+            className="truncate font-medium text-foreground hover:underline"
           >
             {row.original.raisonSociale}
           </Link>
           {(row.original.contactPrenom || row.original.contactNom) && (
-            <span className="text-xs text-muted-foreground">
+            <span className="truncate text-xs text-muted-foreground">
               {[row.original.contactPrenom, row.original.contactNom]
                 .filter(Boolean)
                 .join(" ")}
