@@ -26,6 +26,18 @@ interface SendInvoiceResult {
 }
 
 /**
+ * Les emails de FACTURATION partent au nom de l'entreprise, pas de la personne
+ * (décision Arthur) : une facture est émise par ACLR / Make Your Com, pas par
+ * un individu. Les emails de PROSPECTION (module Emails) gardent volontairement
+ * le nom de la commerciale — un mail de prospection doit rester personnel.
+ *
+ * Le Reply-To continue de pointer sur l'adresse de l'utilisateur : les réponses
+ * du client lui arrivent bien directement.
+ */
+const EXPEDITEUR_FACTURATION = "Make Your Com";
+const SIGNATURE_FACTURATION = "L'équipe Make Your Com";
+
+/**
  * Construit le sujet et le corps par défaut. Exporté pour pouvoir les
  * pré-remplir côté UI (dialog d'envoi) avant validation de l'utilisateur.
  */
@@ -96,10 +108,10 @@ export async function getInvoiceEmailDefaults(
     "",
     `Le règlement peut être effectué par virement bancaire (coordonnées en bas du PDF) ou via le QR-bill suisse en page 2 si applicable.`,
     "",
-    "Pour toute question, n'hésitez pas à me répondre directement.",
+    "Pour toute question, n'hésitez pas à nous répondre directement.",
     "",
     "Cordialement,",
-    userFull?.name ?? "",
+    SIGNATURE_FACTURATION,
   ].join("\n");
 
   return {
@@ -194,10 +206,13 @@ export async function sendClientInvoiceByEmail(
     where: { id: user.id },
     select: { email: true, name: true },
   });
-  const { from, replyTo, fromName } = resolveFromAddress({
+  const { from, replyTo } = resolveFromAddress({
     email: userFull?.email ?? "contact@makeyourcom.ch",
     name: userFull?.name ?? null,
   });
+  // Expéditeur = l'entreprise (et non la personne) : alimente le nom affiché
+  // dans le mail envoyé ET `expediteurNom` de la copie archivée dans le CRM.
+  const fromName = EXPEDITEUR_FACTURATION;
 
   const formatMontant = (n: number, devise: string) =>
     new Intl.NumberFormat("fr-CH", {
@@ -227,10 +242,10 @@ export async function sendClientInvoiceByEmail(
     "",
     `Le règlement peut être effectué par virement bancaire (coordonnées en bas du PDF) ou via le QR-bill suisse en page 2 si applicable.`,
     "",
-    "Pour toute question, n'hésitez pas à me répondre directement.",
+    "Pour toute question, n'hésitez pas à nous répondre directement.",
     "",
     "Cordialement,",
-    fromName,
+    SIGNATURE_FACTURATION,
   ].join("\n");
   const text = customBody?.trim() || defaultText;
 
@@ -423,10 +438,11 @@ export async function sendDueSoonReminders(): Promise<{
         },
       );
 
-      const { from, replyTo, fromName } = resolveFromAddress({
+      const { from, replyTo } = resolveFromAddress({
         email: inv.contract.assigneA?.email ?? "contact@makeyourcom.ch",
         name: inv.contract.assigneA?.name ?? null,
       });
+      const fromName = EXPEDITEUR_FACTURATION;
 
       const prenom = inv.contract.prospect.contactPrenom?.trim() || "";
       const echeanceStr = inv.dateEcheance.toLocaleDateString("fr-CH", {
@@ -453,10 +469,10 @@ export async function sendDueSoonReminders(): Promise<{
         "",
         `Le règlement peut être effectué par virement bancaire (coordonnées en bas du PDF ci-joint) ou via le QR-bill suisse. Si le paiement a déjà été effectué entre-temps, merci de ne pas tenir compte de ce message.`,
         "",
-        "Pour toute question, n'hésitez pas à me répondre directement.",
+        "Pour toute question, n'hésitez pas à nous répondre directement.",
         "",
         "Cordialement,",
-        fromName,
+        SIGNATURE_FACTURATION,
       ].join("\n");
 
       const escapeHtml = (s: string) =>
