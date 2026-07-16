@@ -168,25 +168,31 @@ function buildProspectWhere(
     conditions.push({ assigneAId: user.id });
   }
 
-  // Filtres
-  if (params.statut) {
-    conditions.push({ statut: params.statut });
+  // Filtres multi-sélection : un tableau vide = filtre inactif.
+  if (params.statut.length > 0) {
+    conditions.push({ statut: { in: params.statut } });
   }
   // Par défaut : toutes les entreprises (prospects + clients signés). Sophie
   // / Arthur ont une vue unifiée "fichier entreprises" — les détails par
   // statut sont gérés via le filtre.
-  if (params.secteur) conditions.push({ secteur: params.secteur });
+  if (params.secteur.length > 0)
+    conditions.push({ secteur: { in: params.secteur } });
   if (params.canton) conditions.push({ canton: params.canton });
-  if (params.ville)
-    conditions.push({ ville: { contains: params.ville, mode: "insensitive" } });
+  // Plusieurs villes → OR (fiche dans l'une OU l'autre).
+  if (params.ville.length > 0)
+    conditions.push({
+      OR: params.ville.map((v) => ({
+        ville: { contains: v, mode: "insensitive" as const },
+      })),
+    });
   if (params.avecTel === "1")
     conditions.push({
       OR: [{ telephone: { not: null } }, { telephoneMobile: { not: null } }],
     });
   if (params.assigneAId) conditions.push({ assigneAId: params.assigneAId });
-  // Filtre par tag : récupère les prospects ayant ce tagId via la table de jonction
-  if (params.tagId) {
-    conditions.push({ tags: { some: { tagId: params.tagId } } });
+  // Filtre par tag(s) : fiches portant AU MOINS UN des tags cochés.
+  if (params.tagId.length > 0) {
+    conditions.push({ tags: { some: { tagId: { in: params.tagId } } } });
   }
   // "Date d'ajout" : fiches créées à partir de cette date (jour inclus).
   const ajouteDepuis = parseDateFilter(params.ajouteDepuis);

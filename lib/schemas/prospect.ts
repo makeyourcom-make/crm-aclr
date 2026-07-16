@@ -124,16 +124,46 @@ export const ProspectSortFieldSchema = z.enum([
 ]);
 export type ProspectSortField = z.infer<typeof ProspectSortFieldSchema>;
 
+/**
+ * Filtre MULTI-VALEURS. Dans l'URL les valeurs sont séparées par des virgules
+ * (ex. `?statut=NOUVEAU,SIGNE`) ; un paramètre répété (`?statut=A&statut=B`)
+ * est aussi accepté. Renvoie TOUJOURS un tableau — vide = filtre inactif.
+ * Dédupliqué et nettoyé (trim, valeurs vides ignorées).
+ */
+function csvList() {
+  return z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((v): string[] => {
+      if (!v) return [];
+      const raw = Array.isArray(v)
+        ? v.flatMap((s) => s.split(","))
+        : v.split(",");
+      return [...new Set(raw.map((s) => s.trim()).filter(Boolean))];
+    });
+}
+
+/** Idem `csvList` mais ne garde que les valeurs d'un enum (les autres sont ignorées). */
+function csvEnumList<T extends string>(valid: readonly T[]) {
+  const allowed = new Set<string>(valid);
+  return csvList().transform((arr) => arr.filter((s): s is T => allowed.has(s)));
+}
+
 export const ProspectListParamsSchema = z.object({
   q: stringOptional,
-  statut: z.nativeEnum(ProspectStatut).optional(),
-  secteur: z.nativeEnum(ProspectSecteur).optional(),
+  /** Multi-sélection (cases à cocher). */
+  statut: csvEnumList(Object.values(ProspectStatut)),
+  /** Multi-sélection (cases à cocher). */
+  secteur: csvEnumList(Object.values(ProspectSecteur)),
   canton: stringOptional,
-  ville: stringOptional, // filtre texte par ville (remplace le canton en UI)
+  /** Multi-villes : texte libre, plusieurs villes séparées par des virgules
+   *  (ex. "Genève, Lausanne") — match "contient", insensible à la casse. */
+  ville: csvList(),
   /** "1" → uniquement les fiches avec un téléphone (fixe ou mobile). */
   avecTel: stringOptional,
   assigneAId: stringOptional,
-  tagId: stringOptional, // filtre par tag (ex. "Passeport Beauté")
+  /** Multi-sélection de tags (cases à cocher). */
+  tagId: csvList(),
   /** Filtre "Date d'ajout" : ne garde que les fiches créées À PARTIR de cette
    *  date (AAAA-MM-JJ). Permet de voir ce qui a été ajouté depuis X. */
   ajouteDepuis: stringOptional,

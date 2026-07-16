@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
 import { Icon } from "@/components/icon";
 import { Input } from "@/components/ui/input";
@@ -49,12 +49,15 @@ export function ProspectFilters({
     setSearch(params.q ?? "");
   }, [params.q]);
 
-  // Filtre Ville (texte libre, debounce) — remplace le filtre Canton
-  const [ville, setVille] = useState(params.ville ?? "");
+  // Filtre Ville : texte libre MULTI — plusieurs villes séparées par des
+  // virgules ("Genève, Lausanne"). Une liste à cocher serait inutilisable ici
+  // (des milliers de villes distinctes dans la base).
+  const villeParam = params.ville.join(", ");
+  const [ville, setVille] = useState(villeParam);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setVille(params.ville ?? "");
-  }, [params.ville]);
+    setVille(villeParam);
+  }, [villeParam]);
 
   const pushParams = useCallback(
     (mut: (sp: URLSearchParams) => void) => {
@@ -83,13 +86,17 @@ export function ProspectFilters({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
-  // Debounce sur la ville
+  // Debounce sur la ville — on compare les LISTES parsées (pas le texte brut),
+  // sinon "Genève,Lausanne" et "Genève, Lausanne" divergeraient en boucle.
   useEffect(() => {
-    const current = params.ville ?? "";
-    if (ville === current) return;
+    const parsed = ville
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (parsed.join(",") === params.ville.join(",")) return;
     const t = setTimeout(() => {
       pushParams((sp) => {
-        if (ville) sp.set("ville", ville);
+        if (parsed.length > 0) sp.set("ville", parsed.join(","));
         else sp.delete("ville");
       });
     }, 300);
@@ -107,13 +114,21 @@ export function ProspectFilters({
     });
   };
 
+  /** Filtre multi-valeurs → écrit "a,b,c" dans l'URL (ou retire le param). */
+  const handleMultiChange = (key: keyof ProspectListParams, values: string[]) => {
+    pushParams((sp) => {
+      if (values.length === 0) sp.delete(key);
+      else sp.set(key, values.join(","));
+    });
+  };
+
   const hasFilters =
-    !!params.statut ||
-    !!params.secteur ||
-    !!params.ville ||
+    params.statut.length > 0 ||
+    params.secteur.length > 0 ||
+    params.ville.length > 0 ||
+    params.tagId.length > 0 ||
     !!params.avecTel ||
     !!params.assigneAId ||
-    !!params.tagId ||
     !!params.ajouteDepuis ||
     !!params.actionDepuis ||
     !!params.q;
@@ -156,34 +171,35 @@ export function ProspectFilters({
         />
       )}
 
-      <FilterSelect
+      <MultiFilter
         label="Statut"
-        value={params.statut ?? ""}
-        onChange={(v) => handleSelectChange("statut", v)}
+        values={params.statut}
+        onChange={(v) => handleMultiChange("statut", v)}
         options={PROSPECT_STATUT_OPTIONS}
       />
 
-      <FilterSelect
+      <MultiFilter
         label="Secteur"
-        value={params.secteur ?? ""}
-        onChange={(v) => handleSelectChange("secteur", v)}
+        values={params.secteur}
+        onChange={(v) => handleMultiChange("secteur", v)}
         options={PROSPECT_SECTEUR_OPTIONS}
       />
 
       <Input
         type="text"
-        placeholder="Ville…"
+        placeholder="Ville(s)…"
         value={ville}
         onChange={(e) => setVille(e.target.value)}
-        aria-label="Ville"
-        className={cn("h-9 w-32", ville && "border-primary/40 bg-primary/5")}
+        aria-label="Villes (séparées par des virgules)"
+        title="Plusieurs villes possibles, séparées par des virgules — ex. Genève, Lausanne"
+        className={cn("h-9 w-40", ville && "border-primary/40 bg-primary/5")}
       />
 
       {tags && tags.length > 0 && (
-        <FilterSelect
+        <MultiFilter
           label="Tag"
-          value={params.tagId ?? ""}
-          onChange={(v) => handleSelectChange("tagId", v)}
+          values={params.tagId}
+          onChange={(v) => handleMultiChange("tagId", v)}
           options={tags.map((t) => ({ value: t.id, label: t.nom }))}
         />
       )}
@@ -217,6 +233,87 @@ interface FilterSelectProps {
   value: string;
   onChange: (v: string) => void;
   options: ReadonlyArray<{ value: string; label: string }>;
+}
+
+interface MultiFilterProps {
+  label: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+  options: ReadonlyArray<{ value: string; label: string }>;
+}
+
+/**
+ * Filtre multi-sélection : bouton + liste déroulante de cases à cocher.
+ * Plusieurs valeurs cochées = OR (ex. Statut « Signé » + « Perdu »).
+ */
+function MultiFilter({ label, values, onChange, options }: MultiFilterProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Ferme au clic en dehors
+  useEffect(() => {
+    if (!open) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [open]);
+
+  const toggle = (v: string) =>
+    onChange(
+      values.includes(v) ? values.filter((x) => x !== v) : [...values, v],
+    );
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className={cn(
+          "flex h-9 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-sm",
+          values.length > 0 && "border-primary/40 bg-primary/5",
+        )}
+      >
+        {label}
+        {values.length > 0 && (
+          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+            {values.length}
+          </span>
+        )}
+        <Icon name="ChevronDown" className="h-3 w-3 opacity-60" />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1 max-h-72 w-56 overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-lg">
+          {options.map((opt) => (
+            <label
+              key={opt.value}
+              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+            >
+              <input
+                type="checkbox"
+                checked={values.includes(opt.value)}
+                onChange={() => toggle(opt.value)}
+                className="h-3.5 w-3.5 shrink-0 cursor-pointer"
+              />
+              <span className="truncate">{opt.label}</span>
+            </label>
+          ))}
+          {values.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="mt-1 w-full border-t border-border px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted"
+            >
+              Tout décocher
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function FilterSelect({ label, value, onChange, options }: FilterSelectProps) {
