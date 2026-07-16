@@ -144,6 +144,19 @@ export async function getProspectStats(user: SessionUser) {
 // INTERNAL — construction du WHERE
 // ===========================================================================
 
+/**
+ * Parse une date de filtre "AAAA-MM-JJ" (input type=date) → début de la journée
+ * LOCALE. Renvoie null si vide/invalide (le filtre est alors ignoré). On borne
+ * au début du jour pour que "depuis le 13.07" inclue bien tout le 13.07.
+ */
+function parseDateFilter(raw: string | undefined): Date | null {
+  if (!raw) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw.trim());
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 function buildProspectWhere(
   user: SessionUser,
   params: ProspectListParams,
@@ -175,6 +188,13 @@ function buildProspectWhere(
   if (params.tagId) {
     conditions.push({ tags: { some: { tagId: params.tagId } } });
   }
+  // "Date d'ajout" : fiches créées à partir de cette date (jour inclus).
+  const ajouteDepuis = parseDateFilter(params.ajouteDepuis);
+  if (ajouteDepuis) conditions.push({ createdAt: { gte: ajouteDepuis } });
+  // "Dernière action" : fiches dont la dernière action est à partir de cette
+  // date (les fiches sans aucune action sont donc exclues — c'est voulu).
+  const actionDepuis = parseDateFilter(params.actionDepuis);
+  if (actionDepuis) conditions.push({ derniereActionLe: { gte: actionDepuis } });
 
   // Recherche full-text simple (LIKE multi-champs, insensible à la casse)
   if (params.q && params.q.length > 0) {

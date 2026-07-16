@@ -119,6 +119,8 @@ export const ProspectSortFieldSchema = z.enum([
   "statut",
   "createdAt",
   "updatedAt",
+  /** Dernière action commerciale (appel, email, RDV…) — colonne dénormalisée. */
+  "derniereActionLe",
 ]);
 export type ProspectSortField = z.infer<typeof ProspectSortFieldSchema>;
 
@@ -132,6 +134,12 @@ export const ProspectListParamsSchema = z.object({
   avecTel: stringOptional,
   assigneAId: stringOptional,
   tagId: stringOptional, // filtre par tag (ex. "Passeport Beauté")
+  /** Filtre "Date d'ajout" : ne garde que les fiches créées À PARTIR de cette
+   *  date (AAAA-MM-JJ). Permet de voir ce qui a été ajouté depuis X. */
+  ajouteDepuis: stringOptional,
+  /** Filtre "Dernière action" : ne garde que les fiches dont la dernière action
+   *  commerciale est À PARTIR de cette date (AAAA-MM-JJ). */
+  actionDepuis: stringOptional,
   sortBy: ProspectSortFieldSchema.default("createdAt"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
   page: z.coerce.number().int().min(1).default(1),

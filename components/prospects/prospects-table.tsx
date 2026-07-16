@@ -244,11 +244,26 @@ export function ProspectsTable({
       cell: ({ row }) => <ProspectStatutBadge statut={row.original.statut} />,
     },
     {
-      id: "updatedAt",
-      header: () => <SortableHeader field="updatedAt" label="Modifié" />,
+      id: "derniereActionLe",
+      header: () => (
+        <SortableHeader field="derniereActionLe" label="Dernière action" />
+      ),
+      cell: ({ row }) =>
+        row.original.derniereActionLe ? (
+          <span className="whitespace-nowrap text-xs text-muted-foreground">
+            {formatRelative(row.original.derniereActionLe)}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground/50">—</span>
+        ),
+      size: 130,
+    },
+    {
+      id: "createdAt",
+      header: () => <SortableHeader field="createdAt" label="Date d'ajout" />,
       cell: ({ row }) => (
         <span className="whitespace-nowrap text-xs text-muted-foreground">
-          {formatRelative(row.original.updatedAt)}
+          {formatRelative(row.original.createdAt)}
         </span>
       ),
       size: 120,

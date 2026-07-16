@@ -712,6 +712,23 @@ model Prospect {
 
   statut ProspectStatut @default(NOUVEAU)
 
+  /// Horodatage de la DERNIÈRE action commerciale sur la fiche (appel, email,
+  /// RDV, note…). Dénormalisé depuis Activity : un `max()` sur la relation
+  /// serait trop lent pour trier/filtrer ~124k lignes.
+  ///
+  /// Basé sur `Activity.createdAt` (moment où l'action a été SAISIE), et NON
+  /// sur `Activity.date` (le créneau) : un RDV planifié a une date FUTURE et
+  /// ferait remonter la fiche à tort dans « derniers clients ouverts/appelés ».
+  ///
+  /// MAINTENU AUTOMATIQUEMENT PAR UN TRIGGER POSTGRES
+  /// (`trg_touch_prospect_derniere_action` sur `activities`, AFTER INSERT →
+  /// GREATEST(derniereActionLe, NEW.createdAt)). Choix délibéré :
+  /// les activités sont créées depuis 12+ endroits (appel, email, contrat,
+  /// facture, rappel auto…) ; le trigger garantit la cohérence sans devoir
+  /// brancher chaque appelant. Ne pas supprimer le trigger — sinon la colonne
+  /// se fige. Script : scripts/ddl-trigger-derniere-action.ts
+  derniereActionLe DateTime?
+
   assigneA   User?   @relation(fields: [assigneAId], references: [id], onDelete: SetNull)
   assigneAId String?
 
@@ -754,6 +771,9 @@ model Prospect {
   @@index([createdAt(sort: Desc)])
   @@index([assigneAId, createdAt(sort: Desc)])
   @@index([statut, createdAt(sort: Desc)])
+  // Tri/filtre « Dernière action » (colonne dénormalisée derniereActionLe).
+  @@index([derniereActionLe(sort: Desc)])
+  @@index([assigneAId, derniereActionLe(sort: Desc)])
   // NB : la recherche texte (ILIKE '%q%' sur raisonSociale/ville/email/
   // contactNom/contactPrenom) est accélérée par des index GIN trigramme
   // (pg_trgm) posés hors Prisma via scripts/ddl-prospect-search-trgm.ts
