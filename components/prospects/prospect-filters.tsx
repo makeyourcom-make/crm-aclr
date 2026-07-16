@@ -188,63 +188,11 @@ export function ProspectFilters({
         />
       )}
 
-      {/* Phoning : uniquement les fiches appelables */}
-      <label
-        className={cn(
-          "flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-sm",
-          params.avecTel === "1" && "border-primary/40 bg-primary/5",
-        )}
-      >
-        <input
-          type="checkbox"
-          checked={params.avecTel === "1"}
-          onChange={(e) =>
-            handleSelectChange("avecTel", e.target.checked ? "1" : "")
-          }
-          className="h-3.5 w-3.5"
-        />
-        📞 Avec téléphone
-      </label>
-
-      {/* Date d'ajout : fiches créées à partir de cette date */}
-      <label
-        className={cn(
-          "flex h-9 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-sm",
-          params.ajouteDepuis && "border-primary/40 bg-primary/5",
-        )}
-        title="Voir les entreprises ajoutées à partir de cette date"
-      >
-        <span className="whitespace-nowrap text-xs text-muted-foreground">
-          Ajouté dès
-        </span>
-        <input
-          type="date"
-          value={params.ajouteDepuis ?? ""}
-          onChange={(e) => handleSelectChange("ajouteDepuis", e.target.value)}
-          aria-label="Ajouté à partir du"
-          className="bg-transparent text-sm outline-none"
-        />
-      </label>
-
-      {/* Dernière action : fiches avec une action commerciale depuis cette date */}
-      <label
-        className={cn(
-          "flex h-9 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-sm",
-          params.actionDepuis && "border-primary/40 bg-primary/5",
-        )}
-        title="Voir les clients ouverts / appelés à partir de cette date"
-      >
-        <span className="whitespace-nowrap text-xs text-muted-foreground">
-          Action dès
-        </span>
-        <input
-          type="date"
-          value={params.actionDepuis ?? ""}
-          onChange={(e) => handleSelectChange("actionDepuis", e.target.value)}
-          aria-label="Dernière action à partir du"
-          className="bg-transparent text-sm outline-none"
-        />
-      </label>
+      {/* NB : les filtres « Avec téléphone », « Ajouté dès » et « Action dès »
+          ont été retirés de la barre (demande Arthur). Les paramètres
+          `avecTel`, `ajouteDepuis` et `actionDepuis` restent supportés côté
+          requête (utilisables via l'URL) et le tri se fait par les en-têtes
+          « Date d'ajout » / « Dernière action ». */}
 
       {hasFilters && (
         <button
