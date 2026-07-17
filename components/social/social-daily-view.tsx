@@ -17,8 +17,9 @@ import { Icon } from "@/components/icon";
 import {
   NETWORK_COLORS,
   NETWORK_LABELS,
-  STEP_HINTS,
-  STEP_ICONS,
+  getStepHints,
+  getStepIcons,
+  getStepLabels,
   type SocialStep,
 } from "@/lib/social-sequence";
 
@@ -40,20 +41,14 @@ interface AccountSection {
 
 interface Props {
   accounts: AccountSection[];
-  stepLabels: Record<SocialStep, string>;
   steps: SocialStep[];
 }
 
-export function SocialDailyView({ accounts, stepLabels, steps }: Props) {
+export function SocialDailyView({ accounts, steps }: Props) {
   return (
     <div className="space-y-6">
       {accounts.map((account) => (
-        <AccountBlock
-          key={account.id}
-          account={account}
-          stepLabels={stepLabels}
-          steps={steps}
-        />
+        <AccountBlock key={account.id} account={account} steps={steps} />
       ))}
     </div>
   );
@@ -61,14 +56,17 @@ export function SocialDailyView({ accounts, stepLabels, steps }: Props) {
 
 function AccountBlock({
   account,
-  stepLabels,
   steps,
 }: {
   account: AccountSection;
-  stepLabels: Record<SocialStep, string>;
   steps: SocialStep[];
 }) {
   const empty = account.totalDue === 0;
+  // Les libellés dépendent du réseau : LinkedIn a sa propre séquence
+  // (… → se connecter → MP et suivi).
+  const stepLabels = getStepLabels(account.reseau);
+  const stepHints = getStepHints(account.reseau);
+  const stepIcons = getStepIcons(account.reseau);
   return (
     <section className="rounded-lg border border-border bg-card">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-3">
@@ -101,8 +99,8 @@ function AccountBlock({
               key={step}
               step={step}
               label={stepLabels[step]}
-              hint={STEP_HINTS[step]}
-              iconName={STEP_ICONS[step]}
+              hint={stepHints[step]}
+              iconName={stepIcons[step]}
               prospects={account.dueByStep[step]}
             />
           ))}

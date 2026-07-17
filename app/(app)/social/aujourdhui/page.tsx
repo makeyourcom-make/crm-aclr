@@ -7,7 +7,6 @@ import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import {
-  STEP_LABELS,
   SOCIAL_STEPS,
   dateOnly,
   getDueSteps,
@@ -200,7 +199,6 @@ export default async function SocialTodayPage({ searchParams }: PageProps) {
       ) : (
         <SocialDailyView
           accounts={byAccount}
-          stepLabels={STEP_LABELS}
           steps={SOCIAL_STEPS as unknown as SocialStep[]}
         />
       )}

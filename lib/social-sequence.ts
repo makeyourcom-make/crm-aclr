@@ -32,6 +32,47 @@ export const STEP_ICONS: Record<SocialStep, string> = {
 };
 
 /**
+ * LinkedIn a sa propre séquence : on ne peut pas envoyer de MP à quelqu'un
+ * hors réseau, il faut d'abord se CONNECTER. L'ordre devient donc
+ * liker → réagir → se connecter → MP et suivi (décision Arthur, 17.07.2026).
+ * Les autres réseaux (Instagram…) gardent liker → réagir → MP → relancer,
+ * où le MP est possible dès le départ.
+ */
+const LINKEDIN_STEP_LABELS: Record<SocialStep, string> = {
+  0: "À liker",
+  2: "À réagir",
+  4: "À connecter",
+  6: "MP et suivi",
+};
+
+const LINKEDIN_STEP_HINTS: Record<SocialStep, string> = {
+  0: "Liker 2 publications",
+  2: "Réagir à un commentaire",
+  4: "Envoyer une invitation à se connecter",
+  6: "Message privé + suivi",
+};
+
+const LINKEDIN_STEP_ICONS: Record<SocialStep, string> = {
+  0: "Heart",
+  2: "MessageSquare",
+  4: "UserPlus",
+  6: "Mail",
+};
+
+/** Libellés des étapes pour un réseau donné (LinkedIn a sa propre séquence). */
+export function getStepLabels(reseau: string): Record<SocialStep, string> {
+  return reseau === "LINKEDIN" ? LINKEDIN_STEP_LABELS : STEP_LABELS;
+}
+
+export function getStepHints(reseau: string): Record<SocialStep, string> {
+  return reseau === "LINKEDIN" ? LINKEDIN_STEP_HINTS : STEP_HINTS;
+}
+
+export function getStepIcons(reseau: string): Record<SocialStep, string> {
+  return reseau === "LINKEDIN" ? LINKEDIN_STEP_ICONS : STEP_ICONS;
+}
+
+/**
  * Renvoie tous les jours ouvrables (lun-ven) d'un mois donné.
  * @param year ex. 2026
  * @param month 1-12
