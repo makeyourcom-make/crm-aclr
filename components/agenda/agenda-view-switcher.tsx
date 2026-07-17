@@ -10,6 +10,7 @@
  */
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { AGENDA_DEFAULT_VIEW } from "@/lib/agenda-view";
 import { cn } from "@/lib/utils";
 
 interface AgendaViewSwitcherProps {
@@ -29,7 +30,10 @@ export function AgendaViewSwitcher({
 
   const goTo = (view: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (view === "mine") {
+    // Le paramètre n'existe que pour DÉVIER du défaut ; la vue par défaut est
+    // l'URL nue. (Attention : "mine" n'est plus le défaut — le supprimer ici
+    // renverrait « Mon agenda » sur « Toute l'équipe ».)
+    if (view === AGENDA_DEFAULT_VIEW) {
       params.delete("view");
     } else {
       params.set("view", view);

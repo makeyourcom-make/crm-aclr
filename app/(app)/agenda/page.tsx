@@ -10,6 +10,7 @@ import { MonthView } from "@/components/agenda/month-view";
 import { WeekView } from "@/components/agenda/week-view";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
+import { AGENDA_DEFAULT_VIEW } from "@/lib/agenda-view";
 import { prisma } from "@/lib/db";
 import { getAgendaRange, getStartOfWeek } from "@/lib/queries/agenda";
 import { requireUser, scopedWhere } from "@/lib/session";
@@ -77,10 +78,16 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     rangeEnd.setDate(rangeEnd.getDate() + 7);
   }
 
-  // Vue admin : "mine" (défaut), "all", ou userId d'une commerciale précise.
-  // Ignorée pour les commerciaux (scope verrouillé côté query).
-  const view = typeof raw.view === "string" ? raw.view : "mine";
+  // Vue admin : "all" (défaut, cf. AGENDA_DEFAULT_VIEW), "mine", ou userId
+  // d'une commerciale précise. Ignorée pour les commerciaux (scope verrouillé
+  // côté query) — d'où le repli sur "mine" pour eux, purement cosmétique.
   const isAdmin = user.role === "ADMIN";
+  const view =
+    typeof raw.view === "string"
+      ? raw.view
+      : isAdmin
+        ? AGENDA_DEFAULT_VIEW
+        : "mine";
 
   // Pour le switcher + assignation dialog : liste des users actifs (admin uniquement)
   const teamUsers = isAdmin
@@ -126,7 +133,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     const sp = new URLSearchParams();
     sp.set("mode", "day");
     sp.set("date", iso);
-    if (view !== "mine") sp.set("view", view);
+    if (view !== AGENDA_DEFAULT_VIEW) sp.set("view", view);
     if (hideDone) sp.set("hideDone", "1");
     return `/agenda?${sp.toString()}`;
   };

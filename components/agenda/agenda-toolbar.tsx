@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button";
+import { AGENDA_DEFAULT_VIEW } from "@/lib/agenda-view";
 import { cn } from "@/lib/utils";
 
 export type AgendaMode = "day" | "week" | "month";
@@ -32,7 +33,7 @@ export function AgendaToolbar({ mode, date, view, hideDone }: AgendaToolbarProps
     const sp = new URLSearchParams();
     sp.set("mode", m);
     sp.set("date", toIso(d));
-    if (view && view !== "mine") sp.set("view", view);
+    if (view && view !== AGENDA_DEFAULT_VIEW) sp.set("view", view);
     if (hideDone) sp.set("hideDone", "1");
     return `/agenda?${sp.toString()}`;
   };
@@ -119,7 +120,7 @@ export function AgendaToolbar({ mode, date, view, hideDone }: AgendaToolbarProps
           const sp = new URLSearchParams();
           sp.set("mode", mode);
           sp.set("date", toIso(date));
-          if (view && view !== "mine") sp.set("view", view);
+          if (view && view !== AGENDA_DEFAULT_VIEW) sp.set("view", view);
           if (!hideDone) sp.set("hideDone", "1");
           return `/agenda?${sp.toString()}`;
         })()}
