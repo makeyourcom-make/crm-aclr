@@ -83,7 +83,7 @@ export const ROUTES: RouteDef[] = [
   },
   {
     href: "/dossiers",
-    label: "Suivi dossiers",
+    label: "Gestion des projets",
     icon: "ClipboardList",
     group: "operationnel",
     etape: 99,

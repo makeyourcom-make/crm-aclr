@@ -62,7 +62,7 @@ export function DossiersColumn({
 
         {dossiers.length === 0 && (
           <p className="rounded-md border border-dashed border-border bg-background/50 px-3 py-6 text-center text-xs text-muted-foreground">
-            Glisse un dossier ici
+            Glisse un projet ici
           </p>
         )}
       </div>

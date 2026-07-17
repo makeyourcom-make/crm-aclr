@@ -144,13 +144,13 @@ export function DossierDetailSheet({
 
   const remove = async () => {
     if (!d) return;
-    if (!confirm("Supprimer définitivement ce dossier ?")) return;
+    if (!confirm("Supprimer définitivement ce projet ?")) return;
     const res = await deleteDossier(d.id);
     if (!res.ok) {
       toast.error(res.error ?? "Échec.");
       return;
     }
-    toast.success("Dossier supprimé.");
+    toast.success("Projet supprimé.");
     onClose();
     onChanged();
   };
@@ -159,7 +159,7 @@ export function DossierDetailSheet({
     <Sheet open={!!dossierId} onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>{d?.titre ?? "Détail du dossier"}</SheetTitle>
+          <SheetTitle>{d?.titre ?? "Détail du projet"}</SheetTitle>
           {d?.prospect ? (
             <SheetDescription>
               <Link

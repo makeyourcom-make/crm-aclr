@@ -72,7 +72,7 @@ export function CreateDossierDialog({
         toast.error(res.error ?? "Échec de la création.");
         return;
       }
-      toast.success("Dossier créé.");
+      toast.success("Projet créé.");
       reset();
       setOpen(false);
       router.refresh();
@@ -83,13 +83,13 @@ export function CreateDossierDialog({
     <>
       <Button onClick={() => setOpen(true)}>
         <Icon name="Plus" className="mr-1.5 h-4 w-4" />
-        Nouveau dossier
+        Nouveau projet
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Nouveau dossier / tâche</DialogTitle>
+            <DialogTitle>Nouveau projet / tâche</DialogTitle>
             <DialogDescription>
               Attribue une tâche de suivi à un collaborateur.
             </DialogDescription>
@@ -186,7 +186,7 @@ export function CreateDossierDialog({
               Annuler
             </Button>
             <Button onClick={submit} disabled={pending}>
-              {pending ? "Création…" : "Créer le dossier"}
+              {pending ? "Création…" : "Créer le projet"}
             </Button>
           </DialogFooter>
         </DialogContent>

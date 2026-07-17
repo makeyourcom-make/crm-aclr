@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { getDossiersBoard } from "@/lib/queries/dossiers";
 import { requireUser } from "@/lib/session";
 
-export const metadata = { title: "Suivi des dossiers" };
+export const metadata = { title: "Gestion des projets" };
 export const dynamic = "force-dynamic";
 
 export default async function DossiersPage() {
@@ -23,8 +23,8 @@ export default async function DossiersPage() {
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
-        title="Suivi des dossiers"
-        description={`${board.total} dossier${board.total > 1 ? "s" : ""} en cours de suivi`}
+        title="Gestion des projets"
+        description={`${board.total} projet${board.total > 1 ? "s" : ""} en cours de suivi`}
         actions={
           <CreateDossierDialog users={users} currentUserId={user.id} />
         }
@@ -34,8 +34,8 @@ export default async function DossiersPage() {
 
       <p className="mt-4 text-center text-xs text-muted-foreground">
         💡 Glisse une carte d&apos;une colonne à l&apos;autre pour changer son
-        avancement. Clique une carte pour éditer le détail, ajouter un suivi ou
-        la terminer.
+        avancement — ou la confier à quelqu&apos;un d&apos;autre. Clique une
+        carte pour éditer le détail, ajouter un suivi ou la terminer.
       </p>
     </div>
   );
