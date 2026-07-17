@@ -87,11 +87,23 @@ interface WeekViewProps {
   isAdmin?: boolean;
 }
 
-const USER_DOT_COLORS = ["#0E1936", "#F47174", "#2563eb", "#10b981", "#a855f7"];
-function colorForUser(userId: string): string {
-  let h = 0;
-  for (let i = 0; i < userId.length; i++) h = (h * 31 + userId.charCodeAt(i)) | 0;
-  return USER_DOT_COLORS[Math.abs(h) % USER_DOT_COLORS.length];
+/**
+ * Couleurs des collaborateurs en vue « Toute l'équipe » : bleu pour Arthur
+ * (admin), rouge pour Sophie, puis d'autres teintes si l'équipe s'agrandit.
+ * Attribuées par RANG (admin d'abord, puis ordre alphabétique) et non par
+ * hachage de l'id : Arthur doit rester bleu et Sophie rouge de façon stable.
+ */
+const USER_COLORS = ["#1a73e8", "#d93025", "#8e24aa", "#0b8043", "#f9ab00"];
+
+function buildUserColors(users: UserOption[]): Record<string, string> {
+  const ordered = [...users].sort(
+    (a, b) =>
+      (a.role === "ADMIN" ? 0 : 1) - (b.role === "ADMIN" ? 0 : 1) ||
+      a.name.localeCompare(b.name),
+  );
+  return Object.fromEntries(
+    ordered.map((u, i) => [u.id, USER_COLORS[i % USER_COLORS.length]!]),
+  );
 }
 
 function toIso(d: Date): string {
@@ -197,6 +209,12 @@ export function WeekView({
   );
   const nbCols = dates.length;
 
+  // Vue « Toute l'équipe » → on colore par PERSONNE (qui fait quoi ?) plutôt
+  // que par statut : c'est la question qu'on se pose dans cette vue. Dans les
+  // vues perso, la couleur reste celle du statut / celle choisie à la main.
+  const userColors = useMemo(() => buildUserColors(users), [users]);
+  const colorByUser = showUserBadge && Object.keys(userColors).length > 0;
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
@@ -280,6 +298,30 @@ export function WeekView({
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
+      {/* Légende — sans elle, la couleur par personne serait un code secret. */}
+      {colorByUser && (
+        <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-1.5">
+          {[...users]
+            .sort(
+              (a, b) =>
+                (a.role === "ADMIN" ? 0 : 1) - (b.role === "ADMIN" ? 0 : 1) ||
+                a.name.localeCompare(b.name),
+            )
+            .map((u) => (
+              <span
+                key={u.id}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground"
+              >
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: userColors[u.id] }}
+                />
+                {u.name.split(" ")[0]}
+              </span>
+            ))}
+        </div>
+      )}
+
       {/* En-tête des jours — libellé gris discret + gros numéro, pastille
           pleine sur aujourd'hui (mise en page Google Agenda). */}
       <div className="flex border-b border-border bg-card">
@@ -319,7 +361,14 @@ export function WeekView({
 
       {/* Corps scrollable */}
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div ref={scrollRef} className="max-h-[640px] overflow-y-auto">
+      {/* Hauteur = ce qui reste de l'écran (en-têtes de page + barres d'outils
+          ≈ 20rem), avec un plancher pour ne pas s'écraser sur un petit écran.
+          Auparavant figé à 640px : une bande étroite au milieu d'un grand
+          moniteur, alors que la grille fait 1152px de haut. */}
+      <div
+        ref={scrollRef}
+        className="max-h-[calc(100vh-20rem)] min-h-[30rem] overflow-y-auto"
+      >
         <div className="flex" style={{ height: TOTAL_HEIGHT }}>
           {/* Gouttière heures */}
           <div
@@ -380,7 +429,11 @@ export function WeekView({
                     <DraggableEvent
                       key={p.activity.id}
                       p={p}
-                      showUserBadge={showUserBadge}
+                      fillOverride={
+                        colorByUser
+                          ? (userColors[p.activity.userId] ?? null)
+                          : null
+                      }
                       onOpen={() => setSelected(p.activity)}
                       onResize={(duree) => handleResize(p.activity.id, duree)}
                     />
@@ -555,12 +608,13 @@ function EventDetailDialog({
 /** Bloc événement positionné + déplaçable (drag & drop) + redimensionnable. */
 function DraggableEvent({
   p,
-  showUserBadge,
+  fillOverride,
   onOpen,
   onResize,
 }: {
   p: Positioned;
-  showUserBadge: boolean;
+  /** Couleur imposée (vue équipe : couleur du collaborateur) ; null = statut. */
+  fillOverride: string | null;
   onOpen: () => void;
   onResize: (duree: number) => void;
 }) {
@@ -602,9 +656,10 @@ function DraggableEvent({
   const a = p.activity;
   const resizing = previewDur !== null;
 
-  // Aplat coloré + texte contrasté (rendu Google Agenda). La couleur choisie à
-  // la main prime sur celle du statut.
-  const fill = a.couleur ?? STATUT_FILL[a.statut] ?? STATUT_FILL.PLANIFIE!;
+  // Aplat coloré + texte contrasté (rendu Google Agenda). Priorité : couleur du
+  // collaborateur (vue équipe) > couleur choisie à la main > couleur du statut.
+  const fill =
+    fillOverride ?? a.couleur ?? STATUT_FILL[a.statut] ?? STATUT_FILL.PLANIFIE!;
   const ink = textOn(fill);
   const titre = a.prospect?.raisonSociale ?? a.sujet;
 
@@ -662,15 +717,11 @@ function DraggableEvent({
         </span>
       ) : (
         <>
+          {/* Pas de pastille "qui" ici : en vue équipe, c'est le bloc entier
+              qui porte la couleur du collaborateur. */}
           <span className="flex items-center gap-1">
             <ActivityIcon type={a.type} size={12} />
             <span className="truncate font-medium">{titre}</span>
-            {showUserBadge && a.user && (
-              <span
-                className="ml-auto inline-block h-2 w-2 shrink-0 rounded-full ring-1 ring-white/60"
-                style={{ backgroundColor: colorForUser(a.user.id) }}
-              />
-            )}
           </span>
           <span className="block truncate tabular-nums opacity-80">
             {formatTime(a.date)}
