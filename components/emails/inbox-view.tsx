@@ -20,6 +20,7 @@ import {
   deleteEmail,
   deleteThreadsBulk,
   emptyTrash,
+  forwardEmail,
   markThreadRead,
   purgeEmail,
   replyToEmail,
@@ -838,6 +839,12 @@ function ThreadDetail({
   const [replyHtml, setReplyHtml] = useState("");
   const [replyKey, setReplyKey] = useState(0);
   const [replyAttachments, setReplyAttachments] = useState<PickedAttachment[]>([]);
+  // Transfert — panneau distinct de la réponse (destinataire libre).
+  const [showForward, setShowForward] = useState(false);
+  const [forwardTo, setForwardTo] = useState("");
+  const [forwardHtml, setForwardHtml] = useState("");
+  const [forwardKey, setForwardKey] = useState(0);
+  const [forwardPJ, setForwardPJ] = useState(true);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const replyText = htmlToPlainText(replyHtml);
@@ -877,6 +884,42 @@ function ThreadDetail({
       router.refresh();
     });
   };
+
+  const closeForward = () => {
+    setShowForward(false);
+    setForwardTo("");
+    setForwardHtml("");
+    setForwardKey((k) => k + 1);
+    setForwardPJ(true);
+  };
+
+  const handleForward = () => {
+    if (!forwardTo.trim()) {
+      toast.error("Indique un destinataire.");
+      return;
+    }
+    startTransition(async () => {
+      const res = await forwardEmail({
+        emailId: thread.last.id,
+        to: forwardTo.trim(),
+        contenu: htmlToPlainText(forwardHtml).trim(),
+        contenuHtml: forwardHtml,
+        inclurePiecesJointes: forwardPJ,
+      });
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec du transfert.");
+        return;
+      }
+      toast.success(
+        res.dryRun ? "Transfert enregistré (dry-run)." : "Message transféré ✓",
+      );
+      closeForward();
+      router.refresh();
+    });
+  };
+
+  // Pièces jointes de l'original — pour proposer (ou non) de les réexpédier.
+  const nbPJ = thread.last.attachments?.length ?? 0;
 
   return (
     <div className="flex h-[calc(100vh-280px)] flex-col lg:h-[calc(100vh-220px)]">
@@ -937,16 +980,84 @@ function ThreadDetail({
         <TrashActionsBar thread={thread} onRefresh={() => router.refresh()} />
       ) : (
       <div className="border-t border-border bg-card p-3">
-        {!showReply ? (
-          <Button
-            type="button"
-            onClick={() => setShowReply(true)}
-            className="w-full"
-            variant="outline"
-          >
-            <Icon name="MailPlus" className="mr-2 h-3.5 w-3.5" />
-            Répondre
-          </Button>
+        {!showReply && !showForward ? (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              onClick={() => setShowReply(true)}
+              className="flex-1"
+              variant="outline"
+            >
+              <Icon name="MailPlus" className="mr-2 h-3.5 w-3.5" />
+              Répondre
+            </Button>
+            <Button
+              type="button"
+              onClick={() => setShowForward(true)}
+              className="flex-1"
+              variant="outline"
+            >
+              <Icon name="Forward" className="mr-2 h-3.5 w-3.5" />
+              Transférer
+            </Button>
+          </div>
+        ) : showForward ? (
+          <div className="space-y-2">
+            <label className="block text-xs">
+              <span className="mb-1 block text-muted-foreground">
+                Transférer à
+              </span>
+              <input
+                type="email"
+                value={forwardTo}
+                onChange={(e) => setForwardTo(e.target.value)}
+                placeholder="adresse@exemple.ch"
+                disabled={pending}
+                autoFocus
+                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+              />
+            </label>
+
+            <RichTextEditor
+              key={forwardKey}
+              onChange={setForwardHtml}
+              disabled={pending}
+              placeholder="Ajoute un mot (facultatif)…"
+              minHeightClass="min-h-[90px]"
+            />
+
+            <p className="text-xs text-muted-foreground">
+              Le message d&apos;origine est cité automatiquement en dessous.
+            </p>
+
+            {nbPJ > 0 && (
+              <label className="flex cursor-pointer items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={forwardPJ}
+                  onChange={(e) => setForwardPJ(e.target.checked)}
+                  disabled={pending}
+                  className="h-3.5 w-3.5 cursor-pointer"
+                />
+                Joindre les {nbPJ} pièce{nbPJ > 1 ? "s" : ""} jointe
+                {nbPJ > 1 ? "s" : ""} de l&apos;original
+              </label>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeForward}
+                disabled={pending}
+              >
+                Annuler
+              </Button>
+              <Button type="button" onClick={handleForward} disabled={pending}>
+                {pending ? "Envoi…" : "Transférer"}
+              </Button>
+            </div>
+          </div>
         ) : (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">

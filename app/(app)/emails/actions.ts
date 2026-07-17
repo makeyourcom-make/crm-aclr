@@ -552,6 +552,202 @@ export async function replyToEmail(
   return { ok: true, emailId: created.id, dryRun: isDryRun };
 }
 
+const ForwardEmailSchema = z.object({
+  emailId: z.string().min(1),
+  to: z.string().trim().toLowerCase().email("Adresse email invalide."),
+  /** Mot d'accompagnement, facultatif — un transfert peut être « nu ». */
+  contenu: z.string().optional(),
+  contenuHtml: z.string().optional(),
+  /** Réexpédier les pièces jointes de l'original (coché par défaut côté UI). */
+  inclurePiecesJointes: z.boolean().default(true),
+});
+
+/**
+ * Transfère un email existant à une adresse quelconque.
+ *
+ * Différences avec `replyToEmail` :
+ *  - le destinataire est libre (pas déduit de l'original) ;
+ *  - le corps original est cité sous le mot d'accompagnement ;
+ *  - le transfert ouvre un NOUVEAU thread : le destinataire n'est pas dans la
+ *    conversation d'origine, l'y agréger mélangerait deux échanges distincts ;
+ *  - pas d'en-tête `inReplyTo` (ce n'est pas une réponse au client).
+ *
+ * Le lien vers le client est conservé (`prospectId`) : le transfert reste
+ * tracé dans la fiche, et reste ré-attribuable via « Changer ».
+ */
+export async function forwardEmail(input: unknown): Promise<SendEmailResult> {
+  const user = await requireUser();
+  const parsed = ForwardEmailSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Formulaire invalide.",
+    };
+  }
+  const { emailId, to, inclurePiecesJointes } = parsed.data;
+
+  const original = await prisma.email.findUnique({
+    where: { id: emailId },
+    select: {
+      id: true,
+      objet: true,
+      userId: true,
+      direction: true,
+      expediteurEmail: true,
+      expediteurNom: true,
+      destinataireEmail: true,
+      contenuHtml: true,
+      contenuTexte: true,
+      envoyeLe: true,
+      createdAt: true,
+      attachments: {
+        select: { nom: true, taille: true, mimeType: true, url: true },
+      },
+      prospect: { select: { id: true } },
+    },
+  });
+  if (!original) return { ok: false, error: "Email introuvable." };
+  if (user.role !== "ADMIN" && original.userId !== user.id) {
+    return { ok: false, error: "Accès refusé." };
+  }
+
+  // Objet : "Tr: " sauf s'il en porte déjà un (Tr:/Fwd:/Fw: — un mail transféré
+  // deux fois ne doit pas devenir "Tr: Tr: …").
+  const base = original.objet.trim();
+  const objet = /^(tr|fwd?|re)\s*:/i.test(base) ? base : `Tr: ${base}`;
+
+  const motTexte = (parsed.data.contenu ?? "").trim();
+  const motHtml = parsed.data.contenuHtml
+    ? sanitizeEmailHtml(parsed.data.contenuHtml)
+    : "";
+
+  // Un mail entrant n'a pas d'envoyeLe : sa date d'arrivée est le createdAt.
+  const dateOrig = original.envoyeLe ?? original.createdAt;
+  const enteteLignes = [
+    `De : ${original.expediteurNom ? `${original.expediteurNom} <${original.expediteurEmail}>` : original.expediteurEmail}`,
+    `Date : ${dateOrig.toLocaleString("fr-CH", { dateStyle: "long", timeStyle: "short" })}`,
+    `Objet : ${original.objet}`,
+    `À : ${original.destinataireEmail}`,
+  ];
+
+  const escape = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const corpsOriginalHtml =
+    sanitizeEmailHtml(original.contenuHtml) ||
+    `<pre style="font-family: sans-serif; white-space: pre-wrap;">${escape(
+      original.contenuTexte ?? "",
+    )}</pre>`;
+
+  const contenuHtml = [
+    motHtml ||
+      (motTexte
+        ? `<pre style="font-family: sans-serif; white-space: pre-wrap;">${escape(motTexte)}</pre>`
+        : ""),
+    `<p style="font-family: sans-serif; color: #666;">---------- Message transféré ----------<br>${enteteLignes
+      .map(escape)
+      .join("<br>")}</p>`,
+    corpsOriginalHtml,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const contenuTexte = [
+    motTexte,
+    "---------- Message transféré ----------",
+    enteteLignes.join("\n"),
+    "",
+    original.contenuTexte ?? htmlToPlainText(original.contenuHtml ?? ""),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const userFull = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { email: true, name: true },
+  });
+  const { from, replyTo, fromName } = resolveFromAddress({
+    email: userFull?.email ?? "contact@makeyourcom.ch",
+    name: userFull?.name ?? null,
+  });
+
+  const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@makeyourcom.ch>`;
+  const pjs = inclurePiecesJointes ? original.attachments : [];
+
+  const sendResult = await sendMail({
+    from,
+    fromName,
+    to,
+    subject: objet,
+    html: contenuHtml,
+    text: contenuTexte,
+    replyTo,
+    messageId,
+    attachments:
+      pjs.length > 0
+        ? pjs.map((a) => ({
+            filename: a.nom,
+            path: a.url,
+            contentType: a.mimeType,
+          }))
+        : undefined,
+  });
+  const isDryRun = sendResult.dryRun;
+  if (!sendResult.ok && !isDryRun) {
+    return { ok: false, error: sendResult.error ?? "Échec d'envoi via Resend." };
+  }
+
+  const created = await prisma.email.create({
+    data: {
+      prospectId: original.prospect?.id ?? null,
+      userId: user.id,
+      direction: "SORTANT",
+      // Nouveau thread : le transfert est une conversation distincte.
+      threadId: randomBytes(12).toString("hex"),
+      messageId,
+      expediteurEmail: from,
+      expediteurNom: fromName,
+      destinataireEmail: to,
+      objet,
+      contenuHtml,
+      contenuTexte,
+      statut: isDryRun ? "BROUILLON" : "ENVOYE",
+      envoyeLe: isDryRun ? null : new Date(),
+      labels: sendResult.resendId ? [`resend:${sendResult.resendId}`] : [],
+      attachments:
+        pjs.length > 0
+          ? {
+              create: pjs.map((a) => ({
+                nom: a.nom,
+                taille: a.taille,
+                mimeType: a.mimeType,
+                url: a.url,
+              })),
+            }
+          : undefined,
+    },
+  });
+
+  if (original.prospect) {
+    await prisma.activity.create({
+      data: {
+        prospectId: original.prospect.id,
+        userId: user.id,
+        type: "EMAIL_ENVOYE",
+        date: new Date(),
+        sujet: objet,
+        contenu: `Transféré à ${to}`,
+        statut: "FAIT",
+        emailId: created.id,
+      },
+    });
+    revalidatePath(`/prospects/${original.prospect.id}`);
+  }
+  revalidatePath("/emails");
+
+  return { ok: true, emailId: created.id, dryRun: isDryRun };
+}
+
 /**
  * Marque un email comme lu côté CRM.
  * Appelé quand l'utilisateur ouvre un thread dans la boîte de réception.
