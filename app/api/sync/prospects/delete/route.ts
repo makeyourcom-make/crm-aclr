@@ -47,7 +47,19 @@ function authorized(req: Request): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-type Detail = { masterId: number; raisonSociale: string; motif: string };
+/**
+ * Une fiche refusée, avec de quoi arbitrer sans rouvrir le CRM une par une.
+ * `notes` est le contenu qui bloque le plus souvent la suppression : le
+ * rapatrier ici évite d'ajouter une route de lecture pour le seul report de
+ * réconciliation. Même clé, même périmètre de données que /export.
+ */
+type Detail = {
+  masterId: number;
+  raisonSociale: string;
+  ville: string | null;
+  notes: string | null;
+  motif: string;
+};
 
 export async function POST(req: Request): Promise<NextResponse> {
   if (!authorized(req)) {
@@ -83,6 +95,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       id: true,
       masterId: true,
       raisonSociale: true,
+      ville: true,
       statut: true,
       notesGenerales: true,
       derniereActionLe: true,
@@ -116,6 +129,8 @@ export async function POST(req: Request): Promise<NextResponse> {
       details.push({
         masterId: f.masterId!,
         raisonSociale: f.raisonSociale,
+        ville: f.ville,
+        notes: f.notesGenerales,
         motif: motifs.join(", "),
       });
       continue;
