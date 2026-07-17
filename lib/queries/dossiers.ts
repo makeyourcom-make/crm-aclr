@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db";
-import { DOSSIER_STATUTS } from "@/lib/dossiers";
+import {
+  DOSSIER_STATUTS_PAR_PERSONNE,
+  dossierColumnKey,
+} from "@/lib/dossiers";
 
 import type { DossierStatut, DossierPriorite, Prisma } from "@prisma/client";
 import type { SessionUser } from "@/lib/session";
@@ -17,7 +20,13 @@ export interface DossierForKanban {
 }
 
 export interface DossierColumn {
+  /** Identifiant droppable — voir `dossierColumnKey`. */
+  key: string;
   statut: DossierStatut;
+  /** Collaborateur de la colonne ; null pour « Terminé » (colonne commune). */
+  assigneAId: string | null;
+  /** Prénom affiché en tête de colonne ("Arthur"). Vide pour « Terminé ». */
+  assigneNom: string;
   dossiers: DossierForKanban[];
 }
 
@@ -29,6 +38,11 @@ export interface DossiersBoardData {
 /**
  * Charge le kanban des dossiers. RLS : l'admin voit tout ; un commercial voit
  * les dossiers qui lui sont assignés OU qu'il a créés.
+ *
+ * Les colonnes sont éclatées PAR COLLABORATEUR (« Arthur - à faire »,
+ * « Sophie - en cours »…) puis une colonne « Terminé » commune. Un commercial
+ * ne voit que ses propres colonnes : afficher celles des autres n'aurait aucun
+ * sens puisque la RLS en masque déjà les cartes.
  *
  * `assigneAId` (optionnel) : filtre admin sur un collaborateur précis.
  */
@@ -43,6 +57,17 @@ export async function getDossiersBoard(
   } else if (assigneAId) {
     where.assigneAId = assigneAId;
   }
+
+  // Collaborateurs dont on affiche les colonnes. L'admin d'abord (Arthur), puis
+  // les commerciales par ordre alphabétique — c'est l'ordre demandé.
+  const collaborateurs = await prisma.user.findMany({
+    where:
+      user.role === "ADMIN"
+        ? { isActive: true, ...(assigneAId ? { id: assigneAId } : {}) }
+        : { id: user.id },
+    select: { id: true, name: true },
+    orderBy: [{ role: "asc" }, { name: "asc" }],
+  });
 
   const dossiers = await prisma.dossier.findMany({
     where,
@@ -60,10 +85,31 @@ export async function getDossiersBoard(
     orderBy: [{ priorite: "desc" }, { updatedAt: "desc" }],
   });
 
-  const byStatut = new Map<DossierStatut, DossierForKanban[]>();
-  for (const s of DOSSIER_STATUTS) byStatut.set(s, []);
+  // Colonnes : (chaque collaborateur × à faire/en cours) puis « Terminé ».
+  const columns: DossierColumn[] = [];
+  for (const c of collaborateurs) {
+    for (const statut of DOSSIER_STATUTS_PAR_PERSONNE) {
+      columns.push({
+        key: dossierColumnKey(statut, c.id),
+        statut,
+        assigneAId: c.id,
+        // Prénom seul : les en-têtes de colonne sont étroits.
+        assigneNom: c.name.split(" ")[0]!,
+        dossiers: [],
+      });
+    }
+  }
+  columns.push({
+    key: dossierColumnKey("TERMINE", null),
+    statut: "TERMINE",
+    assigneAId: null,
+    assigneNom: "",
+    dossiers: [],
+  });
+
+  const byKey = new Map(columns.map((c) => [c.key, c]));
   for (const d of dossiers) {
-    byStatut.get(d.statut)?.push({
+    const card: DossierForKanban = {
       id: d.id,
       titre: d.titre,
       statut: d.statut,
@@ -73,16 +119,20 @@ export async function getDossiersBoard(
       assigneA: d.assigneA,
       prospect: d.prospect,
       nbUpdates: d._count.updates,
-    });
+    };
+    // « Terminé » est commun ; les autres statuts vont dans la colonne du
+    // collaborateur. Une carte dont la colonne n'existe pas (assignée à un
+    // collaborateur désactivé, ou statut EN_ATTENTE résiduel) est rattachée au
+    // « à faire » de son assigné pour ne JAMAIS disparaître de l'écran.
+    const key =
+      d.statut === "TERMINE"
+        ? dossierColumnKey("TERMINE", null)
+        : dossierColumnKey(d.statut, d.assigneA.id);
+    (byKey.get(key) ?? byKey.get(dossierColumnKey("A_FAIRE", d.assigneA.id)))
+      ?.dossiers.push(card);
   }
 
-  return {
-    columns: DOSSIER_STATUTS.map((statut) => ({
-      statut,
-      dossiers: byStatut.get(statut) ?? [],
-    })),
-    total: dossiers.length,
-  };
+  return { columns, total: dossiers.length };
 }
 
 /**

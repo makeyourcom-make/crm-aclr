@@ -11,17 +11,23 @@ import type { DossierStatut } from "@prisma/client";
 import type { DossierForKanban } from "@/lib/queries/dossiers";
 
 interface DossiersColumnProps {
+  /** Identifiant droppable — `${userId}:${statut}`, ou "TERMINE". */
+  columnKey: string;
   statut: DossierStatut;
+  /** Prénom du collaborateur ; vide pour la colonne commune « Terminé ». */
+  assigneNom: string;
   dossiers: DossierForKanban[];
   onOpen: (id: string) => void;
 }
 
 export function DossiersColumn({
+  columnKey,
   statut,
+  assigneNom,
   dossiers,
   onOpen,
 }: DossiersColumnProps) {
-  const { setNodeRef, isOver } = useDroppable({ id: statut });
+  const { setNodeRef, isOver } = useDroppable({ id: columnKey });
 
   return (
     <div
@@ -33,7 +39,10 @@ export function DossiersColumn({
       )}
     >
       <div className="flex items-baseline justify-between gap-2 px-3 py-2.5">
-        <h3 className="text-sm font-semibold">
+        <h3 className="min-w-0 truncate text-sm font-semibold">
+          {assigneNom && (
+            <span className="text-muted-foreground">{assigneNom} · </span>
+          )}
           {DOSSIER_STATUT_LABELS[statut]}
         </h3>
         <span className="text-xs tabular-nums text-muted-foreground">

@@ -118,11 +118,27 @@ export async function moveDossierStatut(
   if (!parsed.success) return zodErrorToResult(parsed.error);
   await assertCanAccessDossier(user, parsed.data.dossierId);
 
+  // Déposer dans la colonne d'un AUTRE collaborateur = réassigner. Seul l'admin
+  // peut le faire : sans ce garde-fou, une commerciale pourrait se débarrasser
+  // d'un dossier en le poussant chez quelqu'un d'autre (l'UI ne lui montre que
+  // ses propres colonnes, mais l'action serveur reste appelable directement).
+  const { newAssigneAId } = parsed.data;
+  if (newAssigneAId && user.role !== "ADMIN") {
+    const d = await prisma.dossier.findUnique({
+      where: { id: parsed.data.dossierId },
+      select: { assigneAId: true },
+    });
+    if (d && d.assigneAId !== newAssigneAId) {
+      return { ok: false, error: "Seul un admin peut réassigner un dossier." };
+    }
+  }
+
   try {
     await prisma.dossier.update({
       where: { id: parsed.data.dossierId },
       data: {
         statut: parsed.data.newStatut,
+        ...(newAssigneAId && { assigneAId: newAssigneAId }),
         // Horodate la clôture ; réinitialise si le dossier ressort de Terminé.
         termineLe: parsed.data.newStatut === "TERMINE" ? new Date() : null,
       },
