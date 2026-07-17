@@ -121,3 +121,57 @@ export function masterContactFields(row: MasterRow) {
     email: clean(row.email),
   };
 }
+
+// ── Suppression des doublons de forme juridique (cf. /api/sync/prospects/delete)
+
+/** Statuts sans engagement commercial : la fiche n'a jamais été travaillée. */
+const STATUTS_NEUTRES: ReadonlySet<string> = new Set(["NOUVEAU", "VIERGE"]);
+
+/** Ce que la route doit compter pour décider. Un 0 partout = coquille d'import. */
+export interface FicheLiens {
+  activities: number;
+  deals: number;
+  contracts: number;
+  emails: number;
+  expenses: number;
+  expenseAllocations: number;
+  expenseRecurrences: number;
+  dossiers: number;
+}
+
+export interface FicheASupprimer {
+  statut: string;
+  notesGenerales?: string | null;
+  derniereActionLe?: Date | null;
+  liens: FicheLiens;
+}
+
+/**
+ * Motifs de NE PAS supprimer une fiche. Vide = suppression sûre.
+ *
+ * Un doublon est censé être une coquille d'import bilingue. Dès qu'il porte une
+ * trace humaine ou comptable, ce n'en est plus une : on le remonte pour
+ * arbitrage au lieu de le détruire. Les seuils sont volontairement au plus
+ * strict — le coût d'un faux « à conserver » est une ligne en trop, celui d'un
+ * faux « supprimable » est de l'historique commercial perdu.
+ */
+export function motifsDeRetenue(f: FicheASupprimer): string[] {
+  const m: string[] = [];
+  const l = f.liens;
+  // Restrict côté Postgres : la suppression échouerait de toute façon.
+  if (l.contracts > 0) m.push(`${l.contracts} contrat(s)`);
+  if (l.expenseAllocations > 0) m.push(`${l.expenseAllocations} part(s) de charge`);
+  // Cascade côté Postgres : la suppression emporterait l'historique en silence.
+  if (l.activities > 0) m.push(`${l.activities} activité(s)`);
+  if (l.deals > 0) m.push(`${l.deals} affaire(s)`);
+  // SetNull : survivraient orphelins — on préfère épargner la fiche.
+  if (l.emails > 0) m.push(`${l.emails} email(s)`);
+  if (l.expenses > 0) m.push(`${l.expenses} charge(s)`);
+  if (l.expenseRecurrences > 0) m.push(`${l.expenseRecurrences} charge(s) récurrente(s)`);
+  if (l.dossiers > 0) m.push(`${l.dossiers} dossier(s)`);
+  // Traces humaines sans relation.
+  if (!STATUTS_NEUTRES.has(f.statut)) m.push(`statut ${f.statut}`);
+  if ((f.notesGenerales ?? "").trim() !== "") m.push("notes saisies");
+  if (f.derniereActionLe != null) m.push("action commerciale enregistrée");
+  return m;
+}
