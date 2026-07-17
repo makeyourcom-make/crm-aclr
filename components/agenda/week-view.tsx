@@ -49,6 +49,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { STATUT_FILL, textOn } from "@/lib/agenda-colors";
 import { formatTime } from "@/lib/format";
 import { getActivityTypeLabel } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -85,16 +86,6 @@ interface WeekViewProps {
   currentUserId?: string;
   isAdmin?: boolean;
 }
-
-// Couleurs de bloc par statut (fond doux + accent bordure gauche)
-const STATUT_BLOCK: Record<string, string> = {
-  PLANIFIE: "bg-blue-50 border-l-blue-500 text-blue-900",
-  EN_COURS: "bg-amber-50 border-l-amber-500 text-amber-900",
-  FAIT: "bg-emerald-50 border-l-emerald-500 text-emerald-900",
-  MANQUE: "bg-red-50 border-l-red-500 text-red-900",
-  REPLANIFIE: "bg-slate-50 border-l-slate-400 text-slate-700",
-  ANNULE: "bg-slate-50 border-l-slate-300 text-slate-400 line-through",
-};
 
 const USER_DOT_COLORS = ["#0E1936", "#F47174", "#2563eb", "#10b981", "#a855f7"];
 function colorForUser(userId: string): string {
@@ -289,8 +280,9 @@ export function WeekView({
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
-      {/* En-tête des jours (sticky) */}
-      <div className="flex border-b border-border bg-muted/30">
+      {/* En-tête des jours — libellé gris discret + gros numéro, pastille
+          pleine sur aujourd'hui (mise en page Google Agenda). */}
+      <div className="flex border-b border-border bg-card">
         <div style={{ width: GUTTER_W }} className="shrink-0" />
         <div
           className="grid flex-1"
@@ -300,19 +292,21 @@ export function WeekView({
             const isToday =
               new Date(d).setHours(0, 0, 0, 0) === today.getTime();
             return (
-              <div
-                key={idx}
-                className="border-l border-border px-1 py-2 text-center"
-              >
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <div key={idx} className="px-1 pb-1.5 pt-2 text-center">
+                <p
+                  className={cn(
+                    "text-[10px] font-medium uppercase tracking-wide",
+                    isToday ? "text-primary" : "text-muted-foreground",
+                  )}
+                >
                   {WEEKDAY_SHORT[new Date(d).getDay()]}
                 </p>
                 <p
                   className={cn(
-                    "mx-auto mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold tabular-nums",
+                    "mx-auto mt-1 flex h-9 w-9 items-center justify-center rounded-full text-xl tabular-nums transition-colors",
                     isToday
-                      ? "bg-primary text-primary-foreground"
-                      : "text-foreground",
+                      ? "bg-primary font-medium text-primary-foreground"
+                      : "font-normal text-foreground",
                   )}
                 >
                   {d.getDate()}
@@ -336,7 +330,7 @@ export function WeekView({
               <div
                 key={h}
                 style={{ top: h * HOUR_HEIGHT }}
-                className="absolute right-1.5 -translate-y-1/2 text-[10px] tabular-nums text-muted-foreground"
+                className="absolute right-2 -translate-y-1/2 text-[11px] tabular-nums text-muted-foreground"
               >
                 {h === 0 ? "" : `${h}:00`}
               </div>
@@ -356,7 +350,7 @@ export function WeekView({
               return (
                 <div
                   key={dayIdx}
-                  className="relative border-l border-border"
+                  className="relative border-l border-border/70"
                   onClick={(e) => openSlot(dayIdx, e)}
                   role="presentation"
                 >
@@ -365,7 +359,7 @@ export function WeekView({
                     <div
                       key={h}
                       style={{ top: h * HOUR_HEIGHT, height: HOUR_HEIGHT }}
-                      className="absolute inset-x-0 border-t border-border/60"
+                      className="absolute inset-x-0 border-t border-border/50"
                     />
                   ))}
 
@@ -608,6 +602,12 @@ function DraggableEvent({
   const a = p.activity;
   const resizing = previewDur !== null;
 
+  // Aplat coloré + texte contrasté (rendu Google Agenda). La couleur choisie à
+  // la main prime sur celle du statut.
+  const fill = a.couleur ?? STATUT_FILL[a.statut] ?? STATUT_FILL.PLANIFIE!;
+  const ink = textOn(fill);
+  const titre = a.prospect?.raisonSociale ?? a.sujet;
+
   return (
     <button
       ref={setNodeRef}
@@ -627,21 +627,15 @@ function DraggableEvent({
         zIndex: isDragging || resizing ? 50 : undefined,
         cursor: "grab",
         touchAction: "none",
-        // Couleur choisie manuellement : accent gauche + fond teinté (~13%).
-        ...(a.couleur
-          ? {
-              borderLeftColor: a.couleur,
-              backgroundColor: `${a.couleur}22`,
-              color: "#0f172a",
-            }
-          : {}),
+        backgroundColor: fill,
+        color: ink,
       }}
       className={cn(
-        "group absolute z-10 overflow-hidden rounded-md border border-l-4 px-1.5 py-0.5 text-left text-[11px] leading-tight shadow-sm transition-shadow hover:z-30 hover:shadow-md",
-        (isDragging || resizing) && "opacity-80 shadow-lg",
-        a.couleur
-          ? cn("border-border", a.statut === "ANNULE" && "line-through opacity-60")
-          : (STATUT_BLOCK[a.statut] ?? STATUT_BLOCK.PLANIFIE),
+        // Pas d'ombre ni de bordure : Google sépare les blocs par un liseré de
+        // la couleur du fond de grille (d'où le ring blanc/card).
+        "group absolute z-10 overflow-hidden rounded px-1.5 py-[3px] text-left text-[11px] leading-tight ring-1 ring-card transition-[filter] hover:z-30 hover:brightness-95",
+        (isDragging || resizing) && "opacity-90 shadow-lg",
+        a.statut === "ANNULE" && "line-through opacity-60",
       )}
       title={`${formatTime(a.date)} · ${a.sujet}`}
     >
@@ -657,32 +651,32 @@ function DraggableEvent({
       >
         <span className="mx-auto block h-0.5 w-5 translate-y-0.5 rounded-full bg-current opacity-40" />
       </span>
+      {/* Comme Google : le TITRE d'abord (c'est ce qu'on cherche des yeux),
+          l'heure ensuite — sur la même ligne si le bloc est trop court. */}
       {compact ? (
-        <span className="flex items-center gap-1 truncate">
-          <span className="font-semibold tabular-nums">
+        <span className="flex items-baseline gap-1 truncate font-medium">
+          <span className="truncate">{titre}</span>
+          <span className="shrink-0 tabular-nums opacity-80">
             {formatTime(a.date)}
-          </span>
-          <span className="truncate">
-            {a.prospect?.raisonSociale ?? a.sujet}
           </span>
         </span>
       ) : (
         <>
-          <span className="flex items-center gap-1 font-semibold tabular-nums">
-            <ActivityIcon type={a.type} size={13} />
-            {formatTime(a.date)}
+          <span className="flex items-center gap-1">
+            <ActivityIcon type={a.type} size={12} />
+            <span className="truncate font-medium">{titre}</span>
             {showUserBadge && a.user && (
               <span
-                className="ml-auto inline-block h-2 w-2 shrink-0 rounded-full"
+                className="ml-auto inline-block h-2 w-2 shrink-0 rounded-full ring-1 ring-white/60"
                 style={{ backgroundColor: colorForUser(a.user.id) }}
               />
             )}
           </span>
-          <span className="block truncate font-medium">
-            {a.prospect?.raisonSociale ?? a.sujet}
+          <span className="block truncate tabular-nums opacity-80">
+            {formatTime(a.date)}
           </span>
           {a.prospect && (
-            <span className="block truncate opacity-70">{a.sujet}</span>
+            <span className="block truncate opacity-75">{a.sujet}</span>
           )}
         </>
       )}

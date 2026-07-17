@@ -7,6 +7,7 @@
  */
 import Link from "next/link";
 
+import { STATUT_FILL } from "@/lib/agenda-colors";
 import { formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -14,15 +15,6 @@ import type { AgendaActivity } from "@/lib/queries/agenda";
 
 const WEEKDAY_SHORT = ["LUN.", "MAR.", "MER.", "JEU.", "VEN.", "SAM.", "DIM."];
 const MAX_CHIPS = 3;
-
-const STATUT_DOT: Record<string, string> = {
-  PLANIFIE: "bg-blue-500",
-  EN_COURS: "bg-amber-500",
-  FAIT: "bg-emerald-500",
-  MANQUE: "bg-red-500",
-  REPLANIFIE: "bg-slate-400",
-  ANNULE: "bg-slate-300",
-};
 
 function toIso(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -115,11 +107,13 @@ export function MonthView({
                     title={`${formatTime(a.date)} · ${a.sujet}`}
                   >
                     <span
-                      className={cn(
-                        "h-1.5 w-1.5 shrink-0 rounded-full",
-                        !a.couleur && (STATUT_DOT[a.statut] ?? STATUT_DOT.PLANIFIE),
-                      )}
-                      style={a.couleur ? { backgroundColor: a.couleur } : undefined}
+                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{
+                        backgroundColor:
+                          a.couleur ??
+                          STATUT_FILL[a.statut] ??
+                          STATUT_FILL.PLANIFIE,
+                      }}
                     />
                     <span className="font-medium tabular-nums">
                       {formatTime(a.date)}
