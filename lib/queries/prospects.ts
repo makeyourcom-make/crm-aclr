@@ -54,6 +54,17 @@ export async function getProspects(
             tag: { select: { id: true, nom: true, couleur: true } },
           },
         },
+        // Date de début du contrat en cours (le plus ancien contrat signé et
+        // actif). Vide pour un prospect non client. Mêmes statuts que le filtre
+        // « Produit » : un brouillon (attente signature) n'est pas un contrat.
+        contracts: {
+          where: {
+            statut: { in: ["ATTENTE_VALIDATION_ADMIN", "ACTIF", "SUSPENDU"] },
+          },
+          select: { dateDebut: true },
+          orderBy: { dateDebut: "asc" },
+          take: 1,
+        },
       },
     }),
     isUnfiltered
