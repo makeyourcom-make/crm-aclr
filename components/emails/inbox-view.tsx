@@ -8,7 +8,7 @@
  * - Détail : timeline du thread (tous les messages chronologiquement)
  * - Bouton "Répondre" : modal qui appelle replyToEmail()
  */
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -36,6 +36,7 @@ import {
   AttachmentPicker,
   type PickedAttachment,
 } from "@/components/emails/attachment-picker";
+import { EmailHtmlFrame } from "@/components/emails/email-html-frame";
 import { RichTextEditor } from "@/components/emails/rich-text-editor";
 import { Icon } from "@/components/icon";
 import { Badge } from "@/components/ui/badge";
@@ -758,7 +759,7 @@ function DraftEditor({ draft }: { draft: InboxEmail }) {
         </p>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">
             Sujet
@@ -959,7 +960,7 @@ function ThreadDetail({
       </div>
 
       {/* Timeline messages */}
-      <div className="flex-1 space-y-3 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
         {thread.msgs.map((m) => (
           <MessageBubble
             key={m.id}
@@ -1343,10 +1344,8 @@ function MessageBubble({
         <div className="mt-2 border-t border-border/50 pt-2">
           {/* HTML rendu en iframe sandboxée si dispo, sinon texte */}
           {message.contenuHtml ? (
-            <iframe
-              srcDoc={message.contenuHtml}
-              sandbox="allow-popups allow-popups-to-escape-sandbox"
-              className="h-[400px] sm:h-[600px] w-full rounded border border-border bg-white"
+            <EmailHtmlFrame
+              html={message.contenuHtml}
               title={message.objet}
             />
           ) : message.contenuTexte ? (

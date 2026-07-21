@@ -20,6 +20,7 @@ import {
   AttachmentPicker,
   type PickedAttachment,
 } from "@/components/emails/attachment-picker";
+import { EmailHtmlFrame } from "@/components/emails/email-html-frame";
 import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
 
@@ -181,12 +182,7 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
       {/* Corps */}
       <div className="rounded-lg border border-border bg-card p-4">
         {email.contenuHtml ? (
-          <iframe
-            srcDoc={email.contenuHtml}
-            sandbox="allow-popups allow-popups-to-escape-sandbox"
-            className="h-[500px] sm:h-[700px] w-full rounded border border-border bg-white"
-            title={email.objet}
-          />
+          <EmailHtmlFrame html={email.contenuHtml} title={email.objet} />
         ) : email.contenuTexte ? (
           <pre className="whitespace-pre-wrap font-sans text-sm">
             {email.contenuTexte}
