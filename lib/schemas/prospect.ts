@@ -164,6 +164,9 @@ export const ProspectListParamsSchema = z.object({
   assigneAId: stringOptional,
   /** Multi-sélection de tags (cases à cocher). */
   tagId: csvList(),
+  /** Multi-sélection de produits : ne garde que les clients SIGNÉS dont un
+   *  contrat contient l'un des produits cochés (Prospect → Contract → Product). */
+  productId: csvList(),
   /** Filtre "Date d'ajout" : ne garde que les fiches créées À PARTIR de cette
    *  date (AAAA-MM-JJ). Permet de voir ce qui a été ajouté depuis X. */
   ajouteDepuis: stringOptional,

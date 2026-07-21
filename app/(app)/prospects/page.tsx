@@ -36,6 +36,7 @@ export default async function ProspectsPage({ searchParams }: PageProps) {
     stats,
     teamUsers,
     tags,
+    products,
   ] = await Promise.all([
     getProspects(user, params),
     getProspectStats(user),
@@ -47,6 +48,13 @@ export default async function ProspectsPage({ searchParams }: PageProps) {
         })
       : Promise.resolve([] as Array<{ id: string; name: string }>),
     prisma.prospectTag.findMany({
+      select: { id: true, nom: true },
+      orderBy: { nom: "asc" },
+    }),
+    // Produits réellement présents dans au moins un contrat (inutile de proposer
+    // un produit que personne n'a). Sert au filtre « Produit » = clients signés.
+    prisma.product.findMany({
+      where: { contracts: { some: {} } },
       select: { id: true, nom: true },
       orderBy: { nom: "asc" },
     }),
@@ -110,6 +118,7 @@ export default async function ProspectsPage({ searchParams }: PageProps) {
           users={teamUsers}
           currentUserId={user.id}
           tags={tags}
+          products={products}
         />
       </div>
 

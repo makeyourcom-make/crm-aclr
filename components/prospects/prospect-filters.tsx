@@ -24,6 +24,8 @@ interface ProspectFiltersProps {
   currentUserId?: string;
   /** Tags disponibles pour le filtre — visible par tous les users. */
   tags?: Array<{ id: string; nom: string }>;
+  /** Produits présents dans des contrats → filtre « Produit » (clients signés). */
+  products?: Array<{ id: string; nom: string }>;
 }
 
 /**
@@ -37,6 +39,7 @@ export function ProspectFilters({
   users,
   currentUserId,
   tags,
+  products,
 }: ProspectFiltersProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -127,6 +130,7 @@ export function ProspectFilters({
     params.secteur.length > 0 ||
     params.ville.length > 0 ||
     params.tagId.length > 0 ||
+    params.productId.length > 0 ||
     !!params.avecTel ||
     !!params.assigneAId ||
     !!params.ajouteDepuis ||
@@ -201,6 +205,15 @@ export function ProspectFilters({
           values={params.tagId}
           onChange={(v) => handleMultiChange("tagId", v)}
           options={tags.map((t) => ({ value: t.id, label: t.nom }))}
+        />
+      )}
+
+      {products && products.length > 0 && (
+        <MultiFilter
+          label="Produit"
+          values={params.productId}
+          onChange={(v) => handleMultiChange("productId", v)}
+          options={products.map((p) => ({ value: p.id, label: p.nom }))}
         />
       )}
 

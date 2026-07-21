@@ -194,6 +194,21 @@ function buildProspectWhere(
   if (params.tagId.length > 0) {
     conditions.push({ tags: { some: { tagId: { in: params.tagId } } } });
   }
+  // Filtre par produit(s) : clients SIGNÉS dont un contrat EN COURS contient l'un
+  // des produits cochés. On exige un contrat réellement signé et actif — sinon un
+  // simple brouillon (ATTENTE_SIGNATURE_CLIENT) ferait remonter un prospect non
+  // signé, ce que « clients signés » exclut. On écarte aussi les contrats clos
+  // (RÉSILIÉ / EXPIRÉ) : « produits qu'ils ont » = ce qu'ils détiennent encore.
+  if (params.productId.length > 0) {
+    conditions.push({
+      contracts: {
+        some: {
+          statut: { in: ["ATTENTE_VALIDATION_ADMIN", "ACTIF", "SUSPENDU"] },
+          products: { some: { id: { in: params.productId } } },
+        },
+      },
+    });
+  }
   // "Date d'ajout" : fiches créées à partir de cette date (jour inclus).
   const ajouteDepuis = parseDateFilter(params.ajouteDepuis);
   if (ajouteDepuis) conditions.push({ createdAt: { gte: ajouteDepuis } });
