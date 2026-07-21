@@ -134,7 +134,7 @@ export function ProspectsTable({
       header: () => <SortableHeader field="raisonSociale" label="Raison sociale" />,
       // Largeur bornée : sans `size`, TanStack renvoie 150 (défaut) et la
       // DataTable laisse alors la colonne absorber toute la place restante.
-      size: 240,
+      size: 220,
       cell: ({ row }) => (
         <div className="flex min-w-0 flex-col gap-1">
           <Link
@@ -174,12 +174,16 @@ export function ProspectsTable({
     {
       id: "contact",
       header: "Contact",
+      // Borne + troncature : un email long (ex. …@hotmail.com) élargissait la
+      // colonne sans limite et poussait les dernières colonnes hors écran.
+      size: 200,
       cell: ({ row }) => (
-        <div className="flex flex-col text-xs">
+        <div className="flex min-w-0 flex-col text-xs">
           {row.original.email ? (
             <a
               href={`mailto:${row.original.email}`}
-              className="text-foreground hover:underline"
+              className="truncate text-foreground hover:underline"
+              title={row.original.email}
               onClick={(e) => e.stopPropagation()}
             >
               {row.original.email}
@@ -193,6 +197,7 @@ export function ProspectsTable({
     {
       id: "telephone",
       header: "Téléphone",
+      size: 140,
       cell: ({ row }) => (
         <div className="flex flex-col text-xs">
           {row.original.telephone && (
@@ -222,8 +227,16 @@ export function ProspectsTable({
     {
       id: "lieu",
       header: () => <SortableHeader field="ville" label="Lieu" />,
+      size: 130,
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">
+        <span
+          className="block truncate text-xs text-muted-foreground"
+          title={
+            [row.original.ville, row.original.canton]
+              .filter(Boolean)
+              .join(", ") || undefined
+          }
+        >
           {[row.original.ville, row.original.canton]
             .filter(Boolean)
             .join(", ") || "—"}
@@ -233,9 +246,10 @@ export function ProspectsTable({
     {
       id: "secteur",
       header: () => <SortableHeader field="secteur" label="Secteur" />,
+      size: 110,
       cell: ({ row }) =>
         row.original.secteur ? (
-          <span className="text-xs">
+          <span className="block truncate text-xs">
             {getProspectSecteurLabel(row.original.secteur)}
           </span>
         ) : (
@@ -245,6 +259,7 @@ export function ProspectsTable({
     {
       id: "statut",
       header: () => <SortableHeader field="statut" label="Statut" />,
+      size: 100,
       cell: ({ row }) => <ProspectStatutBadge statut={row.original.statut} />,
     },
     {
