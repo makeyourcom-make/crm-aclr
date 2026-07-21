@@ -30,9 +30,17 @@ export async function getProspects(
 ): Promise<ProspectListResult> {
   const where = buildProspectWhere(user, params);
 
-  const orderBy: Prisma.ProspectOrderByWithRelationInput = {
-    [params.sortBy]: params.sortDir,
-  };
+  // Les colonnes de dates dénormalisées sont NULL pour la grande majorité des
+  // fiches (une action / un contrat ne concernent qu'une minorité des 124k
+  // lignes). En Postgres, DESC place les NULL EN PREMIER : sans forcer
+  // `nulls: "last"`, trier « Début contrat » desc afficherait des milliers de
+  // fiches vides avant le moindre client. On veut toujours les valeurs d'abord.
+  const nullsLastCols = new Set(["contratDebutLe", "derniereActionLe"]);
+  const orderBy: Prisma.ProspectOrderByWithRelationInput = nullsLastCols.has(
+    params.sortBy,
+  )
+    ? { [params.sortBy]: { sort: params.sortDir, nulls: "last" } }
+    : { [params.sortBy]: params.sortDir };
 
   // Sur la table prospects (~124k lignes), un count(*) exact non filtré coûte
   // ~150 ms à chaque affichage de la liste par défaut. Comme la pagination n'a
@@ -53,17 +61,6 @@ export async function getProspects(
           include: {
             tag: { select: { id: true, nom: true, couleur: true } },
           },
-        },
-        // Date de début du contrat en cours (le plus ancien contrat signé et
-        // actif). Vide pour un prospect non client. Mêmes statuts que le filtre
-        // « Produit » : un brouillon (attente signature) n'est pas un contrat.
-        contracts: {
-          where: {
-            statut: { in: ["ATTENTE_VALIDATION_ADMIN", "ACTIF", "SUSPENDU"] },
-          },
-          select: { dateDebut: true },
-          orderBy: { dateDebut: "asc" },
-          take: 1,
         },
       },
     }),

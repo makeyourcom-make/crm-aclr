@@ -729,6 +729,19 @@ model Prospect {
   /// se fige. Script : scripts/ddl-trigger-derniere-action.ts
   derniereActionLe DateTime?
 
+  /// Date de début du contrat EN COURS le plus ancien (statut
+  /// ATTENTE_VALIDATION_ADMIN / ACTIF / SUSPENDU). Dénormalisé depuis Contract
+  /// pour permettre le TRI serveur de la liste « Entreprises » : Prisma ne sait
+  /// pas trier par un champ scalaire d'une relation to-many.
+  ///
+  /// MAINTENU PAR UN TRIGGER POSTGRES (`trg_touch_prospect_contrat_debut` sur
+  /// `contracts`, AFTER INSERT/UPDATE/DELETE → recalcule MIN(dateDebut) sur les
+  /// contrats en cours du prospect). Contrairement à derniereActionLe, un simple
+  /// GREATEST ne suffit pas : un contrat peut CHANGER de statut (brouillon →
+  /// actif → résilié), donc on recalcule tout l'ensemble à chaque fois.
+  /// Ne pas supprimer le trigger. Script : scripts/ddl-trigger-contrat-debut.ts
+  contratDebutLe DateTime?
+
   assigneA   User?   @relation(fields: [assigneAId], references: [id], onDelete: SetNull)
   assigneAId String?
 
@@ -774,6 +787,9 @@ model Prospect {
   // Tri/filtre « Dernière action » (colonne dénormalisée derniereActionLe).
   @@index([derniereActionLe(sort: Desc)])
   @@index([assigneAId, derniereActionLe(sort: Desc)])
+  // Tri « Début contrat » (colonne dénormalisée contratDebutLe).
+  @@index([contratDebutLe(sort: Desc)])
+  @@index([assigneAId, contratDebutLe(sort: Desc)])
   // NB : la recherche texte (ILIKE '%q%' sur raisonSociale/ville/email/
   // contactNom/contactPrenom) est accélérée par des index GIN trigramme
   // (pg_trgm) posés hors Prisma via scripts/ddl-prospect-search-trgm.ts

@@ -34,8 +34,6 @@ export type ProspectRow = Prospect & {
   tags?: Array<{
     tag: { id: string; nom: string; couleur: string };
   }>;
-  /** Contrat en cours le plus ancien (0 ou 1 élément) — pour « Début contrat ». */
-  contracts?: Array<{ dateDebut: Date }>;
 };
 
 interface ProspectsTableProps {
@@ -275,21 +273,20 @@ export function ProspectsTable({
       size: 110,
     },
     {
-      // Date de début du contrat en cours. Renseignée pour les clients signés
-      // uniquement ; « — » sinon. Non triable (valeur dérivée d'une relation,
-      // hors du tri serveur par colonne de la table prospects).
-      id: "contratDebut",
-      header: () => <span className="whitespace-nowrap">Début contrat</span>,
-      cell: ({ row }) => {
-        const debut = row.original.contracts?.[0]?.dateDebut;
-        return debut ? (
+      // Date de début du contrat en cours (colonne dénormalisée contratDebutLe,
+      // maintenue par trigger). Renseignée pour les clients signés ; « — » sinon.
+      id: "contratDebutLe",
+      header: () => (
+        <SortableHeader field="contratDebutLe" label="Début contrat" />
+      ),
+      cell: ({ row }) =>
+        row.original.contratDebutLe ? (
           <span className="whitespace-nowrap text-xs text-foreground tabular-nums">
-            {formatDate(debut)}
+            {formatDate(row.original.contratDebutLe)}
           </span>
         ) : (
           <span className="text-xs text-muted-foreground/50">—</span>
-        );
-      },
+        ),
       size: 110,
     },
   ];
