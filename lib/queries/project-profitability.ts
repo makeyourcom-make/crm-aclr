@@ -1,17 +1,27 @@
 /**
  * Rentabilité par projet — calcule la marge nette de chaque contrat actif.
  *
- * Formule :
+ * Formule — tout est ramené à la DURÉE RÉELLE du contrat (`dureeMois`) :
  *
- *   Revenu 12 mois     = valeurAn1
- *   - Coûts directs    = Σ(produit.coutOneShot + produit.coutMensuel × 12)
- *   - Commission       = taux × valeurAn1 (25 % signature, 10 % renouvellement)
- *   - Quote-part frais = (charges fixes mensuelles moyennes × 12) / nb contrats actifs
+ *   Revenu             = montantOneShot + montantMensuel × dureeMois
+ *   - Coûts directs    = Σ(produit.coutOneShot + produit.coutMensuel × dureeMois)
+ *   - Commission       = taux × assiette RÉELLE (voir plus bas — pas au prorata)
+ *   - Quote-part frais = (charges fixes mensuelles moyennes × dureeMois) / nb contrats actifs
  *   - Provision impôts = tauxImpotsProvisionne × marge brute
  *   ─────────────────────────────────────
  *   = MARGE NETTE
  *
  * Le pourcentage de rentabilité = marge nette / revenu (×100 pour %).
+ *
+ * Pourquoi la durée réelle : un contrat de 6 mois était compté comme 12 mois
+ * (revenu = valeurAn1, frais × 12) — il paraissait deux fois plus lourd qu'il
+ * ne l'est. Signalé par Arthur le 22.07.2026 sur ACLR-2026-0052 (6 mois).
+ *
+ * EXCEPTION VOLONTAIRE — la commission n'est PAS mise au prorata : elle est
+ * calculée sur l'assiette réellement versée à la commerciale (`an 1` pour les
+ * lignes hors ADS, durée réelle pour les lignes ADS — cf. lib/commissions.ts).
+ * La mettre au prorata afficherait un coût inférieur à ce qui sort vraiment de
+ * la caisse, ce qui embellirait la marge à tort.
  *
  * Hypothèses :
  *   - "Quote-part frais généraux" est une répartition simple : on alloue les
@@ -30,8 +40,11 @@ export interface ProjectMargin {
   modalitePaiement: string;
   statut: string;
 
-  // Composantes
-  revenu12mois: number;
+  /** Durée du contrat en mois — base de tous les montants ci-dessous. */
+  dureeMois: number;
+
+  // Composantes (sur la durée du contrat)
+  revenu: number;
   coutsDirects: number;
   commission: number;
   quotePartFrais: number;
@@ -69,6 +82,9 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
           numero: true,
           dateSignature: true,
           valeurAn1: true,
+          montantOneShot: true,
+          montantMensuel: true,
+          dureeMois: true,
           modalitePaiement: true,
           statut: true,
           prospectId: true,
@@ -154,24 +170,28 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
   );
   const fraisFixesMensuels =
     chargesMoyennesMensuelles + salaireFixeNonCommercial;
-  // Quote-part annuelle par contrat actif
+  // Quote-part MENSUELLE par contrat actif — multipliée ensuite par la durée
+  // réelle de chaque contrat (un contrat de 6 mois n'absorbe pas 12 mois de
+  // frais généraux).
   const nbContrats = Math.max(contracts.length, 1);
-  const quotePartAnnuelleParContrat =
-    (fraisFixesMensuels * 12) / nbContrats;
+  const quotePartMensuelleParContrat = fraisFixesMensuels / nbContrats;
 
   // ----- Calcul de marge pour chaque contrat -----------------------------
   // Note : on s'arrête à la marge brute (= revenu - coûts directs -
   // commission - quote-part frais généraux). Pas de provision impôts.
   const projects: ProjectMargin[] = contracts.map((c) => {
-    const revenu = Number(c.valeurAn1);
+    const duree = c.dureeMois > 0 ? c.dureeMois : 12;
+    const revenu =
+      Number(c.montantOneShot) + Number(c.montantMensuel) * duree;
     const coutsDirects = c.products.reduce((s, p) => {
       const oneShot = Number(p.coutOneShot ?? 0);
       const mensuel = Number(p.coutMensuel ?? 0);
-      return s + oneShot + mensuel * 12;
+      return s + oneShot + mensuel * duree;
     }, 0);
     const tauxCom = Number(c.assigneA.tauxCommissionSignature);
-    const commission = revenu * tauxCom;
-    const quotePartFrais = quotePartAnnuelleParContrat;
+    // Sur valeurAn1 (assiette réellement versée), PAS au prorata — cf. en-tête.
+    const commission = Number(c.valeurAn1) * tauxCom;
+    const quotePartFrais = quotePartMensuelleParContrat * duree;
     // Charges réelles du client réparties sur ses contrats actifs.
     const chargesReelles =
       (clientCharges.get(c.prospectId) ?? 0) /
@@ -188,7 +208,8 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
       dateSignature: c.dateSignature,
       modalitePaiement: c.modalitePaiement,
       statut: c.statut,
-      revenu12mois: revenu,
+      dureeMois: duree,
+      revenu,
       coutsDirects,
       commission,
       quotePartFrais,
@@ -203,7 +224,7 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
 
   const totals = projects.reduce(
     (acc, p) => {
-      acc.revenu += p.revenu12mois;
+      acc.revenu += p.revenu;
       acc.coutsDirects += p.coutsDirects;
       acc.commissions += p.commission;
       acc.quotePartFrais += p.quotePartFrais;
@@ -223,7 +244,8 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
 
   return {
     projects,
-    quotePartParContrat: quotePartAnnuelleParContrat,
+    // Affiché « / contrat / an » sur la page — donc bien annualisé.
+    quotePartParContrat: quotePartMensuelleParContrat * 12,
     totals,
   };
 }
@@ -251,6 +273,9 @@ export async function getProjectMarginForContract(
           id: true,
           numero: true,
           valeurAn1: true,
+          montantOneShot: true,
+          montantMensuel: true,
+          dureeMois: true,
           dateSignature: true,
           modalitePaiement: true,
           statut: true,
@@ -304,16 +329,21 @@ export async function getProjectMarginForContract(
   );
   const fraisFixesMensuels =
     chargesMoyennesMensuelles + salaireFixeNonCommercial;
-  const quotePartFrais = (fraisFixesMensuels * 12) / Math.max(nbContrats, 1);
+  // Durée RÉELLE du contrat : un 6 mois n'absorbe pas 12 mois de frais.
+  const duree = contract.dureeMois > 0 ? contract.dureeMois : 12;
+  const quotePartFrais =
+    (fraisFixesMensuels * duree) / Math.max(nbContrats, 1);
 
-  const revenu = Number(contract.valeurAn1);
+  const revenu =
+    Number(contract.montantOneShot) + Number(contract.montantMensuel) * duree;
   const coutsDirects = contract.products.reduce((s, p) => {
     const oneShot = Number(p.coutOneShot ?? 0);
     const mensuel = Number(p.coutMensuel ?? 0);
-    return s + oneShot + mensuel * 12;
+    return s + oneShot + mensuel * duree;
   }, 0);
   const tauxCom = Number(contract.assigneA.tauxCommissionSignature);
-  const commission = revenu * tauxCom;
+  // Assiette réellement versée (an 1 hors ADS), PAS au prorata — cf. en-tête.
+  const commission = Number(contract.valeurAn1) * tauxCom;
   const margeBrute =
     revenu - coutsDirects - commission - quotePartFrais - chargesReelles;
   const rentabilite = revenu > 0 ? margeBrute / revenu : 0;
@@ -326,7 +356,8 @@ export async function getProjectMarginForContract(
     dateSignature: contract.dateSignature,
     modalitePaiement: contract.modalitePaiement,
     statut: contract.statut,
-    revenu12mois: revenu,
+    dureeMois: duree,
+    revenu,
     coutsDirects,
     commission,
     quotePartFrais,

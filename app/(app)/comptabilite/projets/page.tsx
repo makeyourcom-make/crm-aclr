@@ -28,7 +28,7 @@ export default async function ProjectsProfitabilityPage() {
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title="Rentabilité par projet"
-        description={`${data.projects.length} contrat(s) actif(s) analysés sur 12 mois glissants.`}
+        description={`${data.projects.length} contrat(s) actif(s) — chacun analysé sur sa durée réelle.`}
         breadcrumb={
           <Link
             href="/comptabilite"
@@ -141,7 +141,7 @@ export default async function ProjectsProfitabilityPage() {
                       {p.commercialeName}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">
-                      {formatCHFCompact(p.revenu12mois)}
+                      {formatCHFCompact(p.revenu)}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-red-700">
                       -{formatCHFCompact(p.coutsDirects)}
@@ -223,8 +223,10 @@ export default async function ProjectsProfitabilityPage() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p>
-            <strong>Revenu</strong> = valeur 12 mois du contrat (oneShot +
-            mensuel × 12).
+            <strong>Revenu</strong> = valeur du contrat sur SA DURÉE réelle
+            (oneShot + mensuel × durée en mois). Un contrat de 6 mois n'est donc
+            plus compté comme un contrat de 12 mois — les coûts produits et la
+            quote-part de frais généraux suivent la même durée.
           </p>
           <p>
             <strong>Coûts directs</strong> = somme des coûts internes des
@@ -239,7 +241,10 @@ export default async function ProjectsProfitabilityPage() {
           </p>
           <p>
             <strong>Commission</strong> = taux signature de la commerciale ×
-            revenu (par défaut 25 %).
+            assiette réellement versée (an 1 hors ADS, durée réelle pour les
+            lignes ADS). Volontairement PAS mise au prorata de la durée : c'est
+            ce qui sort vraiment de la caisse, l'afficher plus bas embellirait
+            la marge à tort.
           </p>
           <p>
             <strong>Frais alloués</strong> = quote-part annuelle des frais

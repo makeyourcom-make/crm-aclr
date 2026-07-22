@@ -62,7 +62,11 @@ export function ProjectMarginBox({ margin }: ProjectMarginBoxProps) {
       <CardContent className="space-y-3">
         {/* Cascade visuelle */}
         <div className="space-y-1.5 text-sm">
-          <Row label="Revenu 12 mois" value={formatCHF(m.revenu12mois)} bold />
+          <Row
+            label={`Revenu sur ${m.dureeMois} mois`}
+            value={formatCHF(m.revenu)}
+            bold
+          />
           <Row
             label="Coûts directs (produits)"
             value={`- ${formatCHF(m.coutsDirects)}`}
