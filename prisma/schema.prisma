@@ -389,6 +389,7 @@ model User {
   socialAccounts    SocialAccount[]
   emailSignatures   EmailSignature[]
   auditLogs         AuditLog[]
+  dossierAttachments  DossierAttachment[]
   dossiersAssignes  Dossier[]          @relation("DossierAssignee")
   dossiersCrees     Dossier[]          @relation("DossierCreateur")
   dossierUpdates    DossierUpdate[]
@@ -1770,7 +1771,8 @@ model Dossier {
 
   termineLe DateTime?
 
-  updates DossierUpdate[]
+  updates     DossierUpdate[]
+  attachments DossierAttachment[]
 
   @@index([assigneAId, statut])
   @@index([statut])
@@ -1793,4 +1795,28 @@ model DossierUpdate {
 
   @@index([dossierId])
   @@map("dossier_updates")
+}
+
+/// Document rattaché à un projet (cahier des charges, maquette, accès, devis…).
+/// Le fichier lui-même vit sur Vercel Blob (même stockage que les pièces
+/// jointes email) ; on ne garde ici que la référence.
+model DossierAttachment {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  dossier   Dossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  dossierId String
+
+  /// Qui a déposé le document (traçabilité du fil projet).
+  ajoutePar   User   @relation(fields: [ajouteParId], references: [id], onDelete: Restrict)
+  ajouteParId String
+
+  nom      String
+  taille   Int // bytes
+  mimeType String
+  /// URL publique du blob.
+  url      String
+
+  @@index([dossierId])
+  @@map("dossier_attachments")
 }

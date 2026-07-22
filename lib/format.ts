@@ -227,3 +227,10 @@ export function normalizePhone(raw: string | null | undefined): string | null {
   if (digits.length >= 10) return `+${digits}`;
   return null;
 }
+
+/** Taille de fichier lisible (B / KB / MB) — pièces jointes email et projets. */
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}

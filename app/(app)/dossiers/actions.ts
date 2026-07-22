@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
+import { z } from "zod";
 
 import { prisma } from "@/lib/db";
 import {
@@ -176,6 +177,79 @@ export async function addDossierUpdate(
     });
     revalidatePath("/dossiers");
     return { ok: true, dossierId: parsed.data.dossierId };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DOCUMENTS (pièces jointes du projet)
+// ---------------------------------------------------------------------------
+
+const DossierAttachmentSchema = z.object({
+  dossierId: z.string().min(1),
+  url: z.string().url(),
+  nom: z.string().min(1).max(255),
+  mimeType: z.string().min(1).max(200),
+  taille: z.number().int().nonnegative(),
+});
+
+/**
+ * Rattache un document déjà uploadé (Vercel Blob) au projet.
+ *
+ * Le fichier ne transite pas par ici : le navigateur l'a envoyé directement au
+ * stockage (cf. /api/emails/attachments/upload), on ne persiste que la
+ * référence — même schéma que les pièces jointes email.
+ */
+export async function addDossierAttachment(
+  input: unknown,
+): Promise<DossierActionResult> {
+  const user = await requireUser();
+  const parsed = DossierAttachmentSchema.safeParse(input);
+  if (!parsed.success) return zodErrorToResult(parsed.error);
+  await assertCanAccessDossier(user, parsed.data.dossierId);
+
+  try {
+    await prisma.dossierAttachment.create({
+      data: {
+        dossierId: parsed.data.dossierId,
+        ajouteParId: user.id,
+        nom: parsed.data.nom,
+        taille: parsed.data.taille,
+        mimeType: parsed.data.mimeType,
+        url: parsed.data.url,
+      },
+    });
+    // Fait remonter le projet en tête de colonne (activité récente).
+    await prisma.dossier.update({
+      where: { id: parsed.data.dossierId },
+      data: { updatedAt: new Date() },
+    });
+    revalidatePath("/dossiers");
+    return { ok: true, dossierId: parsed.data.dossierId };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
+}
+
+export async function deleteDossierAttachment(
+  attachmentId: string,
+): Promise<DossierActionResult> {
+  const user = await requireUser();
+  const att = await prisma.dossierAttachment.findUnique({
+    where: { id: attachmentId },
+    select: { dossierId: true },
+  });
+  if (!att) return { ok: false, error: "Document introuvable." };
+  await assertCanAccessDossier(user, att.dossierId);
+
+  try {
+    // On retire la référence ; le blob reste (pas de suppression distante :
+    // une URL partagée par ailleurs continuerait de fonctionner, et le coût
+    // de stockage est négligeable).
+    await prisma.dossierAttachment.delete({ where: { id: attachmentId } });
+    revalidatePath("/dossiers");
+    return { ok: true, dossierId: att.dossierId };
   } catch (err) {
     return prismaErrorToResult(err);
   }

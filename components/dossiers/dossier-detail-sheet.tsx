@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import {
+  DossierDocuments,
+  type DossierDocument,
+} from "@/components/dossiers/dossier-documents";
 import { Icon } from "@/components/icon";
 import {
   Sheet,
@@ -49,6 +53,7 @@ interface DossierDetail {
     createdAt: string;
     auteur: { name: string };
   }>;
+  attachments: DossierDocument[];
 }
 
 interface DossierDetailSheetProps {
@@ -69,6 +74,7 @@ export function DossierDetailSheet({
 }: DossierDetailSheetProps) {
   const [d, setD] = useState<DossierDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [titre, setTitre] = useState("");
   const [desc, setDesc] = useState("");
   const [newUpdate, setNewUpdate] = useState("");
   const [saving, setSaving] = useState(false);
@@ -82,6 +88,7 @@ export function DossierDetailSheet({
       })
       .then((data: DossierDetail) => {
         setD(data);
+        setTitre(data.titre);
         setDesc(data.description ?? "");
         setLoading(false);
       })
@@ -182,6 +189,29 @@ export function DossierDetailSheet({
 
         {d && (
           <div className="space-y-5 px-6 py-4">
+            {/* Nom de la tâche — éditable en cours de route */}
+            <div>
+              <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Nom de la tâche
+              </p>
+              <input
+                type="text"
+                className={inputCls}
+                value={titre}
+                onChange={(e) => setTitre(e.target.value)}
+                placeholder="Ex. Cahier des charges du référencement"
+              />
+              <button
+                type="button"
+                disabled={saving || !titre.trim() || titre === d.titre}
+                onClick={() => patch({ titre: titre.trim() })}
+                className="mt-1.5 inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                <Icon name="Save" className="h-3.5 w-3.5" />
+                Renommer
+              </button>
+            </div>
+
             {/* Statut — boutons rapides */}
             <div>
               <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -278,6 +308,16 @@ export function DossierDetailSheet({
                 Enregistrer la description
               </button>
             </div>
+
+            {/* Documents du projet */}
+            <DossierDocuments
+              dossierId={d.id}
+              documents={d.attachments}
+              onChanged={() => {
+                reload(d.id);
+                onChanged();
+              }}
+            />
 
             {/* Fil de suivi */}
             <div>

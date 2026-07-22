@@ -174,6 +174,18 @@ export async function getDossierById(user: SessionUser, id: string) {
         },
         orderBy: { createdAt: "desc" },
       },
+      attachments: {
+        select: {
+          id: true,
+          nom: true,
+          taille: true,
+          mimeType: true,
+          url: true,
+          createdAt: true,
+          ajoutePar: { select: { name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
   if (!d) return null;
