@@ -9,7 +9,7 @@ import type { DossierStatut, DossierPriorite } from "@prisma/client";
  *
  * EN_ATTENTE existe toujours dans l'enum Prisma (on ne retire pas une valeur
  * d'un enum Postgres en prod) mais n'est PLUS proposé : décision Arthur du
- * 17.07.2026 — le kanban se lit « à faire / en cours / terminé » par personne,
+ * 17.07.2026 — le kanban se lit « à faire / à vérifier / terminé » par personne,
  * un dossier bloqué reste « à faire » chez son responsable. Plus aucune ligne
  * ne porte ce statut (migration scripts/migrate-dossiers-en-attente.ts).
  */
@@ -27,7 +27,11 @@ export const DOSSIER_STATUTS_PAR_PERSONNE: DossierStatut[] = [
 
 export const DOSSIER_STATUT_LABELS: Record<DossierStatut, string> = {
   A_FAIRE: "À faire",
-  EN_COURS: "En cours",
+  // Libellé « À vérifier » (demande Arthur, 22.07.2026) : la colonne sert au
+  // travail fait par la commerciale qui attend une relecture, pas au travail
+  // en cours. La valeur d'enum reste EN_COURS — renommer une valeur d'enum
+  // Postgres en prod n'apporterait rien et casserait les lignes existantes.
+  EN_COURS: "À vérifier",
   EN_ATTENTE: "En attente",
   TERMINE: "Terminé",
 };
