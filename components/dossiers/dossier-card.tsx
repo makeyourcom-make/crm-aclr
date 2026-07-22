@@ -50,6 +50,9 @@ export function DossierCard({ dossier, onOpen }: DossierCardProps) {
       className={cn(
         "cursor-grab rounded-md border border-border bg-card p-3 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing",
         isDragging && "ring-2 ring-primary",
+        // Visible uniquement via « Voir les projets archivés » : on la distingue
+        // du travail vivant sans la rendre illisible.
+        dossier.archive && "bg-muted/40 opacity-70",
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -89,13 +92,26 @@ export function DossierCard({ dossier, onOpen }: DossierCardProps) {
       )}
 
       <div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-        <span>→ {dossier.assigneA.name}</span>
-        {dossier.nbUpdates > 0 && (
-          <span className="flex items-center gap-1">
-            <Icon name="MessageSquare" className="h-3 w-3" />
-            {dossier.nbUpdates}
-          </span>
-        )}
+        <span className="truncate">→ {dossier.assigneA.name}</span>
+        <span className="flex shrink-0 items-center gap-2">
+          {dossier.archive && (
+            <span className="rounded-full bg-slate-200 px-1.5 text-[9px] font-medium text-slate-600">
+              Archivée
+            </span>
+          )}
+          {dossier.nbDocuments > 0 && (
+            <span className="flex items-center gap-1" title="Documents joints">
+              <Icon name="FileText" className="h-3 w-3" />
+              {dossier.nbDocuments}
+            </span>
+          )}
+          {dossier.nbUpdates > 0 && (
+            <span className="flex items-center gap-1" title="Mises à jour">
+              <Icon name="MessageSquare" className="h-3 w-3" />
+              {dossier.nbUpdates}
+            </span>
+          )}
+        </span>
       </div>
     </div>
   );

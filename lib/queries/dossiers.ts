@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import {
   DOSSIER_STATUTS_PAR_PERSONNE,
   dossierColumnKey,
+  estArchive,
 } from "@/lib/dossiers";
 
 import type { DossierStatut, DossierPriorite, Prisma } from "@prisma/client";
@@ -17,6 +18,9 @@ export interface DossierForKanban {
   assigneA: { id: string; name: string };
   prospect: { id: string; raisonSociale: string } | null;
   nbUpdates: number;
+  nbDocuments: number;
+  /** Terminée depuis plus de 7 jours — hors kanban par défaut. */
+  archive: boolean;
 }
 
 export interface DossierColumn {
@@ -33,6 +37,8 @@ export interface DossierColumn {
 export interface DossiersBoardData {
   columns: DossierColumn[];
   total: number;
+  /** Nombre de tâches archivées (terminées depuis > 7 jours). */
+  nbArchivees: number;
 }
 
 /**
@@ -45,10 +51,13 @@ export interface DossiersBoardData {
  * sens puisque la RLS en masque déjà les cartes.
  *
  * `assigneAId` (optionnel) : filtre admin sur un collaborateur précis.
+ * `avecArchives` : inclut les tâches terminées depuis plus de 7 jours, qui
+ * sortent du kanban par défaut (cf. `estArchive`).
  */
 export async function getDossiersBoard(
   user: SessionUser,
   assigneAId?: string,
+  avecArchives = false,
 ): Promise<DossiersBoardData> {
   const where: Prisma.DossierWhereInput = {};
 
@@ -69,7 +78,7 @@ export async function getDossiersBoard(
     orderBy: [{ role: "asc" }, { name: "asc" }],
   });
 
-  const dossiers = await prisma.dossier.findMany({
+  const toutes = await prisma.dossier.findMany({
     where,
     select: {
       id: true,
@@ -78,12 +87,24 @@ export async function getDossiersBoard(
       priorite: true,
       echeance: true,
       updatedAt: true,
+      termineLe: true,
       assigneA: { select: { id: true, name: true } },
       prospect: { select: { id: true, raisonSociale: true } },
-      _count: { select: { updates: true } },
+      _count: { select: { updates: true, attachments: true } },
     },
     orderBy: [{ priorite: "desc" }, { updatedAt: "desc" }],
   });
+
+  // Les tâches terminées depuis > 7 jours sortent du kanban (elles restent
+  // consultables sur la fiche client et via « Voir les archivées »). Le filtre
+  // est fait ici et non en SQL : la règle vit dans un seul helper partagé avec
+  // la fiche client, plutôt que dupliquée en date arithmétique Prisma.
+  const nbArchivees = toutes.filter((d) =>
+    estArchive(d.statut, d.termineLe, d.updatedAt),
+  ).length;
+  const dossiers = avecArchives
+    ? toutes
+    : toutes.filter((d) => !estArchive(d.statut, d.termineLe, d.updatedAt));
 
   // Colonnes : (chaque collaborateur × ses statuts) puis « Terminé ».
   //
@@ -128,6 +149,8 @@ export async function getDossiersBoard(
       assigneA: d.assigneA,
       prospect: d.prospect,
       nbUpdates: d._count.updates,
+      nbDocuments: d._count.attachments,
+      archive: estArchive(d.statut, d.termineLe, d.updatedAt),
     };
     // « Terminé » est commun ; les autres statuts vont dans la colonne du
     // collaborateur. Une carte dont la colonne n'existe pas (assignée à un
@@ -141,7 +164,70 @@ export async function getDossiersBoard(
       ?.dossiers.push(card);
   }
 
-  return { columns, total: dossiers.length };
+  return { columns, total: dossiers.length, nbArchivees };
+}
+
+export interface DossierPourClient {
+  id: string;
+  titre: string;
+  statut: DossierStatut;
+  priorite: DossierPriorite;
+  echeance: Date | null;
+  termineLe: Date | null;
+  updatedAt: Date;
+  assigneA: { name: string };
+  nbUpdates: number;
+  nbDocuments: number;
+  /** Terminée depuis > 7 jours : affichée comme historique. */
+  archive: boolean;
+}
+
+/**
+ * Tâches rattachées à un client, pour sa fiche.
+ *
+ * Renvoie TOUT, archivées comprises : la fiche client est justement l'endroit
+ * où l'historique reste consultable une fois la tâche sortie du kanban.
+ * Les commerciaux ne voient que les leurs (même RLS que le kanban).
+ */
+export async function getDossiersForProspect(
+  user: SessionUser,
+  prospectId: string,
+): Promise<DossierPourClient[]> {
+  const where: Prisma.DossierWhereInput = { prospectId };
+  if (user.role !== "ADMIN") {
+    where.OR = [{ assigneAId: user.id }, { creeParId: user.id }];
+  }
+
+  const rows = await prisma.dossier.findMany({
+    where,
+    select: {
+      id: true,
+      titre: true,
+      statut: true,
+      priorite: true,
+      echeance: true,
+      termineLe: true,
+      updatedAt: true,
+      assigneA: { select: { name: true } },
+      _count: { select: { updates: true, attachments: true } },
+    },
+    // Les tâches vivantes d'abord, puis l'historique du plus récent au plus ancien.
+    orderBy: [{ statut: "asc" }, { updatedAt: "desc" }],
+  });
+
+  return rows.map((d) => ({
+    id: d.id,
+    titre: d.titre,
+    statut: d.statut,
+    priorite: d.priorite,
+    echeance: d.echeance,
+    termineLe: d.termineLe,
+    updatedAt: d.updatedAt,
+    assigneA: d.assigneA,
+    nbUpdates: d._count.updates,
+    nbDocuments: d._count.attachments,
+    archive: estArchive(d.statut, d.termineLe, d.updatedAt),
+  }));
 }
 
 /**

@@ -87,3 +87,33 @@ export const DOSSIER_PRIORITE_BADGE: Record<DossierPriorite, string> = {
 export function getDossierStatutLabel(s: DossierStatut): string {
   return DOSSIER_STATUT_LABELS[s];
 }
+
+// ---------------------------------------------------------------------------
+// ARCHIVAGE
+// ---------------------------------------------------------------------------
+
+/** Une tâche terminée depuis plus de N jours sort du kanban. */
+export const ARCHIVE_APRES_JOURS = 7;
+
+/**
+ * Une tâche est « archivée » si elle est TERMINÉE depuis plus de
+ * ARCHIVE_APRES_JOURS jours (décision Arthur, 22.07.2026).
+ *
+ * DÉLIBÉRÉMENT CALCULÉ, pas stocké : ni colonne, ni migration, et surtout pas
+ * de cron nocturne qui pourrait échouer en silence et laisser la colonne
+ * « Terminé » se remplir indéfiniment. La règle est donc toujours exacte.
+ *
+ * `termineLe` est renseigné à chaque passage en TERMINÉ (moveDossierStatut) ;
+ * on retombe sur `updatedAt` par sécurité pour d'éventuelles lignes anciennes.
+ */
+export function estArchive(
+  statut: DossierStatut,
+  termineLe: Date | string | null,
+  updatedAt: Date | string,
+  maintenant: Date = new Date(),
+): boolean {
+  if (statut !== "TERMINE") return false;
+  const ref = new Date(termineLe ?? updatedAt);
+  const jours = (maintenant.getTime() - ref.getTime()) / 86_400_000;
+  return jours > ARCHIVE_APRES_JOURS;
+}

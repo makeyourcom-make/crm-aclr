@@ -22,12 +22,14 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getNextRenewalDate, relativeDays } from "@/lib/contract-renewal";
 import { prisma } from "@/lib/db";
+import { getDossierStatutLabel } from "@/lib/dossiers";
 import { formatDateLong, formatMoney } from "@/lib/format";
 import {
   getProspectSecteurLabel,
   getProspectSourceLabel,
 } from "@/lib/labels";
 import { getProspectActivities } from "@/lib/queries/activities";
+import { getDossiersForProspect } from "@/lib/queries/dossiers";
 import { getProspectById } from "@/lib/queries/prospects";
 import { requireUser } from "@/lib/session";
 
@@ -73,6 +75,7 @@ export default async function ProspectDetailPage({ params }: PageProps) {
     emailSignatures,
     contracts,
     clientInvoices,
+    dossiers,
   ] = await Promise.all([
     getProspectById(user, id),
     getProspectActivities(id, user),
@@ -118,6 +121,7 @@ export default async function ProspectDetailPage({ params }: PageProps) {
       },
       orderBy: { dateEmission: "desc" },
     }),
+    getDossiersForProspect(user, id),
   ]);
 
   if (!prospect) notFound();
@@ -472,6 +476,91 @@ export default async function ProspectDetailPage({ params }: PageProps) {
                       className="h-8 px-2.5 text-xs"
                     />
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Projets / tâches du client — inclut l'historique archivé */}
+      <Card className="mt-6">
+        <CardHeader className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <CardTitle className="text-base">
+            Projets / tâches
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              ({dossiers.length})
+            </span>
+          </CardTitle>
+          <Link
+            href="/dossiers"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+          >
+            <Icon name="ClipboardList" className="mr-1.5 h-4 w-4" />
+            Gestion des projets
+          </Link>
+        </CardHeader>
+        <CardContent>
+          {dossiers.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Aucune tâche rattachée à ce client.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {dossiers.map((d) => (
+                <div
+                  key={d.id}
+                  className={cn(
+                    "flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border p-3",
+                    // L'historique passe en retrait visuel : il est là pour être
+                    // consulté, pas pour attirer l'œil comme le travail en cours.
+                    d.archive && "bg-muted/30 opacity-75",
+                  )}
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {d.titre}
+                  </span>
+
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium",
+                      d.statut === "TERMINE"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : d.statut === "EN_COURS"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-slate-100 text-slate-600",
+                    )}
+                  >
+                    {getDossierStatutLabel(d.statut)}
+                  </span>
+
+                  {d.archive && (
+                    <span className="inline-flex items-center rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                      Archivée
+                    </span>
+                  )}
+
+                  {d.nbDocuments > 0 && (
+                    <span className="text-[11px] text-muted-foreground">
+                      📎 {d.nbDocuments}
+                    </span>
+                  )}
+                  {d.nbUpdates > 0 && (
+                    <span className="text-[11px] text-muted-foreground">
+                      💬 {d.nbUpdates}
+                    </span>
+                  )}
+
+                  <span className="text-xs text-muted-foreground">
+                    {d.assigneA.name.split(" ")[0]}
+                  </span>
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {d.termineLe
+                      ? `Terminée le ${formatDateLong(d.termineLe)}`
+                      : d.echeance
+                        ? `Échéance ${formatDateLong(d.echeance)}`
+                        : ""}
+                  </span>
                 </div>
               ))}
             </div>
