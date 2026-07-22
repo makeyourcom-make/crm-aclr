@@ -512,7 +512,7 @@ describe("computeAssietteCommissionContrat (règle hybride par ligne)", () => {
     expect(centsToChf(a)).toBe(499 + 39 * 12); // toujours × 12
   });
 
-  it("Contrat MIXTE SITE + ADS 3 mois → SITE × 12, ADS × 3", () => {
+  it("Contrat MIXTE SITE + ADS 3 mois → SITE × 3, ADS × 3", () => {
     const a = computeAssietteCommissionContrat(
       [
         // Site Vitrine
@@ -531,14 +531,31 @@ describe("computeAssietteCommissionContrat (règle hybride par ligne)", () => {
       3,
     );
     const expected =
-      // SITE : 499 + 39 × 12 (× 12 même si contrat dure 3 mois — rare en
-      // pratique mais on garde la règle non-ADS uniforme)
+      // SITE : 499 + 39 × 3 — plafonné à la DURÉE RÉELLE, pas à l'an 1
+      // (règle 22.07.2026 : on ne commissionne pas 12 mois sur 3 facturés).
       499 +
-      39 * 12 +
+      39 * 3 +
       // ADS : 349 + 600 × 3
       349 +
       600 * 3;
     expect(centsToChf(a)).toBe(expected);
+  });
+
+  it("Contrat SEO 6 mois → assiette sur 6 mois, pas 12 (ACLR-2026-0052)", () => {
+    const a = computeAssietteCommissionContrat(
+      [{ oneShotCents: 0, mensuelCents: chfToCents(59), categorie: "SEO" }],
+      6,
+    );
+    // 59 × 6 = 354 (et non 59 × 12 = 708) → commission 25 % = 88.50
+    expect(centsToChf(a)).toBe(354);
+  });
+
+  it("Contrat CMO 3 mois → assiette sur 3 mois", () => {
+    const a = computeAssietteCommissionContrat(
+      [{ oneShotCents: 0, mensuelCents: chfToCents(399), categorie: "CMO" }],
+      3,
+    );
+    expect(centsToChf(a)).toBe(399 * 3);
   });
 
   it("Contrat MIXTE 12 mois → SITE × 12 + ADS × 12 (durée contractuelle)", () => {

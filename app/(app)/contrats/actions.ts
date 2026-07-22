@@ -1531,7 +1531,11 @@ function buildClientInvoicesForContract(params: {
     addDays(from, FACTURE_CLIENT_ECHEANCE_JOURS_DEFAULT);
 
   if (params.modalite === "CENT_AU_SIGNING") {
-    const totalCents = params.oneShotCents + params.mensuelCents * 12;
+    // « 100 % à la signature » = TOUT le contrat, donc sur sa durée réelle.
+    // C'était figé à × 12 : un contrat de 6 mois à 59/mois facturait 708 CHF
+    // au client au lieu de 354 — surfacturation (corrigé le 22.07.2026).
+    const mois = params.dureeMois > 0 ? params.dureeMois : 12;
+    const totalCents = params.oneShotCents + params.mensuelCents * mois;
     invoices.push({
       dateEmission: params.dateSignature,
       dateEcheance: echeance(params.dateSignature),
@@ -1540,10 +1544,13 @@ function buildClientInvoicesForContract(params: {
       lines: params.lines
         .filter((l) => l.lineOneShot > 0 || l.lineMensuel > 0)
         .map((l) => ({
-          designation: l.nom,
+          designation:
+            l.lineMensuel > 0
+              ? `${l.nom} — ${mois} mois`
+              : l.nom,
           quantite: l.quantite,
-          prixUnitaire: l.oneShotUnit + l.mensuelUnit * 12,
-          montantHT: centsToChf(l.lineOneShot + l.lineMensuel * 12),
+          prixUnitaire: l.oneShotUnit + l.mensuelUnit * mois,
+          montantHT: centsToChf(l.lineOneShot + l.lineMensuel * mois),
           productId: l.productId,
         })),
     });

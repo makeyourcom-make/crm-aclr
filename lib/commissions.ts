@@ -391,8 +391,16 @@ export const ADS_CATEGORIES = new Set<string>(["ADS"]);
  * Calcule l'assiette commission GLOBALE d'un contrat à partir de ses
  * lignes, en appliquant la bonne règle selon la catégorie produit.
  *
- *   - ligne ADS         → oneShot + mensuel × dureeMois (sans cap)
- *   - ligne non-ADS     → oneShot + mensuel × 12        (cap an 1)
+ *   - ligne ADS         → oneShot + mensuel × dureeMois         (sans cap)
+ *   - ligne non-ADS     → oneShot + mensuel × min(dureeMois, 12)
+ *
+ * Le `min(dureeMois, 12)` (décision Arthur, 22.07.2026) :
+ *   - contrat ≥ 12 mois → inchangé, l'assiette reste plafonnée à l'an 1 ;
+ *     les années suivantes passent par le mécanisme renouvellement (10 %/mois).
+ *   - contrat < 12 mois → on ne commissionne plus 12 mois de revenu pour un
+ *     contrat qui n'en facture que 3 ou 6. Ex. ACLR-2026-0052 (6 mois à
+ *     59/mois) : assiette 708 → 354, commission 177 → 88.50. La commission
+ *     dépassait la moitié du revenu réel du contrat.
  *
  * Retourne la somme des assiettes par ligne.
  */
@@ -418,10 +426,9 @@ export function computeAssietteCommissionContrat(
         dureeMois,
       });
     } else {
-      assietteCents += computeValeurAn1({
-        oneShotCents: l.oneShotCents,
-        mensuelCents: l.mensuelCents,
-      });
+      // Plafonné à l'an 1, mais jamais au-delà de la durée réelle du contrat.
+      assietteCents +=
+        l.oneShotCents + l.mensuelCents * Math.min(dureeMois, 12);
     }
   }
   return assietteCents;
