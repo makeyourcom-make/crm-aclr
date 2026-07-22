@@ -65,7 +65,7 @@ export async function getDossiersBoard(
       user.role === "ADMIN"
         ? { isActive: true, ...(assigneAId ? { id: assigneAId } : {}) }
         : { id: user.id },
-    select: { id: true, name: true },
+    select: { id: true, name: true, role: true },
     orderBy: [{ role: "asc" }, { name: "asc" }],
   });
 
@@ -85,10 +85,19 @@ export async function getDossiersBoard(
     orderBy: [{ priorite: "desc" }, { updatedAt: "desc" }],
   });
 
-  // Colonnes : (chaque collaborateur × à faire/en cours) puis « Terminé ».
+  // Colonnes : (chaque collaborateur × ses statuts) puis « Terminé ».
+  //
+  // L'ADMIN n'a PAS de colonne « En cours » (demande Arthur, 22.07.2026) : il
+  // pilote et attribue, l'exécution se suit chez les commerciales. Un projet
+  // qui serait malgré tout passé en EN_COURS sur son nom retombe dans son
+  // « À faire » via le repli plus bas — aucune carte ne disparaît.
   const columns: DossierColumn[] = [];
   for (const c of collaborateurs) {
-    for (const statut of DOSSIER_STATUTS_PAR_PERSONNE) {
+    const statuts =
+      c.role === "ADMIN"
+        ? (["A_FAIRE"] as typeof DOSSIER_STATUTS_PAR_PERSONNE)
+        : DOSSIER_STATUTS_PAR_PERSONNE;
+    for (const statut of statuts) {
       columns.push({
         key: dossierColumnKey(statut, c.id),
         statut,
