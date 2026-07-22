@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+/** Document joint dès la création (déjà uploadé sur Blob côté navigateur). */
+const DossierAttachmentInput = z.object({
+  url: z.string().url(),
+  nom: z.string().min(1).max(255),
+  mimeType: z.string().min(1).max(200),
+  taille: z.number().int().nonnegative(),
+});
+
 export const DossierCreateSchema = z.object({
   titre: z.string().trim().min(1, "Titre requis").max(200),
   description: z.string().trim().max(8000).optional(),
@@ -7,6 +15,8 @@ export const DossierCreateSchema = z.object({
   prospectId: z.string().min(1).optional().nullable(),
   priorite: z.enum(["BASSE", "NORMALE", "HAUTE"]).default("NORMALE"),
   echeance: z.coerce.date().optional().nullable(),
+  /** Documents joints au moment de la création (optionnel). */
+  attachments: z.array(DossierAttachmentInput).optional(),
 });
 export type DossierCreateInput = z.infer<typeof DossierCreateSchema>;
 

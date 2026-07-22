@@ -58,6 +58,22 @@ export async function createDossier(
         prospectId: parsed.data.prospectId || null,
         priorite: parsed.data.priorite,
         echeance: parsed.data.echeance ?? null,
+        // Documents joints dès la création : les fichiers sont déjà sur Blob,
+        // on ne persiste ici que les références (même schéma qu'un ajout
+        // ultérieur depuis le panneau de détail).
+        ...(parsed.data.attachments?.length
+          ? {
+              attachments: {
+                create: parsed.data.attachments.map((a) => ({
+                  ajouteParId: user.id,
+                  nom: a.nom,
+                  taille: a.taille,
+                  mimeType: a.mimeType,
+                  url: a.url,
+                })),
+              },
+            }
+          : {}),
       },
     });
     revalidatePath("/dossiers");

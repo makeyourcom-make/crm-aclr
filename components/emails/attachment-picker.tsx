@@ -28,6 +28,10 @@ interface AttachmentPickerProps {
   /** Limite globale en MB (Resend max 40MB) */
   maxTotalMb?: number;
   disabled?: boolean;
+  /** Dossier de rangement dans le stockage Blob (garde les fichiers triés). */
+  pathPrefix?: string;
+  /** Texte de la zone de dépôt (par défaut : formulation "pièces jointes"). */
+  label?: string;
 }
 
 export function AttachmentPicker({
@@ -35,6 +39,8 @@ export function AttachmentPicker({
   onChange,
   maxTotalMb = 25,
   disabled = false,
+  pathPrefix = "email-attachments",
+  label,
 }: AttachmentPickerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
@@ -66,7 +72,7 @@ export function AttachmentPicker({
         //    Contourne la limite 4.5 MB des fonctions serverless (cause des
         //    crashs sur les fichiers volumineux).
         try {
-          const blob = await upload(`email-attachments/${file.name}`, file, {
+          const blob = await upload(`${pathPrefix}/${file.name}`, file, {
             access: "public",
             handleUploadUrl: "/api/emails/attachments/upload",
             contentType: file.type || undefined,
@@ -150,7 +156,7 @@ export function AttachmentPicker({
           className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs hover:bg-muted disabled:opacity-50"
         >
           <Icon name="Upload" className="h-3 w-3" />
-          {pending ? "Upload…" : "Joindre un fichier"}
+          {pending ? "Upload…" : (label ?? "Joindre un fichier")}
         </button>
         <span className="text-[10px] text-muted-foreground">
           ou glisse-dépose ici — {Math.round((remaining / 1024 / 1024) * 10) / 10}{" "}

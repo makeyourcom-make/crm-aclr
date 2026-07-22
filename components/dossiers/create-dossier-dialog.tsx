@@ -5,6 +5,10 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { createDossier } from "@/app/(app)/dossiers/actions";
+import {
+  AttachmentPicker,
+  type PickedAttachment,
+} from "@/components/emails/attachment-picker";
 import { Icon } from "@/components/icon";
 import { ProspectCombobox } from "@/components/prospects/prospect-combobox";
 import { Button } from "@/components/ui/button";
@@ -44,6 +48,9 @@ export function CreateDossierDialog({
   const [priorite, setPriorite] = useState<DossierPriorite>("NORMALE");
   const [echeance, setEcheance] = useState("");
   const [prospectId, setProspectId] = useState("");
+  // Documents choisis AVANT création : la tâche n'existe pas encore, donc on
+  // garde les références en mémoire et on les rattache à la création.
+  const [documents, setDocuments] = useState<PickedAttachment[]>([]);
 
   const reset = () => {
     setTitre("");
@@ -52,6 +59,7 @@ export function CreateDossierDialog({
     setPriorite("NORMALE");
     setEcheance("");
     setProspectId("");
+    setDocuments([]);
   };
 
   const submit = () => {
@@ -67,6 +75,12 @@ export function CreateDossierDialog({
         priorite,
         echeance: echeance || undefined,
         prospectId: prospectId || undefined,
+        attachments: documents.map((d) => ({
+          url: d.url,
+          nom: d.filename,
+          mimeType: d.mimeType,
+          taille: d.size,
+        })),
       });
       if (!res.ok) {
         toast.error(res.error ?? "Échec de la création.");
@@ -173,6 +187,17 @@ export function CreateDossierDialog({
                 onSelect={(id) => setProspectId(id)}
                 allowCreate={false}
                 placeholder="Rechercher une entreprise…"
+              />
+            </div>
+
+            <div>
+              <Label>Documents (optionnel)</Label>
+              <AttachmentPicker
+                value={documents}
+                onChange={setDocuments}
+                disabled={pending}
+                pathPrefix="dossier-documents"
+                label="Joindre un document"
               />
             </div>
           </div>
