@@ -42,13 +42,19 @@ export interface DossiersBoardData {
 }
 
 /**
- * Charge le kanban des dossiers. RLS : l'admin voit tout ; un commercial voit
- * les dossiers qui lui sont assignés OU qu'il a créés.
+ * Charge le kanban des dossiers.
+ *
+ * VUE ÉQUIPE PARTAGÉE (demande Arthur, 22.07.2026) : tout le monde voit le
+ * MÊME tableau — toutes les colonnes (Arthur, Sophie…) et toutes les tâches,
+ * pas seulement les siennes. La gestion de projets se pilote en commun.
+ *
+ * ⚠️ La lecture est ouverte, PAS l'écriture : les garde-fous d'action restent
+ * en place (`assertCanAccessDossier`, réassignation réservée à l'admin). Une
+ * commerciale voit donc tout, gère ses propres tâches, mais ne peut ni modifier
+ * ni réassigner celles des autres.
  *
  * Les colonnes sont éclatées PAR COLLABORATEUR (« Arthur - à faire »,
- * « Sophie - en cours »…) puis une colonne « Terminé » commune. Un commercial
- * ne voit que ses propres colonnes : afficher celles des autres n'aurait aucun
- * sens puisque la RLS en masque déjà les cartes.
+ * « Sophie - à vérifier »…) puis une colonne « Terminé » commune.
  *
  * `assigneAId` (optionnel) : filtre admin sur un collaborateur précis.
  * `avecArchives` : inclut les tâches terminées depuis plus de 7 jours, qui
@@ -61,19 +67,15 @@ export async function getDossiersBoard(
 ): Promise<DossiersBoardData> {
   const where: Prisma.DossierWhereInput = {};
 
-  if (user.role !== "ADMIN") {
-    where.OR = [{ assigneAId: user.id }, { creeParId: user.id }];
-  } else if (assigneAId) {
+  // Filtre optionnel sur un collaborateur (réservé à l'admin ; sans effet sinon).
+  if (user.role === "ADMIN" && assigneAId) {
     where.assigneAId = assigneAId;
   }
 
-  // Collaborateurs dont on affiche les colonnes. L'admin d'abord (Arthur), puis
-  // les commerciales par ordre alphabétique — c'est l'ordre demandé.
+  // Colonnes affichées : tous les collaborateurs actifs, pour tout le monde.
+  // L'admin d'abord (Arthur), puis les commerciales par ordre alphabétique.
   const collaborateurs = await prisma.user.findMany({
-    where:
-      user.role === "ADMIN"
-        ? { isActive: true, ...(assigneAId ? { id: assigneAId } : {}) }
-        : { id: user.id },
+    where: { isActive: true, ...(assigneAId ? { id: assigneAId } : {}) },
     select: { id: true, name: true, role: true },
     orderBy: [{ role: "asc" }, { name: "asc" }],
   });
@@ -187,16 +189,17 @@ export interface DossierPourClient {
  *
  * Renvoie TOUT, archivées comprises : la fiche client est justement l'endroit
  * où l'historique reste consultable une fois la tâche sortie du kanban.
- * Les commerciaux ne voient que les leurs (même RLS que le kanban).
+ *
+ * Vue équipe partagée (comme le kanban) : toutes les tâches du client, pas
+ * seulement celles du collaborateur. L'accès à la fiche client elle-même est
+ * déjà filtré en amont (getProspectById), donc pas de re-scoping ici.
+ * `user` conservé pour l'auth d'appel.
  */
 export async function getDossiersForProspect(
-  user: SessionUser,
+  _user: SessionUser,
   prospectId: string,
 ): Promise<DossierPourClient[]> {
   const where: Prisma.DossierWhereInput = { prospectId };
-  if (user.role !== "ADMIN") {
-    where.OR = [{ assigneAId: user.id }, { creeParId: user.id }];
-  }
 
   const rows = await prisma.dossier.findMany({
     where,
@@ -231,10 +234,15 @@ export async function getDossiersForProspect(
 }
 
 /**
- * Détail complet d'un dossier (pour le panneau latéral). Renvoie null si absent
- * ou hors périmètre RLS (commercial ≠ assigné/créateur).
+ * Détail complet d'un dossier (pour le panneau latéral).
+ *
+ * Vue équipe partagée : tout collaborateur peut OUVRIR n'importe quelle tâche
+ * du tableau (sinon cliquer une carte d'un collègue n'afficherait rien). Les
+ * actions d'écriture restent gardées séparément (assertCanAccessDossier).
+ * `user` est conservé en signature pour l'auth d'appel et un éventuel
+ * durcissement ultérieur.
  */
-export async function getDossierById(user: SessionUser, id: string) {
+export async function getDossierById(_user: SessionUser, id: string) {
   const d = await prisma.dossier.findUnique({
     where: { id },
     select: {
@@ -274,14 +282,6 @@ export async function getDossierById(user: SessionUser, id: string) {
       },
     },
   });
-  if (!d) return null;
-  if (
-    user.role !== "ADMIN" &&
-    d.assigneAId !== user.id &&
-    d.creeParId !== user.id
-  ) {
-    return null;
-  }
   return d;
 }
 
