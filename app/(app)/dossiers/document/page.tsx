@@ -1,3 +1,4 @@
+import { DossierDocPreview } from "@/components/dossiers/dossier-doc-preview";
 import { DossiersTabs } from "@/components/dossiers/dossiers-tabs";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
@@ -49,15 +50,10 @@ export default async function DossiersDocumentPage() {
         Doc et mets « Lecteur » pour les titulaires du lien.)
       </div>
 
-      {/* Aperçu intégré (lecture seule). L'iframe /preview est conçue pour être
-          embarquée ; l'édition passe par le bouton (frame-ancestors Google). */}
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
-        <iframe
-          src={DOSSIERS_DOC_PREVIEW_URL}
-          title="Document de suivi des projets"
-          className="h-[calc(100vh-19rem)] min-h-[32rem] w-full"
-        />
-      </div>
+      {/* Aperçu intégré (lecture seule) + bouton Actualiser. L'iframe /preview
+          est conçue pour être embarquée ; l'édition passe par le bouton du haut
+          (frame-ancestors de Google interdit l'édition en iframe). */}
+      <DossierDocPreview previewUrl={DOSSIERS_DOC_PREVIEW_URL} />
     </div>
   );
 }
