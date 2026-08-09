@@ -35,7 +35,8 @@ const nextConfig: NextConfig = {
           // - script/style : 'unsafe-inline'/'unsafe-eval' requis par Next ;
           //   blob: pour ses workers/chunks dynamiques.
           // - img/font/connect : 'self' + https/data (logos clients, polices).
-          // - frame-src 'self' : autorise l'aperçu email (iframe srcdoc).
+          // - frame-src 'self' : aperçu email (iframe srcdoc) ; + docs.google.com
+          //   pour l'aperçu intégré du document de suivi projets (lecture seule).
           // - object-src 'none', base-uri, form-action, frame-ancestors : strict.
           // report-uri conservé → toute violation résiduelle reste visible.
           {
@@ -47,7 +48,7 @@ const nextConfig: NextConfig = {
               "img-src 'self' data: blob: https:",
               "font-src 'self' data: https:",
               "connect-src 'self' https: blob: data:",
-              "frame-src 'self'",
+              "frame-src 'self' https://docs.google.com",
               "worker-src 'self' blob:",
               "object-src 'none'",
               "base-uri 'self'",

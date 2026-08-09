@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { CreateDossierDialog } from "@/components/dossiers/create-dossier-dialog";
 import { DossiersBoard } from "@/components/dossiers/dossiers-board";
+import { DossiersTabs } from "@/components/dossiers/dossiers-tabs";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
@@ -42,6 +43,8 @@ export default async function DossiersPage({ searchParams }: PageProps) {
         }`}
         actions={<CreateDossierDialog users={users} currentUserId={user.id} />}
       />
+
+      <DossiersTabs />
 
       {(board.nbArchivees > 0 || avecArchives) && (
         <div className="mb-3">
