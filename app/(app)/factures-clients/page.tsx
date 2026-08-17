@@ -3,6 +3,7 @@ import Link from "next/link";
 import { DocumentPreviewButton } from "@/components/common/document-preview-button";
 import { DeleteClientInvoiceButton } from "@/components/common/entity-delete-buttons";
 import { SendInvoiceButton } from "@/components/factures-clients/send-invoice-button";
+import { SendAllDraftsButton } from "@/components/factures-clients/send-all-drafts-button";
 import { SortableHeader } from "@/components/common/sortable-header";
 import { ClientInvoiceFilters } from "@/components/factures-clients/client-invoice-filters";
 import { MarkInvoicePaidButton } from "@/components/paiements/mark-invoice-paid-button";
@@ -120,7 +121,17 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
     }
   })();
 
-  const [invoices, stats, prospectsList] = await Promise.all([
+  // Tous les brouillons à envoyer (indépendant de la limite d'affichage et du
+  // filtre courant) — alimente le bouton « Envoyer tous les brouillons ».
+  const draftsWhere: Prisma.ClientInvoiceWhereInput = {
+    statut: "BROUILLON",
+    contract: {
+      statut: { in: ["ACTIF", "SUSPENDU", "RESILIE", "EXPIRE"] },
+      ...(user.role !== "ADMIN" ? { assigneAId: user.id } : {}),
+    },
+  };
+
+  const [invoices, stats, prospectsList, draftRows] = await Promise.all([
     prisma.clientInvoice.findMany({
       where,
       include: {
@@ -153,7 +164,29 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
       select: { id: true, raisonSociale: true },
       orderBy: { raisonSociale: "asc" },
     }),
+    prisma.clientInvoice.findMany({
+      where: draftsWhere,
+      select: {
+        id: true,
+        numero: true,
+        total: true,
+        devise: true,
+        contract: {
+          select: { prospect: { select: { raisonSociale: true, email: true } } },
+        },
+      },
+      orderBy: { total: "desc" },
+    }),
   ]);
+
+  const drafts = draftRows.map((d) => ({
+    id: d.id,
+    numero: d.numero,
+    clientName: d.contract.prospect.raisonSociale,
+    clientEmail: d.contract.prospect.email,
+    total: Number(d.total),
+    devise: d.devise,
+  }));
 
   // Marque automatiquement en retard les ENVOYEE dont dateEcheance < now (visuel)
   const enriched = invoices.map((inv) => {
@@ -172,10 +205,13 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
 
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-      <PageHeader
-        title="Factures clients"
-        description={`${invoices.length} facture(s) émise(s) par ACLR Sàrl. Génération automatique à la signature et à chaque renouvellement.`}
-      />
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <PageHeader
+          title="Factures clients"
+          description={`${invoices.length} facture(s) émise(s) par ACLR Sàrl. Génération automatique à la signature et à chaque renouvellement.`}
+        />
+        <SendAllDraftsButton drafts={drafts} />
+      </div>
 
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi
