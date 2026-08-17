@@ -21,6 +21,7 @@ import {
   deleteThreadsBulk,
   emptyTrash,
   forwardEmail,
+  markEmailAsSpam,
   markThreadRead,
   purgeEmail,
   replyToEmail,
@@ -1251,6 +1252,30 @@ function MessageBubble({
     });
   };
 
+  const handleSpam = () => {
+    if (
+      !confirm(
+        `Bloquer « ${message.expediteurEmail} » ?\n\nCe message et tous ceux de cet expéditeur partent à la corbeille, et les futurs seront filtrés automatiquement. Récupérable à tout moment via Filtres.`,
+      )
+    )
+      return;
+    startTransition(async () => {
+      const res = await markEmailAsSpam(message.id);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success(
+        `Expéditeur bloqué — ${res.moved ?? 0} message(s) à la corbeille.`,
+      );
+      onRefresh();
+    });
+  };
+
+  // Un mail entrant, hors corbeille, non rattaché à un client → blocable.
+  const canBlock =
+    !inTrash && message.direction === "ENTRANT" && !message.prospect;
+
   return (
     <div
       className={`rounded-lg border p-3 ${
@@ -1315,6 +1340,17 @@ function MessageBubble({
             </>
           ) : (
             <>
+              {canBlock && (
+                <button
+                  type="button"
+                  onClick={handleSpam}
+                  disabled={pending}
+                  className="rounded-md p-1 text-muted-foreground hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                  title={`Bloquer l'expéditeur (spam) — ${message.expediteurEmail}`}
+                >
+                  <Icon name="ShieldBan" className="h-3 w-3" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleArchive}

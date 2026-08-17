@@ -21,6 +21,7 @@ import { put } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
+import { findBlockingRule } from "@/lib/email-block";
 
 /**
  * Le payload Resend varie selon l'event :
@@ -344,6 +345,21 @@ export async function POST(req: Request) {
       });
     }
 
+    // ── Filtre anti-spam ────────────────────────────────────────────────
+    // Un expéditeur/domaine/sujet qui matche une règle active → le mail est
+    // créé mais DIRECTEMENT à la corbeille (récupérable), non-lu à false, sans
+    // Activity. On ne bloque JAMAIS un mail rattaché à un client connu (prospect
+    // trouvé) : une réponse d'un client prime toujours sur une règle générique.
+    const blockRules = prospect
+      ? []
+      : await prisma.emailBlockRule.findMany({
+          where: { actif: true },
+          select: { id: true, type: true, value: true },
+        });
+    const blocked = prospect
+      ? null
+      : findBlockingRule(fromEmail, subject, blockRules);
+
     const email = await prisma.email.create({
       data: {
         prospectId: prospect?.id ?? null,
@@ -360,10 +376,23 @@ export async function POST(req: Request) {
         contenuTexte: text,
         statut: "LIVRE",
         envoyeLe: payload.data?.created_at ? new Date(payload.data.created_at) : new Date(),
-        labels: ["inbound:resend"],
-        lu: false, // Email entrant = non-lu par défaut
+        labels: blocked ? ["inbound:resend", "spam"] : ["inbound:resend"],
+        lu: blocked ? true : false, // spam → pas compté comme non-lu
+        supprime: !!blocked, // spam → corbeille direct (récupérable)
+        supprimeeLe: blocked ? new Date() : null,
       },
     });
+
+    if (blocked) {
+      await prisma.emailBlockRule.update({
+        where: { id: blocked.id },
+        data: { nbBloques: { increment: 1 } },
+      });
+      console.log(
+        `[resend-inbound] 🚫 Spam bloqué de ${fromEmail} (règle ${blocked.type}:${blocked.value}) → corbeille`,
+      );
+      return NextResponse.json({ ok: true, blocked: blocked.id, emailId: email.id });
+    }
 
     // Récupère les pièces jointes via l'API Resend Receiving et les
     // stocke sur Vercel Blob (les URL Resend expirent). Ignore les

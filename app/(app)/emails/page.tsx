@@ -1,6 +1,10 @@
+import Link from "next/link";
+
 import { ComposeEmailButton } from "@/components/emails/compose-email-button";
 import { InboxView } from "@/components/emails/inbox-view";
+import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
+import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 
@@ -76,7 +80,16 @@ export default async function EmailsPage() {
           title="Boîte de réception"
           description={`${emails.length} email(s) suivi(s) — envoyés et reçus via le CRM.`}
         />
-        <ComposeEmailButton />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/emails/filtres"
+            className={buttonVariants({ variant: "outline" })}
+          >
+            <Icon name="ShieldBan" className="mr-1.5 h-4 w-4" />
+            Filtres anti-spam
+          </Link>
+          <ComposeEmailButton />
+        </div>
       </div>
 
       {isDryRun && (

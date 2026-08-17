@@ -390,6 +390,7 @@ model User {
   emailSignatures   EmailSignature[]
   auditLogs         AuditLog[]
   dossierAttachments  DossierAttachment[]
+  emailBlockRules   EmailBlockRule[]
   dossiersAssignes  Dossier[]          @relation("DossierAssignee")
   dossiersCrees     Dossier[]          @relation("DossierCreateur")
   dossierUpdates    DossierUpdate[]
@@ -1358,6 +1359,39 @@ model EmailAttachment {
 
   @@index([emailId])
   @@map("email_attachments")
+}
+
+/// Règle de blocage anti-spam pour les emails ENTRANTS.
+/// À la réception (webhook Resend inbound), un mail dont l'expéditeur/domaine
+/// ou le sujet matche une règle ACTIVE est directement mis à la CORBEILLE
+/// (jamais supprimé pour de bon — récupérable), sans créer d'Activity.
+model EmailBlockRule {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  /// SENDER = adresse exacte ; DOMAIN = domaine expéditeur ; SUBJECT = mot-clé
+  /// dans l'objet (insensible à la casse).
+  type  EmailBlockType
+  /// Valeur à comparer (adresse, domaine ou mot-clé) — stockée en minuscules.
+  value String
+  actif Boolean @default(true)
+
+  /// Qui a créé la règle (traçabilité) — nullable pour les règles seed système.
+  creePar   User?   @relation(fields: [creeParId], references: [id], onDelete: SetNull)
+  creeParId String?
+
+  /// Compteur de mails bloqués par cette règle (info).
+  nbBloques Int @default(0)
+
+  @@unique([type, value])
+  @@index([actif])
+  @@map("email_block_rules")
+}
+
+enum EmailBlockType {
+  SENDER
+  DOMAIN
+  SUBJECT
 }
 
 // ============================================================================

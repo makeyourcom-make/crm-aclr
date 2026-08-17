@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { prisma } from "@/lib/db";
+import { findBlockingRule } from "@/lib/email-block";
 import { htmlToPlainText, sanitizeEmailHtml } from "@/lib/email-html";
 import { resolveFromAddress, sendMail } from "@/lib/mailer";
 import { requireUser } from "@/lib/session";
@@ -1379,4 +1380,114 @@ export async function sendDraft(draftId: string): Promise<SendEmailResult> {
   revalidatePath("/emails");
   revalidatePath("/activites");
   return { ok: true, emailId: draft.id, dryRun: isDryRun };
+}
+
+// ===========================================================================
+// FILTRES ANTI-SPAM (règles de blocage des emails entrants)
+// ===========================================================================
+
+export interface BlockRuleResult {
+  ok: boolean;
+  error?: string;
+  /** Nombre de mails déplacés à la corbeille par l'opération. */
+  moved?: number;
+}
+
+/**
+ * « Marquer comme spam » depuis un mail : crée une règle SENDER (adresse exacte
+ * — le plus sûr, ne bloque pas tout un domaine par erreur) et envoie à la
+ * corbeille TOUS les mails entrants existants de cet expéditeur (non liés à un
+ * client). Les futurs seront filtrés à la réception.
+ */
+export async function markEmailAsSpam(emailId: string): Promise<BlockRuleResult> {
+  const user = await requireUser();
+  const email = await prisma.email.findFirst({
+    where: { id: emailId, userId: user.id },
+    select: { expediteurEmail: true },
+  });
+  if (!email?.expediteurEmail) {
+    return { ok: false, error: "Expéditeur introuvable." };
+  }
+  const value = email.expediteurEmail.toLowerCase().trim();
+
+  await prisma.emailBlockRule.upsert({
+    where: { type_value: { type: "SENDER", value } },
+    create: { type: "SENDER", value, creeParId: user.id },
+    update: { actif: true },
+  });
+
+  // Corbeille pour tous les mails existants de cet expéditeur (les miens, non
+  // déjà supprimés, non rattachés à un client — un client prime toujours).
+  const res = await prisma.email.updateMany({
+    where: {
+      userId: user.id,
+      direction: "ENTRANT",
+      supprime: false,
+      prospectId: null,
+      expediteurEmail: { equals: value, mode: "insensitive" },
+    },
+    data: { supprime: true, supprimeeLe: new Date(), lu: true, labels: { push: "spam" } },
+  });
+
+  revalidatePath("/emails");
+  return { ok: true, moved: res.count };
+}
+
+/** Liste les règles anti-spam (admin + commerciaux — filtre partagé). */
+export async function listBlockRules() {
+  await requireUser();
+  return prisma.emailBlockRule.findMany({
+    orderBy: [{ actif: "desc" }, { nbBloques: "desc" }, { createdAt: "desc" }],
+    select: { id: true, type: true, value: true, actif: true, nbBloques: true },
+  });
+}
+
+/** Ajoute une règle manuelle (l'admin ou une commerciale saisit domaine/mot). */
+export async function addBlockRule(
+  type: "SENDER" | "DOMAIN" | "SUBJECT",
+  rawValue: string,
+): Promise<BlockRuleResult> {
+  const user = await requireUser();
+  const value = rawValue.toLowerCase().trim();
+  if (value.length < 2) return { ok: false, error: "Valeur trop courte." };
+  if (type === "DOMAIN" && value.includes("@"))
+    return { ok: false, error: "Un domaine ne contient pas de @ (ex. spam.com)." };
+
+  await prisma.emailBlockRule.upsert({
+    where: { type_value: { type, value } },
+    create: { type, value, creeParId: user.id },
+    update: { actif: true },
+  });
+
+  // Applique rétroactivement aux mails déjà reçus (hors clients).
+  const existing = await prisma.email.findMany({
+    where: { userId: user.id, direction: "ENTRANT", supprime: false, prospectId: null },
+    select: { id: true, expediteurEmail: true, objet: true },
+  });
+  const toMove = existing
+    .filter((e) => findBlockingRule(e.expediteurEmail, e.objet, [{ id: "x", type, value }]))
+    .map((e) => e.id);
+  if (toMove.length > 0) {
+    await prisma.email.updateMany({
+      where: { id: { in: toMove } },
+      data: { supprime: true, supprimeeLe: new Date(), lu: true },
+    });
+  }
+  revalidatePath("/emails");
+  return { ok: true, moved: toMove.length };
+}
+
+/** Active/désactive ou supprime une règle. */
+export async function toggleBlockRule(id: string, actif: boolean): Promise<BlockRuleResult> {
+  await requireUser();
+  await prisma.emailBlockRule.update({ where: { id }, data: { actif } });
+  revalidatePath("/emails");
+  return { ok: true };
+}
+
+export async function deleteBlockRule(id: string): Promise<BlockRuleResult> {
+  await requireUser();
+  await prisma.emailBlockRule.delete({ where: { id } });
+  revalidatePath("/emails");
+  return { ok: true };
 }
