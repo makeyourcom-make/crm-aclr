@@ -67,6 +67,24 @@ function firstOfMonthUTC(d: Date): Date {
   return new Date(Date.UTC(d.getFullYear(), d.getMonth(), 1));
 }
 
+const MOIS_FR_CAP = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+];
+/**
+ * Libellé de facturation d'une mensualité RÉCURRENTE : « pour le mois d'Août 2026 ».
+ * On n'utilise PLUS « X/12 » pour le récurrent car un abonnement se renouvelle
+ * automatiquement au-delà de 12 mois (X/12 deviendrait 13/12…). Le « X/12 » reste
+ * réservé au setup amorti (qui, lui, s'amortit vraiment sur 12 mois puis s'arrête).
+ * Élision « d' » devant les mois à voyelle initiale (Avril, Août, Octobre).
+ * Composants LOCAUX, cohérent avec moisKeyLocal/firstOfMonthUTC.
+ */
+function moisFacturationLabel(d: Date): string {
+  const m = d.getMonth();
+  const elision = m === 3 || m === 7 || m === 9;
+  return `pour le mois ${elision ? "d'" : "de "}${MOIS_FR_CAP[m]} ${d.getFullYear()}`;
+}
+
 function effectiveUnitPrices(
   baseOneShot: number,
   baseMensuel: number,
@@ -1608,7 +1626,7 @@ function buildClientInvoicesForContract(params: {
           lines: params.lines
             .filter((l) => l.lineMensuel > 0)
             .map((l) => ({
-              designation: `${l.nom} — mensualité ${i + 1}/12`,
+              designation: `${l.nom} ${moisFacturationLabel(dateEmission)}`,
               quantite: l.quantite,
               prixUnitaire: l.mensuelUnit,
               montantHT: centsToChf(l.lineMensuel),
@@ -1651,7 +1669,7 @@ function buildClientInvoicesForContract(params: {
       for (const l of params.lines) {
         if (l.lineMensuel > 0) {
           lineMonth.push({
-            designation: `${l.nom} — mensualité ${i + 1}/12`,
+            designation: `${l.nom} ${moisFacturationLabel(dateEmission)}`,
             quantite: l.quantite,
             prixUnitaire: l.mensuelUnit,
             montantHT: centsToChf(l.lineMensuel),
@@ -2202,7 +2220,7 @@ async function createDueInvoicesForContract(
       const lignes = billing.lines
         .filter((l) => l.lineMensuel > 0)
         .map((l, idx) => ({
-          designation: `${l.nom} — mensualité (renouvellement)`,
+          designation: `${l.nom} ${moisFacturationLabel(emission)}`,
           quantite: l.quantite,
           prixUnitaire: l.mensuelUnit,
           montantHT: centsToChf(l.lineMensuel),
