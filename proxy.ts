@@ -10,6 +10,9 @@
  * matcher exclut :
  *   - /api/auth/*            (handler NextAuth lui-même)
  *   - /api/webhooks/*        (webhooks tiers — Resend, etc. - signature HMAC pour l'auth)
+ *   - /api/cron/*            (tâches planifiées Vercel Cron — auth par CRON_SECRET,
+ *                             pas de session ; sinon le middleware redirige 307 → /login
+ *                             et le cron ne s'exécute JAMAIS)
  *   - /api/calendar/feed/*   (abonnement iCalendar — auth par token dans l'URL)
  *   - /_next/static          (assets statiques)
  *   - /_next/image           (images optimisées)
@@ -24,6 +27,6 @@ export default NextAuth(authConfig).auth;
 
 export const config = {
   matcher: [
-    "/((?!api/auth|api/webhooks|api/calendar/feed|api/version|manifest.webmanifest|sign/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mjs|js|css|woff|woff2|map)$).*)",
+    "/((?!api/auth|api/webhooks|api/cron|api/calendar/feed|api/version|manifest.webmanifest|sign/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mjs|js|css|woff|woff2|map)$).*)",
   ],
 };
