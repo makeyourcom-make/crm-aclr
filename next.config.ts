@@ -78,7 +78,7 @@ const nextConfig: NextConfig = {
   experimental: {
     // Activer la full-text search côté Prisma sans warning
     serverActions: {
-      bodySizeLimit: "10mb", // pour l'import CSV de prospects
+      bodySizeLimit: "25mb", // import CSV prospects + contrats signés scannés (PDF 8+ pages)
       // Domaines autorisés à appeler les Server Actions. Sans ça, derrière un
       // domaine personnalisé / reverse-proxy, Next rejette les POST d'actions
       // (vérification Origin vs Host) → recherche, click-to-call, etc. échouent.

@@ -1404,11 +1404,12 @@ export async function uploadSignedContract(
     return { ok: false, error: "Pas d'accès à ce contrat." };
   }
 
-  // Garde-fou taille : 5 MB max sur la data URL (~3.75 MB de PDF réel)
-  if (parsed.data.fileDataUrl.length > 5_500_000) {
+  // Garde-fou taille : ~21 MB max sur la data URL base64 (~15 MB de fichier
+  // réel après décodage). Couvre un scan couleur de 8+ pages.
+  if (parsed.data.fileDataUrl.length > 21_000_000) {
     return {
       ok: false,
-      error: "PDF trop volumineux (max 4 MB).",
+      error: "PDF trop volumineux (max 15 MB).",
     };
   }
 

@@ -790,7 +790,12 @@ export function ContractWizard({
               label="Récurrent mensuel"
               value={`${fmt(calc.mensuel)} / mois`}
             />
-            <RecapLine label="Valeur an 1" value={fmt(calc.valeurAn1)} big />
+            <RecapLine
+              label={`Valeur totale (${calc.dureeMoisNum} mois)`}
+              value={fmt(calc.oneShot + calc.mensuel * calc.dureeMoisNum)}
+              big
+            />
+            <RecapLine label="Valeur an 1" value={fmt(calc.valeurAn1)} />
           </div>
 
           {/* Détails INTERNES (commission, automatisations) — masqués par

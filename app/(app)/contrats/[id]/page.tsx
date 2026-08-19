@@ -216,9 +216,17 @@ export default async function ContractDetailPage({ params }: PageProps) {
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi
-          label="Valeur an 1"
+          label={`Valeur totale (${contract.dureeMois} mois)`}
+          value={formatMoney(
+            Number(contract.montantOneShot) +
+              Number(contract.montantMensuel) * contract.dureeMois,
+            contract.devise,
+          )}
+        />
+        <Kpi
+          label="Valeur an 1 (base commission)"
           value={formatMoney(Number(contract.valeurAn1), contract.devise)}
         />
         <Kpi

@@ -61,8 +61,8 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
       toast.error("Le fichier doit être un PDF ou une image (scan/photo).");
       return;
     }
-    if (file.size > 4 * 1024 * 1024) {
-      toast.error("Fichier trop volumineux (max 4 MB).");
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("Fichier trop volumineux (max 15 MB).");
       return;
     }
     const reader = new FileReader();
@@ -165,7 +165,7 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
                       Glisse le fichier ici ou clique pour parcourir
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      PDF ou image (JPG, PNG), max 4 MB
+                      PDF ou image (JPG, PNG), max 15 MB
                     </p>
                   </>
                 )}
