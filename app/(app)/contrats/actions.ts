@@ -211,7 +211,7 @@ export async function createContractFromDeal(
     oneShotCents += lineOneShot;
     mensuelCents += lineMensuel;
     const note = (line.note ?? "").trim();
-    const nom = note ? `${prod.nom} — ${note}` : prod.nom;
+    const nom = note ? `${prod.nom} - ${note}` : prod.nom;
     return {
       productId: line.productId,
       categorie: prod.categorieCode ?? prod.categorie, // règle commission ADS (catégorie effective)
@@ -306,7 +306,7 @@ export async function createContractFromDeal(
           data: {
             prospectId: parsed.data.prospectId,
             assigneAId: user.id,
-            titre: `Contrat — ${prospectForDevise.raisonSociale}`,
+            titre: `Contrat - ${prospectForDevise.raisonSociale}`,
             montantPrevu: centsToChf(valeurAn1Cents),
             stage,
             probabilite: probaParStage[stage] ?? 40,
@@ -499,7 +499,7 @@ export async function updateContract(
       oneShotCents += lineOneShot;
       mensuelCents += lineMensuel;
       const note = (line.note ?? "").trim();
-      const nom = note ? `${prod.nom} — ${note}` : prod.nom;
+      const nom = note ? `${prod.nom} - ${note}` : prod.nom;
       return {
         productId: line.productId,
         categorie: prod.categorieCode ?? prod.categorie,
@@ -883,7 +883,7 @@ export async function sendSignatureByEmail(
   const greeting = contract.prospect.contactPrenom
     ? `Bonjour ${contract.prospect.contactPrenom},`
     : `Bonjour,`;
-  const objet = `Votre contrat ${contract.numero} — Make Your Com`;
+  const objet = `Votre contrat ${contract.numero} - Make Your Com`;
   const contenuTexte = [
     greeting,
     "",
@@ -895,11 +895,11 @@ export async function sendSignatureByEmail(
     "Vous pouvez aussi télécharger le PDF du contrat ici :",
     pdfUrl,
     "",
-    "Si vous préférez l'imprimer, le signer à la main et nous le renvoyer scanné, c'est tout à fait possible — répondez simplement à cet email avec le PDF signé.",
+    "Si vous préférez l'imprimer, le signer à la main et nous le renvoyer scanné, c'est tout à fait possible - répondez simplement à cet email avec le PDF signé.",
     "",
     "Bien cordialement,",
     user.name,
-    "ACLR Sàrl — Make Your Com",
+    "ACLR Sàrl - Make Your Com",
   ].join("\n");
   const contenuHtml = `
     <p>${greeting}</p>
@@ -909,7 +909,7 @@ export async function sendSignatureByEmail(
     <p>Vous pouvez aussi <a href="${pdfUrl}">télécharger le PDF du contrat</a> pour le consulter, l'imprimer, le signer à la main et nous le renvoyer scanné par retour d'email.</p>
     <p>Bien cordialement,<br>
     ${user.name}<br>
-    <em>ACLR Sàrl — Make Your Com</em></p>
+    <em>ACLR Sàrl - Make Your Com</em></p>
   `;
 
   // Récupère l'email expéditeur
@@ -1041,7 +1041,7 @@ export async function sendContractSignatureEmail(
   const greeting = contract.prospect.contactPrenom
     ? `Bonjour ${contract.prospect.contactPrenom},`
     : "Bonjour,";
-  const objet = `Votre contrat ${contract.numero} — Make Your Com`;
+  const objet = `Votre contrat ${contract.numero} - Make Your Com`;
   const valeur = Number(contract.valeurAn1).toLocaleString("fr-CH");
   const contenuTexte = [
     greeting,
@@ -1056,7 +1056,7 @@ export async function sendContractSignatureEmail(
     "",
     "Bien cordialement,",
     user.name,
-    "ACLR Sàrl — Make Your Com",
+    "ACLR Sàrl - Make Your Com",
   ].join("\n");
   const contenuHtml = `
     <p>${greeting}</p>
@@ -1064,7 +1064,7 @@ export async function sendContractSignatureEmail(
     <p><strong>Pour le signer en ligne en 2 minutes :</strong><br>
     <a href="${signUrl}" style="display:inline-block;background:#0E1936;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;margin-top:8px;">Signer le contrat ✍</a></p>
     <p>Vous pouvez aussi <a href="${pdfUrl}">télécharger le PDF du contrat</a> pour le consulter, l'imprimer, le signer à la main et nous le renvoyer scanné par retour d'email.</p>
-    <p>Bien cordialement,<br>${user.name}<br><em>ACLR Sàrl — Make Your Com</em></p>
+    <p>Bien cordialement,<br>${user.name}<br><em>ACLR Sàrl - Make Your Com</em></p>
   `;
 
   const userFull = await prisma.user.findUnique({
@@ -1179,7 +1179,7 @@ export async function prepareContractEmail(contractId: string): Promise<{
     "",
     "Bien cordialement,",
     user.name,
-    "ACLR Sàrl — Make Your Com",
+    "ACLR Sàrl - Make Your Com",
   ].join("\n");
 
   return {
@@ -1187,7 +1187,7 @@ export async function prepareContractEmail(contractId: string): Promise<{
     data: {
       to: contract.prospect.email,
       numero: contract.numero,
-      defaultSubject: `Votre contrat ${contract.numero} — Make Your Com`,
+      defaultSubject: `Votre contrat ${contract.numero} - Make Your Com`,
       defaultBody,
     },
   };
@@ -1564,7 +1564,7 @@ function buildClientInvoicesForContract(params: {
         .map((l) => ({
           designation:
             l.lineMensuel > 0
-              ? `${l.nom} — ${mois} mois`
+              ? `${l.nom} - ${mois} mois`
               : l.nom,
           quantite: l.quantite,
           prixUnitaire: l.oneShotUnit + l.mensuelUnit * mois,
@@ -1585,7 +1585,7 @@ function buildClientInvoicesForContract(params: {
         lines: params.lines
           .filter((l) => l.lineOneShot > 0)
           .map((l) => ({
-            designation: `${l.nom} — acompte 50%`,
+            designation: `${l.nom} - acompte 50%`,
             quantite: l.quantite,
             prixUnitaire: l.oneShotUnit / 2,
             montantHT: centsToChf(Math.round(l.lineOneShot / 2)),
@@ -1601,7 +1601,7 @@ function buildClientInvoicesForContract(params: {
         lines: params.lines
           .filter((l) => l.lineOneShot > 0)
           .map((l) => ({
-            designation: `${l.nom} — solde 50%`,
+            designation: `${l.nom} - solde 50%`,
             quantite: l.quantite,
             prixUnitaire: l.oneShotUnit / 2,
             montantHT: centsToChf(l.lineOneShot - Math.round(l.lineOneShot / 2)),
@@ -1685,7 +1685,7 @@ function buildClientInvoicesForContract(params: {
             linesSetupParCents[key] + (isLastMonth ? linesSetupReste[key] : 0);
           if (partCents > 0) {
             lineMonth.unshift({
-              designation: `${l.nom} — setup amorti ${i + 1}/12`,
+              designation: `${l.nom} - setup amorti ${i + 1}/12`,
               quantite: 1,
               prixUnitaire: centsToChf(partCents),
               montantHT: centsToChf(partCents),
@@ -2376,7 +2376,7 @@ export async function generateDueClientInvoices(): Promise<{
             lignes: {
               create: [
                 {
-                  designation: `Forfait annuel — renouvellement (${debutLbl} à ${finLbl})`,
+                  designation: `Forfait annuel - renouvellement (${debutLbl} à ${finLbl})`,
                   quantite: 1,
                   prixUnitaire: montant,
                   montantHT: montant,

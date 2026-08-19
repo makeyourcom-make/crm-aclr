@@ -100,7 +100,7 @@ export async function getInvoiceEmailDefaults(
   );
   const greeting = prenom ? `Bonjour ${prenom},` : "Bonjour,";
 
-  const subject = `Facture ${invoice.numero} — ${invoice.contract.prospect.raisonSociale}`;
+  const subject = `Facture ${invoice.numero} - ${invoice.contract.prospect.raisonSociale}`;
   const body = [
     greeting,
     "",
@@ -232,7 +232,7 @@ export async function sendClientInvoiceByEmail(
   // par l'UI (dialog "Envoyer"), sinon les valeurs par défaut.
   const subject =
     customSubject?.trim() ||
-    `Facture ${invoice.numero} — ${invoice.contract.prospect.raisonSociale}`;
+    `Facture ${invoice.numero} - ${invoice.contract.prospect.raisonSociale}`;
 
   const greeting = prenom ? `Bonjour ${prenom},` : "Bonjour,";
   const defaultText = [
@@ -459,7 +459,7 @@ export async function sendDueSoonReminders(): Promise<{
         inv.devise;
 
       const greeting = prenom ? `Bonjour ${prenom},` : "Bonjour,";
-      const subject = `Rappel — facture ${inv.numero} à échéance le ${echeanceStr}`;
+      const subject = `Rappel - facture ${inv.numero} à échéance le ${echeanceStr}`;
       const text = [
         greeting,
         "",

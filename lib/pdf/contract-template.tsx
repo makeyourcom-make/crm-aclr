@@ -437,7 +437,7 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
   return (
     <Document
       title={`Contrat ${data.numero}`}
-      subject={`Contrat ${data.numero} — ${data.client.raisonSociale}`}
+      subject={`Contrat ${data.numero} - ${data.client.raisonSociale}`}
     >
       <Page size="A4" style={styles.page}>
         {/*

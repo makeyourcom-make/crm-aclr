@@ -99,7 +99,7 @@ export function CgvPages() {
         style={styles.footer}
         fixed
         render={({ pageNumber, totalPages }) =>
-          `ACLR Sàrl — MakeYourCom · CGV ${CGV_VERSION} · page ${pageNumber}/${totalPages}`
+          `ACLR Sàrl - MakeYourCom · CGV ${CGV_VERSION} · page ${pageNumber}/${totalPages}`
         }
       />
     </Page>

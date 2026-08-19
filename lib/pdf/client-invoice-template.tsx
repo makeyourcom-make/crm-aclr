@@ -469,7 +469,7 @@ export function ClientInvoicePdf({ data }: { data: ClientInvoicePdfData }) {
         {/* Bloc bancaire — CHF ou EUR selon devise */}
         {isCHF && data.emetteur.iban && (
           <View style={styles.banque}>
-            <Text style={styles.banqueTitle}>Coordonnées bancaires — paiement en CHF</Text>
+            <Text style={styles.banqueTitle}>Coordonnées bancaires - paiement en CHF</Text>
             <View style={styles.banqueRow}>
               <Text style={styles.banqueLabel}>Bénéficiaire :</Text>
               <Text style={styles.banqueValue}>{data.emetteur.raisonSociale}</Text>
@@ -503,7 +503,7 @@ export function ClientInvoicePdf({ data }: { data: ClientInvoicePdfData }) {
 
         {isEUR && data.emetteur.ibanEUR && (
           <View style={styles.banque}>
-            <Text style={styles.banqueTitle}>Coordonnées bancaires — paiement en EUR</Text>
+            <Text style={styles.banqueTitle}>Coordonnées bancaires - paiement en EUR</Text>
             <View style={styles.banqueRow}>
               <Text style={styles.banqueLabel}>Titulaire :</Text>
               <Text style={styles.banqueValue}>{data.emetteur.raisonSociale}</Text>
