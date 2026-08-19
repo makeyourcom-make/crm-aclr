@@ -61,6 +61,14 @@ export interface DashboardData {
   caAgenceMois?: number;
   montantAVerserCommerciales?: number;
   caRecurrentTotalMensuel?: number;
+  /** CA annuel : valeur totale des contrats signés du 1er janvier à aujourd'hui,
+   *  comparé à la même période l'an dernier (variationPct null si l'an dernier = 0). */
+  caAnnuel?: {
+    annee: number;
+    courant: number;
+    precedent: number;
+    variationPct: number | null;
+  };
   /** Contrats signés par le client en attente de contre-signature ACLR. */
   contratsAValider?: Array<{
     contractId: string;
@@ -71,6 +79,17 @@ export interface DashboardData {
     valeurAn1: number;
     commercialeName: string;
   }>;
+}
+
+/** Valeur TOTALE d'un contrat sur sa durée réelle : one-shot + mensuel × durée.
+ *  Contrairement à `valeurAn1` (plafonnée à 12 mois), reflète la vraie valeur
+ *  d'un contrat pluriannuel — utilisée pour le CA agence et le CA annuel. */
+function valeurTotaleContrat(c: {
+  montantOneShot: unknown;
+  montantMensuel: unknown;
+  dureeMois: number;
+}): number {
+  return Number(c.montantOneShot) + Number(c.montantMensuel) * c.dureeMois;
 }
 
 export async function getDashboard(user: SessionUser): Promise<DashboardData> {
@@ -103,14 +122,17 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     contractsForRenewal,
     monthlyProgressPartial,
   ] = await Promise.all([
-    // 1. Signatures ce mois
-    prisma.contract.aggregate({
+    // 1. Signatures ce mois (valeur TOTALE, pas an 1)
+    prisma.contract.findMany({
       where: {
         ...scopeContract,
         dateSignature: { gte: startMonth, lte: endMonth },
       },
-      _count: true,
-      _sum: { valeurAn1: true },
+      select: {
+        montantOneShot: true,
+        montantMensuel: true,
+        dureeMois: true,
+      },
     }),
     // 2. Commissions acquises ce mois
     prisma.commissionPayment.aggregate({
@@ -128,10 +150,15 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
           where: { id: user.id },
           select: { garantieMensuelle: true, forfaitFrais: true },
         }),
-    // 4. Évolution 12 mois (CA signé par mois)
+    // 4. Évolution 12 mois (CA signé par mois — valeur TOTALE des contrats)
     prisma.contract.findMany({
       where: { ...scopeContract, dateSignature: { gte: start12 } },
-      select: { dateSignature: true, valeurAn1: true },
+      select: {
+        dateSignature: true,
+        montantOneShot: true,
+        montantMensuel: true,
+        dureeMois: true,
+      },
     }),
     // 5. Pipeline résumé
     prisma.deal.groupBy({
@@ -182,11 +209,18 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
   const salairePrevuMois = Math.max(comMois, garantieMensuelle) + forfaitFrais;
   const garantieActiveMois = comMois < garantieMensuelle;
 
+  // Signatures du mois : count + valeur TOTALE (one-shot + mensuel × durée).
+  const signaturesMoisCount = signaturesMoisRaw.length;
+  const signaturesMoisMontant = signaturesMoisRaw.reduce(
+    (s, c) => s + valeurTotaleContrat(c),
+    0,
+  );
+
   // 3.b Objectif mensuel : fusion des données partielles avec signaturesMoisRaw
   const monthlyProgress: MonthlyObjectiveProgress = {
     ...monthlyProgressPartial,
-    nbSignaturesRealise: signaturesMoisRaw._count,
-    caRealise: Number(signaturesMoisRaw._sum.valeurAn1 ?? 0),
+    nbSignaturesRealise: signaturesMoisCount,
+    caRealise: signaturesMoisMontant,
   };
   // Évolution 12 mois — agrégation in-memory du résultat de la query 4
   const monthMap = new Map<string, number>();
@@ -198,7 +232,7 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
   for (const c of contractsLast12) {
     if (!c.dateSignature) continue;
     const key = `${c.dateSignature.getFullYear()}-${c.dateSignature.getMonth()}`;
-    monthMap.set(key, (monthMap.get(key) ?? 0) + Number(c.valeurAn1));
+    monthMap.set(key, (monthMap.get(key) ?? 0) + valeurTotaleContrat(c));
   }
   const evolutionCASignatures: DashboardData["evolutionCASignatures"] = [];
   for (let i = 0; i < 12; i++) {
@@ -258,53 +292,78 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
   let caAgenceMois: number | undefined;
   let montantAVerserCommerciales: number | undefined;
   let caRecurrentTotalMensuel: number | undefined;
+  let caAnnuel: DashboardData["caAnnuel"];
   let contratsAValider: DashboardData["contratsAValider"];
 
   if (user.role === "ADMIN") {
-    // Les 4 queries admin sont indépendantes → on les lance en parallèle.
-    // Gain : ~ 4× plus rapide qu'en séquentiel.
-    const [
-      allSignaturesMois,
-      allComMois,
-      allActiveContracts,
-      sigsAValider,
-    ] = await Promise.all([
-      prisma.contract.aggregate({
-        where: { dateSignature: { gte: startMonth, lte: endMonth } },
-        _sum: { valeurAn1: true },
-      }),
-      prisma.commissionPayment.aggregate({
-        where: {
-          statut: "PAYE",
-          dateVersement: { gte: startMonth, lte: endMonth },
-        },
-        _sum: { montant: true },
-      }),
-      prisma.contract.aggregate({
-        where: { statut: "ACTIF" },
-        _sum: { montantMensuel: true },
-      }),
-      prisma.signature.findMany({
-        where: { signeParClient: true, signeParAclr: false },
-        select: {
-          id: true,
-          dateSignatureClient: true,
-          contract: {
-            select: {
-              id: true,
-              numero: true,
-              valeurAn1: true,
-              assigneA: { select: { name: true } },
-              prospect: { select: { raisonSociale: true } },
+    // Bornes du CA annuel : 1er janvier → aujourd'hui, vs la MÊME période
+    // l'an dernier (comparaison à date équivalente, pas l'année pleine).
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    const prevYearStart = new Date(now.getFullYear() - 1, 0, 1);
+    const prevYearSameDate = new Date(
+      now.getFullYear() - 1,
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      59,
+    );
+    // Queries admin indépendantes → en parallèle.
+    const [allComMois, allActiveContracts, sigsAValider, annualCourant, annualPrecedent] =
+      await Promise.all([
+        prisma.commissionPayment.aggregate({
+          where: {
+            statut: "PAYE",
+            dateVersement: { gte: startMonth, lte: endMonth },
+          },
+          _sum: { montant: true },
+        }),
+        prisma.contract.aggregate({
+          where: { statut: "ACTIF" },
+          _sum: { montantMensuel: true },
+        }),
+        prisma.signature.findMany({
+          where: { signeParClient: true, signeParAclr: false },
+          select: {
+            id: true,
+            dateSignatureClient: true,
+            contract: {
+              select: {
+                id: true,
+                numero: true,
+                valeurAn1: true,
+                assigneA: { select: { name: true } },
+                prospect: { select: { raisonSociale: true } },
+              },
             },
           },
-        },
-        orderBy: { dateSignatureClient: "asc" },
-      }),
-    ]);
-    caAgenceMois = Number(allSignaturesMois._sum.valeurAn1 ?? 0);
+          orderBy: { dateSignatureClient: "asc" },
+        }),
+        prisma.contract.findMany({
+          where: { dateSignature: { gte: yearStart, lte: now } },
+          select: { montantOneShot: true, montantMensuel: true, dureeMois: true },
+        }),
+        prisma.contract.findMany({
+          where: { dateSignature: { gte: prevYearStart, lte: prevYearSameDate } },
+          select: { montantOneShot: true, montantMensuel: true, dureeMois: true },
+        }),
+      ]);
+    // Admin : scopeContract = {} → signaturesMoisMontant = tout le mois = CA agence.
+    caAgenceMois = signaturesMoisMontant;
     montantAVerserCommerciales = Number(allComMois._sum.montant ?? 0);
     caRecurrentTotalMensuel = Number(allActiveContracts._sum.montantMensuel ?? 0);
+    const courant = annualCourant.reduce((s, c) => s + valeurTotaleContrat(c), 0);
+    const precedent = annualPrecedent.reduce(
+      (s, c) => s + valeurTotaleContrat(c),
+      0,
+    );
+    caAnnuel = {
+      annee: now.getFullYear(),
+      courant,
+      precedent,
+      variationPct:
+        precedent > 0 ? ((courant - precedent) / precedent) * 100 : null,
+    };
     contratsAValider = sigsAValider.map((s) => ({
       contractId: s.contract.id,
       numero: s.contract.numero,
@@ -318,8 +377,8 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
 
   return {
     signaturesMois: {
-      count: signaturesMoisRaw._count,
-      montant: Number(signaturesMoisRaw._sum.valeurAn1 ?? 0),
+      count: signaturesMoisCount,
+      montant: signaturesMoisMontant,
     },
     commissionsAcquisesMois: comMois,
     salairePrevuMois,
@@ -332,6 +391,7 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     caAgenceMois,
     montantAVerserCommerciales,
     caRecurrentTotalMensuel,
+    caAnnuel,
     contratsAValider,
   };
 }

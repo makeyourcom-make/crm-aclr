@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import { CommissionsChartLazy as CommissionsChart } from "@/components/dashboard/commissions-chart-lazy";
-import { MonthlyGoals } from "@/components/dashboard/monthly-goals";
 import { SignAclrButton } from "@/components/signatures/sign-aclr-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
@@ -31,6 +30,12 @@ const STAGE_ACCENTS: Record<string, string> = {
 export default async function DashboardPage() {
   const user = await requireUser();
   const data = await getDashboard(user);
+  const yoy = data.caAnnuel;
+  const caAnnuelSubtitle = yoy
+    ? yoy.variationPct === null
+      ? `depuis le 1er janvier ${yoy.annee}`
+      : `${yoy.variationPct >= 0 ? "+" : ""}${yoy.variationPct.toFixed(0)} % vs ${yoy.annee - 1}`
+    : "";
   const monthLabel = new Date()
     .toLocaleDateString("fr-CH", { month: "long", year: "numeric" })
     .replace(/^(.)/, (m) => m.toUpperCase());
@@ -53,26 +58,32 @@ export default async function DashboardPage() {
         // pas pertinent au niveau direction).
         // ====================================================================
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Kpi
-            label="Signatures du mois"
-            value={`${data.signaturesMois.count}`}
-            subtitle={formatCHF(data.signaturesMois.montant)}
-          />
+          <Link
+            href="/contrats"
+            className="block rounded-xl transition hover:shadow-md"
+          >
+            <Kpi
+              label="Signatures du mois"
+              value={`${data.signaturesMois.count}`}
+              subtitle={`${formatCHF(data.signaturesMois.montant)} · voir les contrats →`}
+            />
+          </Link>
           <Kpi
             label="CA agence du mois"
             value={formatCHF(data.caAgenceMois ?? 0)}
+            subtitle="valeur totale des contrats signés"
             tone="primary"
           />
           <Kpi
-            label="À verser aux commerciales"
-            value={formatCHF(data.montantAVerserCommerciales ?? 0)}
-            subtitle="commissions du mois"
-            tone="primary"
-          />
-          <Kpi
-            label="CA récurrent total"
+            label="CA récurrent mensuel"
             value={`${formatCHFCompact(data.caRecurrentTotalMensuel ?? 0)} / mois`}
-            subtitle={`${formatCHF((data.caRecurrentTotalMensuel ?? 0) * 12)} / an`}
+            subtitle="facturé chaque mois"
+            tone="primary"
+          />
+          <Kpi
+            label={`CA ${yoy?.annee ?? ""} (annuel)`}
+            value={formatCHF(yoy?.courant ?? 0)}
+            subtitle={caAnnuelSubtitle}
             tone="primary"
           />
         </div>
@@ -159,14 +170,6 @@ export default async function DashboardPage() {
           </Card>
         )}
 
-      {/* Objectifs du mois — progress bars pilotables depuis /objectifs */}
-      <div className="mt-6">
-        <MonthlyGoals
-          progress={data.monthlyProgress}
-          isAdmin={user.role === "ADMIN"}
-        />
-      </div>
-
       <Card className="mt-6">
         <CardHeader>
           <CardTitle className="text-base">
@@ -181,7 +184,7 @@ export default async function DashboardPage() {
         </CardContent>
       </Card>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      <div className="mt-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Pipeline</CardTitle>
@@ -211,41 +214,6 @@ export default async function DashboardPage() {
             >
               Voir le Kanban →
             </Link>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Top 5 deals chauds</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {data.topDeals.length === 0 ? (
-              <p className="px-3 py-4 text-sm text-muted-foreground">
-                Aucun deal en proposition ou négociation.
-              </p>
-            ) : (
-              <ul className="divide-y divide-border">
-                {data.topDeals.map((d) => (
-                  <li key={d.id} className="flex items-center gap-3 px-3 py-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{d.titre}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {d.raisonSociale}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold tabular-nums">
-                        {formatCHFCompact(d.montantPrevu)}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        ×{d.probabilite}% ={" "}
-                        {formatCHFCompact(d.montantPondere)}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
           </CardContent>
         </Card>
       </div>
