@@ -160,10 +160,20 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
         dureeMois: true,
       },
     }),
-    // 5. Pipeline résumé
+    // 5. Pipeline résumé — MÊME filtre que le Kanban /pipeline pour que les
+    //    chiffres correspondent : stages actifs toujours comptés, mais
+    //    Signé/Perdu uniquement clôturés le mois en cours (sinon la carte
+    //    cumulait tout l'historique et ne matchait pas la page Pipeline).
     prisma.deal.groupBy({
       by: ["stage"],
-      where: scopeDeal,
+      where: {
+        ...scopeDeal,
+        OR: [
+          { stage: { notIn: ["SIGNE", "PERDU"] } },
+          { stage: "SIGNE", closeReelLe: { gte: startMonth } },
+          { stage: "PERDU", closeReelLe: { gte: startMonth } },
+        ],
+      },
       _count: true,
       _sum: { montantPrevu: true },
     }),
