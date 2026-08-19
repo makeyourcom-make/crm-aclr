@@ -12,6 +12,7 @@
  *      le deal bascule en SIGNE, le prospect aussi.
  */
 import { useRef, useState, useTransition } from "react";
+import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
 
 import { uploadSignedContract } from "@/app/(app)/contrats/actions";
@@ -37,13 +38,13 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
   const [pending, startTransition] = useTransition();
   const [nomClient, setNomClient] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
-  const [fileDataUrl, setFileDataUrl] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
     setNomClient("");
     setFileName(null);
-    setFileDataUrl(null);
+    setFile(null);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -55,27 +56,25 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
     "image/webp",
   ];
 
-  const handleFile = (file: File | undefined) => {
-    if (!file) return;
-    if (!ACCEPTED.includes(file.type)) {
+  const handleFile = (f: File | undefined) => {
+    if (!f) return;
+    if (!ACCEPTED.includes(f.type)) {
       toast.error("Le fichier doit être un PDF ou une image (scan/photo).");
       return;
     }
-    if (file.size > 15 * 1024 * 1024) {
-      toast.error("Fichier trop volumineux (max 15 MB).");
+    if (f.size > 20 * 1024 * 1024) {
+      toast.error("Fichier trop volumineux (max 20 MB).");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setFileDataUrl(reader.result as string);
-      setFileName(file.name);
-    };
-    reader.onerror = () => toast.error("Erreur de lecture du fichier.");
-    reader.readAsDataURL(file);
+    // On garde le File tel quel : il sera envoyé DIRECTEMENT à Vercel Blob au
+    // moment de valider (pas de base64 à travers le Server Action → pas de
+    // limite ~4.5 MB, un scan de 8+ pages passe sans souci).
+    setFile(f);
+    setFileName(f.name);
   };
 
   const handleSubmit = () => {
-    if (!fileDataUrl) {
+    if (!file) {
       toast.error("Sélectionne d'abord le PDF signé.");
       return;
     }
@@ -84,9 +83,27 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
       return;
     }
     startTransition(async () => {
+      // 1. Upload direct navigateur → Vercel Blob (via /api/blob/upload).
+      let fileUrl: string;
+      try {
+        const blob = await upload(
+          `signed-contracts/${contractId}/${file.name}`,
+          file,
+          {
+            access: "public",
+            handleUploadUrl: "/api/blob/upload",
+            contentType: file.type,
+          },
+        );
+        fileUrl = blob.url;
+      } catch {
+        toast.error("Échec de l'envoi du fichier. Réessaie.");
+        return;
+      }
+      // 2. Le Server Action enregistre l'URL + marque le contrat signé.
       const res = await uploadSignedContract({
         contractId,
-        fileDataUrl,
+        fileUrl,
         fileName: fileName ?? undefined,
         nomClient: nomClient.trim(),
       });
@@ -165,7 +182,7 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
                       Glisse le fichier ici ou clique pour parcourir
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      PDF ou image (JPG, PNG), max 15 MB
+                      PDF ou image (JPG, PNG), max 20 MB
                     </p>
                   </>
                 )}
@@ -219,7 +236,7 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={pending || !fileDataUrl || nomClient.trim().length < 2}
+              disabled={pending || !file || nomClient.trim().length < 2}
               className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               <Icon name="Check" className="h-4 w-4" />

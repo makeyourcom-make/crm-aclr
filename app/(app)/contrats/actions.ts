@@ -6,7 +6,6 @@ import { z } from "zod";
 
 import { createSignatureRequest } from "@/app/(app)/signatures/actions";
 import { prisma } from "@/lib/db";
-import { uploadFile } from "@/lib/file-storage";
 import {
   buildSignaturePaymentPlan,
   centsToChf,
@@ -1353,19 +1352,18 @@ function escapeHtml(s: string): string {
 
 const UploadSignedContractSchema = z.object({
   contractId: z.string().min(1),
-  /** Data URL base64 du contrat signé retourné par le client (PDF ou image
-   *  scannée / photographiée, max ~5 MB). */
-  fileDataUrl: z
+  /** URL Vercel Blob du contrat signé, uploadé DIRECTEMENT depuis le navigateur
+   *  (contourne la limite ~4.5 MB du corps des Server Actions Vercel). Seule
+   *  l'URL transite ici, jamais le fichier. Doit pointer sur notre blob store,
+   *  sous le préfixe signed-contracts/ (garanti par la route de token). */
+  fileUrl: z
     .string()
-    .min(1)
+    .url()
     .refine(
       (v) =>
-        v.startsWith("data:application/pdf") ||
-        v.startsWith("data:image/jpeg") ||
-        v.startsWith("data:image/jpg") ||
-        v.startsWith("data:image/png") ||
-        v.startsWith("data:image/webp"),
-      { message: "Le fichier doit être un PDF ou une image (scan/photo)." },
+        v.includes("blob.vercel-storage.com") &&
+        v.includes("/signed-contracts/"),
+      { message: "URL de fichier invalide." },
     ),
   /** Nom du fichier d'origine (pour traçabilité). */
   fileName: z.string().trim().max(200).optional(),
@@ -1404,38 +1402,13 @@ export async function uploadSignedContract(
     return { ok: false, error: "Pas d'accès à ce contrat." };
   }
 
-  // Garde-fou taille : ~21 MB max sur la data URL base64 (~15 MB de fichier
-  // réel après décodage). Couvre un scan couleur de 8+ pages.
-  if (parsed.data.fileDataUrl.length > 21_000_000) {
-    return {
-      ok: false,
-      error: "PDF trop volumineux (max 15 MB).",
-    };
-  }
-
-  // Décodage du base64 → upload via l'abstraction de stockage (local dev / Vercel Blob prod)
-  const mime =
-    parsed.data.fileDataUrl.match(/^data:([^;]+);base64,/)?.[1] ??
-    "application/pdf";
-  const ext =
-    mime === "image/png"
-      ? "png"
-      : mime === "image/webp"
-        ? "webp"
-        : mime === "image/jpeg" || mime === "image/jpg"
-          ? "jpg"
-          : "pdf";
-  const base64 = parsed.data.fileDataUrl.split(",")[1] ?? "";
-  if (!base64) return { ok: false, error: "Fichier illisible." };
-  const buffer = Buffer.from(base64, "base64");
-
-  const upload = await uploadFile({
-    prefix: `signed-contracts/${contract.id}`,
-    filename: `signed.${ext}`,
-    buffer,
-    contentType: mime,
-  });
-  const publicUrl = upload.url;
+  // Le fichier a déjà été uploadé DIRECTEMENT vers Vercel Blob par le navigateur
+  // (route /api/blob/upload, préfixe signed-contracts/). On n'enregistre ici que
+  // son URL : aucun binaire ne traverse le Server Action, ce qui contourne la
+  // limite ~4.5 MB du corps des requêtes Vercel (d'où l'ancienne erreur sur les
+  // scans de 8+ pages). Sécurité : l'URL est validée (blob store + préfixe) par
+  // le schéma Zod, et l'accès au contrat est vérifié ci-dessus.
+  const publicUrl = parsed.data.fileUrl;
 
   // Trouve la signature existante ou en crée une nouvelle pour ce contrat
   const existingSig = await prisma.signature.findFirst({

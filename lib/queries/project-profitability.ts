@@ -6,7 +6,11 @@
  *   Revenu             = montantOneShot + montantMensuel × dureeMois
  *   - Coûts directs    = Σ(produit.coutOneShot + produit.coutMensuel × dureeMois)
  *   - Commission       = taux × assiette RÉELLE (voir plus bas — pas au prorata)
- *   - Quote-part frais = (charges fixes mensuelles moyennes × dureeMois) / nb contrats actifs
+ *   - Quote-part frais = (charges fixes mensuelles moyennes × min(dureeMois, 12)) / nb contrats actifs
+ *       (plafond 12 mois : la charge par contrat d'aujourd'hui ne se projette pas
+ *        sur 2-3 ans — le parc de contrats grandit, la part par contrat baisse.
+ *        Sans ce plafond, un contrat pluriannuel à faible mensuel paraissait
+ *        déficitaire à tort. Ex. Coffre à Dom 149/mois × 36 : -39% → +48%.)
  *   - Provision impôts = tauxImpotsProvisionne × marge brute
  *   ─────────────────────────────────────
  *   = MARGE NETTE
@@ -191,7 +195,11 @@ export async function getProjectMargins(): Promise<ProjectMarginCockpit> {
     const tauxCom = Number(c.assigneA.tauxCommissionSignature);
     // Sur valeurAn1 (assiette réellement versée), PAS au prorata — cf. en-tête.
     const commission = Number(c.valeurAn1) * tauxCom;
-    const quotePartFrais = quotePartMensuelleParContrat * duree;
+    // Quote-part frais généraux : plafonnée à 12 mois (cf. en-tête). On ne
+    // projette pas la charge par contrat d'aujourd'hui sur toute la durée d'un
+    // contrat pluriannuel — le parc de contrats grandit, la part par contrat
+    // baisse. Un 6 mois reste proportionnel (min(duree,12) = duree).
+    const quotePartFrais = quotePartMensuelleParContrat * Math.min(duree, 12);
     // Charges réelles du client réparties sur ses contrats actifs.
     const chargesReelles =
       (clientCharges.get(c.prospectId) ?? 0) /
@@ -331,8 +339,12 @@ export async function getProjectMarginForContract(
     chargesMoyennesMensuelles + salaireFixeNonCommercial;
   // Durée RÉELLE du contrat : un 6 mois n'absorbe pas 12 mois de frais.
   const duree = contract.dureeMois > 0 ? contract.dureeMois : 12;
+  // Quote-part frais généraux plafonnée à 12 mois (cf. en-tête + getProjectMargins) :
+  // on ne projette pas la charge par contrat d'aujourd'hui sur un contrat de 2-3
+  // ans (le parc grandit → part par contrat en baisse). min(duree,12) garde le
+  // prorata pour les contrats courts.
   const quotePartFrais =
-    (fraisFixesMensuels * duree) / Math.max(nbContrats, 1);
+    (fraisFixesMensuels * Math.min(duree, 12)) / Math.max(nbContrats, 1);
 
   const revenu =
     Number(contract.montantOneShot) + Number(contract.montantMensuel) * duree;
