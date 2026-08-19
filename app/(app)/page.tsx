@@ -65,7 +65,7 @@ export default async function DashboardPage() {
             <Kpi
               label="Signatures du mois"
               value={`${data.signaturesMois.count}`}
-              subtitle={`${formatCHF(data.signaturesMois.montant)} · voir les contrats →`}
+              subtitle="voir les contrats →"
             />
           </Link>
           <Kpi
