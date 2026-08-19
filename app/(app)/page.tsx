@@ -69,7 +69,7 @@ export default async function DashboardPage() {
             />
           </Link>
           <Kpi
-            label="CA agence du mois"
+            label="CA du mois"
             value={formatCHF(data.caAgenceMois ?? 0)}
             subtitle="valeur totale des contrats signés"
             tone="primary"
