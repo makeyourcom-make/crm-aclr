@@ -81,6 +81,16 @@ export interface DashboardData {
   }>;
 }
 
+/** Statuts d'un contrat RÉELLEMENT signé (exécutoire) — exclut les propositions
+ *  encore en attente de signature client / validation admin. Le CA et le compteur
+ *  de signatures ne doivent compter QUE ces contrats-là. */
+const STATUTS_SIGNES = [
+  "ACTIF",
+  "SUSPENDU",
+  "RESILIE",
+  "EXPIRE",
+] as const;
+
 /** Valeur TOTALE d'un contrat sur sa durée réelle : one-shot + mensuel × durée.
  *  Contrairement à `valeurAn1` (plafonnée à 12 mois), reflète la vraie valeur
  *  d'un contrat pluriannuel — utilisée pour le CA agence et le CA annuel. */
@@ -122,10 +132,12 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     contractsForRenewal,
     monthlyProgressPartial,
   ] = await Promise.all([
-    // 1. Signatures ce mois (valeur TOTALE, pas an 1)
+    // 1. Signatures ce mois — contrats RÉELLEMENT signés (pas les propositions),
+    //    valeur TOTALE (pas an 1).
     prisma.contract.findMany({
       where: {
         ...scopeContract,
+        statut: { in: [...STATUTS_SIGNES] },
         dateSignature: { gte: startMonth, lte: endMonth },
       },
       select: {
@@ -150,9 +162,13 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
           where: { id: user.id },
           select: { garantieMensuelle: true, forfaitFrais: true },
         }),
-    // 4. Évolution 12 mois (CA signé par mois — valeur TOTALE des contrats)
+    // 4. Évolution 12 mois (CA signé par mois — valeur TOTALE, contrats signés)
     prisma.contract.findMany({
-      where: { ...scopeContract, dateSignature: { gte: start12 } },
+      where: {
+        ...scopeContract,
+        statut: { in: [...STATUTS_SIGNES] },
+        dateSignature: { gte: start12 },
+      },
       select: {
         dateSignature: true,
         montantOneShot: true,
@@ -350,11 +366,17 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
           orderBy: { dateSignatureClient: "asc" },
         }),
         prisma.contract.findMany({
-          where: { dateSignature: { gte: yearStart, lte: now } },
+          where: {
+            statut: { in: [...STATUTS_SIGNES] },
+            dateSignature: { gte: yearStart, lte: now },
+          },
           select: { montantOneShot: true, montantMensuel: true, dureeMois: true },
         }),
         prisma.contract.findMany({
-          where: { dateSignature: { gte: prevYearStart, lte: prevYearSameDate } },
+          where: {
+            statut: { in: [...STATUTS_SIGNES] },
+            dateSignature: { gte: prevYearStart, lte: prevYearSameDate },
+          },
           select: { montantOneShot: true, montantMensuel: true, dureeMois: true },
         }),
       ]);

@@ -78,6 +78,22 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
       ),
     },
     {
+      id: "valeurTotale",
+      header: () => (
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Valeur totale
+        </span>
+      ),
+      cell: ({ row }) => (
+        <span className="font-semibold tabular-nums text-primary">
+          {formatCHF(
+            Number(row.original.montantOneShot) +
+              Number(row.original.montantMensuel) * row.original.dureeMois,
+          )}
+        </span>
+      ),
+    },
+    {
       id: "mensuel",
       header: () => (
         <SortableHeader
