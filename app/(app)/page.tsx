@@ -11,22 +11,6 @@ import { requireUser } from "@/lib/session";
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
 
-const STAGE_LABELS: Record<string, string> = {
-  DECOUVERTE: "Découverte",
-  PROPOSITION: "Proposition",
-  NEGOCIATION: "Négociation",
-  SIGNE: "Signé",
-  PERDU: "Perdu",
-};
-
-const STAGE_ACCENTS: Record<string, string> = {
-  DECOUVERTE: "border-t-slate-400",
-  PROPOSITION: "border-t-blue-500",
-  NEGOCIATION: "border-t-amber-500",
-  SIGNE: "border-t-emerald-500",
-  PERDU: "border-t-red-400",
-};
-
 export default async function DashboardPage() {
   const user = await requireUser();
   const data = await getDashboard(user);
@@ -183,40 +167,6 @@ export default async function DashboardPage() {
           />
         </CardContent>
       </Card>
-
-      <div className="mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Pipeline</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-              {data.pipelineParStage.map((s) => (
-                <div
-                  key={s.stage}
-                  className={`rounded-md border border-border border-t-4 ${STAGE_ACCENTS[s.stage]} bg-muted/30 p-2`}
-                >
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {STAGE_LABELS[s.stage]}
-                  </p>
-                  <p className="mt-1 text-lg font-bold tabular-nums">
-                    {s.count}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground tabular-nums">
-                    {formatCHFCompact(s.montant)}
-                  </p>
-                </div>
-              ))}
-            </div>
-            <Link
-              href="/pipeline"
-              className="mt-3 inline-flex text-xs text-primary hover:underline"
-            >
-              Voir le Kanban →
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
 
       <Card className="mt-6">
         <CardHeader>
