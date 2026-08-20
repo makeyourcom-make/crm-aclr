@@ -9,7 +9,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
-import { createActivity, updateActivity } from "@/app/(app)/activites/actions";
+import {
+  createActivity,
+  createRecurringActivities,
+  updateActivity,
+} from "@/app/(app)/activites/actions";
 import { createProspectQuick } from "@/app/(app)/prospects/actions";
 import { AGENDA_COLORS } from "@/lib/agenda-colors";
 import { Button } from "@/components/ui/button";
@@ -34,6 +38,13 @@ function addMinutesToTime(t: string, mins: number): string {
   const total = (((h * 60 + m + mins) % 1440) + 1440) % 1440;
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
+}
+/** Ajoute N mois à une date "YYYY-MM-DD" et renvoie la même chaîne. */
+function addMonthsToDateStr(iso: string, months: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, m - 1 + months, d);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
 }
 /** Durée en minutes entre deux heures "HH:MM" (min. 15). */
 function diffMinutes(start: string, end: string): number {
@@ -133,6 +144,15 @@ export function AddActivityDialog({
   const [contenu, setContenu] = useState("");
   const [couleur, setCouleur] = useState<string | null>(null);
 
+  // Récurrence (création uniquement). NONE = activité unique.
+  const [recurrence, setRecurrence] = useState<
+    "NONE" | "WEEKLY" | "WEEKDAYS" | "MONTHLY" | "YEARLY"
+  >("NONE");
+  const [weekdays, setWeekdays] = useState<number[]>([]);
+  const [recurUntil, setRecurUntil] = useState(() =>
+    addMonthsToDateStr(defaultDate, 2),
+  );
+
   // Création de client inline (depuis la ligne "prospect")
   const [localProspects, setLocalProspects] = useState<ProspectOption[]>([]);
   const [creatingProspect, setCreatingProspect] = useState(false);
@@ -176,6 +196,9 @@ export function AddActivityDialog({
       setDate(defaultDate);
       setHeure(defaultTime);
       setHeureFin(addMinutesToTime(defaultTime, 60));
+      setRecurrence("NONE");
+      setWeekdays([]);
+      setRecurUntil(addMonthsToDateStr(defaultDate, 2));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editActivity?.id]);
@@ -242,6 +265,36 @@ export function AddActivityDialog({
       couleur, // string (hex) ou null pour retirer la couleur
     };
     startTransition(async () => {
+      // Cas RÉCURRENT (création uniquement) : génère toutes les occurrences.
+      if (!editActivity && recurrence !== "NONE") {
+        if (recurrence === "WEEKDAYS" && weekdays.length === 0) {
+          toast.error("Choisis au moins un jour de la semaine.");
+          return;
+        }
+        if (!recurUntil) {
+          toast.error("Indique la date de fin de la récurrence.");
+          return;
+        }
+        const r = await createRecurringActivities(
+          { ...payload, statut: "PLANIFIE" },
+          { type: recurrence, weekdays, untilIso: recurUntil },
+        );
+        if (!r.ok) {
+          toast.error(r.error ?? "Échec.");
+          return;
+        }
+        toast.success(`${r.count} occurrence(s) ajoutée(s) à l'agenda.`);
+        setProspectId("");
+        setSujet("");
+        setAdresseRdv("");
+        setContenu("");
+        setRecurrence("NONE");
+        setWeekdays([]);
+        setOpen(false);
+        router.refresh();
+        return;
+      }
+
       const res = editActivity
         ? await updateActivity(editActivity.id, payload)
         : await createActivity({ ...payload, statut: "PLANIFIE" });
@@ -343,6 +396,85 @@ export function AddActivityDialog({
               />
             </div>
           </FieldRow>
+
+          {/* Récurrence — création uniquement (jour(s) de semaine, hebdo, mensuel, annuel) */}
+          {!isEdit && (
+            <FieldRow icon="Repeat">
+              <div className="space-y-2">
+                <select
+                  value={recurrence}
+                  onChange={(e) =>
+                    setRecurrence(
+                      e.target.value as
+                        | "NONE"
+                        | "WEEKLY"
+                        | "WEEKDAYS"
+                        | "MONTHLY"
+                        | "YEARLY",
+                    )
+                  }
+                  className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                >
+                  <option value="NONE">Ne se répète pas</option>
+                  <option value="WEEKLY">Chaque semaine</option>
+                  <option value="WEEKDAYS">
+                    Certains jours de la semaine
+                  </option>
+                  <option value="MONTHLY">Chaque mois</option>
+                  <option value="YEARLY">Chaque année</option>
+                </select>
+
+                {recurrence === "WEEKDAYS" && (
+                  <div className="flex flex-wrap gap-1">
+                    {(
+                      [
+                        ["Lu", 1],
+                        ["Ma", 2],
+                        ["Me", 3],
+                        ["Je", 4],
+                        ["Ve", 5],
+                        ["Sa", 6],
+                        ["Di", 0],
+                      ] as [string, number][]
+                    ).map(([lbl, dow]) => {
+                      const on = weekdays.includes(dow);
+                      return (
+                        <button
+                          key={dow}
+                          type="button"
+                          onClick={() =>
+                            setWeekdays((w) =>
+                              on ? w.filter((x) => x !== dow) : [...w, dow],
+                            )
+                          }
+                          className={`h-8 w-9 rounded-md border text-xs font-medium transition-colors ${
+                            on
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-input bg-background hover:bg-muted"
+                          }`}
+                        >
+                          {lbl}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {recurrence !== "NONE" && (
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    Jusqu&apos;au
+                    <Input
+                      type="date"
+                      value={recurUntil}
+                      min={date}
+                      onChange={(e) => setRecurUntil(e.target.value)}
+                      className="w-40"
+                    />
+                  </label>
+                )}
+              </div>
+            </FieldRow>
+          )}
 
           {/* Prospect (= "invités") + création inline d'un client */}
           <FieldRow icon="Users">

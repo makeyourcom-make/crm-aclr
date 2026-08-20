@@ -9,6 +9,7 @@
  */
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
+import { z } from "zod";
 
 import {
   deleteActivityFromCaldav,
@@ -89,6 +90,129 @@ export async function createActivity(
     // bien créée en DB et sera repoussée au prochain syncNow().
     void pushActivityToCaldav(created.id).catch(() => {});
     return { ok: true, activityId: created.id };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
+}
+
+// ===========================================================================
+// CREATE RÉCURRENT — génère plusieurs occurrences d'un coup (agenda)
+// ===========================================================================
+
+const RecurrenceSchema = z.object({
+  type: z.enum(["WEEKLY", "WEEKDAYS", "MONTHLY", "YEARLY"]),
+  /** Jours de la semaine (0=dimanche … 6=samedi) pour le type WEEKDAYS. */
+  weekdays: z.array(z.number().int().min(0).max(6)).default([]),
+  /** Date de fin incluse, format YYYY-MM-DD. */
+  untilIso: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+/** +N mois en conservant l'heure et en bornant le jour à la fin du mois cible. */
+function addMonthsClamp(base: Date, months: number): Date {
+  const total = base.getMonth() + months;
+  const y = base.getFullYear() + Math.floor(total / 12);
+  const mo = ((total % 12) + 12) % 12;
+  const day = Math.min(base.getDate(), new Date(y, mo + 1, 0).getDate());
+  return new Date(y, mo, day, base.getHours(), base.getMinutes(), 0);
+}
+/** +N années en conservant l'heure et en bornant le jour (29 fév → 28 fév). */
+function addYearsClamp(base: Date, years: number): Date {
+  const y = base.getFullYear() + years;
+  const day = Math.min(base.getDate(), new Date(y, base.getMonth() + 1, 0).getDate());
+  return new Date(y, base.getMonth(), day, base.getHours(), base.getMinutes(), 0);
+}
+
+/**
+ * Génère la liste des dates d'occurrence (heure conservée), de `base` jusqu'à
+ * `until` incluse. Plafonné à 366 occurrences (garde-fou anti-explosion).
+ */
+function generateOccurrences(
+  base: Date,
+  rec: { type: "WEEKLY" | "WEEKDAYS" | "MONTHLY" | "YEARLY"; weekdays: number[] },
+  until: Date,
+): Date[] {
+  const MAX = 366;
+  const out: Date[] = [];
+  if (rec.type === "WEEKLY") {
+    const d = new Date(base);
+    while (d <= until && out.length < MAX) {
+      out.push(new Date(d));
+      d.setDate(d.getDate() + 7);
+    }
+  } else if (rec.type === "WEEKDAYS") {
+    const wds = new Set(rec.weekdays);
+    const d = new Date(base);
+    while (d <= until && out.length < MAX) {
+      if (wds.has(d.getDay())) out.push(new Date(d));
+      d.setDate(d.getDate() + 1);
+    }
+  } else if (rec.type === "MONTHLY") {
+    let i = 0;
+    let d = addMonthsClamp(base, 0);
+    while (d <= until && out.length < MAX) {
+      out.push(d);
+      i += 1;
+      d = addMonthsClamp(base, i);
+    }
+  } else {
+    let i = 0;
+    let d = addYearsClamp(base, 0);
+    while (d <= until && out.length < MAX) {
+      out.push(d);
+      i += 1;
+      d = addYearsClamp(base, i);
+    }
+  }
+  return out;
+}
+
+export async function createRecurringActivities(
+  input: unknown,
+  recurrenceInput: unknown,
+): Promise<{ ok: boolean; count?: number; error?: string }> {
+  const user = await requireUser();
+  const parsed = ActivityCreateSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Données invalides." };
+  const rec = RecurrenceSchema.safeParse(recurrenceInput);
+  if (!rec.success) return { ok: false, error: "Récurrence invalide." };
+
+  if (parsed.data.prospectId) {
+    await assertCanAccessProspect(user, parsed.data.prospectId);
+  }
+  const assignToUserId =
+    user.role === "ADMIN" && parsed.data.userId ? parsed.data.userId : user.id;
+
+  const until = new Date(`${rec.data.untilIso}T23:59:59`);
+  const occurrences = generateOccurrences(parsed.data.date, rec.data, until);
+  if (occurrences.length === 0) {
+    return { ok: false, error: "Aucune occurrence à créer (vérifie la période)." };
+  }
+
+  const base = {
+    prospectId: parsed.data.prospectId ?? null,
+    userId: assignToUserId,
+    type: parsed.data.type,
+    sujet: parsed.data.sujet,
+    contenu: parsed.data.contenu,
+    adresseRdv: parsed.data.adresseRdv,
+    duree: parsed.data.duree,
+    couleur: normalizeAgendaColor(parsed.data.couleur),
+    statut: parsed.data.statut,
+  };
+
+  try {
+    const created = await prisma.$transaction(
+      occurrences.map((d) =>
+        prisma.activity.create({ data: { ...base, date: d } }),
+      ),
+    );
+    if (parsed.data.prospectId) {
+      revalidatePath(`/prospects/${parsed.data.prospectId}`);
+    }
+    revalidatePath("/activites");
+    revalidatePath("/agenda");
+    for (const a of created) void pushActivityToCaldav(a.id).catch(() => {});
+    return { ok: true, count: created.length };
   } catch (err) {
     return prismaErrorToResult(err);
   }
