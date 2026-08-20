@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { CommissionsChartLazy as CommissionsChart } from "@/components/dashboard/commissions-chart-lazy";
+import { ValidateContractButton } from "@/components/contrats/validate-contract-button";
 import { SignAclrButton } from "@/components/signatures/sign-aclr-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
@@ -105,6 +106,54 @@ export default async function DashboardPage() {
           />
         </div>
       )}
+
+      {/* Contrats contre-signés par la commerciale → validation DÉFINITIVE
+          (admin uniquement). C'est l'étape finale : Sophie a validé, tu valides. */}
+      {user.role === "ADMIN" &&
+        data.contratsAValiderDefinitif &&
+        data.contratsAValiderDefinitif.length > 0 && (
+          <Card className="mt-6 border-purple-300 bg-purple-50/40">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-purple-600 px-2 text-xs font-bold text-white">
+                  {data.contratsAValiderDefinitif.length}
+                </span>
+                Contrats à valider définitivement
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ul className="divide-y divide-purple-200">
+                {data.contratsAValiderDefinitif.map((c) => (
+                  <li
+                    key={c.contractId}
+                    className="flex flex-wrap items-center gap-3 px-4 py-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">
+                        <Link
+                          href={`/contrats/${c.contractId}`}
+                          className="hover:underline"
+                        >
+                          {c.numero} · {c.raisonSociale}
+                        </Link>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Contre-signé par {c.commercialeName}
+                        {c.contreSigneLe
+                          ? ` le ${formatDate(c.contreSigneLe)}`
+                          : ""}
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold tabular-nums text-purple-700">
+                      {formatCHF(c.valeurAn1)}
+                    </p>
+                    <ValidateContractButton contractId={c.contractId} />
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
 
       {/* Contrats en attente de contre-signature ACLR (admin uniquement) */}
       {user.role === "ADMIN" &&

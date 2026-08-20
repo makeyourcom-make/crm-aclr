@@ -79,6 +79,16 @@ export interface DashboardData {
     valeurAn1: number;
     commercialeName: string;
   }>;
+  /** Contrats contre-signés par la commerciale (statut ATTENTE_VALIDATION_ADMIN)
+   *  en attente de la validation DÉFINITIVE de l'admin → ACTIF. */
+  contratsAValiderDefinitif?: Array<{
+    contractId: string;
+    numero: string;
+    raisonSociale: string;
+    valeurAn1: number;
+    commercialeName: string;
+    contreSigneLe: Date | null;
+  }>;
 }
 
 /** Statuts d'un contrat RÉELLEMENT signé (exécutoire) — exclut les propositions
@@ -320,6 +330,7 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
   let caRecurrentTotalMensuel: number | undefined;
   let caAnnuel: DashboardData["caAnnuel"];
   let contratsAValider: DashboardData["contratsAValider"];
+  let contratsAValiderDefinitif: DashboardData["contratsAValiderDefinitif"];
 
   if (user.role === "ADMIN") {
     // Bornes du CA annuel : 1er janvier → aujourd'hui, vs la MÊME période
@@ -335,8 +346,14 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
       59,
     );
     // Queries admin indépendantes → en parallèle.
-    const [allComMois, allActiveContracts, sigsAValider, annualCourant, annualPrecedent] =
-      await Promise.all([
+    const [
+      allComMois,
+      allActiveContracts,
+      sigsAValider,
+      annualCourant,
+      annualPrecedent,
+      contratsAttenteValidation,
+    ] = await Promise.all([
         prisma.commissionPayment.aggregate({
           where: {
             statut: "PAYE",
@@ -379,6 +396,25 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
           },
           select: { montantOneShot: true, montantMensuel: true, dureeMois: true },
         }),
+        // Contrats contre-signés par la commerciale, en attente de validation
+        // définitive admin → ACTIF.
+        prisma.contract.findMany({
+          where: { statut: "ATTENTE_VALIDATION_ADMIN" },
+          select: {
+            id: true,
+            numero: true,
+            valeurAn1: true,
+            assigneA: { select: { name: true } },
+            prospect: { select: { raisonSociale: true } },
+            signatures: {
+              where: { signeParAclr: true },
+              orderBy: { dateSignatureAclr: "desc" },
+              take: 1,
+              select: { dateSignatureAclr: true },
+            },
+          },
+          orderBy: { updatedAt: "asc" },
+        }),
       ]);
     // Admin : scopeContract = {} → signaturesMoisMontant = tout le mois = CA agence.
     caAgenceMois = signaturesMoisMontant;
@@ -405,6 +441,14 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
       valeurAn1: Number(s.contract.valeurAn1),
       commercialeName: s.contract.assigneA?.name ?? "—",
     }));
+    contratsAValiderDefinitif = contratsAttenteValidation.map((c) => ({
+      contractId: c.id,
+      numero: c.numero,
+      raisonSociale: c.prospect.raisonSociale,
+      valeurAn1: Number(c.valeurAn1),
+      commercialeName: c.assigneA?.name ?? "—",
+      contreSigneLe: c.signatures[0]?.dateSignatureAclr ?? null,
+    }));
   }
 
   return {
@@ -425,6 +469,7 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     caRecurrentTotalMensuel,
     caAnnuel,
     contratsAValider,
+    contratsAValiderDefinitif,
   };
 }
 
