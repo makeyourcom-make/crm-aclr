@@ -120,13 +120,6 @@ export const ROUTES: RouteDef[] = [
     etape: 10,
   },
   {
-    href: "/signatures",
-    label: "Signatures",
-    icon: "PenTool",
-    group: "vente",
-    etape: 25,
-  },
-  {
     href: "/renouvellements",
     label: "Renouvellements",
     icon: "Repeat",
