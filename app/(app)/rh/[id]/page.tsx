@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ImpersonateButton } from "@/components/collaborateurs/impersonate-button";
 import { EmployeeDocuments } from "@/components/rh/employee-documents";
 import { EmployeeForm } from "@/components/rh/employee-form";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,7 +9,7 @@ import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { formatCHF } from "@/lib/format";
 import { getEmployeeById } from "@/lib/queries/hr";
-import { requireAdmin } from "@/lib/session";
+import { getRealSessionUser, requireAdmin } from "@/lib/session";
 
 export const metadata = { title: "Fiche collaborateur" };
 export const dynamic = "force-dynamic";
@@ -19,15 +20,28 @@ interface PageProps {
 
 export default async function EmployeeFichePage({ params }: PageProps) {
   await requireAdmin();
+  const real = await getRealSessionUser();
   const { id } = await params;
   const employee = await getEmployeeById(id);
   if (!employee) notFound();
+
+  // « Voir en tant que » : proposé pour tout collaborateur actif, sauf soi-même.
+  const peutEndosser =
+    employee.isActive && real != null && real.id !== employee.id;
 
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title={employee.name}
         description={employee.email + " · " + employee.role}
+        actions={
+          peutEndosser ? (
+            <ImpersonateButton
+              userId={employee.id}
+              userName={employee.name}
+            />
+          ) : undefined
+        }
         breadcrumb={
           <Link
             href="/rh"

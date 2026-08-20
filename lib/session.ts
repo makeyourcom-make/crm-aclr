@@ -25,9 +25,11 @@
  *   - canAccessDeal(user, deal)         : idem
  *   - canAccessContract(user, contract) : idem
  */
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
+import { prisma } from "@/lib/db";
 
 import type { Role } from "@prisma/client";
 
@@ -38,11 +40,18 @@ export interface SessionUser {
   role: Role;
 }
 
+/** Cookie « Voir en tant que » : id de l'utilisateur endossé par un admin. */
+export const IMPERSONATE_COOKIE = "imp_uid";
+
 /**
  * Retourne l'utilisateur de la session ou null.
  * Ne fait pas de redirection — à utiliser pour les vérifications conditionnelles.
  */
-export async function getSessionUser(): Promise<SessionUser | null> {
+/**
+ * Utilisateur RÉELLEMENT connecté (ignore toute impersonation « Voir en tant
+ * que »). À utiliser pour les contrôles de sécurité de l'impersonation.
+ */
+export async function getRealSessionUser(): Promise<SessionUser | null> {
   const session = await auth();
   if (!session?.user?.id || !session.user.email || !session.user.name) {
     return null;
@@ -52,6 +61,60 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     email: session.user.email,
     name: session.user.name,
     role: session.user.role,
+  };
+}
+
+export async function getSessionUser(): Promise<SessionUser | null> {
+  const real = await getRealSessionUser();
+  if (!real) return null;
+  // « Voir en tant que » : SEUL un admin peut endosser un autre utilisateur
+  // (support : voir son écran). Tout le reste de l'app le voit alors comme cet
+  // utilisateur ; le bandeau permet de quitter. Aucun effet pour un non-admin.
+  if (real.role === "ADMIN") {
+    const impUid = (await cookies()).get(IMPERSONATE_COOKIE)?.value;
+    if (impUid && impUid !== real.id) {
+      const target = await prisma.user.findUnique({
+        where: { id: impUid },
+        select: { id: true, email: true, name: true, role: true, isActive: true },
+      });
+      if (target && target.isActive) {
+        return {
+          id: target.id,
+          email: target.email,
+          name: target.name,
+          role: target.role,
+        };
+      }
+    }
+  }
+  return real;
+}
+
+/**
+ * Si un admin est en train de « voir en tant que » quelqu'un, renvoie le nom
+ * réel + l'utilisateur endossé (pour le bandeau). Sinon null.
+ */
+export async function getImpersonation(): Promise<{
+  realName: string;
+  asUser: SessionUser;
+} | null> {
+  const real = await getRealSessionUser();
+  if (!real || real.role !== "ADMIN") return null;
+  const impUid = (await cookies()).get(IMPERSONATE_COOKIE)?.value;
+  if (!impUid || impUid === real.id) return null;
+  const target = await prisma.user.findUnique({
+    where: { id: impUid },
+    select: { id: true, email: true, name: true, role: true, isActive: true },
+  });
+  if (!target || !target.isActive) return null;
+  return {
+    realName: real.name,
+    asUser: {
+      id: target.id,
+      email: target.email,
+      name: target.name,
+      role: target.role,
+    },
   };
 }
 

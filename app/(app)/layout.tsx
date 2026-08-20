@@ -1,6 +1,7 @@
 import { CallInProgressWidget } from "@/components/call/call-in-progress-widget";
 import { CallResultModal } from "@/components/call/call-result-modal";
 import { CallSessionProvider } from "@/components/call/call-session-provider";
+import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { Sidebar } from "@/components/layout/sidebar";
 import { SidebarAside } from "@/components/layout/sidebar-aside";
 import { SidebarProvider } from "@/components/layout/sidebar-context";
@@ -56,6 +57,8 @@ export default async function AppLayout({
 
             {/* Zone principale */}
             <div className="flex min-w-0 flex-1 flex-col">
+              {/* Bandeau « Voir en tant que » (admin en support) */}
+              <ImpersonationBanner />
               <Topbar user={user} badges={badges} />
               <main className="flex-1 overflow-x-auto">{children}</main>
             </div>
