@@ -294,7 +294,7 @@ export async function getStats(
     emails,
     rdvHonores,
     rdvManques,
-    propositionsActivities,
+    propositionsEnvoyees,
     signaturesContracts,
     funnelProspects,
     funnelContactes,
@@ -335,11 +335,15 @@ export async function getStats(
         statut: "MANQUE",
       },
     }),
-    prisma.prospect.count({
+    // Propositions ENVOYÉES sur la période = contrats (devis) créés dans la
+    // fenêtre, quel que soit leur sort ensuite. On ne peut PAS compter les
+    // prospects encore au statut PROPOSITION_ENVOYEE : dès qu'un client signe,
+    // son statut passe à SIGNE et la proposition « disparaît » du compte, ce qui
+    // donnait 0 proposition alors qu'il y a des signatures (taux 9/0 aberrant).
+    prisma.contract.count({
       where: {
-        ...prospectScope,
-        statut: "PROPOSITION_ENVOYEE",
-        updatedAt: { gte: start, lte: end },
+        ...contractScope,
+        createdAt: { gte: start, lte: end },
       },
     }),
     prisma.contract.aggregate({
@@ -418,7 +422,7 @@ export async function getStats(
     nbEmails: emails,
     nbRdvHonores: rdvHonores,
     nbRdvManques: rdvManques,
-    nbPropositions: propositionsActivities,
+    nbPropositions: propositionsEnvoyees,
     nbSignatures: signaturesContracts._count,
     caSigne: Number(signaturesContracts._sum.valeurAn1 ?? 0),
     funnel: {
@@ -432,8 +436,8 @@ export async function getStats(
     tauxRdvSignature:
       rdvHonores > 0 ? signaturesContracts._count / rdvHonores : 0,
     tauxPropositionSignature:
-      propositionsActivities > 0
-        ? signaturesContracts._count / propositionsActivities
+      propositionsEnvoyees > 0
+        ? signaturesContracts._count / propositionsEnvoyees
         : 0,
     pipelineTotal: Number(pipelineAgg._sum.montantPrevu ?? 0),
     pipelinePondere,
