@@ -201,14 +201,8 @@ export const ROUTES: RouteDef[] = [
     etape: 32,
     adminOnly: true,
   },
-  {
-    href: "/charges/recurrences",
-    label: "Charges récurrentes",
-    icon: "Repeat",
-    group: "admin",
-    etape: 32,
-    adminOnly: true,
-  },
+  // NB : les charges récurrentes (modèles) sont désormais gérées DEPUIS la page
+  // Charges (bouton « Modèles récurrents »), plus d'entrée de nav dédiée.
 
   // ---- CONFIGURATION ----
   {

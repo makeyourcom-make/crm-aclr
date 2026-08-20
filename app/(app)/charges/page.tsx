@@ -124,7 +124,8 @@ export default async function ChargesPage({ searchParams }: PageProps) {
     }
   })();
 
-  const [expenses, statsMonth, statsYear, byCategorie, enAttente] = await Promise.all([
+  const [expenses, statsMonth, statsYear, byCategorie, byFournisseur, enAttente] =
+    await Promise.all([
     prisma.expense.findMany({
       where,
       orderBy,
@@ -158,6 +159,15 @@ export default async function ChargesPage({ searchParams }: PageProps) {
       _sum: { montantTTC: true },
       orderBy: { _sum: { montantTTC: "desc" } },
     }),
+    // Vue d'ensemble : cumul annuel par fournisseur (poste), le plus gros en
+    // haut. C'est ici qu'on voit « Google Ads » gonfler mois après mois.
+    prisma.expense.groupBy({
+      by: ["fournisseur"],
+      where: { date: { gte: startYear } },
+      _sum: { montantTTC: true },
+      _count: true,
+      orderBy: { _sum: { montantTTC: "desc" } },
+    }),
     prisma.expense.aggregate({
       where: { statutPaiement: "EN_ATTENTE" },
       _sum: { montantTTC: true },
@@ -167,6 +177,17 @@ export default async function ChargesPage({ searchParams }: PageProps) {
 
   const ttcYear = Number(statsYear._sum.montantTTC ?? 0);
 
+  // Top postes de l'année (fournisseurs), cumul décroissant, part relative.
+  const postes = byFournisseur
+    .map((f) => ({
+      fournisseur: f.fournisseur,
+      total: Number(f._sum.montantTTC ?? 0),
+      count: f._count,
+    }))
+    .filter((p) => p.total > 0)
+    .slice(0, 12);
+  const postesMax = postes[0]?.total ?? 0;
+
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
@@ -174,6 +195,13 @@ export default async function ChargesPage({ searchParams }: PageProps) {
         description="Suivi des charges de l'entreprise (tickets, factures fournisseurs)."
         actions={
           <div className="flex items-center gap-2">
+            <Link
+              href="/charges/recurrences"
+              className={buttonVariants({ variant: "outline" })}
+            >
+              <Icon name="Repeat" className="mr-1.5 h-4 w-4" />
+              Modèles récurrents
+            </Link>
             <Link
               href={buildExportUrl(raw)}
               className={buttonVariants({ variant: "outline" })}
@@ -230,6 +258,60 @@ export default async function ChargesPage({ searchParams }: PageProps) {
           }
         />
       </div>
+
+      {/* Vue d'ensemble : plus gros postes cumulés sur l'année */}
+      {postes.length > 0 && (
+        <Card className="mb-6">
+          <CardContent className="py-4">
+            <div className="mb-3 flex items-baseline justify-between">
+              <p className="text-sm font-semibold">
+                Plus gros postes — année {now.getFullYear()}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                cumul (récurrences comprises) · {formatCHF(ttcYear)} au total
+              </p>
+            </div>
+            <ul className="space-y-1.5">
+              {postes.map((p) => {
+                const pct = ttcYear > 0 ? (p.total / ttcYear) * 100 : 0;
+                const barPct =
+                  postesMax > 0 ? (p.total / postesMax) * 100 : 0;
+                return (
+                  <li
+                    key={p.fournisseur ?? "—"}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm font-medium">
+                          {p.fournisseur ?? "Sans fournisseur"}
+                        </span>
+                        <span className="shrink-0 text-[11px] text-muted-foreground">
+                          {p.count} charge(s) · {pct.toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary/70"
+                          style={{ width: `${barPct}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-right text-sm font-semibold tabular-nums">
+                      {formatCHF(p.total)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              💡 Chaque charge récurrente (ex. Google Ads mensuel) est comptée
+              une seule fois par mois — le total ci-dessus est bien le cumul
+              réel, sans double comptage.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filtres */}
       <div className="mb-4">
@@ -319,8 +401,17 @@ export default async function ChargesPage({ searchParams }: PageProps) {
                       </Badge>
                     </td>
                     <td className="px-3 py-2">
-                      <p className="text-sm font-medium">
+                      <p className="flex items-center gap-1.5 text-sm font-medium">
                         {e.fournisseur ?? "—"}
+                        {e.recurrenceId && (
+                          <span
+                            className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary"
+                            title="Charge générée par un modèle récurrent — à rapprocher du débit réel, pas à dupliquer."
+                          >
+                            <Icon name="Repeat" className="h-2.5 w-2.5" />
+                            récurrent
+                          </span>
+                        )}
                       </p>
                       {e.description && (
                         <p className="truncate text-[11px] text-muted-foreground">
