@@ -314,6 +314,7 @@ export function ProspectsTable({
           teamUsers={teamUsers}
           onCancel={() => setSelectedIds([])}
           onSuccess={() => setSelectedIds([])}
+          isAdmin={showBulkActions}
         />
       )}
       <DataTable

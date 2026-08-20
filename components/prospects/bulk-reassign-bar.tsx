@@ -10,7 +10,10 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { bulkReassignProspects } from "@/app/(app)/prospects/actions";
+import {
+  bulkDeleteProspects,
+  bulkReassignProspects,
+} from "@/app/(app)/prospects/actions";
 import { Icon } from "@/components/icon";
 
 interface BulkReassignBarProps {
@@ -18,6 +21,8 @@ interface BulkReassignBarProps {
   teamUsers: Array<{ id: string; name: string }>;
   onCancel: () => void;
   onSuccess: () => void;
+  /** Admin uniquement : affiche le bouton de suppression définitive. */
+  isAdmin?: boolean;
 }
 
 export function BulkReassignBar({
@@ -25,9 +30,35 @@ export function BulkReassignBar({
   teamUsers,
   onCancel,
   onSuccess,
+  isAdmin = false,
 }: BulkReassignBarProps) {
   const [pending, startTransition] = useTransition();
   const [targetUserId, setTargetUserId] = useState<string>("");
+
+  const handleDelete = () => {
+    if (
+      !confirm(
+        `Supprimer DÉFINITIVEMENT ${selectedIds.length} entreprise(s) ?\n\n` +
+          "Cette action est irréversible (tags, activités et deals liés sont " +
+          "effacés). Les fiches rattachées à un contrat sont automatiquement " +
+          "ignorées.",
+      )
+    )
+      return;
+    startTransition(async () => {
+      const res = await bulkDeleteProspects({ prospectIds: selectedIds });
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success(
+        `${res.deleted} fiche(s) supprimée(s)${
+          res.skipped ? ` — ${res.skipped} ignorée(s) (liées à un contrat)` : ""
+        }.`,
+      );
+      onSuccess();
+    });
+  };
 
   const handleApply = () => {
     if (!targetUserId) {
@@ -86,6 +117,18 @@ export function BulkReassignBar({
           <Icon name="Check" className="h-4 w-4" />
           {pending ? "Application…" : "Appliquer"}
         </button>
+
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={pending}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-red-300 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+          >
+            <Icon name="Trash2" className="h-4 w-4" />
+            Supprimer
+          </button>
+        )}
 
         <button
           type="button"

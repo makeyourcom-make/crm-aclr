@@ -253,6 +253,50 @@ export async function deleteProspect(id: string): Promise<ProspectActionResult> 
   redirect("/prospects");
 }
 
+/**
+ * Suppression DÉFINITIVE en masse (admin uniquement) — pour nettoyer les
+ * doublons. Chaque fiche supprimée efface en cascade ses tags, activités et
+ * deals. Une fiche protégée par une FK Restrict (liée à un CONTRAT ou une
+ * allocation de charge = vrai client) est IGNORÉE plutôt que de faire échouer
+ * tout le lot. Retourne le nombre supprimé et le nombre ignoré.
+ */
+export async function bulkDeleteProspects(input: {
+  prospectIds: string[];
+}): Promise<{
+  ok: boolean;
+  deleted?: number;
+  skipped?: number;
+  error?: string;
+}> {
+  const admin = await requireAdmin();
+  const ids = Array.isArray(input.prospectIds) ? input.prospectIds : [];
+  if (ids.length === 0) {
+    return { ok: false, error: "Aucune entreprise sélectionnée." };
+  }
+
+  let deleted = 0;
+  let skipped = 0;
+  for (const id of ids) {
+    try {
+      await prisma.prospect.delete({ where: { id } });
+      deleted += 1;
+    } catch {
+      // FK Restrict (contrat / allocation) ou fiche déjà supprimée → on saute.
+      skipped += 1;
+    }
+  }
+
+  if (deleted > 0) {
+    await audit("prospect.bulkDelete", {
+      userId: admin.id,
+      entity: "Prospect",
+      entityId: `${deleted} fiche(s)`,
+    });
+    revalidatePath("/prospects");
+  }
+  return { ok: true, deleted, skipped };
+}
+
 // ===========================================================================
 // BULK — réassignation en masse (admin uniquement)
 // ===========================================================================
