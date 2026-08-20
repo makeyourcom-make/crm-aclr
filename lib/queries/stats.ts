@@ -343,7 +343,15 @@ export async function getStats(
       },
     }),
     prisma.contract.aggregate({
-      where: { ...contractScope, dateSignature: { gte: start, lte: end } },
+      // Signatures = contrats RÉELLEMENT signés (on exclut les propositions en
+      // attente de signature, sinon le nombre et le CA sont gonflés).
+      where: {
+        ...contractScope,
+        statut: {
+          notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"],
+        },
+        dateSignature: { gte: start, lte: end },
+      },
       _count: true,
       _sum: { valeurAn1: true },
     }),
@@ -486,10 +494,14 @@ export async function getTopRankings(
     ? { assigneAId: effectiveUserId }
     : {};
 
-  // Charge tous les contrats signés sur la période avec produits + prospect
+  // Charge tous les contrats RÉELLEMENT signés sur la période (hors propositions
+  // en attente de signature) avec produits + prospect.
   const contracts = await prisma.contract.findMany({
     where: {
       ...contractScope,
+      statut: {
+        notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"],
+      },
       dateSignature: { gte: start, lte: end },
     },
     select: {

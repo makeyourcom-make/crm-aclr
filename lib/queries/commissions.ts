@@ -66,11 +66,19 @@ export async function getCommissionsCockpit(
     filterUserId ?? (user.role === "ADMIN" ? undefined : user.id);
 
   const payments = await prisma.commissionPayment.findMany({
-    where: userFilter
-      ? {
-          commission: { userId: userFilter },
-        }
-      : {},
+    // On ne compte QUE les commissions sur contrats réellement signés : un
+    // contrat en attente de signature (proposition) n'a pas encore généré de
+    // commission « à venir » — sinon les totaux étaient massivement gonflés.
+    where: {
+      commission: {
+        ...(userFilter ? { userId: userFilter } : {}),
+        contract: {
+          statut: {
+            notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"],
+          },
+        },
+      },
+    },
     include: {
       commission: {
         include: {
@@ -160,6 +168,17 @@ export async function getCommissionsCockpit(
 export async function getCommissionsByUser() {
   const grouped = await prisma.commissionPayment.groupBy({
     by: ["commissionId", "statut"],
+    // Idem cockpit : uniquement les commissions sur contrats réellement signés
+    // (on exclut les propositions en attente de signature).
+    where: {
+      commission: {
+        contract: {
+          statut: {
+            notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"],
+          },
+        },
+      },
+    },
     _sum: { montant: true },
   });
 

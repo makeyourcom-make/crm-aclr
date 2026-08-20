@@ -37,7 +37,15 @@ export async function getEmployeeById(id: string) {
         select: {
           prospectsAssignes: true,
           dealsAssignes: true,
-          contratsAssignes: true,
+          // « Contrats signés » = contrats RÉELLEMENT signés (on exclut les
+          // propositions en attente de signature, sinon le compte est gonflé).
+          contratsAssignes: {
+            where: {
+              statut: {
+                notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"],
+              },
+            },
+          },
         },
       },
     },
