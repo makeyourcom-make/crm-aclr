@@ -1395,6 +1395,7 @@ export async function uploadSignedContract(
       assigneAId: true,
       dealId: true,
       prospectId: true,
+      statut: true,
     },
   });
   if (!contract) return { ok: false, error: "Contrat introuvable." };
@@ -1416,15 +1417,30 @@ export async function uploadSignedContract(
     orderBy: { createdAt: "desc" },
   });
 
+  // ÉTAPE FUSIONNÉE : enregistrer le PDF signé du client VAUT contre-signature
+  // ACLR par la personne qui l'upload (le·la commercial·e a le contrat signé en
+  // main = elle valide). La signature est donc COMPLÉTÉE (client + ACLR) en une
+  // seule action, et le contrat est routé vers la validation finale.
   const now = new Date();
   const sigData = {
     type: "SIGNATURE_MANUELLE_PDF" as const,
-    statut: "SIGNEE_CLIENT" as const,
+    statut: "COMPLETEE" as const,
     signeParClient: true,
     dateSignatureClient: now,
     nomClient: parsed.data.nomClient,
     documentSigneUrl: publicUrl,
+    // Contre-signature ACLR fusionnée
+    signeParAclr: true,
+    dateSignatureAclr: now,
+    signeParAclrUserId: user.id,
   };
+
+  // Route le statut du contrat — seulement depuis ATTENTE_SIGNATURE_CLIENT (un
+  // contrat déjà ACTIF auquel on rattache une copie signée ne redescend pas).
+  // Même routage pour tous (admin comme commercial) : la validation finale reste
+  // la même porte → ATTENTE_VALIDATION_ADMIN, où l'admin valide d'un clic (étape
+  // qui génère les factures, source unique).
+  const routeToValidation = contract.statut === "ATTENTE_SIGNATURE_CLIENT";
 
   let signatureId: string;
   await prisma.$transaction(async (tx) => {
@@ -1460,8 +1476,16 @@ export async function uploadSignedContract(
       where: { id: contract.prospectId },
       data: { statut: "SIGNE" },
     });
+
+    if (routeToValidation) {
+      await tx.contract.update({
+        where: { id: contract.id },
+        data: { statut: "ATTENTE_VALIDATION_ADMIN" },
+      });
+    }
   });
 
+  revalidatePath("/");
   revalidatePath("/pipeline");
   revalidatePath("/contrats");
   revalidatePath(`/contrats/${contract.id}`);

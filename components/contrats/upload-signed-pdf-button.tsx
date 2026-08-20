@@ -8,8 +8,9 @@
  *   2. Le client signe à la main, scanne le doc, renvoie le PDF signé
  *   3. Sophie / Arthur clique ce bouton, sélectionne le PDF reçu,
  *      tape le nom du signataire, et confirme
- *   4. Le PDF est archivé, la signature passe en SIGNEE_CLIENT type=MANUEL,
- *      le deal bascule en SIGNE, le prospect aussi.
+ *   4. Le PDF est archivé, la signature est COMPLÉTÉE (client + contre-signature
+ *      ACLR fusionnées en un geste), le deal + prospect basculent en SIGNE, et le
+ *      contrat part directement en validation admin (ATTENTE_VALIDATION_ADMIN).
  */
 import { useRef, useState, useTransition } from "react";
 import { upload } from "@vercel/blob/client";
@@ -112,7 +113,7 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
         return;
       }
       toast.success(
-        "Contrat marqué signé manuellement. Tu peux maintenant contre-signer.",
+        "Contrat signé enregistré et contre-signé. Envoyé pour validation admin.",
       );
       reset();
       setOpen(false);
@@ -141,9 +142,9 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
           <DialogHeader>
             <DialogTitle>Contrat signé reçu</DialogTitle>
             <DialogDescription>
-              Le client a renvoyé le contrat signé en PDF ? Joins-le ici. Il
-              sera archivé et le contrat passera en signé. Tu pourras ensuite
-              contre-signer pour valider définitivement.
+              Le client a renvoyé le contrat signé ? Joins-le ici. En un geste,
+              il est archivé, contre-signé de ta part, et envoyé à l&apos;admin
+              pour la validation finale. Pas d&apos;étape supplémentaire.
             </DialogDescription>
           </DialogHeader>
 
@@ -240,7 +241,7 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
               className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               <Icon name="Check" className="h-4 w-4" />
-              {pending ? "Enregistrement…" : "Marquer signé"}
+              {pending ? "Enregistrement…" : "Enregistrer et contre-signer"}
             </button>
           </DialogFooter>
         </DialogContent>
