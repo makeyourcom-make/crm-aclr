@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -36,20 +35,22 @@ export function Sidebar({ role, onNavigate, badges }: SidebarProps) {
       className="flex h-full flex-col gap-1 overflow-y-auto bg-sidebar px-3 py-4"
       aria-label="Navigation principale"
     >
-      {/* Marque — wordmark MakeYourCom (navy + COM coral, fond transparent) */}
-      <div className="mb-5 flex flex-col gap-1 px-2 pt-1">
-        <Image
-          src="/brand/wordmark-light.png"
-          alt="Make Your Com"
-          width={70}
-          height={24}
-          priority
-          style={{ height: 24, width: "auto" }}
-        />
-        <p className="px-0.5 text-[11px] leading-tight text-muted-foreground">
-          CRM — ACLR Sàrl
-        </p>
-      </div>
+      {/* Marque — wordmark texte net (navy + COM coral). Rendu vectoriel :
+          toujours nnet, bien cadré, sur PC comme mobile. */}
+      <Link
+        href="/"
+        onClick={onNavigate}
+        className="mb-5 flex flex-col gap-0.5 px-2 pt-1"
+        aria-label="Make Your Com - Accueil"
+      >
+        <span className="text-[15px] font-extrabold leading-none tracking-tight">
+          <span className="text-[#0E1936] dark:text-white">MAKE YOUR </span>
+          <span className="text-[#F47174]">COM</span>
+        </span>
+        <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          CRM · ACLR Sàrl
+        </span>
+      </Link>
 
       {/* Liens groupés */}
       {ROUTE_GROUPS.map((group) => {
