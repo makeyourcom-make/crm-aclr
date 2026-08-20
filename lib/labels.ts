@@ -98,14 +98,32 @@ export const PROSPECT_STATUT_COLORS: Record<ProspectStatut, string> = {
 // PROSPECT — secteur
 // ============================================================================
 
+// Liste réaliste inspirée des rubriques principales de local.ch. L'ordre ici
+// définit l'ordre du menu déroulant.
 const PROSPECT_SECTEUR_LABELS: Record<ProspectSecteur, string> = {
   RESTO_HOTEL: "Restauration / Hôtellerie",
-  E_COMMERCE: "E-commerce",
-  PME_B2B: "PME B2B",
-  ARTISAN: "Artisan",
-  CABINET_LIBERAL: "Cabinet libéral",
-  TOURISME: "Tourisme",
-  IMMOBILIER: "Immobilier",
+  ALIMENTATION: "Alimentation / Boulangerie / Boucherie",
+  COMMERCE_DETAIL: "Commerce de détail / Boutique",
+  E_COMMERCE: "E-commerce / Vente en ligne",
+  BEAUTE: "Beauté / Coiffure / Esthétique",
+  SANTE: "Santé / Médical / Paramédical",
+  SPORT_FITNESS: "Sport / Fitness / Loisirs",
+  CONSTRUCTION: "Construction / Bâtiment",
+  ARTISAN: "Artisanat / Métiers manuels",
+  AUTOMOBILE: "Automobile / Garage",
+  IMMOBILIER: "Immobilier / Régie",
+  SERVICES_ENTREPRISE: "Services aux entreprises",
+  FIDUCIAIRE_FINANCE: "Fiduciaire / Finance / Assurance",
+  CABINET_LIBERAL: "Profession libérale (avocat, notaire, architecte...)",
+  INFORMATIQUE: "Informatique / Digital / Télécom",
+  INDUSTRIE: "Industrie / Production",
+  PME_B2B: "PME / B2B / Commerce de gros",
+  TRANSPORT: "Transport / Logistique",
+  FORMATION: "Formation / Éducation",
+  TOURISME: "Tourisme / Agence de voyage",
+  EVENEMENTIEL: "Événementiel / Communication",
+  AGRICULTURE: "Agriculture / Viticulture",
+  ASSOCIATION: "Association / Public / ONG",
   AUTRE: "Autre",
 };
 export const getProspectSecteurLabel = (v: ProspectSecteur) =>
@@ -119,17 +137,37 @@ export const PROSPECT_SECTEUR_OPTIONS: SelectOption<ProspectSecteur>[] = (
 // ============================================================================
 
 const PROSPECT_SOURCE_LABELS: Record<ProspectSource, string> = {
-  FICHIER_IMPORT: "Fichier (import CSV)",
+  CRM: "CRM",
   LINKEDIN: "LinkedIn",
+  INSTAGRAM: "Instagram",
+  FACEBOOK: "Facebook",
   REFERRAL: "Recommandation",
   WEB: "Site web",
+  DIRECT: "Direct",
+  FICHIER_IMPORT: "Fichier (import CSV)", // legacy
   AUTRE: "Autre",
 };
 export const getProspectSourceLabel = (v: ProspectSource) =>
   PROSPECT_SOURCE_LABELS[v];
-export const PROSPECT_SOURCE_OPTIONS: SelectOption<ProspectSource>[] = (
-  Object.keys(PROSPECT_SOURCE_LABELS) as ProspectSource[]
-).map((v) => ({ value: v, label: PROSPECT_SOURCE_LABELS[v] }));
+
+// Toutes les fiches proviennent du CRM (source par défaut). Le commercial peut
+// requalifier en LinkedIn / Instagram / Facebook / Recommandation / Site web /
+// Direct. FICHIER_IMPORT et AUTRE restent affichables (fiches historiques) mais
+// ne sont pas proposés à la saisie.
+const PROSPECT_SOURCE_ORDER: ProspectSource[] = [
+  "CRM",
+  "LINKEDIN",
+  "INSTAGRAM",
+  "FACEBOOK",
+  "REFERRAL",
+  "WEB",
+  "DIRECT",
+];
+export const PROSPECT_SOURCE_OPTIONS: SelectOption<ProspectSource>[] =
+  PROSPECT_SOURCE_ORDER.map((v) => ({
+    value: v,
+    label: PROSPECT_SOURCE_LABELS[v],
+  }));
 
 // ============================================================================
 // ACTIVITY — type

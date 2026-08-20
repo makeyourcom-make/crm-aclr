@@ -287,17 +287,50 @@ export function guessFieldFromHeader(header: string): string | null {
 export function guessSecteur(raw: string | undefined): ProspectSecteur | null {
   if (!raw) return null;
   const t = raw.toLowerCase();
-  if (/(resto|hôtel|hotel|brasseri|café|cafe|bar|pizza)/.test(t))
+  // Ordre = du plus spécifique au plus générique.
+  if (/(resto|restaurant|hôtel|hotel|brasseri|café|cafe|\bbar\b|pizza|traiteur|snack)/.test(t))
     return "RESTO_HOTEL";
-  if (/(e-?commerce|boutique en ligne|shop|store)/.test(t)) return "E_COMMERCE";
-  if (/(artisan|boulanger|coiffeur|garagiste|menuisier|électricien|plombier|maçon)/.test(t))
+  if (/(boulanger|pâtisser|patisser|boucher|épiceri|epiceri|primeur|fromager|caviste|alimentation)/.test(t))
+    return "ALIMENTATION";
+  if (/(e-?commerce|boutique en ligne|vente en ligne|webshop|shop|store)/.test(t))
+    return "E_COMMERCE";
+  if (/(coiffeur|coiffure|esthéti|estheti|institut|beauté|beaute|spa|manucure|ongler|barbier|tatou)/.test(t))
+    return "BEAUTE";
+  if (/(médecin|medecin|dentiste|physio|ostéo|osteo|pharmaci|cabinet médical|clinique|infirmi|podolog|opticien|vétérinaire|veterinaire|thérapeut|therapeut)/.test(t))
+    return "SANTE";
+  if (/(fitness|gym|salle de sport|yoga|pilates|crossfit|club sportif)/.test(t))
+    return "SPORT_FITNESS";
+  if (/(construction|bâtiment|batiment|maçon|macon|charpent|toitur|couvreur|génie civil|genie civil|gros œuvre|terrassement)/.test(t))
+    return "CONSTRUCTION";
+  if (/(garage|carross|automobile|pneu|mécanique auto|mecanique auto|concession)/.test(t))
+    return "AUTOMOBILE";
+  if (/(menuisier|électricien|electricien|plombier|sanitaire|peintre|serrur|vitrier|paysagist|jardin|nettoyage|ramoneur|artisan)/.test(t))
     return "ARTISAN";
-  if (/(cabinet|avocat|dentiste|médecin|notaire|architect|expert|fiduciaire)/.test(t))
+  if (/(immobili|régie|regie|courtier|gérance|gerance)/.test(t)) return "IMMOBILIER";
+  if (/(fiduciaire|comptab|assurance|banqu|financ|courtage)/.test(t))
+    return "FIDUCIAIRE_FINANCE";
+  if (/(avocat|notaire|architect|huissier|expert-comptable|étude d'avocat)/.test(t))
     return "CABINET_LIBERAL";
-  if (/(immobili|agence|courtier)/.test(t)) return "IMMOBILIER";
-  if (/(touris|camping|gîte|chambre d'hôte|location vacance)/.test(t))
+  if (/(informati|logiciel|software|digital|web|it\b|développ|developp|télécom|telecom|hébergement|hebergement|saas)/.test(t))
+    return "INFORMATIQUE";
+  if (/(industri|fabric|production|usine|manufactur)/.test(t)) return "INDUSTRIE";
+  if (/(transport|logistiqu|déménag|demenag|livraison|fret|taxi)/.test(t))
+    return "TRANSPORT";
+  if (/(formation|école|ecole|éducation|education|cours|auto-?école|auto-?ecole|coaching)/.test(t))
+    return "FORMATION";
+  if (/(touris|camping|gîte|gite|chambre d'hôte|location vacance|agence de voyage)/.test(t))
     return "TOURISME";
-  if (/(pme|industri|fabric|production|société|sàrl|sarl|sa\b)/.test(t))
+  if (/(événement|evenement|event|communication|marketing|agence de com|publicit)/.test(t))
+    return "EVENEMENTIEL";
+  if (/(agricol|agricultur|viticol|viticultur|vigneron|domaine viticole|maraîch|maraich)/.test(t))
+    return "AGRICULTURE";
+  if (/(associat|fondation|\bong\b|commune|administration|public)/.test(t))
+    return "ASSOCIATION";
+  if (/(commerce de détail|commerce de detail|magasin|boutique|détaillant|detaillant)/.test(t))
+    return "COMMERCE_DETAIL";
+  if (/(services aux entreprises|conseil|consulting|prestataire)/.test(t))
+    return "SERVICES_ENTREPRISE";
+  if (/(pme|société|societe|sàrl|sarl|\bsa\b|entreprise|commerce de gros|grossiste)/.test(t))
     return "PME_B2B";
   return null;
 }

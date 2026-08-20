@@ -67,6 +67,8 @@ export function ProspectForm({
     defaultValues: {
       pays: "Suisse",
       statut: "NOUVEAU",
+      // Toutes les fiches proviennent du CRM par défaut ; requalifiable ensuite.
+      source: "CRM",
       ...initialValues,
     },
   });
