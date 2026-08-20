@@ -278,6 +278,36 @@ export function ProspectsTable({
       size: 120,
     },
     {
+      // Dernier appel (colonne dénormalisée dernierAppelLe, trigger AFTER INSERT).
+      id: "dernierAppelLe",
+      header: () => (
+        <SortableHeader field="dernierAppelLe" label="Dernier appel" />
+      ),
+      cell: ({ row }) =>
+        row.original.dernierAppelLe ? (
+          <span className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+            {formatDate(row.original.dernierAppelLe)}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground/50">—</span>
+        ),
+      size: 120,
+    },
+    {
+      // Date de RDV (colonne dénormalisée dateRdvLe, trigger AFTER INSERT).
+      id: "dateRdvLe",
+      header: () => <SortableHeader field="dateRdvLe" label="Date RDV" />,
+      cell: ({ row }) =>
+        row.original.dateRdvLe ? (
+          <span className="whitespace-nowrap text-xs font-medium text-foreground tabular-nums">
+            {formatDate(row.original.dateRdvLe)}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground/50">—</span>
+        ),
+      size: 110,
+    },
+    {
       id: "createdAt",
       header: () => <SortableHeader field="createdAt" label="Date d'ajout" />,
       cell: ({ row }) => (

@@ -744,6 +744,15 @@ model Prospect {
   /// Ne pas supprimer le trigger. Script : scripts/ddl-trigger-contrat-debut.ts
   contratDebutLe DateTime?
 
+  /// Date du DERNIER APPEL passé/reçu (MAX(Activity.date) sur
+  /// APPEL_SORTANT/APPEL_ENTRANT). Colonne dénormalisée maintenue par trigger
+  /// (AFTER INSERT, GREATEST). Permet de trier le listing par « dernier appel ».
+  dernierAppelLe DateTime?
+  /// Date de RDV (MAX(Activity.date) sur RDV_PHYSIQUE/VISIO/TELEPHONIQUE —
+  /// inclut les RDV futurs planifiés). Colonne dénormalisée maintenue par
+  /// trigger. Permet de trier le listing par « date de RDV ».
+  dateRdvLe DateTime?
+
   assigneA   User?   @relation(fields: [assigneAId], references: [id], onDelete: SetNull)
   assigneAId String?
 
@@ -792,6 +801,9 @@ model Prospect {
   // Tri « Début contrat » (colonne dénormalisée contratDebutLe).
   @@index([contratDebutLe(sort: Desc)])
   @@index([assigneAId, contratDebutLe(sort: Desc)])
+  // Tri « Dernier appel » et « Date de RDV » (colonnes dénormalisées).
+  @@index([dernierAppelLe(sort: Desc)])
+  @@index([dateRdvLe(sort: Desc)])
   // NB : la recherche texte (ILIKE '%q%' sur raisonSociale/ville/email/
   // contactNom/contactPrenom) est accélérée par des index GIN trigramme
   // (pg_trgm) posés hors Prisma via scripts/ddl-prospect-search-trgm.ts

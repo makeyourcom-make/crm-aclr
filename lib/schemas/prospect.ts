@@ -123,6 +123,10 @@ export const ProspectSortFieldSchema = z.enum([
   "derniereActionLe",
   /** Début du contrat en cours — colonne dénormalisée contratDebutLe. */
   "contratDebutLe",
+  /** Date du dernier appel — colonne dénormalisée dernierAppelLe. */
+  "dernierAppelLe",
+  /** Date de RDV (dernier / futur planifié) — colonne dénormalisée dateRdvLe. */
+  "dateRdvLe",
 ]);
 export type ProspectSortField = z.infer<typeof ProspectSortFieldSchema>;
 

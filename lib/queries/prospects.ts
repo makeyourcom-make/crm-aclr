@@ -35,7 +35,12 @@ export async function getProspects(
   // lignes). En Postgres, DESC place les NULL EN PREMIER : sans forcer
   // `nulls: "last"`, trier « Début contrat » desc afficherait des milliers de
   // fiches vides avant le moindre client. On veut toujours les valeurs d'abord.
-  const nullsLastCols = new Set(["contratDebutLe", "derniereActionLe"]);
+  const nullsLastCols = new Set([
+    "contratDebutLe",
+    "derniereActionLe",
+    "dernierAppelLe",
+    "dateRdvLe",
+  ]);
   const orderBy: Prisma.ProspectOrderByWithRelationInput = nullsLastCols.has(
     params.sortBy,
   )
