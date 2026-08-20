@@ -119,13 +119,6 @@ export const ROUTES: RouteDef[] = [
     group: "vente",
     etape: 10,
   },
-  {
-    href: "/renouvellements",
-    label: "Renouvellements",
-    icon: "Repeat",
-    group: "vente",
-    etape: 23,
-  },
 
   // ---- FINANCE ----
   // /paiements a été retiré du menu : doublon avec /factures-clients.
