@@ -14,7 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { BackToProspects } from "@/components/prospects/back-to-prospects";
-import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badge";
+import { ProspectStatutSelect } from "@/components/prospects/prospect-statut-select";
+import { InlineEditField } from "@/components/prospects/inline-edit-field";
 import { MarkOpenedOnMount } from "@/components/prospects/mark-opened-on-mount";
 import { GdprTools } from "@/components/prospects/gdpr-tools";
 import { ProspectTagsEditor } from "@/components/prospects/prospect-tags-editor";
@@ -189,8 +190,11 @@ export default async function ProspectDetailPage({ params }: PageProps) {
       />
 
       {/* Ligne en-tête */}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <ProspectStatutBadge statut={prospect.statut} />
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <ProspectStatutSelect
+          prospectId={prospect.id}
+          statut={prospect.statut}
+        />
         {prospect.secteur && (
           <span className="text-xs text-muted-foreground">
             · {getProspectSecteurLabel(prospect.secteur)}
@@ -201,6 +205,41 @@ export default async function ProspectDetailPage({ params }: PageProps) {
             · Source : {getProspectSourceLabel(prospect.source)}
           </span>
         )}
+      </div>
+
+      {/* Recherche externe rapide */}
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <a
+          href={`https://www.google.com/search?q=${encodeURIComponent(prospect.raisonSociale)}`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium hover:bg-muted"
+        >
+          <Icon name="Search" className="h-3.5 w-3.5" />
+          Google
+        </a>
+        <a
+          href={`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(
+            [prospect.contactPrenom, prospect.contactNom]
+              .filter(Boolean)
+              .join(" ") || prospect.raisonSociale,
+          )}`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium hover:bg-muted"
+        >
+          <Icon name="ExternalLink" className="h-3.5 w-3.5 text-[#0a66c2]" />
+          LinkedIn
+        </a>
+        <a
+          href={`https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(prospect.raisonSociale)}`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium hover:bg-muted"
+        >
+          <Icon name="ExternalLink" className="h-3.5 w-3.5 text-[#e1306c]" />
+          Instagram
+        </a>
       </div>
 
       {/* Tags — éditable par l'admin ou le commercial propriétaire du client */}
@@ -235,83 +274,112 @@ export default async function ProspectDetailPage({ params }: PageProps) {
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
             <Field label="Email">
-              {prospect.email ? (
-                <a
-                  href={`mailto:${prospect.email}`}
-                  className="text-primary hover:underline"
-                >
-                  {prospect.email}
-                </a>
-              ) : (
-                "—"
-              )}
+              <InlineEditField
+                prospectId={prospect.id}
+                field="email"
+                value={prospect.email}
+                placeholder="email@…"
+                openHref={prospect.email ? `mailto:${prospect.email}` : null}
+              />
             </Field>
 
             <Field label="Téléphone">
-              {prospect.telephone ? (
-                <ClickToCall
-                  prospectId={prospect.id}
-                  prospectRaisonSociale={prospect.raisonSociale}
-                  numero={prospect.telephone}
-                />
-              ) : (
-                "—"
-              )}
+              <InlineEditField
+                prospectId={prospect.id}
+                field="telephone"
+                value={prospect.telephone}
+                placeholder="+41 …"
+                displayNode={
+                  prospect.telephone ? (
+                    <ClickToCall
+                      prospectId={prospect.id}
+                      prospectRaisonSociale={prospect.raisonSociale}
+                      numero={prospect.telephone}
+                    />
+                  ) : undefined
+                }
+              />
             </Field>
 
             <Field label="Mobile">
-              {prospect.telephoneMobile ? (
-                <ClickToCall
-                  prospectId={prospect.id}
-                  prospectRaisonSociale={prospect.raisonSociale}
-                  numero={prospect.telephoneMobile}
-                />
-              ) : (
-                "—"
-              )}
+              <InlineEditField
+                prospectId={prospect.id}
+                field="telephoneMobile"
+                value={prospect.telephoneMobile}
+                placeholder="+41 …"
+                displayNode={
+                  prospect.telephoneMobile ? (
+                    <ClickToCall
+                      prospectId={prospect.id}
+                      prospectRaisonSociale={prospect.raisonSociale}
+                      numero={prospect.telephoneMobile}
+                    />
+                  ) : undefined
+                }
+              />
             </Field>
 
             <Field label="Site web">
-              {prospect.siteWeb ? (
-                <a
-                  href={prospect.siteWeb}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary hover:underline break-all"
-                >
-                  {prospect.siteWeb}
-                </a>
-              ) : (
-                "—"
-              )}
+              <InlineEditField
+                prospectId={prospect.id}
+                field="siteWeb"
+                value={prospect.siteWeb}
+                placeholder="https://…"
+                openHref={prospect.siteWeb}
+                openIcon="Globe"
+              />
             </Field>
 
             <Field label="LinkedIn">
-              {prospect.linkedIn ? (
-                <a
-                  href={prospect.linkedIn}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary hover:underline break-all"
-                >
-                  {prospect.linkedIn}
-                </a>
-              ) : (
-                "—"
-              )}
+              <InlineEditField
+                prospectId={prospect.id}
+                field="linkedIn"
+                value={prospect.linkedIn}
+                placeholder="URL LinkedIn"
+                openHref={prospect.linkedIn}
+                openIcon="ExternalLink"
+              />
             </Field>
 
-            <Field label="Effectif">{prospect.effectif ?? "—"}</Field>
+            <Field label="Effectif">
+              <InlineEditField
+                prospectId={prospect.id}
+                field="effectif"
+                value={
+                  prospect.effectif != null ? String(prospect.effectif) : null
+                }
+                type="number"
+                placeholder="0"
+              />
+            </Field>
 
             <Field label="Adresse" className="sm:col-span-2">
-              <div className="text-sm">
-                {prospect.adresse && <div>{prospect.adresse}</div>}
-                <div>
-                  {[prospect.codePostal, prospect.ville]
-                    .filter(Boolean)
-                    .join(" ") || "—"}
-                  {prospect.canton ? ` · ${prospect.canton}` : ""}
-                  {prospect.pays ? ` · ${prospect.pays}` : ""}
+              <div className="space-y-1">
+                <InlineEditField
+                  prospectId={prospect.id}
+                  field="adresse"
+                  value={prospect.adresse}
+                  placeholder="Rue et n°"
+                />
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <InlineEditField
+                    prospectId={prospect.id}
+                    field="codePostal"
+                    value={prospect.codePostal}
+                    placeholder="NPA"
+                  />
+                  <InlineEditField
+                    prospectId={prospect.id}
+                    field="ville"
+                    value={prospect.ville}
+                    placeholder="Ville"
+                  />
+                  {(prospect.canton || prospect.pays) && (
+                    <span className="text-xs text-muted-foreground">
+                      {prospect.canton ? `· ${prospect.canton}` : ""}
+                      {prospect.pays ? ` · ${prospect.pays}` : ""}
+                    </span>
+                  )}
                 </div>
               </div>
             </Field>

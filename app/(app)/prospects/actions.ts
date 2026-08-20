@@ -208,6 +208,52 @@ export async function updateProspectStatut(
 }
 
 /**
+ * Édition INLINE d'un champ de la fiche (depuis la fiche client, sans passer par
+ * la page « Modifier »). Whitelist stricte des champs autorisés. Chaîne vide =
+ * null (efface le champ). `effectif` est parsé en entier.
+ */
+const INLINE_EDITABLE_FIELDS = [
+  "email",
+  "telephone",
+  "telephoneMobile",
+  "siteWeb",
+  "linkedIn",
+  "effectif",
+  "adresse",
+  "codePostal",
+  "ville",
+  "canton",
+  "contactNom",
+  "contactPrenom",
+  "contactFonction",
+] as const;
+
+export async function updateProspectField(
+  id: string,
+  field: string,
+  value: string,
+): Promise<ProspectActionResult> {
+  const user = await requireUser();
+  await assertCanEditProspect(user, id);
+  if (!(INLINE_EDITABLE_FIELDS as readonly string[]).includes(field)) {
+    return { ok: false, error: "Champ non modifiable." };
+  }
+  const v = value.trim();
+  const data: Record<string, unknown> =
+    field === "effectif"
+      ? { effectif: v === "" ? null : Number.parseInt(v, 10) || null }
+      : { [field]: v === "" ? null : v };
+  try {
+    await prisma.prospect.update({ where: { id }, data });
+    revalidatePath(`/prospects/${id}`);
+    revalidatePath("/prospects");
+    return { ok: true, prospectId: id };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
+}
+
+/**
  * « Ouverture » d'une fiche : appelée au montage RÉEL de la page détail (pas au
  * prefetch/survol). Fait passer une fiche jamais consultée NOUVEAU → VIERGE
  * (vue par Sophie ou l'admin, mais pas encore contactée). Le `where` sur
