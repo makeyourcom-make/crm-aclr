@@ -427,6 +427,22 @@ export async function recordCallResult(
           where: { id: updated.prospectId },
           data: { statut: "NE_PAS_RAPPELER" },
         });
+      } else if (
+        updated.prospectId &&
+        // Numéro mort → pas un vrai contact, on ne promeut pas.
+        parsed.data.resultat !== "INVALIDE"
+      ) {
+        // Auto-promotion : « je l'ai appelé » → la fiche encore NOUVEAU / VIERGE
+        // passe en CONTACTE. Le filtre sur `statut` garantit qu'on ne fait
+        // JAMAIS reculer une fiche déjà plus avancée (RDV pris, signé, etc.) :
+        // updateMany ne touche que les lignes qui matchent encore le where.
+        await tx.prospect.updateMany({
+          where: {
+            id: updated.prospectId,
+            statut: { in: ["NOUVEAU", "VIERGE"] },
+          },
+          data: { statut: "CONTACTE" },
+        });
       }
 
       // 3. Rappel auto si pertinent et si délai fourni
