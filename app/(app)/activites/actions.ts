@@ -8,7 +8,7 @@
  *   { ok: false, error: string, fieldErrors?: Record<string, string> }
  */
 import { revalidatePath } from "next/cache";
-import { Prisma } from "@prisma/client";
+import { Prisma, type ProspectStatut } from "@prisma/client";
 import { z } from "zod";
 
 import {
@@ -420,29 +420,39 @@ export async function recordCallResult(
         },
       });
 
-      // 2. Cas spécial REFUS_FERME : prospect passe en NE_PAS_RAPPELER
-      //    (uniquement si l'activité est rattachée à un prospect)
-      if (parsed.data.resultat === "REFUS_FERME" && updated.prospectId) {
-        await tx.prospect.update({
-          where: { id: updated.prospectId },
-          data: { statut: "NE_PAS_RAPPELER" },
-        });
-      } else if (
-        updated.prospectId &&
-        // Numéro mort → pas un vrai contact, on ne promeut pas.
-        parsed.data.resultat !== "INVALIDE"
-      ) {
-        // Auto-promotion : « je l'ai appelé » → la fiche encore NOUVEAU / VIERGE
-        // passe en CONTACTE. Le filtre sur `statut` garantit qu'on ne fait
-        // JAMAIS reculer une fiche déjà plus avancée (RDV pris, signé, etc.) :
-        // updateMany ne touche que les lignes qui matchent encore le where.
-        await tx.prospect.updateMany({
-          where: {
-            id: updated.prospectId,
-            statut: { in: ["NOUVEAU", "VIERGE"] },
-          },
-          data: { statut: "CONTACTE" },
-        });
+      // 2. Avancement automatique du statut du prospect selon le résultat de
+      //    l'appel. RÈGLE D'OR : progression uniquement vers l'avant — le filtre
+      //    `from` sur updateMany garantit qu'on ne fait jamais reculer une fiche
+      //    déjà plus avancée, ni ressusciter une fiche PERDU / NE_PAS_RAPPELER.
+      if (updated.prospectId) {
+        const r = parsed.data.resultat;
+        if (r === "REFUS_FERME") {
+          // Refus ferme → on n'appelle plus.
+          await tx.prospect.update({
+            where: { id: updated.prospectId },
+            data: { statut: "NE_PAS_RAPPELER" },
+          });
+        } else if (r !== "INVALIDE") {
+          // Numéro mort (INVALIDE) → pas un vrai contact, aucune promotion.
+          // Sinon on avance selon le résultat, depuis les statuts « en amont ».
+          const promo: { target: ProspectStatut; from: ProspectStatut[] } =
+            r === "RDV_PRIS"
+              ? {
+                  target: "RDV_PRIS",
+                  from: ["NOUVEAU", "VIERGE", "CONTACTE", "QUALIFIE"],
+                }
+              : r === "INTERESSE_PAS_PRET"
+                ? { target: "QUALIFIE", from: ["NOUVEAU", "VIERGE", "CONTACTE"] }
+                : // Tout autre appel passé → au moins CONTACTE.
+                  { target: "CONTACTE", from: ["NOUVEAU", "VIERGE"] };
+          await tx.prospect.updateMany({
+            where: {
+              id: updated.prospectId,
+              statut: { in: promo.from },
+            },
+            data: { statut: promo.target },
+          });
+        }
       }
 
       // 3. Rappel auto si pertinent et si délai fourni
