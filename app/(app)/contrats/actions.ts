@@ -695,7 +695,7 @@ export async function resilierContract(
 const SignDealInPersonSchema = z.object({
   dealId: z.string().min(1),
   modalitePaiement: z
-    .enum(["CINQUANTE_CINQUANTE", "CENT_AU_SIGNING", "MENSUEL"])
+    .enum(["CINQUANTE_CINQUANTE", "CENT_AU_SIGNING", "MENSUEL", "ONESHOT_PUIS_MENSUEL"])
     .default("CINQUANTE_CINQUANTE"),
   dureeMois: z.coerce.number().int().min(1).max(60).default(12),
   dateDebut: z.coerce.date().optional(),
@@ -820,7 +820,7 @@ export async function signDealInPerson(
 const SendSignatureByEmailSchema = z.object({
   dealId: z.string().min(1),
   modalitePaiement: z
-    .enum(["CINQUANTE_CINQUANTE", "CENT_AU_SIGNING", "MENSUEL"])
+    .enum(["CINQUANTE_CINQUANTE", "CENT_AU_SIGNING", "MENSUEL", "ONESHOT_PUIS_MENSUEL"])
     .default("CINQUANTE_CINQUANTE"),
   dureeMois: z.coerce.number().int().min(1).max(60).default(12),
   dateDebut: z.coerce.date().optional(),
@@ -1526,7 +1526,11 @@ function addDays(d: Date, days: number): Date {
  * Génère le planning des factures clients selon la modalité de paiement.
  */
 function buildClientInvoicesForContract(params: {
-  modalite: "CINQUANTE_CINQUANTE" | "CENT_AU_SIGNING" | "MENSUEL";
+  modalite:
+    | "CINQUANTE_CINQUANTE"
+    | "CENT_AU_SIGNING"
+    | "MENSUEL"
+    | "ONESHOT_PUIS_MENSUEL";
   dateSignature: Date;
   dateDebut: Date;
   dureeMois: number;
@@ -1608,6 +1612,52 @@ function buildClientInvoicesForContract(params: {
       });
     }
     // Mensualités 12 mois
+    if (params.mensuelCents > 0) {
+      for (let i = 0; i < 12; i++) {
+        const dateEmission = addMonthsKeepEndOfMonth(params.dateDebut, i);
+        const periodeFin = new Date(dateEmission);
+        periodeFin.setMonth(periodeFin.getMonth() + 1);
+        periodeFin.setDate(periodeFin.getDate() - 1);
+        invoices.push({
+          dateEmission,
+          dateEcheance: echeance(dateEmission),
+          type: "MENSUALITE",
+          periodeMoisDebut: dateEmission,
+          periodeMoisFin: periodeFin,
+          sousTotalCents: params.mensuelCents,
+          lines: params.lines
+            .filter((l) => l.lineMensuel > 0)
+            .map((l) => ({
+              designation: `${l.nom} ${moisFacturationLabel(dateEmission)}`,
+              quantite: l.quantite,
+              prixUnitaire: l.mensuelUnit,
+              montantHT: centsToChf(l.lineMensuel),
+              productId: l.productId,
+            })),
+        });
+      }
+    }
+  } else if (params.modalite === "ONESHOT_PUIS_MENSUEL") {
+    // One-shot payé en UNE fois à la signature (facture ponctuelle du setup),
+    // PUIS le récurrent facturé mois par mois. Le renouvellement (mois 13+) est
+    // pris en charge par le filet ci-dessous (modalité ≠ CENT_AU_SIGNING).
+    if (params.oneShotCents > 0) {
+      invoices.push({
+        dateEmission: params.dateSignature,
+        dateEcheance: echeance(params.dateSignature),
+        type: "PONCTUELLE",
+        sousTotalCents: params.oneShotCents,
+        lines: params.lines
+          .filter((l) => l.lineOneShot > 0)
+          .map((l) => ({
+            designation: l.nom,
+            quantite: l.quantite,
+            prixUnitaire: l.oneShotUnit,
+            montantHT: centsToChf(l.lineOneShot),
+            productId: l.productId,
+          })),
+      });
+    }
     if (params.mensuelCents > 0) {
       for (let i = 0; i < 12; i++) {
         const dateEmission = addMonthsKeepEndOfMonth(params.dateDebut, i);

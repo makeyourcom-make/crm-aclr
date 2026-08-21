@@ -340,6 +340,7 @@ const MODALITE_PAIEMENT_LABELS: Record<ModalitePaiement, string> = {
   CINQUANTE_CINQUANTE: "50 % / 50 %",
   CENT_AU_SIGNING: "100 % à la signature",
   MENSUEL: "Mensuel",
+  ONESHOT_PUIS_MENSUEL: "One-shot + mensuel",
 };
 export const getModalitePaiementLabel = (v: ModalitePaiement) =>
   MODALITE_PAIEMENT_LABELS[v];

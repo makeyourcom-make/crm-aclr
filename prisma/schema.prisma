@@ -173,6 +173,7 @@ enum ModalitePaiement {
   CINQUANTE_CINQUANTE // 50/50 : acompte + solde
   CENT_AU_SIGNING // 100% à la signature
   MENSUEL // mensualités sur la durée
+  ONESHOT_PUIS_MENSUEL // one-shot payé à la signature, puis récurrent facturé chaque mois
 }
 
 enum PaymentType {

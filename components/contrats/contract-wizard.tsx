@@ -607,7 +607,7 @@ export function ContractWizard({
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
             <Label>Modalité de paiement</Label>
-            <div className="grid gap-1.5 sm:grid-cols-3">
+            <div className="grid gap-1.5 sm:grid-cols-2">
               {(
                 [
                   {
@@ -624,6 +624,11 @@ export function ContractWizard({
                     value: "MENSUEL",
                     label: "Mensuel",
                     desc: "12 mensualités successives",
+                  },
+                  {
+                    value: "ONESHOT_PUIS_MENSUEL",
+                    label: "One-shot + mensuel",
+                    desc: "One-shot payé à la signature, récurrent facturé chaque mois",
                   },
                 ] as { value: ModalitePaiement; label: string; desc: string }[]
               ).map((opt) => (

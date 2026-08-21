@@ -371,6 +371,8 @@ const MODALITE_LABELS: Record<string, string> = {
   CINQUANTE_CINQUANTE: "50 % d'acompte à la commande / 50 % à la mise en ligne",
   CENT_AU_SIGNING: "100 % à la signature",
   MENSUEL: "Mensualisé sur la durée",
+  ONESHOT_PUIS_MENSUEL:
+    "Frais unique réglé à la signature, puis abonnement facturé chaque mois",
 };
 
 /**
