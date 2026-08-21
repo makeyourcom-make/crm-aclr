@@ -21,6 +21,7 @@ import {
 } from "@/app/(app)/contrats/actions";
 import { createSignatureRequest } from "@/app/(app)/signatures/actions";
 import { ContractEmailComposer } from "@/components/contrats/contract-email-composer";
+import { UploadSignedPdfButton } from "@/components/contrats/upload-signed-pdf-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -36,6 +37,7 @@ import { Icon } from "@/components/icon";
 import { ProspectCombobox } from "@/components/prospects/prospect-combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { fireConfetti } from "@/lib/confetti";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -873,6 +875,21 @@ export function ContractWizard({
           )}
 
           <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+            {/* Contrat déjà signé sur papier ? On le joint et on finalise ici
+                même (upload + contre-signature fusionnés, confettis 🎉).
+                Uniquement en édition : il faut un contrat déjà enregistré. */}
+            {isEdit && initial && (
+              <div className="mr-auto">
+                <UploadSignedPdfButton
+                  contractId={initial.contractId}
+                  triggerLabel="Contrat signé reçu — joindre & finaliser 🎉"
+                  onSuccess={() => {
+                    void fireConfetti();
+                    router.push(`/contrats/${initial.contractId}`);
+                  }}
+                />
+              </div>
+            )}
             <Button
               type="button"
               variant="outline"
