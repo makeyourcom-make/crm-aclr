@@ -5,7 +5,14 @@ import { toast } from "sonner";
 
 import { signByAclr } from "@/app/(app)/signatures/actions";
 
-export function SignAclrButton({ signatureId }: { signatureId: string }) {
+export function SignAclrButton({
+  signatureId,
+  onSuccess,
+}: {
+  signatureId: string;
+  /** Appelé après contre-signature réussie (ex. confettis + refresh). */
+  onSuccess?: () => void;
+}) {
   const [pending, startTransition] = useTransition();
   const handle = () =>
     startTransition(async () => {
@@ -15,6 +22,7 @@ export function SignAclrButton({ signatureId }: { signatureId: string }) {
         return;
       }
       toast.success("Contre-signée ✓ — deal sorti du pipeline.");
+      onSuccess?.();
     });
   return (
     <button

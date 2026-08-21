@@ -7,12 +7,15 @@
  * fait un fetch direct ; en V2 on pourrait mettre un cache SWR/RQ.
  */
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 
 import { ContractDeviseSwitch } from "@/components/contrats/contract-devise-switch";
+import { UploadSignedPdfButton } from "@/components/contrats/upload-signed-pdf-button";
 import { Icon } from "@/components/icon";
 import { SignDealInPersonButton } from "@/components/pipeline/sign-deal-in-person-button";
 import { SignAclrButton } from "@/components/signatures/sign-aclr-button";
+import { fireConfetti } from "@/lib/confetti";
 import {
   Sheet,
   SheetContent,
@@ -71,11 +74,12 @@ interface DealDetailSheetProps {
 }
 
 export function DealDetailSheet({ dealId, onClose, isAdmin }: DealDetailSheetProps) {
+  const router = useRouter();
   const [deal, setDeal] = useState<DealDetailLite | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadDeal = useCallback(() => {
     if (!dealId) {
       setDeal(null);
       return;
@@ -96,6 +100,19 @@ export function DealDetailSheet({ dealId, onClose, isAdmin }: DealDetailSheetPro
         setLoading(false);
       });
   }, [dealId]);
+
+  useEffect(() => {
+    loadDeal();
+  }, [loadDeal]);
+
+  // Signature finalisée (upload signé OU contre-signature) : on fête ça 🎉,
+  // on recharge le deal (le panneau passe en « signé ») et on rafraîchit le
+  // pipeline pour que la carte migre en colonne « Signé ».
+  const celebrate = useCallback(() => {
+    void fireConfetti();
+    loadDeal();
+    router.refresh();
+  }, [loadDeal, router]);
 
   return (
     <Sheet open={!!dealId} onOpenChange={(open) => !open && onClose()}>
@@ -280,7 +297,10 @@ export function DealDetailSheet({ dealId, onClose, isAdmin }: DealDetailSheetPro
                         Voir le contrat
                       </Link>
                       {isAdmin && (
-                        <SignAclrButton signatureId={sig.id} />
+                        <SignAclrButton
+                          signatureId={sig.id}
+                          onSuccess={celebrate}
+                        />
                       )}
                     </div>
                   </div>
@@ -305,6 +325,17 @@ export function DealDetailSheet({ dealId, onClose, isAdmin }: DealDetailSheetPro
                       <ContractDeviseSwitch
                         contractId={contract.id}
                         current={contract.devise ?? "CHF"}
+                      />
+                    </div>
+
+                    {/* Le client a signé le papier / renvoyé le PDF ? On le
+                        joint ici → contre-signé et envoyé en validation d'un
+                        geste (confettis 🎉 + le deal passe en « Signé »). */}
+                    <div className="mt-3">
+                      <UploadSignedPdfButton
+                        contractId={contract.id}
+                        onSuccess={celebrate}
+                        triggerLabel="Contrat signé reçu — joindre & finaliser 🎉"
                       />
                     </div>
 

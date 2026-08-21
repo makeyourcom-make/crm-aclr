@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 
 import { validateContract } from "@/app/(app)/contrats/actions";
 import { Icon } from "@/components/icon";
+import { fireConfetti } from "@/lib/confetti";
 
 export function ValidateContractButton({ contractId }: { contractId: string }) {
   const router = useRouter();
@@ -30,6 +31,7 @@ export function ValidateContractButton({ contractId }: { contractId: string }) {
         alert(res.error ?? "Erreur lors de la validation.");
         return;
       }
+      void fireConfetti();
       router.refresh();
     });
   };

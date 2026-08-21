@@ -32,9 +32,17 @@ import { Input } from "@/components/ui/input";
 
 interface UploadSignedPdfButtonProps {
   contractId: string;
+  /** Appelé après un enregistrement réussi (ex. confettis + refresh). */
+  onSuccess?: () => void;
+  /** Libellé du bouton déclencheur (défaut : « Joindre le contrat signé »). */
+  triggerLabel?: string;
 }
 
-export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps) {
+export function UploadSignedPdfButton({
+  contractId,
+  onSuccess,
+  triggerLabel = "Joindre le contrat signé",
+}: UploadSignedPdfButtonProps) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [nomClient, setNomClient] = useState("");
@@ -117,6 +125,7 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
       );
       reset();
       setOpen(false);
+      onSuccess?.();
     });
   };
 
@@ -128,7 +137,7 @@ export function UploadSignedPdfButton({ contractId }: UploadSignedPdfButtonProps
         className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
       >
         <Icon name="Upload" className="h-4 w-4" />
-        Joindre le contrat signé
+        {triggerLabel}
       </button>
 
       <Dialog
