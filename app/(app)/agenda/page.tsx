@@ -13,7 +13,7 @@ import { PageHeader } from "@/components/page-header";
 import { AGENDA_DEFAULT_VIEW } from "@/lib/agenda-view";
 import { prisma } from "@/lib/db";
 import { getAgendaRange, getStartOfWeek } from "@/lib/queries/agenda";
-import { requireUser, scopedWhere } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 
 export const metadata = { title: "Agenda" };
 export const dynamic = "force-dynamic";
@@ -98,17 +98,16 @@ export default async function AgendaPage({ searchParams }: PageProps) {
       })
     : [];
 
-  const [activities, prospects] = await Promise.all([
-    getAgendaRange(user, rangeStart, rangeEnd, hideDone, view),
-    prisma.prospect.findMany({
-      where: {
-        ...scopedWhere(user, {}),
-        statut: { notIn: ["PERDU", "NE_PAS_RAPPELER"] },
-      },
-      select: { id: true, raisonSociale: true, ville: true },
-      orderBy: { raisonSociale: "asc" },
-    }),
-  ]);
+  // Le sélecteur de client du dialogue d'activité fait sa recherche côté
+  // serveur (ProspectCombobox) — plus besoin de précharger la liste entière
+  // des prospects ici (jusqu'à ~121k pour l'admin), gros gain de payload.
+  const activities = await getAgendaRange(
+    user,
+    rangeStart,
+    rangeEnd,
+    hideDone,
+    view,
+  );
 
   const today = new Date();
 
@@ -154,7 +153,6 @@ export default async function AgendaPage({ searchParams }: PageProps) {
               Synchroniser l&apos;agenda
             </Link>
             <AddActivityDialog
-              prospects={prospects}
               defaultDate={toIso(today)}
               defaultTime="09:00"
               triggerMode="header"
@@ -196,7 +194,6 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         <WeekView
           dates={dates}
           activities={activities}
-          prospects={prospects}
           showUserBadge={isAdmin && view === "all"}
           users={teamUsers}
           currentUserId={user.id}

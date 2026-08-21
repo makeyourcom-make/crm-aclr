@@ -65,11 +65,6 @@ const GUTTER_W = 56; // largeur gouttière heures
 const DEFAULT_DUR_MIN = 30; // durée par défaut si non renseignée
 const SCROLL_TO_HOUR = 7; // ancrage du scroll au chargement
 
-interface ProspectOption {
-  id: string;
-  raisonSociale: string;
-  ville: string | null;
-}
 interface UserOption {
   id: string;
   name: string;
@@ -80,7 +75,6 @@ interface WeekViewProps {
   /** Colonnes à afficher : 7 dates (semaine) ou 1 (jour). */
   dates: Date[];
   activities: AgendaActivity[];
-  prospects: ProspectOption[];
   showUserBadge?: boolean;
   users?: UserOption[];
   currentUserId?: string;
@@ -127,6 +121,7 @@ function toEditInput(a: AgendaActivity): EditActivityInput {
   return {
     id: a.id,
     prospectId: a.prospectId ?? "",
+    prospectLabel: a.prospect?.raisonSociale ?? "",
     userId: a.userId,
     type: a.type,
     sujet: a.sujet,
@@ -192,7 +187,6 @@ function layoutDay(items: AgendaActivity[]): Positioned[] {
 export function WeekView({
   dates,
   activities,
-  prospects,
   showUserBadge = false,
   users = [],
   currentUserId,
@@ -448,7 +442,6 @@ export function WeekView({
 
       {/* Dialog création (créneau cliqué) */}
       <AddActivityDialog
-        prospects={prospects}
         defaultDate={add.dateIso}
         defaultTime={add.time}
         users={users}
@@ -461,7 +454,6 @@ export function WeekView({
 
       {/* Dialog édition (depuis le détail d'un événement) */}
       <AddActivityDialog
-        prospects={prospects}
         defaultDate={dayKeys[0] ?? toIso(new Date())}
         users={users}
         currentUserId={currentUserId}

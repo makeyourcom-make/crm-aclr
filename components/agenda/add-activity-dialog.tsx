@@ -14,8 +14,8 @@ import {
   createRecurringActivities,
   updateActivity,
 } from "@/app/(app)/activites/actions";
-import { createProspectQuick } from "@/app/(app)/prospects/actions";
 import { AGENDA_COLORS } from "@/lib/agenda-colors";
+import { ProspectCombobox } from "@/components/prospects/prospect-combobox";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -54,12 +54,6 @@ function diffMinutes(start: string, end: string): number {
   return d > 0 ? d : 60;
 }
 
-interface ProspectOption {
-  id: string;
-  raisonSociale: string;
-  ville: string | null;
-}
-
 interface UserOption {
   id: string;
   name: string;
@@ -67,7 +61,6 @@ interface UserOption {
 }
 
 interface AddActivityDialogProps {
-  prospects: ProspectOption[];
   /** Date par défaut au format YYYY-MM-DD */
   defaultDate: string;
   /** Heure par défaut au format HH:MM */
@@ -97,6 +90,8 @@ interface AddActivityDialogProps {
 export interface EditActivityInput {
   id: string;
   prospectId: string;
+  /** Libellé du client (raison sociale) — pré-remplit le combobox en édition. */
+  prospectLabel: string;
   userId: string;
   type: ActivityType;
   sujet: string;
@@ -109,7 +104,6 @@ export interface EditActivityInput {
 }
 
 export function AddActivityDialog({
-  prospects,
   defaultDate,
   defaultTime = "09:00",
   triggerMode = "header",
@@ -153,18 +147,6 @@ export function AddActivityDialog({
     addMonthsToDateStr(defaultDate, 2),
   );
 
-  // Création de client inline (depuis la ligne "prospect")
-  const [localProspects, setLocalProspects] = useState<ProspectOption[]>([]);
-  const [creatingProspect, setCreatingProspect] = useState(false);
-  const [newNom, setNewNom] = useState("");
-  const [newVille, setNewVille] = useState("");
-  const [newTel, setNewTel] = useState("");
-  const [creatingPending, startCreating] = useTransition();
-  const allProspects = [
-    ...prospects.filter((p) => !localProspects.some((l) => l.id === p.id)),
-    ...localProspects,
-  ];
-
   // Préremplissage à l'ouverture. IMPORTANT : on le fait dans un useEffect (pas
   // dans onOpenChange) car le dialog peut être ouvert en mode CONTRÔLÉ via la
   // prop `open` (bouton « Modifier » de l'agenda) — dans ce cas Radix
@@ -202,38 +184,6 @@ export function AddActivityDialog({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editActivity?.id]);
-
-  const createNewProspect = () => {
-    if (newNom.trim().length < 2) {
-      toast.error("Nom du client (min. 2 caractères).");
-      return;
-    }
-    startCreating(async () => {
-      const res = await createProspectQuick({
-        raisonSociale: newNom.trim(),
-        ville: newVille.trim() || undefined,
-        telephone: newTel.trim() || undefined,
-      });
-      if (!res.ok || !res.prospectId) {
-        toast.error(res.error ?? "Échec de la création du client.");
-        return;
-      }
-      setLocalProspects((l) => [
-        ...l,
-        {
-          id: res.prospectId!,
-          raisonSociale: newNom.trim(),
-          ville: newVille.trim() || null,
-        },
-      ]);
-      setProspectId(res.prospectId);
-      setNewNom("");
-      setNewVille("");
-      setNewTel("");
-      setCreatingProspect(false);
-      toast.success("Client créé et sélectionné.");
-    });
-  };
 
   // Quand on rouvre la modale et que la prop defaultDate change, on resync
   // (par exemple si l'utilisateur clique sur un autre jour)
@@ -476,80 +426,17 @@ export function AddActivityDialog({
             </FieldRow>
           )}
 
-          {/* Prospect (= "invités") + création inline d'un client */}
+          {/* Client — recherche au clavier (combobox serveur, scopé RLS) +
+              création à la volée. Remplace l'ancien <select> de milliers de
+              lignes : on tape le nom, ça filtre. Vide = note interne. */}
           <FieldRow icon="Users">
-            {creatingProspect ? (
-              <div className="space-y-2 rounded-md border border-input bg-muted/20 p-2">
-                <Input
-                  value={newNom}
-                  onChange={(e) => setNewNom(e.target.value)}
-                  placeholder="Nom du client / entreprise *"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      createNewProspect();
-                    }
-                  }}
-                />
-                <div className="flex gap-2">
-                  <Input
-                    value={newVille}
-                    onChange={(e) => setNewVille(e.target.value)}
-                    placeholder="Ville"
-                  />
-                  <Input
-                    value={newTel}
-                    onChange={(e) => setNewTel(e.target.value)}
-                    placeholder="Téléphone"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={createNewProspect}
-                    disabled={creatingPending}
-                  >
-                    {creatingPending ? "Création…" : "Créer le client"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setCreatingProspect(false)}
-                    disabled={creatingPending}
-                  >
-                    Annuler
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <select
-                  value={prospectId}
-                  onChange={(e) => setProspectId(e.target.value)}
-                  className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-                >
-                  <option value="">Aucun client — note interne</option>
-                  {allProspects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.raisonSociale}
-                      {p.ville ? ` · ${p.ville}` : ""}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => setCreatingProspect(true)}
-                  className="inline-flex h-9 shrink-0 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs font-medium hover:bg-muted"
-                  title="Créer un nouveau client"
-                >
-                  <Icon name="UserPlus" className="h-4 w-4" />
-                  Nouveau
-                </button>
-              </div>
-            )}
+            <ProspectCombobox
+              key={`${open}-${editActivity?.id ?? "new"}`}
+              value={prospectId}
+              initialLabel={editActivity?.prospectLabel ?? ""}
+              onSelect={(id) => setProspectId(id)}
+              placeholder="Tape le nom du client (vide = note interne)…"
+            />
           </FieldRow>
 
           {/* Type (+ assigné à pour admin) */}
