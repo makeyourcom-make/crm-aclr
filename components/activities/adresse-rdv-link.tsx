@@ -1,6 +1,13 @@
+"use client";
+
 import { Icon } from "@/components/icon";
 
 /**
+ * Composant client : le `onClick` (stopPropagation, pour ne pas déclencher le
+ * clic de la carte parente) impose une frontière client. Sans « use client »,
+ * rendu depuis un Server Component (ex. la timeline de la fiche prospect), Next
+ * plantait avec « Event handlers cannot be passed to Client Component props ».
+ *
  * Affiche un "lieu" de RDV cliquable. Selon le contenu :
  *  - URL (http(s)://) → icône Video, ouvre le lien (Meet/Zoom/Teams)
  *  - Numéro de téléphone (+, espaces, chiffres) → icône Phone, tel:
