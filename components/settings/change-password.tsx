@@ -17,6 +17,7 @@ export function ChangePassword() {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [show, setShow] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const submit = (e: React.FormEvent) => {
@@ -55,46 +56,34 @@ export function ChangePassword() {
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="space-y-3">
-          <div className="space-y-1">
-            <Label htmlFor="cur-pwd" className="text-xs">
-              Mot de passe actuel
-            </Label>
-            <Input
-              id="cur-pwd"
-              type="password"
-              autoComplete="current-password"
-              value={current}
-              onChange={(e) => setCurrent(e.target.value)}
-              required
-            />
-          </div>
+          <PwdField
+            id="cur-pwd"
+            label="Mot de passe actuel"
+            value={current}
+            onChange={setCurrent}
+            autoComplete="current-password"
+            show={show}
+            onToggle={() => setShow((v) => !v)}
+          />
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label htmlFor="new-pwd" className="text-xs">
-                Nouveau mot de passe
-              </Label>
-              <Input
-                id="new-pwd"
-                type="password"
-                autoComplete="new-password"
-                value={next}
-                onChange={(e) => setNext(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="cfm-pwd" className="text-xs">
-                Confirmer
-              </Label>
-              <Input
-                id="cfm-pwd"
-                type="password"
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                required
-              />
-            </div>
+            <PwdField
+              id="new-pwd"
+              label="Nouveau mot de passe"
+              value={next}
+              onChange={setNext}
+              autoComplete="new-password"
+              show={show}
+              onToggle={() => setShow((v) => !v)}
+            />
+            <PwdField
+              id="cfm-pwd"
+              label="Confirmer"
+              value={confirm}
+              onChange={setConfirm}
+              autoComplete="new-password"
+              show={show}
+              onToggle={() => setShow((v) => !v)}
+            />
           </div>
           <p className="text-[11px] text-muted-foreground">
             Au moins 8 caractères. Utilise un mot de passe unique, différent de
@@ -111,5 +100,53 @@ export function ChangePassword() {
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+/** Champ mot de passe avec bouton œil pour afficher/masquer la saisie. */
+function PwdField({
+  id,
+  label,
+  value,
+  onChange,
+  autoComplete,
+  show,
+  onToggle,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  autoComplete: string;
+  show: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id} className="text-xs">
+        {label}
+      </Label>
+      <div className="relative">
+        <Input
+          id={id}
+          type={show ? "text" : "password"}
+          autoComplete={autoComplete}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          required
+          className="pr-9"
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          tabIndex={-1}
+          aria-label={show ? "Masquer" : "Afficher"}
+          title={show ? "Masquer" : "Afficher"}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+        >
+          <Icon name={show ? "EyeOff" : "Eye"} className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
   );
 }

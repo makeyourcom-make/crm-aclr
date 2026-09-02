@@ -73,6 +73,7 @@ import {
   Underline,
   List,
   Lock,
+  EyeOff,
   type LucideIcon,
 } from "lucide-react";
 
@@ -83,6 +84,7 @@ const ICONS = {
   Calendar,
   Check,
   Lock,
+  EyeOff,
   Clock,
   Download,
   FileSpreadsheet,
