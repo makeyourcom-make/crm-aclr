@@ -173,6 +173,14 @@ export default async function SignPage({ params }: PageProps) {
                     : "—"}
                   {sig.signeParAclr ? " et contre-signé par ACLR." : "."}
                 </p>
+                {/* Retour au CRM — pratique après une signature en direct
+                    (tablette). Le client non connecté sera renvoyé au login. */}
+                <a
+                  href={`/contrats/${sig.contract.id}`}
+                  className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700"
+                >
+                  ← Retour au CRM
+                </a>
               </div>
             ) : (
               <SignForm token={token} ipClient={ipClient} />
