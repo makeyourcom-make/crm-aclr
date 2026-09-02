@@ -14,6 +14,7 @@ interface EmployeeFormProps {
     id: string;
     name: string;
     email: string;
+    emailRecuperation: string | null;
     role: string;
     isActive: boolean;
     telephone: string | null;
@@ -44,6 +45,9 @@ export function EmployeeForm({ initial }: EmployeeFormProps) {
 
   const [name, setName] = useState(initial.name);
   const [email, setEmail] = useState(initial.email);
+  const [emailRecuperation, setEmailRecuperation] = useState(
+    initial.emailRecuperation ?? "",
+  );
   const [telephone, setTelephone] = useState(initial.telephone ?? "");
   const [adresse, setAdresse] = useState(initial.adresse ?? "");
   const [iban, setIban] = useState(initial.iban ?? "");
@@ -89,6 +93,7 @@ export function EmployeeForm({ initial }: EmployeeFormProps) {
         id: initial.id,
         name,
         email,
+        emailRecuperation: emailRecuperation || null,
         telephone: telephone || null,
         adresse: adresse || null,
         iban: iban || null,
@@ -136,6 +141,14 @@ export function EmployeeForm({ initial }: EmployeeFormProps) {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+            />
+          </Field>
+          <Field label="Email de récupération (externe)">
+            <Input
+              type="email"
+              value={emailRecuperation}
+              onChange={(e) => setEmailRecuperation(e.target.value)}
+              placeholder="ex. prenom@gmail.com"
             />
           </Field>
           <Field label="Téléphone">

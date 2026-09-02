@@ -74,6 +74,7 @@ import {
   List,
   Lock,
   EyeOff,
+  Copy,
   type LucideIcon,
 } from "lucide-react";
 
@@ -85,6 +86,7 @@ const ICONS = {
   Check,
   Lock,
   EyeOff,
+  Copy,
   Clock,
   Download,
   FileSpreadsheet,

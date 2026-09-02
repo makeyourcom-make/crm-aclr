@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ImpersonateButton } from "@/components/collaborateurs/impersonate-button";
+import { ResetPasswordButton } from "@/components/rh/reset-password-button";
 import { EmployeeDocuments } from "@/components/rh/employee-documents";
 import { EmployeeForm } from "@/components/rh/employee-form";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,12 +36,19 @@ export default async function EmployeeFichePage({ params }: PageProps) {
         title={employee.name}
         description={employee.email + " · " + employee.role}
         actions={
-          peutEndosser ? (
-            <ImpersonateButton
+          <div className="flex flex-wrap items-center gap-2">
+            <ResetPasswordButton
               userId={employee.id}
               userName={employee.name}
+              hasRecoveryEmail={!!employee.emailRecuperation}
             />
-          ) : undefined
+            {peutEndosser && (
+              <ImpersonateButton
+                userId={employee.id}
+                userName={employee.name}
+              />
+            )}
+          </div>
         }
         breadcrumb={
           <Link
@@ -94,6 +102,7 @@ export default async function EmployeeFichePage({ params }: PageProps) {
               id: employee.id,
               name: employee.name,
               email: employee.email,
+              emailRecuperation: employee.emailRecuperation,
               role: employee.role,
               isActive: employee.isActive,
               telephone: employee.telephone,

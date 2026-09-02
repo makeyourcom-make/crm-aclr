@@ -342,6 +342,11 @@ model User {
   role         Role    @default(COMMERCIAL)
   isActive     Boolean @default(true)
 
+  /// Email de récupération EXTERNE (ex. Gmail perso) : c'est là que partent les
+  /// mots de passe réinitialisés, jamais sur l'adresse @makeyourcom.ch (qui
+  /// arrive dans le CRM → blocage en boucle si on est déconnecté).
+  emailRecuperation String?
+
   // Anti brute-force : compteur d'échecs de login + verrou temporaire du compte.
   failedLoginCount Int       @default(0)
   lockedUntil      DateTime?

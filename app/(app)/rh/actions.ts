@@ -41,6 +41,11 @@ const UpdateEmployeeSchema = z.object({
   tauxCommissionRenouvellement: z.coerce.number().min(0).max(1).optional(),
   // Banque
   iban: z.string().trim().optional().nullable(),
+  // Email de récupération externe (reset mot de passe)
+  emailRecuperation: z
+    .union([z.string().trim().email(), z.literal("")])
+    .optional()
+    .nullable(),
   // Statut
   isActive: z.coerce.boolean().optional(),
 });
