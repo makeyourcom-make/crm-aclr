@@ -127,16 +127,6 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     mode === "day" ? "ce jour" : mode === "month" ? "ce mois" : "la semaine";
   const description = `${activities.length} activité(s) sur ${periodeLabel} · ${viewLabel}.`;
 
-  // Lien vers la vue Jour (utilisé par la vue Mois), préserve les filtres
-  const hrefForDay = (iso: string) => {
-    const sp = new URLSearchParams();
-    sp.set("mode", "day");
-    sp.set("date", iso);
-    if (view !== AGENDA_DEFAULT_VIEW) sp.set("view", view);
-    if (hideDone) sp.set("hideDone", "1");
-    return `/agenda?${sp.toString()}`;
-  };
-
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
@@ -188,7 +178,8 @@ export default async function AgendaPage({ searchParams }: PageProps) {
           dates={dates}
           targetMonth={targetMonth}
           activities={activities}
-          hrefForDay={hrefForDay}
+          view={view}
+          hideDone={hideDone}
         />
       ) : (
         <WeekView

@@ -8,6 +8,7 @@
 import Link from "next/link";
 
 import { STATUT_FILL } from "@/lib/agenda-colors";
+import { AGENDA_DEFAULT_VIEW } from "@/lib/agenda-view";
 import { formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -27,18 +28,33 @@ interface MonthViewProps {
   /** Mois ciblé (0–11) — les jours hors mois sont grisés. */
   targetMonth: number;
   activities: AgendaActivity[];
-  /** Construit le lien vers la vue Jour d'une date (préserve les filtres). */
-  hrefForDay: (iso: string) => string;
+  /** Vue active (mine/all/userId) — pour préserver le filtre dans les liens. */
+  view: string;
+  /** Filtre « masquer les faits » — préservé dans les liens. */
+  hideDone: boolean;
 }
 
 export function MonthView({
   dates,
   targetMonth,
   activities,
-  hrefForDay,
+  view,
+  hideDone,
 }: MonthViewProps) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  // Lien vers la vue Jour d'une date (préserve les filtres actifs). Construit
+  // ici, côté client : on ne peut pas recevoir une fonction depuis le Server
+  // Component parent (React interdit de sérialiser une fonction en prop).
+  const hrefForDay = (iso: string) => {
+    const sp = new URLSearchParams();
+    sp.set("mode", "day");
+    sp.set("date", iso);
+    if (view !== AGENDA_DEFAULT_VIEW) sp.set("view", view);
+    if (hideDone) sp.set("hideDone", "1");
+    return `/agenda?${sp.toString()}`;
+  };
 
   // Groupe les activités par jour (triées par heure)
   const byDay: Record<string, AgendaActivity[]> = {};
