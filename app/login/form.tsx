@@ -34,7 +34,7 @@ export function LoginForm() {
             state.fieldErrors?.email ? "email-error" : undefined
           }
           className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-primary-600 focus:ring-2 focus:ring-primary-600/20 aria-[invalid=true]:border-red-500"
-          placeholder="sophie@aclr.ch"
+          placeholder="arthur@makeyourcom.ch"
         />
         {state.fieldErrors?.email && (
           <p id="email-error" className="text-xs text-red-600">
