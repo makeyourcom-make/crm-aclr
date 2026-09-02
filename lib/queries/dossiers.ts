@@ -67,15 +67,29 @@ export async function getDossiersBoard(
 ): Promise<DossiersBoardData> {
   const where: Prisma.DossierWhereInput = {};
 
-  // Filtre optionnel sur un collaborateur (réservé à l'admin ; sans effet sinon).
-  if (user.role === "ADMIN" && assigneAId) {
+  // RLS : une commerciale ne voit QUE ses propres projets (assignés à elle).
+  // L'admin voit tout (option : filtrer sur un collaborateur précis).
+  const isAdmin = user.role === "ADMIN";
+  if (!isAdmin) {
+    where.assigneAId = user.id;
+  } else if (assigneAId) {
     where.assigneAId = assigneAId;
   }
 
-  // Colonnes affichées : tous les collaborateurs actifs, pour tout le monde.
-  // L'admin d'abord (Arthur), puis les commerciales par ordre alphabétique.
+  // Colonnes affichées :
+  //  - Admin  : tous les collaborateurs actifs (ou celui filtré).
+  //  - Commercial : SA colonne + celle de l'admin (cible « m'attribuer »).
+  //    Elle voit ainsi ses projets et peut les glisser dans la colonne de
+  //    l'admin pour les lui attribuer, sans voir les projets des autres.
   const collaborateurs = await prisma.user.findMany({
-    where: { isActive: true, ...(assigneAId ? { id: assigneAId } : {}) },
+    where: {
+      isActive: true,
+      ...(isAdmin
+        ? assigneAId
+          ? { id: assigneAId }
+          : {}
+        : { OR: [{ id: user.id }, { role: "ADMIN" }] }),
+    },
     select: { id: true, name: true, role: true },
     orderBy: [{ role: "asc" }, { name: "asc" }],
   });

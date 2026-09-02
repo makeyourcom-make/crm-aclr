@@ -135,10 +135,12 @@ export async function moveDossierStatut(
   if (!parsed.success) return zodErrorToResult(parsed.error);
   await assertCanAccessDossier(user, parsed.data.dossierId);
 
-  // Déposer dans la colonne d'un AUTRE collaborateur = réassigner. Seul l'admin
-  // peut le faire : sans ce garde-fou, une commerciale pourrait se débarrasser
-  // d'un dossier en le poussant chez quelqu'un d'autre (l'UI ne lui montre que
-  // ses propres colonnes, mais l'action serveur reste appelable directement).
+  // Réassignation par une commerciale : elle peut UNIQUEMENT attribuer un de ses
+  // dossiers à un ADMIN (« me l'attribuer »), jamais à une autre commerciale
+  // (sinon elle pourrait se débarrasser d'un dossier chez un collègue). L'admin,
+  // lui, réassigne à qui il veut. L'UI ne montre à la commerciale que sa colonne
+  // + celle de l'admin, mais l'action serveur reste appelable directement → on
+  // vérifie ici.
   const { newAssigneAId } = parsed.data;
   if (newAssigneAId && user.role !== "ADMIN") {
     const d = await prisma.dossier.findUnique({
@@ -146,7 +148,16 @@ export async function moveDossierStatut(
       select: { assigneAId: true },
     });
     if (d && d.assigneAId !== newAssigneAId) {
-      return { ok: false, error: "Seul un admin peut réassigner un dossier." };
+      const cible = await prisma.user.findUnique({
+        where: { id: newAssigneAId },
+        select: { role: true },
+      });
+      if (cible?.role !== "ADMIN") {
+        return {
+          ok: false,
+          error: "Tu peux seulement attribuer un dossier à l'admin.",
+        };
+      }
     }
   }
 
