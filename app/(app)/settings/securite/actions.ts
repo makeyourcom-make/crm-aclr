@@ -25,6 +25,52 @@ import {
   verifyTotp,
 } from "@/lib/totp";
 
+/**
+ * Change le mot de passe de l'utilisateur connecté.
+ * Vérifie l'ancien mot de passe avant d'appliquer le nouveau (bcrypt).
+ */
+export async function changePassword(input: {
+  currentPassword: string;
+  newPassword: string;
+}) {
+  const user = await requireUser();
+  const current = (input?.currentPassword ?? "").trim();
+  const next = (input?.newPassword ?? "").trim();
+
+  if (next.length < 8) {
+    return {
+      ok: false as const,
+      error: "Le nouveau mot de passe doit faire au moins 8 caractères.",
+    };
+  }
+  if (next === current) {
+    return {
+      ok: false as const,
+      error: "Le nouveau mot de passe doit être différent de l'actuel.",
+    };
+  }
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { passwordHash: true },
+  });
+  if (!dbUser) {
+    return { ok: false as const, error: "Utilisateur introuvable." };
+  }
+  const currentOk = await bcrypt.compare(current, dbUser.passwordHash);
+  if (!currentOk) {
+    return { ok: false as const, error: "Mot de passe actuel incorrect." };
+  }
+
+  const passwordHash = await bcrypt.hash(next, 10);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash },
+  });
+  await audit("password.changed", { userId: user.id });
+  return { ok: true as const };
+}
+
 export async function startTotpEnrollment() {
   const user = await requireUser();
   const dbUser = await prisma.user.findUnique({
