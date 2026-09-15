@@ -383,6 +383,14 @@ model User {
   caldavSyncToken    String? // sync-token CalDAV (RFC 6578) pour pull incrémental
   caldavLastSyncAt   DateTime?
 
+  // Google Calendar (API + OAuth2) — sync bidirectionnelle avec un Gmail.
+  // Le refresh token est chiffré (AES-256-GCM, clé = AUTH_SECRET), jamais en clair.
+  googleRefreshTokenEnc String? // refresh token OAuth chiffré
+  googleEmail           String? // adresse Google connectée (affichage)
+  googleCalendarId      String? // calendrier ciblé (défaut "primary")
+  googleSyncToken       String? // syncToken Calendar API (pull incrémental)
+  googleLastSyncAt      DateTime?
+
   // Coords personnelles (apparaissent sur la facture mensuelle PDF)
   iban      String?
   telephone String?
@@ -909,6 +917,10 @@ model Activity {
   /// Renseigné au 1er push, sinon dérivé de activity.id.
   caldavUid  String?
 
+  /// Google Calendar : id de l'event distant (API v3). NULL = pas encore
+  /// poussé vers Google. Sert à lier / dédoublonner lors du pull incrémental.
+  googleEventId String?
+
   statut        ActivityStatut    @default(PLANIFIE)
   resultat      ActivityResultat? // valide pour APPEL_* et RDV_*
   notesResultat String?           @db.Text // qualitatif libre saisi après l'appel
@@ -937,6 +949,7 @@ model Activity {
   @@index([userId, date])
   @@index([statut, date])
   @@index([type])
+  @@index([googleEventId])
   @@map("activities")
 }
 

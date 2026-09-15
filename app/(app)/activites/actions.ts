@@ -15,6 +15,10 @@ import {
   deleteActivityFromCaldav,
   pushActivityToCaldav,
 } from "@/app/(app)/settings/calendar/caldav-actions";
+import {
+  deleteActivityFromGoogle,
+  pushActivityToGoogle,
+} from "@/app/(app)/settings/calendar/google-actions";
 import { normalizeAgendaColor } from "@/lib/agenda-colors";
 import { prisma } from "@/lib/db";
 import {
@@ -89,6 +93,7 @@ export async function createActivity(
     // Volontairement non-bloquant : si Infomaniak est down, l'activité reste
     // bien créée en DB et sera repoussée au prochain syncNow().
     void pushActivityToCaldav(created.id).catch(() => {});
+    void pushActivityToGoogle(created.id).catch(() => {});
     return { ok: true, activityId: created.id };
   } catch (err) {
     return prismaErrorToResult(err);
@@ -211,7 +216,10 @@ export async function createRecurringActivities(
     }
     revalidatePath("/activites");
     revalidatePath("/agenda");
-    for (const a of created) void pushActivityToCaldav(a.id).catch(() => {});
+    for (const a of created) {
+      void pushActivityToCaldav(a.id).catch(() => {});
+      void pushActivityToGoogle(a.id).catch(() => {});
+    }
     return { ok: true, count: created.length };
   } catch (err) {
     return prismaErrorToResult(err);
@@ -250,6 +258,7 @@ export async function updateActivity(
     revalidatePath("/agenda");
     // Push best-effort vers CalDAV pour propager la modif.
     void pushActivityToCaldav(id).catch(() => {});
+    void pushActivityToGoogle(id).catch(() => {});
     return { ok: true, activityId: id };
   } catch (err) {
     return prismaErrorToResult(err);
@@ -308,7 +317,12 @@ export async function deleteActivity(
     // On lit le caldavHref AVANT delete pour pouvoir nettoyer le serveur distant
     const existing = await prisma.activity.findUnique({
       where: { id },
-      select: { userId: true, caldavHref: true, prospectId: true },
+      select: {
+        userId: true,
+        caldavHref: true,
+        googleEventId: true,
+        prospectId: true,
+      },
     });
     const deleted = await prisma.activity.delete({ where: { id } });
     revalidatePath(`/prospects/${deleted.prospectId}`);
@@ -318,6 +332,12 @@ export async function deleteActivity(
       void deleteActivityFromCaldav({
         userId: existing.userId,
         caldavHref: existing.caldavHref,
+      }).catch(() => {});
+    }
+    if (existing?.googleEventId) {
+      void deleteActivityFromGoogle({
+        userId: existing.userId,
+        googleEventId: existing.googleEventId,
       }).catch(() => {});
     }
     return { ok: true, activityId: id };

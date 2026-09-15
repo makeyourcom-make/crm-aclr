@@ -1,7 +1,9 @@
 import { CalendarFeedManager } from "@/components/settings/calendar-feed-manager";
 import { CaldavManager } from "@/components/settings/caldav-manager";
+import { GoogleCalendarManager } from "@/components/settings/google-calendar-manager";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
+import { googleOAuthConfigured } from "@/lib/google-calendar";
 import { requireUser } from "@/lib/session";
 
 export const metadata = { title: "Synchronisation agenda" };
@@ -24,6 +26,9 @@ export default async function CalendarSettingsPage() {
       caldavUsername: true,
       caldavCalendarUrl: true,
       caldavLastSyncAt: true,
+      googleRefreshTokenEnc: true,
+      googleEmail: true,
+      googleLastSyncAt: true,
     },
   });
 
@@ -35,6 +40,26 @@ export default async function CalendarSettingsPage() {
       />
 
       <section>
+        <h2 className="mb-1 text-lg font-semibold">
+          📅 Google Agenda (recommandé)
+        </h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Sync bidirectionnelle avec ton compte Gmail : ce qui est dans le CRM
+          apparaît dans Google Agenda, et inversement.
+        </p>
+        <GoogleCalendarManager
+          initial={{
+            connected: !!dbUser?.googleRefreshTokenEnc,
+            email: dbUser?.googleEmail ?? null,
+            lastSyncAt: dbUser?.googleLastSyncAt
+              ? dbUser.googleLastSyncAt.toISOString()
+              : null,
+            configured: googleOAuthConfigured(),
+          }}
+        />
+      </section>
+
+      <section className="border-t border-border pt-8">
         <h2 className="mb-1 text-lg font-semibold">
           🔄 Sync bidirectionnelle (CalDAV)
         </h2>
