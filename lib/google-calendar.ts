@@ -391,10 +391,11 @@ export async function listGoogleEventsIncremental(
       params.set("syncToken", useSyncToken);
     } else {
       // Full sync borné dans le temps.
+      // NB : PAS de `orderBy` — Google ne renvoie pas de nextSyncToken quand
+      // un tri est demandé, ce qui casserait le pull incrémental.
       const now = Date.now();
       params.set("timeMin", new Date(now - 90 * 864e5).toISOString());
       params.set("timeMax", new Date(now + 365 * 864e5).toISOString());
-      params.set("orderBy", "startTime");
     }
     if (pageToken) params.set("pageToken", pageToken);
 
