@@ -247,6 +247,7 @@ export async function updateActivity(
     });
     revalidatePath(`/prospects/${updated.prospectId}`);
     revalidatePath("/activites");
+    revalidatePath("/agenda");
     // Push best-effort vers CalDAV pour propager la modif.
     void pushActivityToCaldav(id).catch(() => {});
     return { ok: true, activityId: id };

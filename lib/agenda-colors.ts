@@ -56,8 +56,11 @@ export function agendaColorLabel(value: string | null | undefined): string | nul
 export const STATUT_FILL: Record<string, string> = {
   PLANIFIE: "#1a73e8", // Bleuet
   EN_COURS: "#f9ab00", // Banane
-  FAIT: "#0b8043", // Basilic — le "Sauge" (#33b679), plus clair, ne tient pas
-  //                  le contraste avec du texte blanc (2.6:1).
+  // FAIT : gris ardoise neutre (et non vert) — les rendez-vous « faits »
+  // dominent l'agenda (auto-passage en FAIT). Un gris qui recule laisse
+  // ressortir les couleurs choisies à la main et les statuts « vivants »
+  // (planifié bleu, manqué rouge). textOn() choisit une encre foncée dessus.
+  FAIT: "#94a3b8", // Ardoise clair (slate-400)
   MANQUE: "#d93025", // Tomate
   REPLANIFIE: "#616161", // Graphite
   ANNULE: "#9e9e9e",
