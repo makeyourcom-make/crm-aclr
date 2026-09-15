@@ -14,6 +14,8 @@
  *                             pas de session ; sinon le middleware redirige 307 → /login
  *                             et le cron ne s'exécute JAMAIS)
  *   - /api/calendar/feed/*   (abonnement iCalendar — auth par token dans l'URL)
+ *   - /api/google/callback   (retour OAuth Google — auth par state signé HMAC)
+ *   - /confidentialite       (politique de confidentialité publique — OAuth Google)
  *   - /_next/static          (assets statiques)
  *   - /_next/image           (images optimisées)
  *   - /favicon.ico
@@ -27,6 +29,6 @@ export default NextAuth(authConfig).auth;
 
 export const config = {
   matcher: [
-    "/((?!api/auth|api/webhooks|api/cron|api/blob|api/calendar/feed|api/version|manifest.webmanifest|sign/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mjs|js|css|woff|woff2|map)$).*)",
+    "/((?!api/auth|api/webhooks|api/cron|api/blob|api/calendar/feed|api/google/callback|api/version|manifest.webmanifest|sign/|confidentialite|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mjs|js|css|woff|woff2|map)$).*)",
   ],
 };
