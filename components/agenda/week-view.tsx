@@ -648,10 +648,11 @@ function DraggableEvent({
   const a = p.activity;
   const resizing = previewDur !== null;
 
-  // Aplat coloré + texte contrasté (rendu Google Agenda). Priorité : couleur du
-  // collaborateur (vue équipe) > couleur choisie à la main > couleur du statut.
+  // Aplat coloré + texte contrasté (rendu Google Agenda). Priorité : couleur
+  // choisie à la main (toujours prioritaire) > couleur du collaborateur (vue
+  // équipe, pour les événements sans couleur) > couleur du statut.
   const fill =
-    fillOverride ?? a.couleur ?? STATUT_FILL[a.statut] ?? STATUT_FILL.PLANIFIE!;
+    a.couleur ?? fillOverride ?? STATUT_FILL[a.statut] ?? STATUT_FILL.PLANIFIE!;
   const ink = textOn(fill);
   const titre = a.prospect?.raisonSociale ?? a.sujet;
 

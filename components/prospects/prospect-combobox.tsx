@@ -28,7 +28,7 @@ interface ProspectComboboxProps {
   value: string;
   /** Libellé du prospect déjà sélectionné (pré-remplissage). */
   initialLabel?: string;
-  onSelect: (id: string, label: string) => void;
+  onSelect: (id: string, label: string, adresse?: string | null) => void;
   placeholder?: string;
   id?: string;
   /** Autorise la création d'un client à la volée (défaut : true). */
@@ -117,13 +117,18 @@ export function ProspectCombobox({
     if (text !== committed && value) onSelect("", "");
   };
 
-  const pick = (p: { id: string; raisonSociale: string; ville?: string | null }) => {
+  const pick = (p: {
+    id: string;
+    raisonSociale: string;
+    ville?: string | null;
+    adresse?: string | null;
+  }) => {
     const label = `${p.raisonSociale}${p.ville ? ` · ${p.ville}` : ""}`;
     setCommitted(label);
     setQuery(label);
     setOpen(false);
     setResults([]);
-    onSelect(p.id, label);
+    onSelect(p.id, label, p.adresse ?? null);
   };
 
   const handleCreated = (c: CreatedClient) => {

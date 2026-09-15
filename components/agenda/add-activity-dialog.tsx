@@ -135,6 +135,10 @@ export function AddActivityDialog({
     addMinutesToTime(defaultTime, 60),
   );
   const [adresseRdv, setAdresseRdv] = useState("");
+  // Mémorise la dernière adresse pré-remplie automatiquement depuis un client,
+  // pour pouvoir la remplacer si on change de client — sans écraser un lieu
+  // saisi à la main.
+  const [autoAdresse, setAutoAdresse] = useState<string | null>(null);
   const [contenu, setContenu] = useState("");
   const [couleur, setCouleur] = useState<string | null>(null);
 
@@ -434,7 +438,21 @@ export function AddActivityDialog({
               key={`${open}-${editActivity?.id ?? "new"}`}
               value={prospectId}
               initialLabel={editActivity?.prospectLabel ?? ""}
-              onSelect={(id) => setProspectId(id)}
+              onSelect={(id, _label, adresse) => {
+                setProspectId(id);
+                // Gain de temps : pré-remplit le lieu du RDV avec l'adresse du
+                // client. On remplit si le champ est vide OU s'il contient encore
+                // l'adresse auto d'un client précédent (changement de client) —
+                // mais jamais si un lieu a été saisi à la main.
+                if (id && adresse) {
+                  const dejaAuto =
+                    !adresseRdv.trim() || adresseRdv === autoAdresse;
+                  if (dejaAuto) {
+                    setAdresseRdv(adresse);
+                    setAutoAdresse(adresse);
+                  }
+                }
+              }}
               placeholder="Tape le nom du client (vide = note interne)…"
             />
           </FieldRow>

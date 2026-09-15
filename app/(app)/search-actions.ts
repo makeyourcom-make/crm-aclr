@@ -19,6 +19,26 @@ export interface ProspectPickerResult {
   id: string;
   raisonSociale: string;
   ville: string | null;
+  /** Adresse formatée (rue, NPA ville, pays) ou null — pré-remplit le lieu du RDV. */
+  adresse: string | null;
+}
+
+/**
+ * Assemble une adresse lisible ("Rte de Bugnon 4, 1897 Bouveret, Suisse")
+ * à partir des champs du prospect. Renvoie null si on n'a ni rue ni ville
+ * (rien d'exploitable pour pré-remplir un lieu de RDV).
+ */
+function formatProspectAdresse(p: {
+  adresse: string | null;
+  codePostal: string | null;
+  ville: string | null;
+  pays: string | null;
+}): string | null {
+  const rue = p.adresse?.trim() || "";
+  const ville = p.ville?.trim() || "";
+  if (!rue && !ville) return null;
+  const npaVille = [p.codePostal?.trim(), ville].filter(Boolean).join(" ");
+  return [rue, npaVille, p.pays?.trim()].filter(Boolean).join(", ");
 }
 
 /** Recherche de prospects pour un sélecteur (combobox) — scopée RLS. */
@@ -31,7 +51,7 @@ export async function searchProspects(
     if (term.length < 1) return [];
     const mine = user.role !== "ADMIN" ? { assigneAId: user.id } : {};
     const ci = (s: string) => ({ contains: s, mode: "insensitive" as const });
-    return await prisma.prospect.findMany({
+    const rows = await prisma.prospect.findMany({
       where: {
         ...mine,
         OR: [
@@ -41,10 +61,23 @@ export async function searchProspects(
           { contactNom: ci(term) },
         ],
       },
-      select: { id: true, raisonSociale: true, ville: true },
+      select: {
+        id: true,
+        raisonSociale: true,
+        ville: true,
+        adresse: true,
+        codePostal: true,
+        pays: true,
+      },
       take: 20,
       orderBy: { raisonSociale: "asc" },
     });
+    return rows.map((p) => ({
+      id: p.id,
+      raisonSociale: p.raisonSociale,
+      ville: p.ville,
+      adresse: formatProspectAdresse(p),
+    }));
   } catch {
     return [];
   }
