@@ -306,9 +306,20 @@ export async function POST(req: Request) {
     const destEmail = toEmails[0]!.toLowerCase();
     const user = await prisma.user.findFirst({
       where: { email: { equals: destEmail, mode: "insensitive" } },
-      select: { id: true, name: true },
+      select: { id: true, name: true, isActive: true },
     });
-    const userId = user?.id ?? prospect?.assigneAId ?? null;
+    let userId = user?.id ?? prospect?.assigneAId ?? null;
+
+    // Collaborateur parti (compte désactivé) : ses mails ne doivent plus être
+    // classés sous un compte inaccessible → on les route vers l'admin actif.
+    if (user && !user.isActive) {
+      const admin = await prisma.user.findFirst({
+        where: { role: "ADMIN", isActive: true },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+      if (admin) userId = admin.id;
+    }
 
     // Recherche thread parent (si réponse à un email sortant qu'on a envoyé)
     let threadId: string | null = null;
