@@ -1396,11 +1396,23 @@ function MessageBubble({
           )}
           {message.attachments.length > 0 && (
             <div className="mt-3 space-y-1.5">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                {message.attachments.length} pièce
-                {message.attachments.length > 1 ? "s" : ""} jointe
-                {message.attachments.length > 1 ? "s" : ""}
-              </p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  {message.attachments.length} pièce
+                  {message.attachments.length > 1 ? "s" : ""} jointe
+                  {message.attachments.length > 1 ? "s" : ""}
+                </p>
+                {message.attachments.length > 1 && (
+                  <a
+                    href={`/api/emails/${message.id}/attachments/zip`}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+                    title="Télécharger toutes les pièces jointes dans un .zip"
+                  >
+                    <Icon name="Download" className="h-3.5 w-3.5" />
+                    Tout télécharger (.zip)
+                  </a>
+                )}
+              </div>
               <div className="flex flex-wrap gap-2">
                 {message.attachments.map((a) => (
                   <a
