@@ -7,7 +7,8 @@
  *   - CA encaissé  = ClientInvoice PAYEE dont la date de paiement effective
  *                    tombe dans le mois (= revenue cash basis)
  *   - Charges      = Expense (TTC) dans le mois
- *   - Salaires     = Invoice (factures Sophie) montantTotal dans le mois
+ *   - Salaires     = charges de paie (DELIK/Sophie, salaires, commissions)
+ *                    ventilées hors des charges pour la lisibilité
  *                    + salaireBase des employés non-commerciaux actifs
  *   - Marge réelle = encaissé - charges - salaires (vision trésorerie)
  *   - Marge proj.  = facturé  - charges - salaires (vision comptable)
@@ -84,7 +85,6 @@ export async function getComptaCockpit(
   const [
     clientInvoices,
     expenses,
-    salaryInvoices,
     activeNonCommercials,
   ] = await Promise.all([
     // Factures clients sur la fenêtre
@@ -105,15 +105,16 @@ export async function getComptaCockpit(
         },
       },
     }),
-    // Charges (expenses)
+    // Charges (expenses) — on distingue la paie via le fournisseur/description
     prisma.expense.findMany({
       where: { date: { gte: rangeStart, lt: rangeEnd } },
-      select: { date: true, montantTTC: true },
-    }),
-    // Salaires versés (Invoice = facture mensuelle commerciale)
-    prisma.invoice.findMany({
-      where: { mois: { gte: rangeStart, lt: rangeEnd } },
-      select: { mois: true, montantTotal: true },
+      select: {
+        date: true,
+        montantTTC: true,
+        fournisseur: true,
+        description: true,
+        categorie: true,
+      },
     }),
     // Pour la projection des salaires : tous les actifs (commerciaux + autres)
     prisma.user.findMany({
@@ -171,18 +172,34 @@ export async function getComptaCockpit(
     if (slot) slot.caEncaisse += Number(inv.total);
   }
 
-  // ----- Charges (TTC pour vision trésorerie)
+  // ----- Charges vs Salaires (TTC, vision trésorerie)
+  // La paie (Sophie via DELIK, salaires/commissions des collaborateurs) est de
+  // l'argent qui sort au même titre qu'une charge, mais on la ventile dans la
+  // colonne « Salaires » pour la lisibilité (aucun impact sur le cash total).
+  // Détection par fournisseur/description ; les frais bancaires ne sont jamais
+  // de la paie. On n'utilise PLUS le modèle Invoice (fiches de paie brouillon)
+  // qui double-comptait la paie de Sophie déjà présente en charge DELIK.
+  const isSalaire = (e: {
+    fournisseur: string | null;
+    description: string | null;
+    categorie: string;
+  }) => {
+    if (e.categorie === "BANQUE_FRAIS") return false;
+    const hay = `${e.fournisseur ?? ""} ${e.description ?? ""}`.toLowerCase();
+    // Les honoraires du comptable/fiduciaire restent une charge, même quand leur
+    // libellé mentionne « gestion des salaires ».
+    if (/comptable|fiduciaire/.test(hay)) return false;
+    // Volontairement restreint : « DELIK » (paie de Sophie) + « salaire ».
+    // On évite « paie »/« commission » (trop larges : « gestion des paies »
+    // du comptable, « commission » bancaire… = des charges, pas de la paie).
+    return /delik|salaire/.test(hay);
+  };
   for (const e of expenses) {
     const key = monthKey(e.date);
     const slot = monthMap.get(key);
-    if (slot) slot.charges += Number(e.montantTTC);
-  }
-
-  // ----- Salaires effectivement émis (Invoice commerciale)
-  for (const inv of salaryInvoices) {
-    const key = monthKey(inv.mois);
-    const slot = monthMap.get(key);
-    if (slot) slot.salaires += Number(inv.montantTotal);
+    if (!slot) continue;
+    if (isSalaire(e)) slot.salaires += Number(e.montantTTC);
+    else slot.charges += Number(e.montantTTC);
   }
 
   // ----- Calcul des moyennes 6 mois passés (pour projection)
