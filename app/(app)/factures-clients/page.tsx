@@ -52,6 +52,9 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
   const sortBy = typeof raw.sortBy === "string" ? raw.sortBy : "dateEmission";
   const sortDir =
     typeof raw.sortDir === "string" && raw.sortDir === "asc" ? "asc" : "desc";
+  // Aucun tri de colonne demandé → on applique l'ordre métier par défaut
+  // (brouillons → envoyées → en retard → payées, puis du + récent au + ancien).
+  const explicitSort = typeof raw.sortBy === "string";
 
   const now = new Date();
 
@@ -147,7 +150,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
         },
       },
       orderBy,
-      take: 100,
+      take: explicitSort ? 100 : 300,
     }),
     prisma.clientInvoice.groupBy({
       by: ["statut"],
@@ -194,6 +197,24 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
       inv.statut === "ENVOYEE" && inv.dateEcheance < now;
     return { ...inv, isOverdue };
   });
+
+  // Ordre métier par défaut (si aucun tri de colonne demandé) :
+  //   brouillons → envoyées → en retard → payées → autres,
+  //   puis, dans chaque groupe, du plus récent au plus ancien.
+  if (!explicitSort) {
+    const rank = (i: (typeof enriched)[number]) => {
+      if (i.statut === "BROUILLON") return 0;
+      if (i.isOverdue || i.statut === "EN_RETARD") return 2;
+      if (i.statut === "ENVOYEE") return 1;
+      if (i.statut === "PAYEE") return 3;
+      return 4; // ANNULEE et autres
+    };
+    enriched.sort(
+      (a, b) =>
+        rank(a) - rank(b) ||
+        b.dateEmission.getTime() - a.dateEmission.getTime(),
+    );
+  }
 
   const byStatut = Object.fromEntries(stats.map((s) => [s.statut, s]));
   const totalPayees = Number(byStatut.PAYEE?._sum.total ?? 0);
