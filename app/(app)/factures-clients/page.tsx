@@ -378,12 +378,22 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                         {formatMoney(Number(inv.total), inv.devise)}
                       </td>
                       <td className="px-3 py-2">
-                        <Badge
-                          variant="secondary"
-                          className={`font-normal ${CLIENT_INV_BADGE[inv.statut]}`}
-                        >
-                          {inv.isOverdue ? "En retard" : CLIENT_INV_LABEL[inv.statut]}
-                        </Badge>
+                        <div className="flex flex-col items-start gap-0.5">
+                          <Badge
+                            variant="secondary"
+                            className={`font-normal ${CLIENT_INV_BADGE[inv.statut]}`}
+                          >
+                            {inv.isOverdue ? "En retard" : CLIENT_INV_LABEL[inv.statut]}
+                          </Badge>
+                          {inv.statut === "PAYEE" && inv.datePaiement && (
+                            <span className="text-[10px] text-muted-foreground">
+                              le{" "}
+                              {new Date(inv.datePaiement).toLocaleDateString(
+                                "fr-CH",
+                              )}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex items-center justify-end gap-1.5">
