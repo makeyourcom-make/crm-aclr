@@ -2,6 +2,7 @@ import { CallInProgressWidget } from "@/components/call/call-in-progress-widget"
 import { CallResultModal } from "@/components/call/call-result-modal";
 import { CallSessionProvider } from "@/components/call/call-session-provider";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
+import { BottomTabBar } from "@/components/layout/bottom-tab-bar";
 import { Sidebar } from "@/components/layout/sidebar";
 import { SidebarAside } from "@/components/layout/sidebar-aside";
 import { SidebarProvider } from "@/components/layout/sidebar-context";
@@ -60,9 +61,16 @@ export default async function AppLayout({
               {/* Bandeau « Voir en tant que » (admin en support) */}
               <ImpersonationBanner />
               <Topbar user={user} badges={badges} />
-              <main className="flex-1 overflow-x-auto">{children}</main>
+              {/* Padding bas sur mobile pour que la barre d'onglets fixe ne
+                  masque pas le contenu (hauteur barre + safe-area). */}
+              <main className="flex-1 overflow-x-auto pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
+                {children}
+              </main>
             </div>
           </div>
+
+          {/* Barre d'onglets mobile (se cache seule sur desktop) */}
+          <BottomTabBar role={user.role} badges={badges} />
         </SidebarProvider>
 
         {/* Widget flottant + modale de résultat (gérés par le provider) */}

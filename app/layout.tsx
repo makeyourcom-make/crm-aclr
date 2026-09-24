@@ -33,6 +33,9 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: "#0E1936",
+  // Le contenu s'étend sous l'encoche / la barre home (mode app) ; on gère les
+  // marges de sécurité via env(safe-area-inset-*) dans les composants concernés.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
