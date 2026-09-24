@@ -320,8 +320,91 @@ export default async function ChargesPage({ searchParams }: PageProps) {
 
       {/* Liste */}
       <Card>
-        <CardContent className="overflow-x-auto p-0">
-          <table className="w-full text-sm">
+        <CardContent className="p-0">
+          {/* Vue CARTES sur mobile */}
+          <div className="divide-y divide-border md:hidden">
+            {expenses.length === 0 ? (
+              <p className="px-4 py-12 text-center text-muted-foreground">
+                Aucune charge enregistrée.
+              </p>
+            ) : (
+              expenses.map((e) => (
+                <div key={e.id} className="p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-1.5 text-sm font-medium">
+                        <span className="truncate">{e.fournisseur ?? "—"}</span>
+                        {e.recurrenceId && (
+                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-primary">
+                            <Icon name="Repeat" className="h-2.5 w-2.5" />
+                            récur.
+                          </span>
+                        )}
+                      </p>
+                      {e.description && (
+                        <p className="truncate text-[11px] text-muted-foreground">
+                          {e.description}
+                        </p>
+                      )}
+                    </div>
+                    <p className="shrink-0 font-semibold tabular-nums">
+                      {formatCHF(Number(e.montantTTC))}
+                    </p>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+                    <StatutBadge statut={e.statutPaiement} />
+                    <Badge variant="secondary" className="font-normal">
+                      {CATEGORIE_LABEL[e.categorie] ?? e.categorie}
+                    </Badge>
+                    <span className="tabular-nums text-muted-foreground">
+                      {formatDate(e.date)}
+                    </span>
+                    {e.prospect ? (
+                      <Link
+                        href={`/prospects/${e.prospect.id}`}
+                        className="text-primary hover:underline"
+                      >
+                        {e.prospect.raisonSociale}
+                      </Link>
+                    ) : e.allocations.length > 0 ? (
+                      <span className="text-primary">
+                        {e.allocations.length} client(s)
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">interne</span>
+                    )}
+                  </div>
+                  <div className="mt-2 flex items-center gap-1.5">
+                    {e.ticketUrl && (
+                      <DocumentPreviewButton
+                        url={e.ticketUrl}
+                        filename={e.ticketName ?? undefined}
+                        label="Ticket"
+                        icon="Eye"
+                      />
+                    )}
+                    {e.statutPaiement === "EN_ATTENTE" && (
+                      <MarkPaidButton
+                        expenseId={e.id}
+                        defaultDate={e.date.toISOString().slice(0, 10)}
+                      />
+                    )}
+                    <Link
+                      href={`/charges/${e.id}`}
+                      className="inline-flex h-6 items-center gap-0.5 rounded border border-border bg-background px-2 text-[11px] hover:bg-muted"
+                    >
+                      <Icon name="Pencil" className="h-3 w-3" />
+                      Détail
+                    </Link>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Vue TABLEAU sur desktop */}
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full text-sm">
             <thead className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
               <tr>
                 <Th>
@@ -505,6 +588,7 @@ export default async function ChargesPage({ searchParams }: PageProps) {
               )}
             </tbody>
           </table>
+          </div>
         </CardContent>
       </Card>
 
