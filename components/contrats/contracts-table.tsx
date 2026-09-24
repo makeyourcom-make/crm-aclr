@@ -183,11 +183,83 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
   ];
 
   return (
-    <DataTable
-      columns={columns}
-      data={rows}
-      emptyMessage="Aucun contrat. Crée un contrat depuis un deal signé."
-      getRowHref={(c) => `/contrats/${c.id}`}
-    />
+    <>
+      {/* Vue CARTES sur mobile */}
+      <div className="divide-y divide-border overflow-hidden rounded-lg border border-border md:hidden">
+        {rows.length === 0 ? (
+          <p className="px-4 py-12 text-center text-sm text-muted-foreground">
+            Aucun contrat. Crée un contrat depuis un deal signé.
+          </p>
+        ) : (
+          rows.map((c) => {
+            const renewal = getNextRenewalDate({
+              dateDebut: c.dateDebut,
+              dureeMois: c.dureeMois,
+              statut: c.statut,
+            });
+            return (
+              <div key={c.id} className="p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <Link
+                      href={`/prospects/${c.prospect.id}`}
+                      className="block truncate font-medium text-foreground hover:underline"
+                    >
+                      {c.prospect.raisonSociale}
+                    </Link>
+                    <p className="font-mono text-[10px] text-muted-foreground">
+                      <Link
+                        href={`/contrats/${c.id}`}
+                        className="hover:underline"
+                      >
+                        {c.numero}
+                      </Link>
+                      {c.prospect.ville ? ` · ${c.prospect.ville}` : ""}
+                    </p>
+                  </div>
+                  <ContractStatutBadge statut={c.statut} />
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                  <span className="tabular-nums">
+                    <span className="text-muted-foreground">An 1 </span>
+                    <span className="font-semibold">
+                      {formatCHF(Number(c.valeurAn1))}
+                    </span>
+                  </span>
+                  {Number(c.montantMensuel) > 0 && (
+                    <span className="tabular-nums text-muted-foreground">
+                      {formatCHF(Number(c.montantMensuel))}/mois
+                    </span>
+                  )}
+                  <span className="tabular-nums text-muted-foreground">
+                    signé {formatDate(c.dateSignature)}
+                  </span>
+                </div>
+                {renewal && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Renouvel. {formatDate(renewal)} ({relativeDays(renewal).label})
+                  </p>
+                )}
+                {showCommerciale && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {c.assigneA.name}
+                  </p>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Vue TABLEAU sur desktop */}
+      <div className="hidden md:block">
+        <DataTable
+          columns={columns}
+          data={rows}
+          emptyMessage="Aucun contrat. Crée un contrat depuis un deal signé."
+          getRowHref={(c) => `/contrats/${c.id}`}
+        />
+      </div>
+    </>
   );
 }
