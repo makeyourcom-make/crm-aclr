@@ -285,7 +285,82 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
 
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          {/* Vue CARTES sur mobile (le tableau déborde) */}
+          <div className="divide-y divide-border md:hidden">
+            {enriched.length === 0 ? (
+              <p className="px-4 py-12 text-center text-muted-foreground">
+                Aucune facture pour ce filtre.
+              </p>
+            ) : (
+              enriched.map((inv) => {
+                const payable =
+                  inv.statut === "BROUILLON" ||
+                  inv.statut === "ENVOYEE" ||
+                  inv.statut === "EN_RETARD";
+                return (
+                  <div
+                    key={inv.id}
+                    className={`p-3 ${inv.isOverdue ? "bg-red-50/40" : ""}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <Link
+                          href={`/prospects/${inv.contract.prospect.id}`}
+                          className="block truncate text-sm font-medium hover:underline"
+                        >
+                          {inv.contract.prospect.raisonSociale}
+                        </Link>
+                        <p className="font-mono text-[10px] text-muted-foreground">
+                          {inv.numero} · {inv.type}
+                        </p>
+                      </div>
+                      <p className="shrink-0 font-semibold tabular-nums">
+                        {formatMoney(Number(inv.total), inv.devise)}
+                      </p>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <Badge
+                        variant="secondary"
+                        className={`font-normal ${CLIENT_INV_BADGE[inv.statut]}`}
+                      >
+                        {inv.isOverdue ? "En retard" : CLIENT_INV_LABEL[inv.statut]}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground">
+                        {inv.statut === "PAYEE" && inv.datePaiement
+                          ? `payée le ${new Date(inv.datePaiement).toLocaleDateString("fr-CH")}`
+                          : `éch. ${formatDate(inv.dateEcheance)}`}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <DocumentPreviewButton
+                        url={`/api/factures-clients/${inv.id}/pdf`}
+                        filename={`${inv.numero}.pdf`}
+                        label="Aperçu"
+                        icon="Eye"
+                      />
+                      {payable && (
+                        <SendInvoiceButton
+                          invoiceId={inv.id}
+                          invoiceNumero={inv.numero}
+                          clientName={inv.contract.prospect.raisonSociale}
+                          clientEmail={inv.contract.prospect.email}
+                          alreadySent={inv.statut !== "BROUILLON"}
+                        />
+                      )}
+                      {payable && <MarkInvoicePaidButton invoiceId={inv.id} />}
+                      <DeleteClientInvoiceButton
+                        invoiceId={inv.id}
+                        isPayee={inv.statut === "PAYEE"}
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Vue TABLEAU sur desktop */}
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead className="border-b border-border bg-muted/50">
                 <tr>
