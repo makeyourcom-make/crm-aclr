@@ -347,12 +347,116 @@ export function ProspectsTable({
           isAdmin={showBulkActions}
         />
       )}
-      <DataTable
-        columns={columns}
-        data={rows}
-        emptyMessage="Aucune entreprise ne correspond aux filtres. Importe un CSV ou crée-en une manuellement."
-        getRowHref={(p) => `/prospects/${p.id}`}
-      />
+      {/* Vue CARTES sur mobile (le tableau à 11 colonnes déborde) */}
+      <div className="divide-y divide-border overflow-hidden rounded-lg border border-border md:hidden">
+        {rows.length === 0 ? (
+          <p className="px-4 py-12 text-center text-sm text-muted-foreground">
+            Aucune entreprise ne correspond aux filtres.
+          </p>
+        ) : (
+          rows.map((p) => {
+            const lieu = [p.ville, p.canton].filter(Boolean).join(", ");
+            const contact = [p.contactPrenom, p.contactNom]
+              .filter(Boolean)
+              .join(" ");
+            return (
+              <div key={p.id} className="p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <Link href={`/prospects/${p.id}`} className="min-w-0 flex-1">
+                    <span className="block truncate font-medium text-foreground">
+                      {p.raisonSociale}
+                    </span>
+                    {contact && (
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {contact}
+                        {p.contactFonction ? ` · ${p.contactFonction}` : ""}
+                      </span>
+                    )}
+                    {lieu && (
+                      <span className="block truncate text-[11px] text-muted-foreground">
+                        {lieu}
+                        {p.secteur
+                          ? ` · ${getProspectSecteurLabel(p.secteur)}`
+                          : ""}
+                      </span>
+                    )}
+                  </Link>
+                  <ProspectStatutBadge statut={p.statut} />
+                </div>
+
+                {p.tags && p.tags.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {p.tags.map((t) => (
+                      <span
+                        key={t.tag.id}
+                        className={`inline-flex items-center rounded-full px-2 py-0 text-[10px] font-medium ${
+                          TAG_COLOR_CLASSES[t.tag.couleur] ?? TAG_COLOR_CLASSES.slate
+                        }`}
+                      >
+                        {t.tag.nom}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {(p.telephone || p.telephoneMobile || p.email) && (
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                    {p.telephone && (
+                      <ClickToCall
+                        prospectId={p.id}
+                        prospectRaisonSociale={p.raisonSociale}
+                        numero={p.telephone}
+                        inline
+                        className="whitespace-nowrap"
+                      />
+                    )}
+                    {p.telephoneMobile && (
+                      <ClickToCall
+                        prospectId={p.id}
+                        prospectRaisonSociale={p.raisonSociale}
+                        numero={p.telephoneMobile}
+                        inline
+                        className="whitespace-nowrap"
+                      />
+                    )}
+                    {p.email && (
+                      <a
+                        href={`mailto:${p.email}`}
+                        className="truncate text-primary hover:underline"
+                      >
+                        {p.email}
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {(p.dateRdvLe || p.dernierAppelLe) && (
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">
+                    {p.dateRdvLe && (
+                      <span className="font-medium text-foreground">
+                        RDV {formatDate(p.dateRdvLe)}
+                      </span>
+                    )}
+                    {p.dateRdvLe && p.dernierAppelLe ? " · " : ""}
+                    {p.dernierAppelLe &&
+                      `dernier appel ${formatDate(p.dernierAppelLe)}`}
+                  </p>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Vue TABLEAU sur desktop */}
+      <div className="hidden md:block">
+        <DataTable
+          columns={columns}
+          data={rows}
+          emptyMessage="Aucune entreprise ne correspond aux filtres. Importe un CSV ou crée-en une manuellement."
+          getRowHref={(p) => `/prospects/${p.id}`}
+        />
+      </div>
     </>
   );
 }
