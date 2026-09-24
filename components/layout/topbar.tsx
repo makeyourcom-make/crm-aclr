@@ -16,7 +16,14 @@ interface TopbarProps {
 
 export function Topbar({ user, badges }: TopbarProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <header
+      className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+      style={{
+        // Descend le contenu sous l'encoche en mode app (0 sur desktop).
+        height: "calc(3.5rem + env(safe-area-inset-top))",
+        paddingTop: "env(safe-area-inset-top)",
+      }}
+    >
       {/* Hamburger mobile */}
       <MobileNav role={user.role} badges={badges} />
 

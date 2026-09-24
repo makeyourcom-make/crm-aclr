@@ -183,9 +183,22 @@
     @apply font-sans;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Sensation « app » : pas de flash bleu au tap, et surtout PAS de
+       pull-to-refresh accidentel (le geste tirer-vers-le-bas rechargeait la
+       page). `overscroll-behavior-y: contain` neutralise ce rechargement. */
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: contain;
   }
 
   body {
     @apply bg-background text-foreground;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Enlève le délai de 300 ms et le rebond sur les éléments interactifs. */
+  a,
+  button,
+  [role="button"] {
+    touch-action: manipulation;
   }
 }

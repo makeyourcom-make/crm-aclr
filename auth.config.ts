@@ -17,7 +17,10 @@ export const authConfig: NextAuthConfig = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 60 * 60 * 24 * 7, // 7 jours
+    // 30 jours, renouvelés à chaque usage (rolling) : un utilisateur actif
+    // n'est jamais déconnecté. La session ne tombe que sur 30 j d'inactivité.
+    maxAge: 60 * 60 * 24 * 30,
+    updateAge: 60 * 60 * 24, // rafraîchit le cookie au plus 1×/jour d'activité
   },
   trustHost: true, // requis derrière reverse-proxy Hetzner (Caddy/Traefik)
   providers: [
