@@ -18,8 +18,55 @@ function monthLabel(d: Date): string {
 
 export function InvoicesTable({ rows, showCommerciale }: InvoicesTableProps) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-card">
-      <table className="w-full text-sm">
+    <>
+      {/* Vue CARTES sur mobile */}
+      <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card md:hidden">
+        {rows.length === 0 ? (
+          <p className="px-4 py-12 text-center text-sm text-muted-foreground">
+            Aucune facture mensuelle. Lance la génération depuis le bouton en haut.
+          </p>
+        ) : (
+          rows.map((inv) => (
+            <div key={inv.id} className="p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <Link
+                    href={`/factures/${inv.id}`}
+                    className="block truncate text-sm font-medium capitalize hover:underline"
+                  >
+                    {monthLabel(inv.mois)}
+                  </Link>
+                  <p className="font-mono text-[10px] text-muted-foreground">
+                    {inv.referenceFacture}
+                    {showCommerciale ? ` · ${inv.user.name}` : ""}
+                  </p>
+                </div>
+                <p className="shrink-0 font-semibold tabular-nums">
+                  {formatCHF(Number(inv.montantTotal))}
+                </p>
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+                <InvoiceStatutBadge statut={inv.statut} />
+                <span className="text-muted-foreground">
+                  Comm. {formatCHF(Number(inv.montantCommissions))}
+                </span>
+                {Number(inv.montantGarantieAbsorbee) > 0 && (
+                  <span className="text-amber-700">
+                    Gar. +{formatCHF(Number(inv.montantGarantieAbsorbee))}
+                  </span>
+                )}
+                <span className="text-muted-foreground">
+                  Frais +{formatCHF(Number(inv.montantFrais))}
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Vue TABLEAU sur desktop */}
+      <div className="hidden overflow-x-auto rounded-lg border border-border bg-card md:block">
+        <table className="w-full text-sm">
         <thead className="border-b border-border bg-muted/50">
           <tr>
             <Th>N°</Th>
@@ -85,7 +132,8 @@ export function InvoicesTable({ rows, showCommerciale }: InvoicesTableProps) {
           )}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }
 

@@ -32,8 +32,66 @@ export function CommissionsTable({
   showCommerciale,
 }: CommissionsTableProps) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-card">
-      <table className="w-full text-sm">
+    <>
+      {/* Vue CARTES sur mobile */}
+      <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card md:hidden">
+        {payments.length === 0 ? (
+          <p className="px-4 py-12 text-center text-sm text-muted-foreground">
+            Aucun versement de commission.
+          </p>
+        ) : (
+          payments.map((p) => (
+            <div
+              key={p.id}
+              className={cn("p-3", p.statut === "ANNULE" && "opacity-60")}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <Link
+                    href={`/prospects/${p.commission.contract.prospect.id}`}
+                    className="block truncate text-sm font-medium hover:underline"
+                  >
+                    {p.commission.contract.prospect.raisonSociale}
+                  </Link>
+                  <p className="font-mono text-[10px] text-muted-foreground">
+                    <Link
+                      href={`/contrats/${p.commission.contract.id}`}
+                      className="hover:underline"
+                    >
+                      {p.commission.contract.numero}
+                    </Link>
+                    {` · ${TYPE_PART_LABEL[p.typePart]}`}
+                    {p.numeroMois ? ` ${p.numeroMois}` : ""}
+                  </p>
+                </div>
+                <p className="shrink-0 font-semibold tabular-nums">
+                  {formatCHF(Number(p.montant))}
+                </p>
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+                <Badge
+                  variant="secondary"
+                  className={cn("font-normal", STATUT_BADGE[p.statut])}
+                >
+                  {STATUT_LABEL[p.statut] ?? p.statut}
+                </Badge>
+                <span className="tabular-nums text-muted-foreground">
+                  {formatDate(p.dateVersementPrevue)}
+                </span>
+                {showCommerciale && (
+                  <span className="text-muted-foreground">
+                    {p.commission.user.name}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Vue TABLEAU sur desktop */}
+      <div className="hidden overflow-x-auto rounded-lg border border-border bg-card md:block">
+        <table className="w-full text-sm">
         <thead className="border-b border-border bg-muted/50">
           <tr>
             <Th>Date prévue</Th>
@@ -114,7 +172,8 @@ export function CommissionsTable({
           )}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }
 
