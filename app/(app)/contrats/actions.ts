@@ -2454,3 +2454,130 @@ export async function generateDueClientInvoices(): Promise<{
     };
   }
 }
+
+/**
+ * Générateur des factures ANTICIPÉES (facturation d'avance).
+ *
+ * Pour chaque contrat ACTIF ayant `facturationJourMois`, dès que le jour du
+ * mois courant atteint cette valeur, crée EN BROUILLON la mensualité du MOIS
+ * SUIVANT (le client paie d'avance). Émise le jour configuré, échéance +30j,
+ * période = mois suivant. Dédup par période (idempotent : tourne chaque nuit
+ * sans risque, et la passe mensuelle normale ne recréera pas ce mois-là car
+ * il existe déjà). Respecte la pause de facturation.
+ */
+export async function generateAnticipatedInvoices(): Promise<{
+  ok: boolean;
+  created: number;
+  error?: string;
+}> {
+  try {
+    const now = new Date();
+    const day = now.getUTCDate();
+    const contracts = await prisma.contract.findMany({
+      where: { statut: "ACTIF", facturationJourMois: { not: null } },
+      select: {
+        id: true,
+        modalitePaiement: true,
+        dateSignature: true,
+        dateDebut: true,
+        dureeMois: true,
+        devise: true,
+        facturationReprendLe: true,
+        facturationJourMois: true,
+        montantOneShot: true,
+        montantMensuel: true,
+        lignesMeta: true,
+        products: {
+          select: { id: true, nom: true, prixOneShot: true, prixMensuel: true },
+        },
+        clientInvoices: { select: { periodeMoisDebut: true } },
+      },
+    });
+
+    let created = 0;
+    for (const c of contracts) {
+      const jour = c.facturationJourMois ?? 0;
+      if (jour < 1 || day < jour) continue; // le jour de facturation n'est pas encore atteint
+
+      const billing = reconstructContractBilling(c);
+      if (billing.mensuelCents === 0) continue;
+
+      // Mois cible = mois SUIVANT (1er UTC).
+      const target = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+      );
+      const targetKey = moisKeyLocal(target);
+
+      // Pause de facturation couvrant le mois cible → on saute.
+      if (
+        c.facturationReprendLe &&
+        targetKey < moisKeyLocal(c.facturationReprendLe)
+      ) {
+        continue;
+      }
+      // Dédup : mensualité du mois cible déjà présente.
+      const exists = c.clientInvoices.some(
+        (i) => i.periodeMoisDebut && moisKeyLocal(i.periodeMoisDebut) === targetKey,
+      );
+      if (exists) continue;
+
+      created += await prisma.$transaction(async (tx) => {
+        // Émission = le jour de facturation du mois courant (ex. 20.09).
+        const emission = new Date(
+          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), jour),
+        );
+        const echeance = new Date(emission);
+        echeance.setUTCDate(
+          echeance.getUTCDate() + FACTURE_CLIENT_ECHEANCE_JOURS_DEFAULT,
+        );
+        const periodeFin = new Date(
+          Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
+        );
+        const lignes = billing.lines
+          .filter((l) => l.lineMensuel > 0)
+          .map((l, idx) => ({
+            designation: `${l.nom} ${moisFacturationLabel(target)}`,
+            quantite: l.quantite,
+            prixUnitaire: l.mensuelUnit,
+            montantHT: centsToChf(l.lineMensuel),
+            tauxTVA: 0,
+            ordre: idx,
+            productId: l.productId || null,
+          }));
+        const annee = emission.getUTCFullYear();
+        const counter = await tx.counter.upsert({
+          where: { scope_year: { scope: "client_invoice", year: annee } },
+          create: { scope: "client_invoice", year: annee, value: 1 },
+          update: { value: { increment: 1 } },
+        });
+        const facNumero = `${PREFIX_FACTURE_CLIENT}-${annee}-${String(counter.value).padStart(4, "0")}`;
+        await tx.clientInvoice.create({
+          data: {
+            contractId: c.id,
+            numero: facNumero,
+            dateEmission: emission,
+            dateEcheance: echeance,
+            type: "MENSUALITE",
+            periodeMoisDebut: target,
+            periodeMoisFin: periodeFin,
+            devise: c.devise ?? "CHF",
+            sousTotal: centsToChf(billing.mensuelCents),
+            totalTVA: 0,
+            total: centsToChf(billing.mensuelCents),
+            statut: "BROUILLON",
+            lignes: { create: lignes },
+          },
+        });
+        return 1;
+      });
+    }
+    return { ok: true, created };
+  } catch (e) {
+    console.error("[generateAnticipatedInvoices]", e);
+    return {
+      ok: false,
+      created: 0,
+      error: e instanceof Error ? e.message : "Erreur",
+    };
+  }
+}

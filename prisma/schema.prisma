@@ -1119,6 +1119,12 @@ model Contract {
   /// +12 mois (l'avancement fait la dédup). NULL = pas de renouvellement annuel.
   renouvellementAnnuelLe DateTime?
 
+  /// Facturation ANTICIPÉE : jour du mois (1-28) auquel générer, D'AVANCE, la
+  /// mensualité du MOIS SUIVANT (le client paie le mois à venir). Ex. 20 = le
+  /// 20 septembre, on génère la facture d'octobre. NULL = facturation normale
+  /// (mois courant, générée en début de mois). Voir generateAnticipatedInvoices.
+  facturationJourMois Int?
+
   // Relations
   products       Product[]        @relation("ContractProducts")
   payments       Payment[]

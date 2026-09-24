@@ -19,7 +19,10 @@
  */
 import { NextResponse } from "next/server";
 
-import { generateDueClientInvoices } from "@/app/(app)/contrats/actions";
+import {
+  generateAnticipatedInvoices,
+  generateDueClientInvoices,
+} from "@/app/(app)/contrats/actions";
 import { sendDueSoonReminders } from "@/app/(app)/factures-clients/actions";
 import {
   processAnnualContractAnniversaries,
@@ -74,6 +77,12 @@ async function handler(req: Request) {
     const dueInvoices = await generateDueClientInvoices();
     results.clientInvoicesGenerated = dueInvoices.created;
     if (!dueInvoices.ok) results.clientInvoicesError = dueInvoices.error;
+
+    // Factures anticipées (contrats facturés le mois d'avance, ex. La Dent
+    // Byantse le 20 pour le mois suivant).
+    const anticipated = await generateAnticipatedInvoices();
+    results.anticipatedInvoicesGenerated = anticipated.created;
+    if (!anticipated.ok) results.anticipatedInvoicesError = anticipated.error;
 
     // 1quater. Relances "J+20" : rappel courtois pour les factures dont
     // l'échéance approche (≤ 10 j), avant le cap des 30 j / frais de rappel.
