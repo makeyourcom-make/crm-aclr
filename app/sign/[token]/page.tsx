@@ -32,7 +32,15 @@ export default async function SignPage({ params }: PageProps) {
               contactNom: true,
             },
           },
-          products: { select: { nom: true } },
+          products: {
+            select: {
+              id: true,
+              nom: true,
+              description: true,
+              prixOneShot: true,
+              prixMensuel: true,
+            },
+          },
         },
       },
     },
@@ -48,6 +56,101 @@ export default async function SignPage({ params }: PageProps) {
   const now = new Date();
   const isExpired = sig.expireA < now;
   const alreadySigned = sig.signeParClient;
+
+  // ── Détail des prestations (mêmes règles que le PDF : offert / remise par
+  // ligne via contract.lignesMeta ; frais unique compté à la quantité, mensuel
+  // compté sur la durée du contrat). ────────────────────────────────────────
+  type Cible = "ONESHOT" | "RECURRENT" | "DEUX" | null;
+  type LigneMeta = {
+    productId: string;
+    quantite?: number | null;
+    prixOneShotOriginal?: number | null;
+    prixMensuelOriginal?: number | null;
+    offert?: boolean;
+    offertCible?: Cible;
+    remiseType?: "POURCENT" | "MONTANT" | null;
+    remiseValeur?: number | null;
+    remiseCible?: Cible;
+  };
+  const metaArr: LigneMeta[] = Array.isArray(sig.contract.lignesMeta)
+    ? (sig.contract.lignesMeta as unknown as LigneMeta[])
+    : [];
+  const metaByProduct = new Map(metaArr.map((m) => [m.productId, m]));
+
+  const effectivePart = (
+    base: number,
+    part: "ONESHOT" | "RECURRENT",
+    m?: LigneMeta,
+  ): number => {
+    if (!m) return base;
+    if (m.offert) {
+      const c = m.offertCible ?? "DEUX";
+      if (part === "ONESHOT" && c !== "RECURRENT") return 0;
+      if (part === "RECURRENT" && c !== "ONESHOT") return 0;
+      return base;
+    }
+    const r = m.remiseValeur ?? 0;
+    if (m.remiseType && r > 0) {
+      const c = m.remiseCible ?? "DEUX";
+      const applies =
+        (part === "ONESHOT" && c !== "RECURRENT") ||
+        (part === "RECURRENT" && c !== "ONESHOT");
+      if (!applies) return base;
+      if (m.remiseType === "POURCENT") return base * Math.max(0, 1 - r / 100);
+      return Math.max(0, base - r);
+    }
+    return base;
+  };
+
+  const prestations = sig.contract.products.map((p) => {
+    const meta = metaByProduct.get(p.id);
+    const qte = meta?.quantite ?? 1;
+    const baseOne = meta?.prixOneShotOriginal ?? Number(p.prixOneShot ?? 0);
+    const baseMens = meta?.prixMensuelOriginal ?? Number(p.prixMensuel ?? 0);
+    const remiseLabel =
+      meta?.remiseType === "POURCENT" && meta?.remiseValeur
+        ? `−${meta.remiseValeur}%`
+        : meta?.remiseType === "MONTANT" && meta?.remiseValeur
+          ? `−${formatCHF(meta.remiseValeur)}`
+          : null;
+    const desc = (p.description ?? "").trim();
+
+    const lines: Array<{
+      label: string;
+      qte: number;
+      suffix: string;
+      origTotal: number;
+      effTotal: number;
+      badge: string | null;
+    }> = [];
+    if (baseOne > 0) {
+      const eff = effectivePart(baseOne, "ONESHOT", meta);
+      lines.push({
+        label: "Frais unique",
+        qte,
+        suffix: "",
+        origTotal: baseOne * qte,
+        effTotal: eff * qte,
+        badge: eff === 0 ? "OFFERT" : eff < baseOne ? remiseLabel : null,
+      });
+    }
+    if (baseMens > 0) {
+      const eff = effectivePart(baseMens, "RECURRENT", meta);
+      lines.push({
+        label: "Abonnement mensuel",
+        qte,
+        suffix: " / mois",
+        origTotal: baseMens,
+        effTotal: eff,
+        badge: eff === 0 ? "OFFERT" : eff < baseMens ? remiseLabel : null,
+      });
+    }
+    return {
+      nom: p.nom,
+      description: desc.startsWith("[Custom]") ? "" : desc,
+      lines,
+    };
+  });
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 to-white px-4 py-12">
@@ -98,19 +201,68 @@ export default async function SignPage({ params }: PageProps) {
                 big
               />
             </dl>
-            {sig.contract.products.length > 0 && (
-              <div className="mt-4">
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Produits & services
-                </p>
-                <ul className="mt-1 text-sm">
-                  {sig.contract.products.map((p, i) => (
-                    <li key={i}>• {p.nom}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
+
+          {/* Détail des prestations (comme le bon de commande PDF) */}
+          {prestations.length > 0 && (
+            <div className="mt-6">
+              <h2 className="text-sm font-semibold text-foreground">
+                Détail des prestations
+              </h2>
+              <div className="mt-3 divide-y divide-border rounded-lg border border-border">
+                {prestations.map((p, i) => (
+                  <div key={i} className="p-3">
+                    <p className="font-medium text-foreground">{p.nom}</p>
+                    {p.description && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {p.description}
+                      </p>
+                    )}
+                    <div className="mt-2 space-y-1">
+                      {p.lines.map((l, j) => (
+                        <div
+                          key={j}
+                          className="flex items-baseline justify-between gap-2 text-sm"
+                        >
+                          <span className="text-slate-600">
+                            {l.label}
+                            {l.qte > 1 ? (
+                              <span className="text-muted-foreground">
+                                {" "}
+                                × {l.qte}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="flex items-baseline gap-1.5 tabular-nums">
+                            {l.badge && (
+                              <span
+                                className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                  l.badge === "OFFERT"
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : "bg-amber-100 text-amber-700"
+                                }`}
+                              >
+                                {l.badge}
+                              </span>
+                            )}
+                            {l.origTotal !== l.effTotal && (
+                              <span className="text-xs text-muted-foreground line-through">
+                                {formatCHF(l.origTotal)}
+                              </span>
+                            )}
+                            <span className="font-medium">
+                              {formatCHF(l.effTotal)}
+                              {l.suffix}
+                            </span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* CGV intégrales — repliable pour ne pas écraser l'écran tablette */}
           <details className="mt-6 rounded-md border border-border bg-card p-3 text-xs">
