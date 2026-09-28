@@ -8,7 +8,7 @@
     },
     {
       "path": "/api/cron/google-sync",
-      "schedule": "*/15 * * * *"
+      "schedule": "*/15 4-22 * * *"
     }
   ]
 }
