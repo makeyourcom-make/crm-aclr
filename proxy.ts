@@ -29,6 +29,6 @@ export default NextAuth(authConfig).auth;
 
 export const config = {
   matcher: [
-    "/((?!api/auth|api/webhooks|api/cron|api/blob|api/calendar/feed|api/google/callback|api/version|manifest.webmanifest|sign/|confidentialite|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mjs|js|css|woff|woff2|map)$).*)",
+    "/((?!api/auth|api/webhooks|api/cron|api/blob|api/calendar/feed|api/google/callback|api/version|manifest.webmanifest|sign/|confidentialite|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mjs|js|css|woff|woff2|map|pdf|docx|xlsx|pptx|mp4|mov)$).*)",
   ],
 };
