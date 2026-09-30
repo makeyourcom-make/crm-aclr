@@ -36,6 +36,11 @@ export async function POST(request: Request): Promise<NextResponse> {
         ) {
           throw new Error("Chemin d'upload non autorisé.");
         }
+        // Bibliothèque de documents : dépôt STRICTEMENT réservé à l'admin.
+        // Les commerciaux ont un accès en consultation/téléchargement seulement.
+        if (pathname.startsWith("documents/") && user.role !== "ADMIN") {
+          throw new Error("Dépôt de documents réservé à l'administrateur.");
+        }
         // Contrats signés : PDF/images uniquement. Bibliothèque de documents :
         // types bureautiques élargis (Office, vidéo, archives, texte).
         const isDocs = pathname.startsWith("documents/");
