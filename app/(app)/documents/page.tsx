@@ -9,12 +9,11 @@ import { getSessionUser } from "@/lib/session";
 export const metadata = { title: "Documents" };
 export const dynamic = "force-dynamic";
 
-type Categorie = "FORMATION" | "VENTE" | "SUIVI";
+type Categorie = "FORMATION" | "SUIVI";
 
 const SECTIONS: { id: Categorie; label: string; hint: string }[] = [
   { id: "FORMATION", label: "Formation", hint: "Guides, scripts, onboarding" },
-  { id: "VENTE", label: "Vente", hint: "Offres, argumentaires, supports clients" },
-  { id: "SUIVI", label: "Suivi", hint: "Process, modèles de reporting" },
+  { id: "SUIVI", label: "Suivi", hint: "Questionnaires de lancement, process, reporting" },
 ];
 
 function humanSize(bytes: number | null): string {

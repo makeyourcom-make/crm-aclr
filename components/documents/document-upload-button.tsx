@@ -24,11 +24,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 
-type Categorie = "FORMATION" | "VENTE" | "SUIVI";
+type Categorie = "FORMATION" | "SUIVI";
 
 const CAT_LABEL: Record<Categorie, string> = {
   FORMATION: "Formation",
-  VENTE: "Vente",
   SUIVI: "Suivi",
 };
 
