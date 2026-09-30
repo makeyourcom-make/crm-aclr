@@ -18,8 +18,8 @@ const UpdateEmployeeSchema = z.object({
   // Identité
   name: z.string().trim().min(2).max(120).optional(),
   email: z.string().trim().email().optional(),
-  telephone: z.string().trim().optional(),
-  adresse: z.string().trim().optional(),
+  telephone: z.string().trim().optional().nullable(),
+  adresse: z.string().trim().optional().nullable(),
   // RH
   dateNaissance: z.coerce.date().optional().nullable(),
   numeroAVS: z.string().trim().optional().nullable(),
