@@ -427,6 +427,7 @@ model User {
   dossiersAssignes  Dossier[]          @relation("DossierAssignee")
   dossiersCrees     Dossier[]          @relation("DossierCreateur")
   dossierUpdates    DossierUpdate[]
+  documents         Document[]
 
   @@index([email])
   @@map("users")
@@ -1834,4 +1835,36 @@ model DossierAttachment {
 
   @@index([dossierId])
   @@map("dossier_attachments")
+}
+
+/// Bibliothèque de documents partagés à l'équipe (formation, vente, suivi).
+/// L'admin dépose les fichiers ; tous les collaborateurs les consultent et
+/// les téléchargent depuis l'onglet « Documents ».
+enum DocumentCategorie {
+  FORMATION
+  VENTE
+  SUIVI
+}
+
+model Document {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  titre       String
+  description String?
+  categorie   DocumentCategorie
+
+  /// Fichier stocké (Vercel Blob en prod, /public en dev) via lib/file-storage.
+  fileUrl  String
+  fileName String
+  fileType String? // type MIME
+  fileSize Int? //    octets
+
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+
+  @@index([categorie])
+  @@index([createdAt])
+  @@map("documents")
 }

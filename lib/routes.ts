@@ -95,6 +95,13 @@ export const ROUTES: RouteDef[] = [
     group: "operationnel",
     etape: 26,
   },
+  {
+    href: "/documents",
+    label: "Documents",
+    icon: "FolderOpen",
+    group: "operationnel",
+    etape: 1,
+  },
 
   // ---- VENTE ----
   {

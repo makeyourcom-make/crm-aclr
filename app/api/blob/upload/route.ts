@@ -27,18 +27,42 @@ export async function POST(request: Request): Promise<NextResponse> {
         // Auth : seul un utilisateur connecté peut obtenir un token d'upload.
         const user = await getSessionUser();
         if (!user) throw new Error("Non authentifié.");
-        // On restreint strictement le chemin : uniquement les contrats signés.
-        if (!pathname.startsWith("signed-contracts/")) {
+        // On restreint strictement le chemin : contrats signés + documents
+        // de la bibliothèque d'équipe (dépôt réservé à l'admin, vérifié dans
+        // le Server Action `createDocument`).
+        if (
+          !pathname.startsWith("signed-contracts/") &&
+          !pathname.startsWith("documents/")
+        ) {
           throw new Error("Chemin d'upload non autorisé.");
         }
+        // Contrats signés : PDF/images uniquement. Bibliothèque de documents :
+        // types bureautiques élargis (Office, vidéo, archives, texte).
+        const isDocs = pathname.startsWith("documents/");
         return {
-          allowedContentTypes: [
-            "application/pdf",
-            "image/jpeg",
-            "image/png",
-            "image/webp",
-          ],
-          maximumSizeInBytes: 20 * 1024 * 1024, // 20 MB — couvre un scan couleur multipage
+          allowedContentTypes: isDocs
+            ? [
+                "application/pdf",
+                "image/jpeg",
+                "image/png",
+                "image/webp",
+                "image/gif",
+                "application/msword",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "application/vnd.ms-excel",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "application/vnd.ms-powerpoint",
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                "text/plain",
+                "text/csv",
+                "application/zip",
+                "video/mp4",
+                "video/quicktime",
+              ]
+            : ["application/pdf", "image/jpeg", "image/png", "image/webp"],
+          maximumSizeInBytes: isDocs
+            ? 50 * 1024 * 1024 // 50 MB — supports (slides, courtes vidéos)
+            : 20 * 1024 * 1024, // 20 MB — scan couleur multipage
           addRandomSuffix: true,
           tokenPayload: JSON.stringify({ userId: user.id }),
         };
