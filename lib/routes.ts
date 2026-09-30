@@ -99,7 +99,7 @@ export const ROUTES: RouteDef[] = [
     href: "/documents",
     label: "Documents",
     icon: "FolderOpen",
-    group: "operationnel",
+    group: "config",
     etape: 1,
   },
 
