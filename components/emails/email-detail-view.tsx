@@ -13,6 +13,7 @@ import { toast } from "sonner";
 
 import {
   deleteEmail,
+  refetchEmailBody,
   replyToEmail,
   setEmailArchive,
 } from "@/app/(app)/emails/actions";
@@ -45,6 +46,7 @@ interface EmailDetail {
   envoyeLe: string | null;
   createdAt: string;
   archive: boolean;
+  resendInboundId: string | null;
   prospect: { id: string; raisonSociale: string } | null;
   user: { name: string } | null;
   attachments: EmailAttachment[];
@@ -58,6 +60,18 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
   const [replyAttachments, setReplyAttachments] = useState<PickedAttachment[]>(
     [],
   );
+
+  const handleRefetch = () => {
+    startTransition(async () => {
+      const res = await refetchEmailBody(email.id);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec de la récupération.");
+        return;
+      }
+      toast.success("Contenu récupéré ✓");
+      router.refresh();
+    });
+  };
 
   const handleArchiveToggle = () => {
     const next = !email.archive;
@@ -187,9 +201,26 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
           <pre className="whitespace-pre-wrap font-sans text-sm">
             {email.contenuTexte}
           </pre>
+        ) : email.direction === "ENTRANT" && email.resendInboundId ? (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+            <p className="text-xs text-amber-800">
+              Le contenu n&apos;a pas pu être récupéré à la réception (API Resend
+              momentanément indisponible). Le message existe toujours côté
+              Resend.
+            </p>
+            <button
+              type="button"
+              onClick={handleRefetch}
+              disabled={pending}
+              className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+            >
+              <Icon name="Download" className="h-3 w-3" />
+              {pending ? "Récupération…" : "Récupérer le contenu"}
+            </button>
+          </div>
         ) : (
           <p className="italic text-xs text-muted-foreground">
-            (Contenu vide)
+            (Contenu vide — le mail reçu n&apos;avait pas de corps)
           </p>
         )}
 

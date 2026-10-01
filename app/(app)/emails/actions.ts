@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db";
 import { findBlockingRule } from "@/lib/email-block";
 import { htmlToPlainText, sanitizeEmailHtml } from "@/lib/email-html";
 import { resolveFromAddress, sendMail } from "@/lib/mailer";
+import { fetchResendInboundContent } from "@/lib/resend-inbound";
 import { requireUser } from "@/lib/session";
 
 const AttachmentSchema = z.object({
@@ -979,6 +980,67 @@ export async function attachEmailToCollaborateur(
   if (email.collaborateurId) revalidatePath(`/rh/${email.collaborateurId}`);
   if (collaborateurId) revalidatePath(`/rh/${collaborateurId}`);
   return { ok: true };
+}
+
+/**
+ * Rattrapage : re-récupère le corps d'un mail ENTRANT dont le contenu est vide
+ * (ex. 1er fetch échoué pendant un incident Resend). Utilise `resendInboundId`
+ * et l'API Receiving (avec réessais). Admin ou propriétaire du mail.
+ */
+export async function refetchEmailBody(
+  emailId: string,
+): Promise<{ ok: boolean; filled?: boolean; error?: string }> {
+  const user = await requireUser();
+  const email = await prisma.email.findUnique({
+    where: { id: emailId },
+    select: {
+      id: true,
+      userId: true,
+      direction: true,
+      resendInboundId: true,
+      contenuHtml: true,
+      contenuTexte: true,
+      prospectId: true,
+    },
+  });
+  if (!email) return { ok: false, error: "Email introuvable." };
+  if (user.role !== "ADMIN" && email.userId !== user.id) {
+    return { ok: false, error: "Accès refusé." };
+  }
+  if (email.direction !== "ENTRANT") {
+    return { ok: false, error: "Seuls les mails reçus peuvent être récupérés." };
+  }
+  if (email.contenuHtml || email.contenuTexte) {
+    return { ok: true, filled: true }; // déjà rempli
+  }
+  if (!email.resendInboundId) {
+    return {
+      ok: false,
+      error:
+        "Pas d'identifiant de récupération pour ce mail (reçu avant cette fonctionnalité). Le contenu reste consultable dans le tableau de bord Resend.",
+    };
+  }
+
+  const fetched = await fetchResendInboundContent(email.resendInboundId);
+  if (!fetched || (!fetched.html && !fetched.text)) {
+    return {
+      ok: false,
+      error:
+        "Resend n'a pas renvoyé le contenu (API peut-être encore indisponible). Réessaie dans quelques minutes.",
+    };
+  }
+
+  const html = fetched.html || "";
+  const text = fetched.text || (html ? htmlToPlainText(html).slice(0, 5000) : "");
+  await prisma.email.update({
+    where: { id: emailId },
+    data: { contenuHtml: html, contenuTexte: text },
+  });
+
+  revalidatePath("/emails");
+  revalidatePath(`/emails/${emailId}`);
+  if (email.prospectId) revalidatePath(`/prospects/${email.prospectId}`);
+  return { ok: true, filled: true };
 }
 
 /**

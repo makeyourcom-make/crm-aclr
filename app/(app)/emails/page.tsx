@@ -67,6 +67,7 @@ export default async function EmailsPage() {
     createdAt: e.createdAt.toISOString(),
     lu: e.lu,
     labels: e.labels,
+    resendInboundId: e.resendInboundId,
     prospect: e.prospect,
     collaborateur: e.collaborateur,
     user: e.user,

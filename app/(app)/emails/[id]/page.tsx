@@ -94,6 +94,7 @@ export default async function EmailDetailPage({ params }: PageProps) {
           envoyeLe: email.envoyeLe ? email.envoyeLe.toISOString() : null,
           createdAt: email.createdAt.toISOString(),
           archive: email.archive,
+          resendInboundId: email.resendInboundId,
           prospect: email.prospect,
           user: email.user,
           attachments: email.attachments,

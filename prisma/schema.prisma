@@ -1355,6 +1355,11 @@ model Email {
   /// Message-ID du parent pour reconstituer le fil
   inReplyTo String?
 
+  /// ID du mail entrant côté Resend (payload webhook `data.email_id`). Permet
+  /// de RE-récupérer le corps via l'API Resend si le 1er fetch a échoué (ex.
+  /// panne API Resend → mail enregistré sans corps). Null pour les sortants.
+  resendInboundId String?
+
   expediteurEmail   String
   expediteurNom     String?
   /// Peut contenir plusieurs adresses séparées par virgule

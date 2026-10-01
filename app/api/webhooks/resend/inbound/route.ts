@@ -22,6 +22,7 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
 import { findBlockingRule } from "@/lib/email-block";
+import { fetchResendInboundContent } from "@/lib/resend-inbound";
 
 /**
  * Le payload Resend varie selon l'event :
@@ -236,38 +237,20 @@ export async function POST(req: Request) {
 
   const inboundEmailId = (payload.data as { email_id?: string } | undefined)?.email_id;
   if (inboundEmailId && (!html || !text)) {
-    try {
-      const res = await fetch(
-        `https://api.resend.com/emails/receiving/${inboundEmailId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.RESEND_API_KEY ?? ""}`,
-            "Content-Type": "application/json",
-          },
-        },
-      );
-      if (res.ok) {
-        const fetched = (await res.json()) as {
-          html?: string;
-          text?: string;
-          headers?: Record<string, string> | Array<{ name: string; value: string }>;
-        };
-        if (!html && fetched.html) html = fetched.html;
-        if (!text && fetched.text) text = fetched.text;
-        if (fetched.headers) {
-          fetchedHeaders = {
-            ...fetchedHeaders,
-            ...normalizeHeaders(fetched.headers),
-          };
-        }
-      } else {
-        console.warn(
-          `[resend-inbound] Failed to fetch email body (${res.status})`,
-          await res.text().catch(() => ""),
-        );
+    // Récupération AVEC réessais : l'API Resend peut échouer ponctuellement
+    // (incident général) → sans retry le mail arrive sans corps. On stocke
+    // aussi `resendInboundId` pour pouvoir rattraper plus tard si besoin.
+    const fetched = await fetchResendInboundContent(inboundEmailId);
+    if (fetched) {
+      if (!html && fetched.html) html = fetched.html;
+      if (!text && fetched.text) text = fetched.text;
+      if (fetched.headers) {
+        fetchedHeaders = { ...fetchedHeaders, ...normalizeHeaders(fetched.headers) };
       }
-    } catch (err) {
-      console.warn("[resend-inbound] Error fetching email body", err);
+    } else {
+      console.warn(
+        `[resend-inbound] Corps introuvable après réessais pour ${inboundEmailId} — mail enregistré sans corps (rattrapable).`,
+      );
     }
   }
 
@@ -379,6 +362,7 @@ export async function POST(req: Request) {
         threadId,
         messageId,
         inReplyTo: inReplyToHeader ?? undefined,
+        resendInboundId: inboundEmailId ?? null,
         expediteurEmail: fromEmail,
         expediteurNom: fromName ?? "",
         destinataireEmail: destEmail,
