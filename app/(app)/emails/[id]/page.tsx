@@ -18,7 +18,8 @@ interface PageProps {
  * Vue d'un mail isolé — accessible depuis la timeline d'activités d'un prospect.
  * Affiche le contenu complet même si le mail est archivé.
  *
- * RLS : seul le propriétaire du mail (email.userId === user.id) peut le lire.
+ * RLS : le propriétaire du mail (email.userId === user.id) peut le lire ; l'admin
+ * a une vue complète (y compris les mails d'un collaborateur parti).
  */
 export default async function EmailDetailPage({ params }: PageProps) {
   const user = await requireUser();
@@ -43,8 +44,10 @@ export default async function EmailDetailPage({ params }: PageProps) {
 
   if (!email) notFound();
 
-  // Mailbox privée : tu ne peux lire que tes propres mails
-  if (email.userId !== user.id) {
+  // Mailbox privée : le propriétaire lit ses propres mails. L'admin a une vue
+  // complète (ex. mails d'un collaborateur parti — cf. Sophie). Cohérent avec la
+  // route de téléchargement des pièces jointes.
+  if (email.userId !== user.id && user.role !== "ADMIN") {
     notFound();
   }
 
