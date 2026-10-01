@@ -21,6 +21,67 @@ export interface ResendInboundContent {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+export interface ResendInboundAttachment {
+  id: string;
+  filename?: string;
+  content_type?: string;
+  size?: number;
+  download_url?: string;
+  content_id?: string;
+}
+
+/**
+ * Liste les pièces jointes d'un mail entrant via l'API Resend (avec réessais).
+ * Renvoie les métadonnées (dont `download_url` temporaire) ; le stockage sur
+ * Blob + l'enregistrement en base restent à la charge de l'appelant.
+ */
+export async function fetchResendInboundAttachments(
+  inboundEmailId: string,
+): Promise<ResendInboundAttachment[]> {
+  const key = process.env.RESEND_API_KEY ?? "";
+  if (!inboundEmailId || !key) return [];
+  const backoff = [400, 1200, 2500];
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(
+        `https://api.resend.com/emails/receiving/${inboundEmailId}/attachments`,
+        { headers: { Authorization: `Bearer ${key}` } },
+      );
+      if (res.ok) {
+        const json = (await res.json()) as { data?: ResendInboundAttachment[] };
+        return json.data ?? [];
+      }
+      if (res.status >= 400 && res.status < 500 && res.status !== 429) return [];
+    } catch {
+      // réseau : on réessaie
+    }
+    if (attempt < 2) await sleep(backoff[attempt] ?? 2500);
+  }
+  return [];
+}
+
+/**
+ * Recâble les images inline CASSÉES d'un corps HTML : les `<img>` dont le `src`
+ * n'est pas http(s)/data (ex. `cid:...` ou une URL interne webmail Infomaniak/
+ * Gmail inaccessible) sont remplacées, dans l'ordre, par les URL d'images
+ * fournies (pièces jointes stockées sur Blob). Les images déjà valides sont
+ * laissées intactes.
+ */
+export function rewriteInlineImages(html: string, imageUrls: string[]): string {
+  if (!html || imageUrls.length === 0) return html;
+  let idx = 0;
+  return html.replace(/<img\b[^>]*>/gi, (tag) => {
+    const srcMatch = tag.match(/\ssrc\s*=\s*["']([^"']*)["']/i);
+    const src = srcMatch?.[1] ?? "";
+    if (/^(https?:|data:)/i.test(src)) return tag; // déjà affichable
+    if (idx >= imageUrls.length) return tag;
+    const url = imageUrls[idx++]!;
+    return srcMatch
+      ? tag.replace(srcMatch[0], ` src="${url}"`)
+      : tag.replace(/<img\b/i, `<img src="${url}"`);
+  });
+}
+
 const normalizeMsgId = (s: string) => s.replace(/[<>]/g, "").trim().toLowerCase();
 
 /**

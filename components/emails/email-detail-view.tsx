@@ -224,6 +224,27 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
           </p>
         )}
 
+        {email.direction === "ENTRANT" &&
+          /<img\b[^>]*\bsrc\s*=\s*["'](?!\s*(?:https?:|data:))/i.test(
+            email.contenuHtml,
+          ) &&
+          !email.attachments.some((a) => a.mimeType.startsWith("image/")) && (
+            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+              <p className="text-xs text-amber-800">
+                Une image de ce mail n&apos;a pas pu être chargée à la réception.
+              </p>
+              <button
+                type="button"
+                onClick={handleRefetch}
+                disabled={pending}
+                className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+              >
+                <Icon name="Download" className="h-3 w-3" />
+                {pending ? "Récupération…" : "Récupérer l'image"}
+              </button>
+            </div>
+          )}
+
         {email.attachments.length > 0 && (
           <div className="mt-4 space-y-2 border-t border-border pt-4">
             <div className="flex items-center justify-between gap-2">

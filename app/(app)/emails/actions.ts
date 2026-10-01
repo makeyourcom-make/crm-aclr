@@ -9,9 +9,13 @@ import { prisma } from "@/lib/db";
 import { findBlockingRule } from "@/lib/email-block";
 import { htmlToPlainText, sanitizeEmailHtml } from "@/lib/email-html";
 import { resolveFromAddress, sendMail } from "@/lib/mailer";
+import { put } from "@vercel/blob";
+
 import {
+  fetchResendInboundAttachments,
   fetchResendInboundContent,
   resolveInboundIdByMessageId,
+  rewriteInlineImages,
 } from "@/lib/resend-inbound";
 import { requireUser } from "@/lib/session";
 
@@ -1005,6 +1009,7 @@ export async function refetchEmailBody(
       contenuHtml: true,
       contenuTexte: true,
       prospectId: true,
+      attachments: { select: { id: true, mimeType: true, url: true } },
     },
   });
   if (!email) return { ok: false, error: "Email introuvable." };
@@ -1014,14 +1019,26 @@ export async function refetchEmailBody(
   if (email.direction !== "ENTRANT") {
     return { ok: false, error: "Seuls les mails reçus peuvent être récupérés." };
   }
-  if (email.contenuHtml || email.contenuTexte) {
-    return { ok: true, filled: true }; // déjà rempli
+
+  const bodyEmpty = !email.contenuHtml && !email.contenuTexte;
+  // Image inline cassée = <img> dont le src n'est ni http(s) ni data (cid: ou
+  // URL interne webmail inaccessible).
+  const hasBrokenInlineImg =
+    /<img\b[^>]*\bsrc\s*=\s*["'](?!\s*(?:https?:|data:))/i.test(email.contenuHtml);
+  const hasImageAttachment = email.attachments.some((a) =>
+    a.mimeType.startsWith("image/"),
+  );
+  const needAttachments = hasBrokenInlineImg && !hasImageAttachment;
+
+  if (!bodyEmpty && !hasBrokenInlineImg) {
+    return { ok: true, filled: true }; // déjà complet
   }
 
-  // Identifiant Resend : stocké, sinon on le retrouve via le Message-ID
-  // (rattrapage des mails reçus avant qu'on stocke resendInboundId).
+  // Identifiant Resend requis dès qu'on doit rappeler l'API (corps manquant ou
+  // pièces jointes à récupérer). Retrouvé via le Message-ID si pas stocké.
   let inboundId = email.resendInboundId;
-  if (!inboundId) {
+  const needResend = bodyEmpty || needAttachments;
+  if (needResend && !inboundId) {
     inboundId = await resolveInboundIdByMessageId(email.messageId);
     if (inboundId) {
       await prisma.email.update({
@@ -1030,7 +1047,7 @@ export async function refetchEmailBody(
       });
     }
   }
-  if (!inboundId) {
+  if (needResend && !inboundId) {
     return {
       ok: false,
       error:
@@ -1038,17 +1055,69 @@ export async function refetchEmailBody(
     };
   }
 
-  const fetched = await fetchResendInboundContent(inboundId);
-  if (!fetched || (!fetched.html && !fetched.text)) {
-    return {
-      ok: false,
-      error:
-        "Resend n'a pas renvoyé le contenu (API peut-être encore indisponible). Réessaie dans quelques minutes.",
-    };
+  // 1) Corps si vide
+  let html = email.contenuHtml;
+  let text = email.contenuTexte;
+  if (bodyEmpty && inboundId) {
+    const fetched = await fetchResendInboundContent(inboundId);
+    if (!fetched || (!fetched.html && !fetched.text)) {
+      return {
+        ok: false,
+        error:
+          "Resend n'a pas renvoyé le contenu (API peut-être encore indisponible). Réessaie dans quelques minutes.",
+      };
+    }
+    html = fetched.html || "";
+    text = fetched.text || (html ? htmlToPlainText(html).slice(0, 5000) : "");
   }
 
-  const html = fetched.html || "";
-  const text = fetched.text || (html ? htmlToPlainText(html).slice(0, 5000) : "");
+  // 2) Pièces jointes (dont l'image inline) si besoin
+  const imageUrls: string[] = email.attachments
+    .filter((a) => a.mimeType.startsWith("image/"))
+    .map((a) => a.url);
+  if (needAttachments && inboundId) {
+    const atts = await fetchResendInboundAttachments(inboundId);
+    for (const att of atts) {
+      if (att.content_type === "text/x-amp-html") continue;
+      if (!att.download_url) continue;
+      try {
+        const fileRes = await fetch(att.download_url);
+        if (!fileRes.ok) continue;
+        const buffer = await fileRes.arrayBuffer();
+        const filename = att.filename ?? `attachment-${att.id}`;
+        const safeName = filename.replace(/[^\w.\-]/g, "_");
+        const stored = await put(
+          `email-attachments/inbound/${email.id}/${safeName}`,
+          Buffer.from(buffer),
+          {
+            access: "public",
+            contentType: att.content_type ?? "application/octet-stream",
+            addRandomSuffix: true,
+          },
+        );
+        await prisma.emailAttachment.create({
+          data: {
+            emailId: email.id,
+            nom: filename,
+            taille: att.size ?? buffer.byteLength,
+            mimeType: att.content_type ?? "application/octet-stream",
+            url: stored.url,
+          },
+        });
+        if ((att.content_type ?? "").startsWith("image/")) {
+          imageUrls.push(stored.url);
+        }
+      } catch {
+        // on continue : une PJ ratée ne bloque pas le reste
+      }
+    }
+  }
+
+  // 3) Recâble les images inline cassées vers les images stockées
+  if (hasBrokenInlineImg && imageUrls.length > 0) {
+    html = rewriteInlineImages(html, imageUrls);
+  }
+
   await prisma.email.update({
     where: { id: emailId },
     data: { contenuHtml: html, contenuTexte: text },

@@ -22,7 +22,10 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
 import { findBlockingRule } from "@/lib/email-block";
-import { fetchResendInboundContent } from "@/lib/resend-inbound";
+import {
+  fetchResendInboundContent,
+  rewriteInlineImages,
+} from "@/lib/resend-inbound";
 
 /**
  * Le payload Resend varie selon l'event :
@@ -413,6 +416,7 @@ export async function POST(req: Request) {
               download_url?: string;
             }>;
           };
+          const inboundImageUrls: string[] = [];
           for (const att of attJson.data ?? []) {
             // Skip les AMP HTML automatiques (Google les ajoute)
             if (att.content_type === "text/x-amp-html") continue;
@@ -442,11 +446,25 @@ export async function POST(req: Request) {
                   url: blob.url,
                 },
               });
+              if ((att.content_type ?? "").startsWith("image/")) {
+                inboundImageUrls.push(blob.url);
+              }
             } catch (attErr) {
               console.warn(
                 `[resend-inbound] Échec import pièce jointe ${att.id}`,
                 attErr,
               );
+            }
+          }
+          // Recâble les images inline cassées (cid:/URL interne webmail) vers
+          // les images stockées, pour qu'elles s'affichent dans le CRM.
+          if (inboundImageUrls.length > 0) {
+            const newHtml = rewriteInlineImages(html, inboundImageUrls);
+            if (newHtml !== html) {
+              await prisma.email.update({
+                where: { id: email.id },
+                data: { contenuHtml: newHtml },
+              });
             }
           }
         }
