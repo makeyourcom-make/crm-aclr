@@ -6,6 +6,8 @@
  * `lib/routes.ts` par leur nom de string.
  */
 import {
+  ArrowDownLeft,
+  ArrowUpRight,
   BarChart3,
   Banknote,
   Calculator,
@@ -81,6 +83,8 @@ import {
 } from "lucide-react";
 
 const ICONS = {
+  ArrowDownLeft,
+  ArrowUpRight,
   BarChart3,
   Banknote,
   Calculator,

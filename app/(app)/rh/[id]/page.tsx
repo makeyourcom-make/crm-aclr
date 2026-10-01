@@ -8,6 +8,7 @@ import { EmployeeForm } from "@/components/rh/employee-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
+import { prisma } from "@/lib/db";
 import { formatCHF } from "@/lib/format";
 import { getEmployeeById } from "@/lib/queries/hr";
 import { getRealSessionUser, requireAdmin } from "@/lib/session";
@@ -25,6 +26,24 @@ export default async function EmployeeFichePage({ params }: PageProps) {
   const { id } = await params;
   const employee = await getEmployeeById(id);
   if (!employee) notFound();
+
+  // Emails archivés SOUS cette collaboratrice (trace des échanges, ex. recrutement).
+  const emailsArchives = await prisma.email.findMany({
+    where: { collaborateurId: id },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: {
+      id: true,
+      direction: true,
+      objet: true,
+      expediteurNom: true,
+      expediteurEmail: true,
+      destinataireEmail: true,
+      createdAt: true,
+      envoyeLe: true,
+      prospect: { select: { raisonSociale: true } },
+    },
+  });
 
   // « Voir en tant que » : proposé pour tout collaborateur actif, sauf soi-même.
   const peutEndosser =
@@ -145,6 +164,72 @@ export default async function EmployeeFichePage({ params }: PageProps) {
               createdAt: d.createdAt,
             }))}
           />
+
+          <Card>
+            <CardContent className="py-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Icon name="Mail" className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-sm font-semibold">
+                  Échanges / emails
+                  {emailsArchives.length > 0 && (
+                    <span className="ml-1 text-muted-foreground">
+                      ({emailsArchives.length})
+                    </span>
+                  )}
+                </h3>
+              </div>
+              {emailsArchives.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Aucun email archivé sous cette collaboratrice. Depuis la boîte
+                  de réception, utilise « Attribuer à une collaboratrice » pour
+                  garder la trace d&apos;un échange ici.
+                </p>
+              ) : (
+                <ul className="space-y-1">
+                  {emailsArchives.map((e) => {
+                    const tiers =
+                      e.direction === "ENTRANT"
+                        ? e.expediteurNom ?? e.expediteurEmail
+                        : e.destinataireEmail;
+                    const date = e.envoyeLe ?? e.createdAt;
+                    return (
+                      <li key={e.id}>
+                        <Link
+                          href={`/emails/${e.id}`}
+                          className="group block rounded-md px-2 py-1.5 hover:bg-muted"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <Icon
+                              name={
+                                e.direction === "ENTRANT"
+                                  ? "ArrowDownLeft"
+                                  : "ArrowUpRight"
+                              }
+                              className="h-3 w-3 shrink-0 text-muted-foreground"
+                            />
+                            <span className="truncate text-xs font-medium group-hover:underline">
+                              {e.objet || "(sans objet)"}
+                            </span>
+                          </div>
+                          <p className="truncate pl-[18px] text-[10px] text-muted-foreground">
+                            {e.direction === "ENTRANT" ? "De " : "À "}
+                            {tiers}
+                            {" · "}
+                            {new Date(date).toLocaleDateString("fr-CH", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            })}
+                            {e.prospect ? ` · ${e.prospect.raisonSociale}` : ""}
+                          </p>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
 

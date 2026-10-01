@@ -17,6 +17,7 @@ export default async function EmailsPage() {
   // Si supervision croisée nécessaire un jour, ajouter un toggle explicite.
   const emailInclude = {
     prospect: { select: { id: true, raisonSociale: true } },
+    collaborateur: { select: { id: true, name: true } },
     user: { select: { name: true } },
     attachments: {
       select: {
@@ -67,6 +68,7 @@ export default async function EmailsPage() {
     lu: e.lu,
     labels: e.labels,
     prospect: e.prospect,
+    collaborateur: e.collaborateur,
     user: e.user,
     attachments: e.attachments,
   });

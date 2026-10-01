@@ -415,7 +415,8 @@ model User {
   activities        Activity[]
   commissions       Commission[]
   invoices          Invoice[]
-  emails            Email[]
+  emails            Email[]            @relation("EmailOwner")
+  emailsArchives    Email[]            @relation("EmailCollaborateur")
   stats             Stat[]
   objectives        Objective[]
   documentsRH       EmployeeDocument[]
@@ -1337,8 +1338,14 @@ model Email {
   contract   Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
   contractId String?
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user   User   @relation("EmailOwner", fields: [userId], references: [id], onDelete: Restrict)
   userId String
+
+  /// Collaboratrice sous laquelle le mail est archivé pour garder la trace des
+  /// échanges (ex. historique de recrutement), INDÉPENDANT du propriétaire de la
+  /// boîte (`userId`) et du client lié (`prospectId`). Affiché sur la fiche RH.
+  collaborateur   User?   @relation("EmailCollaborateur", fields: [collaborateurId], references: [id], onDelete: SetNull)
+  collaborateurId String?
 
   direction EmailDirection
   /// Identifiant de conversation pour grouper les échanges
@@ -1391,6 +1398,7 @@ model Email {
   activities  Activity[]
 
   @@index([prospectId, createdAt])
+  @@index([collaborateurId, createdAt])
   @@index([threadId])
   @@index([userId, direction])
   @@index([statut])

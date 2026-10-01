@@ -914,6 +914,74 @@ export async function searchProspectsForAttach(
 }
 
 /**
+ * Recherche collaboratrices (users actifs) pour le sélecteur d'archivage d'un
+ * mail sous une collaboratrice. Réservé à l'admin.
+ */
+export async function searchCollaborateursForAttach(
+  query: string,
+): Promise<Array<{ id: string; name: string; email: string }>> {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") return [];
+  const q = query.trim();
+  const users = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      ...(q.length >= 1
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { email: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    },
+    select: { id: true, name: true, email: true },
+    orderBy: { name: "asc" },
+    take: 20,
+  });
+  return users;
+}
+
+/**
+ * Archive un mail SOUS une collaboratrice pour garder la trace des échanges
+ * (ex. historique de recrutement), sans changer le propriétaire de la boîte
+ * (`userId`) ni le client lié (`prospectId`). Visible sur la fiche RH.
+ * Passe `collaborateurId=null` pour détacher. Réservé à l'admin ou au
+ * propriétaire du mail.
+ */
+export async function attachEmailToCollaborateur(
+  emailId: string,
+  collaborateurId: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireUser();
+  const email = await prisma.email.findUnique({
+    where: { id: emailId },
+    select: { id: true, userId: true, collaborateurId: true },
+  });
+  if (!email) return { ok: false, error: "Email introuvable." };
+  if (user.role !== "ADMIN" && email.userId !== user.id) {
+    return { ok: false, error: "Accès refusé." };
+  }
+  if (collaborateurId) {
+    const collab = await prisma.user.findUnique({
+      where: { id: collaborateurId },
+      select: { id: true, isActive: true },
+    });
+    if (!collab) return { ok: false, error: "Collaboratrice introuvable." };
+  }
+
+  await prisma.email.update({
+    where: { id: emailId },
+    data: { collaborateurId },
+  });
+
+  revalidatePath("/emails");
+  if (email.collaborateurId) revalidatePath(`/rh/${email.collaborateurId}`);
+  if (collaborateurId) revalidatePath(`/rh/${collaborateurId}`);
+  return { ok: true };
+}
+
+/**
  * Archive un email : le retire de la boîte de réception (/emails) tout en
  * conservant l'enregistrement en DB et son lien avec le prospect (visible
  * sur la fiche client). Utile pour nettoyer son inbox sans perdre

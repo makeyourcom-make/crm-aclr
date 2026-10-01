@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import {
   archiveThread,
   archiveThreadsBulk,
+  attachEmailToCollaborateur,
   attachEmailToProspect,
   deleteEmail,
   deleteThreadsBulk,
@@ -28,6 +29,7 @@ import {
   restoreEmail,
   restoreThreadsBulk,
   saveEmailDraft,
+  searchCollaborateursForAttach,
   searchProspectsForAttach,
   sendDraft,
   setEmailArchive,
@@ -91,6 +93,7 @@ export interface InboxEmail {
   lu: boolean;
   labels: string[];
   prospect: { id: string; raisonSociale: string } | null;
+  collaborateur: { id: string; name: string } | null;
   user: { name: string } | null;
   attachments: InboxAttachment[];
 }
@@ -959,6 +962,27 @@ function ThreadDetail({
             }}
           />
         </div>
+        {/* Archivage sous une collaboratrice — réservé à l'admin (trace des
+            échanges, ex. recrutement). N'affecte pas la boîte ni le client. */}
+        {isAdmin && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-muted-foreground">Collaboratrice :</span>
+            {thread.last.collaborateur ? (
+              <Link
+                href={`/rh/${thread.last.collaborateur.id}`}
+                className="rounded-md bg-primary/10 px-2 py-0.5 font-medium text-primary hover:bg-primary/20"
+              >
+                {thread.last.collaborateur.name}
+              </Link>
+            ) : (
+              <span className="text-muted-foreground italic">Non archivé</span>
+            )}
+            <AttachCollaborateurButton
+              emailId={thread.last.id}
+              currentCollaborateurId={thread.last.collaborateur?.id ?? null}
+            />
+          </div>
+        )}
       </div>
 
       {/* Timeline messages */}
@@ -1632,6 +1656,138 @@ function AttachProspectButton({
                 className="w-full rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
               >
                 Détacher du client actuel
+              </button>
+            </div>
+          )}
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-[10px] text-muted-foreground hover:underline"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Bouton "Archiver sous une collaboratrice" (admin) : lie le mail à une
+ * collaboratrice pour garder la trace des échanges, sans changer la boîte
+ * propriétaire ni le client. Miroir simplifié de AttachProspectButton.
+ */
+function AttachCollaborateurButton({
+  emailId,
+  currentCollaborateurId,
+}: {
+  emailId: string;
+  currentCollaborateurId: string | null;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<
+    Array<{ id: string; name: string; email: string }>
+  >([]);
+  const [searching, setSearching] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  const handleSearch = (q: string) => {
+    setQuery(q);
+    setSearching(true);
+    void searchCollaborateursForAttach(q).then((r) => {
+      setResults(r);
+      setSearching(false);
+    });
+  };
+
+  const handleAttach = (collaborateurId: string | null) => {
+    startTransition(async () => {
+      const res = await attachEmailToCollaborateur(emailId, collaborateurId);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success(
+        collaborateurId === null
+          ? "Email détaché de la collaboratrice."
+          : "Email archivé sous la collaboratrice ✓",
+      );
+      setOpen(false);
+      setQuery("");
+      setResults([]);
+      router.refresh();
+    });
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((v) => {
+            const next = !v;
+            // À l'ouverture, charge la liste complète des collaboratrices actives.
+            if (next && results.length === 0) handleSearch("");
+            return next;
+          });
+        }}
+        className="rounded-md border border-border bg-background px-2 py-0.5 text-xs hover:bg-muted"
+      >
+        <Icon name="UserPlus" className="mr-1 inline h-3 w-3" />
+        {currentCollaborateurId ? "Changer" : "Attribuer à une collaboratrice"}
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-3 shadow-lg">
+          <input
+            type="search"
+            autoFocus
+            value={query}
+            onChange={(e) => handleSearch(e.target.value)}
+            placeholder="Rechercher une collaboratrice (nom, email)…"
+            className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-xs"
+            disabled={pending}
+          />
+          <div className="mt-2 max-h-60 overflow-y-auto">
+            {searching && (
+              <p className="py-2 text-center text-xs text-muted-foreground">
+                Recherche…
+              </p>
+            )}
+            {!searching && results.length === 0 && (
+              <p className="py-2 text-center text-xs text-muted-foreground">
+                Aucune collaboratrice trouvée.
+              </p>
+            )}
+            {!searching &&
+              results.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => handleAttach(u.id)}
+                  disabled={pending || u.id === currentCollaborateurId}
+                  className="block w-full rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-50"
+                >
+                  <p className="truncate font-medium">{u.name}</p>
+                  <p className="truncate text-[10px] text-muted-foreground">
+                    {u.email}
+                  </p>
+                </button>
+              ))}
+          </div>
+          {currentCollaborateurId && (
+            <div className="mt-2 border-t border-border pt-2">
+              <button
+                type="button"
+                onClick={() => handleAttach(null)}
+                disabled={pending}
+                className="w-full rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                Détacher de la collaboratrice
               </button>
             </div>
           )}
