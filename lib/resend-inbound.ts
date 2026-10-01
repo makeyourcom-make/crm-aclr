@@ -21,6 +21,53 @@ export interface ResendInboundContent {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+const normalizeMsgId = (s: string) => s.replace(/[<>]/g, "").trim().toLowerCase();
+
+/**
+ * Retrouve l'`id` Resend d'un mail entrant à partir de son Message-ID (RFC
+ * 5322), en listant `GET /emails/receiving`. Sert à rattraper les mails reçus
+ * AVANT qu'on stocke `resendInboundId` (dont le contenu est resté vide).
+ * Parcourt jusqu'à 500 mails récents.
+ */
+export async function resolveInboundIdByMessageId(
+  messageId: string,
+): Promise<string | null> {
+  const key = process.env.RESEND_API_KEY ?? "";
+  if (!messageId || !key) return null;
+  const target = normalizeMsgId(messageId);
+  if (!target) return null;
+
+  let after: string | undefined;
+  for (let page = 0; page < 5; page++) {
+    const url = new URL("https://api.resend.com/emails/receiving");
+    url.searchParams.set("limit", "100");
+    if (after) url.searchParams.set("after", after);
+    let data: {
+      data?: Array<{ id: string; message_id?: string }>;
+      emails?: Array<{ id: string; message_id?: string }>;
+      has_more?: boolean;
+    };
+    try {
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      if (!res.ok) return null;
+      data = await res.json();
+    } catch {
+      return null;
+    }
+    const items = data.data ?? data.emails ?? [];
+    for (const it of items) {
+      if (it.message_id && normalizeMsgId(it.message_id) === target) {
+        return it.id;
+      }
+    }
+    if (!data.has_more || items.length === 0) break;
+    after = items[items.length - 1]?.id;
+  }
+  return null;
+}
+
 export async function fetchResendInboundContent(
   inboundEmailId: string,
   { attempts = 3 }: { attempts?: number } = {},

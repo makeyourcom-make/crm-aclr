@@ -9,7 +9,10 @@ import { prisma } from "@/lib/db";
 import { findBlockingRule } from "@/lib/email-block";
 import { htmlToPlainText, sanitizeEmailHtml } from "@/lib/email-html";
 import { resolveFromAddress, sendMail } from "@/lib/mailer";
-import { fetchResendInboundContent } from "@/lib/resend-inbound";
+import {
+  fetchResendInboundContent,
+  resolveInboundIdByMessageId,
+} from "@/lib/resend-inbound";
 import { requireUser } from "@/lib/session";
 
 const AttachmentSchema = z.object({
@@ -998,6 +1001,7 @@ export async function refetchEmailBody(
       userId: true,
       direction: true,
       resendInboundId: true,
+      messageId: true,
       contenuHtml: true,
       contenuTexte: true,
       prospectId: true,
@@ -1013,15 +1017,28 @@ export async function refetchEmailBody(
   if (email.contenuHtml || email.contenuTexte) {
     return { ok: true, filled: true }; // déjà rempli
   }
-  if (!email.resendInboundId) {
+
+  // Identifiant Resend : stocké, sinon on le retrouve via le Message-ID
+  // (rattrapage des mails reçus avant qu'on stocke resendInboundId).
+  let inboundId = email.resendInboundId;
+  if (!inboundId) {
+    inboundId = await resolveInboundIdByMessageId(email.messageId);
+    if (inboundId) {
+      await prisma.email.update({
+        where: { id: emailId },
+        data: { resendInboundId: inboundId },
+      });
+    }
+  }
+  if (!inboundId) {
     return {
       ok: false,
       error:
-        "Pas d'identifiant de récupération pour ce mail (reçu avant cette fonctionnalité). Le contenu reste consultable dans le tableau de bord Resend.",
+        "Impossible de retrouver ce mail côté Resend (peut-être trop ancien). Le contenu reste consultable dans le tableau de bord Resend.",
     };
   }
 
-  const fetched = await fetchResendInboundContent(email.resendInboundId);
+  const fetched = await fetchResendInboundContent(inboundId);
   if (!fetched || (!fetched.html && !fetched.text)) {
     return {
       ok: false,
