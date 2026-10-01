@@ -42,20 +42,35 @@ export async function resolveInboundIdByMessageId(
     const url = new URL("https://api.resend.com/emails/receiving");
     url.searchParams.set("limit", "100");
     if (after) url.searchParams.set("after", after);
+
+    // Réessais sur chaque page (l'API générale Resend peut échouer ponctuellement).
     let data: {
       data?: Array<{ id: string; message_id?: string }>;
       emails?: Array<{ id: string; message_id?: string }>;
       has_more?: boolean;
-    };
-    try {
-      const res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${key}` },
-      });
-      if (!res.ok) return null;
-      data = await res.json();
-    } catch {
-      return null;
+    } | null = null;
+    const backoff = [400, 1200, 2500];
+    for (let attempt = 0; attempt < 3 && !data; attempt++) {
+      try {
+        const res = await fetch(url.toString(), {
+          headers: { Authorization: `Bearer ${key}` },
+        });
+        if (res.ok) {
+          data = await res.json();
+          break;
+        }
+        // 4xx définitif (hors 429) : inutile d'insister.
+        if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+          console.warn(`[resend-inbound] list ${res.status} (définitif)`);
+          return null;
+        }
+      } catch {
+        // réseau : on réessaie
+      }
+      if (attempt < 2) await sleep(backoff[attempt] ?? 2500);
     }
+    if (!data) return null; // échec persistant
+
     const items = data.data ?? data.emails ?? [];
     for (const it of items) {
       if (it.message_id && normalizeMsgId(it.message_id) === target) {
