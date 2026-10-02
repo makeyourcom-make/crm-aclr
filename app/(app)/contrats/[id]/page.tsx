@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import QRCode from "qrcode";
 
 import { RecomputeButton } from "@/components/commissions/recompute-button";
 import { DocumentPreviewButton } from "@/components/common/document-preview-button";
@@ -12,6 +13,7 @@ import { PaymentStatutBadge } from "@/components/paiements/payment-statut-badge"
 import { RecordPaymentButton } from "@/components/paiements/record-payment-button";
 import { ProjectMarginBox } from "@/components/contrats/project-margin-box";
 import { SignAclrButton } from "@/components/signatures/sign-aclr-button";
+import { SignatureQrPanel } from "@/components/signatures/signature-qr-panel";
 import { SignInPersonButton } from "@/components/signatures/sign-in-person-button";
 import { UploadSignedPdfButton } from "@/components/contrats/upload-signed-pdf-button";
 import { getProjectMarginForContract } from "@/lib/queries/project-profitability";
@@ -79,6 +81,29 @@ export default async function ContractDetailPage({ params }: PageProps) {
   // Rentabilité projet — admin only
   const margin =
     user.role === "ADMIN" ? await getProjectMarginForContract(id) : null;
+
+  // ── Signature par QR code (client + commercial) ──────────────────────────
+  // Fenêtre de signature : contrat pas encore actif / terminé.
+  const signatureWindow =
+    contract.statut === "ATTENTE_SIGNATURE_CLIENT" ||
+    contract.statut === "ATTENTE_VALIDATION_ADMIN";
+  const activeSig =
+    contract.signatures.find(
+      (s) => s.statut !== "COMPLETEE" && s.expireA > new Date(),
+    ) ?? null;
+  const appUrl = process.env.APP_URL ?? "";
+  let clientSignUrl: string | null = null;
+  let aclrSignUrl: string | null = null;
+  let clientQr: string | null = null;
+  let aclrQr: string | null = null;
+  if (signatureWindow && activeSig) {
+    clientSignUrl = `${appUrl}/sign/${activeSig.lienSignature}`;
+    aclrSignUrl = `${appUrl}/sign/${activeSig.lienSignature}/aclr`;
+    [clientQr, aclrQr] = await Promise.all([
+      QRCode.toDataURL(clientSignUrl, { margin: 1, width: 240 }),
+      QRCode.toDataURL(aclrSignUrl, { margin: 1, width: 240 }),
+    ]);
+  }
 
   const commission = contract.commissions[0]; // 1 commission par contrat
 
@@ -344,6 +369,37 @@ export default async function ContractDetailPage({ params }: PageProps) {
         </CardContent>
       </Card>
 
+      {/* Signature par QR code — client + commercial, retour live */}
+      {signatureWindow && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-base">Signer le contrat</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SignatureQrPanel
+              contractId={contract.id}
+              signatureId={activeSig?.id ?? null}
+              clientUrl={clientSignUrl}
+              aclrUrl={aclrSignUrl}
+              clientQrDataUrl={clientQr}
+              aclrQrDataUrl={aclrQr}
+              initial={
+                activeSig
+                  ? {
+                      signeParClient: activeSig.signeParClient,
+                      signeParAclr: activeSig.signeParAclr,
+                      nomClient: activeSig.nomClient,
+                      nomAclr: activeSig.nomAclr,
+                      signatureClientDataUrl: activeSig.signatureClientDataUrl,
+                      signatureAclrDataUrl: activeSig.signatureAclrDataUrl,
+                    }
+                  : null
+              }
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Signatures électroniques — audit complet */}
       {contract.signatures.length > 0 && (
         <Card className="mt-6">
@@ -427,7 +483,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                     {sig.signeParAclr ? (
                       <>
                         <p className="mt-1 text-sm font-medium">
-                          ✓ Contre-signé
+                          ✓ Contre-signé{sig.nomAclr ? ` — ${sig.nomAclr}` : ""}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           Le{" "}
@@ -435,6 +491,16 @@ export default async function ContractDetailPage({ params }: PageProps) {
                             ? formatDateLong(sig.dateSignatureAclr)
                             : "—"}
                         </p>
+                        {sig.signatureAclrDataUrl && (
+                          <div className="mt-2 overflow-hidden rounded border border-border bg-white p-1">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={sig.signatureAclrDataUrl}
+                              alt="Signature manuscrite du commercial"
+                              className="h-24 w-full object-contain"
+                            />
+                          </div>
+                        )}
                       </>
                     ) : sig.signeParClient &&
                       (user.role === "ADMIN" ||

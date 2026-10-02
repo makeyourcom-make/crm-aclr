@@ -232,6 +232,123 @@ export async function signByAclr(
 }
 
 /**
+ * Contre-signature VENDEUR via le QR code (page publique /sign/{token}/aclr).
+ *
+ * Pas d'auth (la personne signe au doigt sur son téléphone après avoir scanné
+ * le QR). L'identité du vendeur = le·la commercial·e assigné·e au contrat
+ * (`contract.assigneAId`). On capture sa signature manuscrite + nom + IP.
+ *
+ * Le statut du contrat n'est PAS passé en ACTIF ici : une fois les deux
+ * signatures posées, le contrat reste en ATTENTE_VALIDATION_ADMIN (c'est
+ * l'étape de signature client qui l'y place) et l'admin valide toujours à la
+ * fin via validateContract().
+ */
+export async function signByAclrOnline(
+  token: string,
+  input: { signatureDataUrl: string; nomAclr?: string; ipAclr?: string },
+): Promise<SignatureActionResult> {
+  const sig = await prisma.signature.findUnique({
+    where: { lienSignature: token },
+  });
+  if (!sig) return { ok: false, error: "Lien invalide." };
+  if (sig.expireA < new Date()) return { ok: false, error: "Lien expiré." };
+  if (sig.signeParAclr) {
+    return { ok: false, error: "Déjà signé par le commercial." };
+  }
+  if (
+    !input.signatureDataUrl ||
+    !input.signatureDataUrl.startsWith("data:image/")
+  ) {
+    return { ok: false, error: "Signature manuscrite manquante." };
+  }
+  if (input.signatureDataUrl.length > 200_000) {
+    return { ok: false, error: "Signature trop volumineuse." };
+  }
+
+  const contract = await prisma.contract.findUnique({
+    where: { id: sig.contractId },
+    select: { id: true, assigneAId: true },
+  });
+  if (!contract) return { ok: false, error: "Contrat introuvable." };
+  const signer = await prisma.user.findUnique({
+    where: { id: contract.assigneAId },
+    select: { id: true, name: true },
+  });
+
+  const now = new Date();
+  await prisma.signature.update({
+    where: { id: sig.id },
+    data: {
+      signeParAclr: true,
+      dateSignatureAclr: now,
+      signeParAclrUserId: contract.assigneAId,
+      signatureAclrDataUrl: input.signatureDataUrl,
+      nomAclr: input.nomAclr?.trim() || signer?.name || "Commercial ACLR",
+      ipAclr: input.ipAclr ?? null,
+      statut: sig.signeParClient ? "COMPLETEE" : "SIGNEE_ACLR",
+    },
+  });
+
+  revalidatePath("/signatures");
+  revalidatePath("/contrats");
+  revalidatePath(`/contrats/${sig.contractId}`);
+  return { ok: true, signatureId: sig.id };
+}
+
+/**
+ * Statut live d'une signature — pour le rafraîchissement automatique du
+ * panneau QR côté CRM (polling). Admin ou commercial assigné.
+ */
+export async function getSignatureLiveStatus(signatureId: string): Promise<{
+  ok: boolean;
+  error?: string;
+  signeParClient?: boolean;
+  signeParAclr?: boolean;
+  nomClient?: string | null;
+  nomAclr?: string | null;
+  dateSignatureClient?: string | null;
+  dateSignatureAclr?: string | null;
+  signatureClientDataUrl?: string | null;
+  signatureAclrDataUrl?: string | null;
+  statut?: string;
+  contractStatut?: string;
+}> {
+  const user = await requireUser();
+  const sig = await prisma.signature.findUnique({
+    where: { id: signatureId },
+    select: {
+      signeParClient: true,
+      signeParAclr: true,
+      nomClient: true,
+      nomAclr: true,
+      dateSignatureClient: true,
+      dateSignatureAclr: true,
+      signatureClientDataUrl: true,
+      signatureAclrDataUrl: true,
+      statut: true,
+      contract: { select: { assigneAId: true, statut: true } },
+    },
+  });
+  if (!sig) return { ok: false, error: "Signature introuvable." };
+  if (user.role !== "ADMIN" && sig.contract.assigneAId !== user.id) {
+    return { ok: false, error: "Accès refusé." };
+  }
+  return {
+    ok: true,
+    signeParClient: sig.signeParClient,
+    signeParAclr: sig.signeParAclr,
+    nomClient: sig.nomClient,
+    nomAclr: sig.nomAclr,
+    dateSignatureClient: sig.dateSignatureClient?.toISOString() ?? null,
+    dateSignatureAclr: sig.dateSignatureAclr?.toISOString() ?? null,
+    signatureClientDataUrl: sig.signatureClientDataUrl,
+    signatureAclrDataUrl: sig.signatureAclrDataUrl,
+    statut: sig.statut,
+    contractStatut: sig.contract.statut,
+  };
+}
+
+/**
  * Supprime une demande de signature (link, draft, échue).
  * RLS : ADMIN uniquement — la signature est juridique, sa suppression
  * ne doit pas être autorisée à tous les commerciaux.

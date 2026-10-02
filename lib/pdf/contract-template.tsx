@@ -88,6 +88,9 @@ export interface ContractPdfData {
     signatureClientDataUrl?: string | null;
     signeParAclr?: boolean;
     dateSignatureAclr?: Date | null;
+    /** Signature manuscrite du vendeur ACLR + nom (via QR). */
+    signatureAclrDataUrl?: string | null;
+    nomAclr?: string | null;
   };
 }
 
@@ -728,9 +731,21 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
             </Text>
             {data.signature?.signeParAclr ? (
               <>
-                <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold" }}>
-                  ✓ ACLR Sàrl
-                </Text>
+                {data.signature.signatureAclrDataUrl ? (
+                  <Image
+                    src={data.signature.signatureAclrDataUrl}
+                    style={styles.signatureImg}
+                  />
+                ) : (
+                  <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold" }}>
+                    ✓ ACLR Sàrl
+                  </Text>
+                )}
+                {data.signature.nomAclr && (
+                  <Text style={styles.signatureName}>
+                    {data.signature.nomAclr}
+                  </Text>
+                )}
                 <Text style={styles.signatureMeta}>
                   Contre-signé le{" "}
                   {data.signature.dateSignatureAclr

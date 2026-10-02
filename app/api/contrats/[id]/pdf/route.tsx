@@ -64,6 +64,8 @@ export async function GET(
           signatureClientDataUrl: true,
           signeParAclr: true,
           dateSignatureAclr: true,
+          signatureAclrDataUrl: true,
+          nomAclr: true,
         },
         orderBy: { createdAt: "desc" },
       },
@@ -205,6 +207,8 @@ export async function GET(
           signatureClientDataUrl: latestSignature.signatureClientDataUrl,
           signeParAclr: latestSignature.signeParAclr,
           dateSignatureAclr: latestSignature.dateSignatureAclr,
+          signatureAclrDataUrl: latestSignature.signatureAclrDataUrl,
+          nomAclr: latestSignature.nomAclr,
         }
       : undefined,
   };

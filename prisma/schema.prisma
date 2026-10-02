@@ -1605,6 +1605,12 @@ model Signature {
   /// IP capturée au moment de la signature client (audit)
   ipClient String?
 
+  /// Signature manuscrite du vendeur ACLR (commercial·e ou admin), tracée au
+  /// doigt sur son téléphone via le QR code. Nom + IP capturés pour l'audit.
+  signatureAclrDataUrl String?
+  nomAclr              String?
+  ipAclr               String?
+
   /// PDF du contrat envoyé (généré par @react-pdf/renderer)
   documentPdfUrl   String
   /// PDF avec signatures apposées (post-completion)
