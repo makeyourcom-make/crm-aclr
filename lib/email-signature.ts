@@ -13,7 +13,9 @@ export interface SignatureFields {
   logoUrl?: string | null;
 }
 
-const NAVY = "#0E1936";
+// Teinte du fond du logo wordmark (#070F33) : le bandeau utilise la MÊME
+// couleur pour que le logo blanc s'y fonde sans rectangle visible.
+const NAVY = "#070F33";
 const CORAL = "#F47174";
 
 function esc(s: string): string {
