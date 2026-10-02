@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import {
-  DOSSIER_STATUTS_PAR_PERSONNE,
+  DOSSIER_STATUTS,
   dossierColumnKey,
   estArchive,
 } from "@/lib/dossiers";
@@ -76,24 +76,6 @@ export async function getDossiersBoard(
     where.assigneAId = assigneAId;
   }
 
-  // Colonnes affichées :
-  //  - Admin  : tous les collaborateurs actifs (ou celui filtré).
-  //  - Commercial : SA colonne + celle de l'admin (cible « m'attribuer »).
-  //    Elle voit ainsi ses projets et peut les glisser dans la colonne de
-  //    l'admin pour les lui attribuer, sans voir les projets des autres.
-  const collaborateurs = await prisma.user.findMany({
-    where: {
-      isActive: true,
-      ...(isAdmin
-        ? assigneAId
-          ? { id: assigneAId }
-          : {}
-        : { OR: [{ id: user.id }, { role: "ADMIN" }] }),
-    },
-    select: { id: true, name: true, role: true },
-    orderBy: [{ role: "asc" }, { name: "asc" }],
-  });
-
   const toutes = await prisma.dossier.findMany({
     where,
     select: {
@@ -122,36 +104,17 @@ export async function getDossiersBoard(
     ? toutes
     : toutes.filter((d) => !estArchive(d.statut, d.termineLe, d.updatedAt));
 
-  // Colonnes : (chaque collaborateur × ses statuts) puis « Terminé ».
-  //
-  // L'ADMIN n'a PAS de colonne « En cours » (demande Arthur, 22.07.2026) : il
-  // pilote et attribue, l'exécution se suit chez les commerciales. Un projet
-  // qui serait malgré tout passé en EN_COURS sur son nom retombe dans son
-  // « À faire » via le repli plus bas — aucune carte ne disparaît.
-  const columns: DossierColumn[] = [];
-  for (const c of collaborateurs) {
-    const statuts =
-      c.role === "ADMIN"
-        ? (["A_FAIRE"] as typeof DOSSIER_STATUTS_PAR_PERSONNE)
-        : DOSSIER_STATUTS_PAR_PERSONNE;
-    for (const statut of statuts) {
-      columns.push({
-        key: dossierColumnKey(statut, c.id),
-        statut,
-        assigneAId: c.id,
-        // Prénom seul : les en-têtes de colonne sont étroits.
-        assigneNom: c.name.split(" ")[0]!,
-        dossiers: [],
-      });
-    }
-  }
-  columns.push({
-    key: dossierColumnKey("TERMINE", null),
-    statut: "TERMINE",
+  // Colonnes = ÉTAPES (À faire → En cours → En attente → À vérifier → Terminé).
+  // L'ESPACE (quelle personne) est déjà filtré via `where.assigneAId` ci-dessus :
+  //  - commercial → ses propres projets uniquement (RLS) ;
+  //  - admin → un collaborateur précis (assigneAId) ou « Tous » (pas de filtre).
+  const columns: DossierColumn[] = DOSSIER_STATUTS.map((statut) => ({
+    key: dossierColumnKey(statut),
+    statut,
     assigneAId: null,
     assigneNom: "",
     dossiers: [],
-  });
+  }));
 
   const byKey = new Map(columns.map((c) => [c.key, c]));
   for (const d of dossiers) {
@@ -168,15 +131,9 @@ export async function getDossiersBoard(
       nbDocuments: d._count.attachments,
       archive: estArchive(d.statut, d.termineLe, d.updatedAt),
     };
-    // « Terminé » est commun ; les autres statuts vont dans la colonne du
-    // collaborateur. Une carte dont la colonne n'existe pas (assignée à un
-    // collaborateur désactivé, ou statut EN_ATTENTE résiduel) est rattachée au
-    // « à faire » de son assigné pour ne JAMAIS disparaître de l'écran.
-    const key =
-      d.statut === "TERMINE"
-        ? dossierColumnKey("TERMINE", null)
-        : dossierColumnKey(d.statut, d.assigneA.id);
-    (byKey.get(key) ?? byKey.get(dossierColumnKey("A_FAIRE", d.assigneA.id)))
+    // Chaque carte va dans la colonne de son statut ; repli sur « À faire »
+    // si le statut n'a pas de colonne (sécurité — aucune carte ne disparaît).
+    (byKey.get(dossierColumnKey(d.statut)) ?? byKey.get(dossierColumnKey("A_FAIRE")))
       ?.dossiers.push(card);
   }
 

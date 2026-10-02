@@ -101,12 +101,8 @@ export function DossiersBoard({ initialData, users }: DossiersBoardProps) {
       if (!moved) return prev;
       const dst = columns.find((c) => c.key === targetKey);
       if (!dst) return prev;
+      // Déposer dans une colonne = changer l'ÉTAPE (l'assignation ne bouge pas).
       moved.statut = target.statut;
-      // Colonne d'une personne → la carte change aussi d'assigné.
-      if (target.assigneAId && target.assigneAId !== moved.assigneA.id) {
-        const u = users.find((x) => x.id === target.assigneAId);
-        if (u) moved.assigneA = { id: u.id, name: u.name };
-      }
       dst.dossiers.unshift(moved);
       return { ...prev, columns };
     });
@@ -114,18 +110,13 @@ export function DossiersBoard({ initialData, users }: DossiersBoardProps) {
     const res = await moveDossierStatut({
       dossierId,
       newStatut: target.statut,
-      ...(target.assigneAId && { newAssigneAId: target.assigneAId }),
     });
     if (!res.ok) {
       toast.error(res.error ?? "Échec du déplacement.");
       router.refresh();
       return;
     }
-    const dst = data.columns.find((c) => c.key === targetKey);
-    const label = DOSSIER_STATUT_LABELS[target.statut];
-    toast.success(
-      `Déplacé vers « ${dst?.assigneNom ? `${dst.assigneNom} - ${label}` : label} »`,
-    );
+    toast.success(`Déplacé vers « ${DOSSIER_STATUT_LABELS[target.statut]} »`);
     router.refresh();
   };
 

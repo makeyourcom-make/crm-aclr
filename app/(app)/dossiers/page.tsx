@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db";
 import { ARCHIVE_APRES_JOURS } from "@/lib/dossiers";
 import { getDossiersBoard } from "@/lib/queries/dossiers";
 import { requireUser } from "@/lib/session";
+import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Gestion des projets" };
 export const dynamic = "force-dynamic";
@@ -25,14 +26,29 @@ export default async function DossiersPage({ searchParams }: PageProps) {
   // inaccessible (la fiche client, elle, montre toujours tout).
   const avecArchives = raw.archives === "1";
 
+  // Espaces : un commercial ne voit QUE le sien (RLS dans getDossiersBoard).
+  // L'admin choisit l'espace via ?espace= : un userId (ex. le sien = « Interne »),
+  // ou « tous ». Par défaut l'admin arrive sur son propre espace (le plus focalisé).
+  const isAdmin = user.role === "ADMIN";
+  const espaceParam = typeof raw.espace === "string" ? raw.espace : undefined;
+  const assigneAId: string | undefined = !isAdmin
+    ? undefined
+    : espaceParam === "tous"
+      ? undefined
+      : (espaceParam ?? user.id);
+
   const [board, users] = await Promise.all([
-    getDossiersBoard(user, undefined, avecArchives),
+    getDossiersBoard(user, assigneAId, avecArchives),
     prisma.user.findMany({
       where: { isActive: true },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
   ]);
+
+  // Espace actuellement affiché (pour surligner le bon onglet).
+  const espaceActif = isAdmin ? (espaceParam ?? user.id) : user.id;
+  const archSuffix = avecArchives ? "&archives=1" : "";
 
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
@@ -45,6 +61,34 @@ export default async function DossiersPage({ searchParams }: PageProps) {
       />
 
       <DossiersTabs />
+
+      {isAdmin && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-xs text-muted-foreground">Espace :</span>
+          <SpaceTab
+            href={`/dossiers?espace=${user.id}${archSuffix}`}
+            label={`Interne — ${user.name.split(" ")[0]}`}
+            icon="UserCog"
+            active={espaceActif === user.id}
+          />
+          {users
+            .filter((u) => u.id !== user.id)
+            .map((u) => (
+              <SpaceTab
+                key={u.id}
+                href={`/dossiers?espace=${u.id}${archSuffix}`}
+                label={u.name.split(" ")[0]!}
+                active={espaceActif === u.id}
+              />
+            ))}
+          <SpaceTab
+            href={`/dossiers?espace=tous${archSuffix}`}
+            label="Tous"
+            icon="Users"
+            active={espaceActif === "tous"}
+          />
+        </div>
+      )}
 
       {(board.nbArchivees > 0 || avecArchives) && (
         <div className="mb-3">
@@ -70,5 +114,32 @@ export default async function DossiersPage({ searchParams }: PageProps) {
         reste consultable depuis la fiche du client.
       </p>
     </div>
+  );
+}
+
+function SpaceTab({
+  href,
+  label,
+  icon,
+  active,
+}: {
+  href: string;
+  label: string;
+  icon?: string;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
+        active
+          ? "border-primary/30 bg-primary/10 text-primary"
+          : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      {icon && <Icon name={icon} className="h-3.5 w-3.5" />}
+      {label}
+    </Link>
   );
 }
