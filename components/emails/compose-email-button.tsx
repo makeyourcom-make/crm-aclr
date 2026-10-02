@@ -69,9 +69,8 @@ export function ComposeEmailButton() {
   const [objet, setObjet] = useState("");
   const [contenuHtml, setContenuHtml] = useState("");
   const [attachments, setAttachments] = useState<PickedAttachment[]>([]);
-  // HTML initial de l'éditeur (signature pré-insérée). Change à chaque reset /
-  // chargement de la signature pour re-monter l'éditeur.
-  const [editorInitial, setEditorInitial] = useState("");
+  // Aperçu (lecture seule) de la signature ajoutée automatiquement à l'envoi.
+  const [sigPreview, setSigPreview] = useState("");
   const [editorKey, setEditorKey] = useState(0);
 
   const contenuTexte = htmlToPlainText(contenuHtml);
@@ -84,7 +83,6 @@ export function ComposeEmailButton() {
     setFreeEmail("");
     setObjet("");
     setContenuHtml("");
-    setEditorInitial("");
     setAttachments([]);
     setEditorKey((k) => k + 1);
   };
@@ -196,13 +194,8 @@ export function ComposeEmailButton() {
       onOpenChange={(v) => {
         setOpen(v);
         if (v) {
-          // Pré-insère la signature par défaut dans le corps (visible/éditable).
-          void getMyDefaultSignatureHtml().then((sigHtml) => {
-            const init = sigHtml ? `<br><br>${sigHtml}` : "";
-            setEditorInitial(init);
-            setContenuHtml(init);
-            setEditorKey((k) => k + 1);
-          });
+          // Charge l'aperçu de la signature (ajoutée automatiquement à l'envoi).
+          void getMyDefaultSignatureHtml().then(setSigPreview);
         } else {
           reset();
         }
@@ -375,7 +368,6 @@ export function ComposeEmailButton() {
               </Label>
               <RichTextEditor
                 key={editorKey}
-                initialHtml={editorInitial}
                 onChange={setContenuHtml}
                 disabled={pending}
                 placeholder="Bonjour {{prenomContact}}, …"
@@ -386,6 +378,14 @@ export function ComposeEmailButton() {
                   <code>{`{{nomContact}}`}</code>, <code>{`{{raisonSociale}}`}</code>,{" "}
                   <code>{`{{ville}}`}</code>.
                 </p>
+              )}
+              {sigPreview && (
+                <div className="mt-2 rounded-md border border-dashed border-border bg-muted/20 p-3">
+                  <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Signature (ajoutée automatiquement)
+                  </p>
+                  <div dangerouslySetInnerHTML={{ __html: sigPreview }} />
+                </div>
               )}
             </div>
 

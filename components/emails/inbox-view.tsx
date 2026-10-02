@@ -854,9 +854,7 @@ function ThreadDetail({
   const [forwardHtml, setForwardHtml] = useState("");
   const [forwardKey, setForwardKey] = useState(0);
   const [forwardPJ, setForwardPJ] = useState(true);
-  // Signature par défaut, pré-insérée dans le corps des réponses/transferts.
-  const [replyInitial, setReplyInitial] = useState("");
-  const [forwardInitial, setForwardInitial] = useState("");
+  // Aperçu (lecture seule) de la signature ajoutée automatiquement à l'envoi.
   const [sigHtml, setSigHtml] = useState("");
   useEffect(() => {
     void getMyDefaultSignatureHtml().then(setSigHtml);
@@ -866,16 +864,12 @@ function ThreadDetail({
   const replyText = htmlToPlainText(replyHtml);
 
   const openReply = () => {
-    const init = sigHtml ? `<br><br>${sigHtml}` : "";
-    setReplyInitial(init);
-    setReplyHtml(init);
+    setReplyHtml("");
     setReplyKey((k) => k + 1);
     setShowReply(true);
   };
   const openForward = () => {
-    const init = sigHtml ? `<br><br>${sigHtml}` : "";
-    setForwardInitial(init);
-    setForwardHtml(init);
+    setForwardHtml("");
     setForwardKey((k) => k + 1);
     setShowForward(true);
   };
@@ -1072,12 +1066,20 @@ function ThreadDetail({
 
             <RichTextEditor
               key={forwardKey}
-              initialHtml={forwardInitial}
               onChange={setForwardHtml}
               disabled={pending}
               placeholder="Ajoute un mot (facultatif)…"
               minHeightClass="min-h-[90px]"
             />
+
+            {sigHtml && (
+              <div className="rounded-md border border-dashed border-border bg-muted/20 p-2.5">
+                <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Signature (ajoutée automatiquement)
+                </p>
+                <div dangerouslySetInnerHTML={{ __html: sigHtml }} />
+              </div>
+            )}
 
             <p className="text-xs text-muted-foreground">
               Le message d&apos;origine est cité automatiquement en dessous.
@@ -1123,12 +1125,19 @@ function ThreadDetail({
             </p>
             <RichTextEditor
               key={replyKey}
-              initialHtml={replyInitial}
               onChange={setReplyHtml}
               disabled={pending}
               placeholder="Tape ta réponse…"
               minHeightClass="min-h-[120px]"
             />
+            {sigHtml && (
+              <div className="rounded-md border border-dashed border-border bg-muted/20 p-2.5">
+                <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Signature (ajoutée automatiquement)
+                </p>
+                <div dangerouslySetInnerHTML={{ __html: sigHtml }} />
+              </div>
+            )}
             <AttachmentPicker
               value={replyAttachments}
               onChange={setReplyAttachments}

@@ -82,11 +82,8 @@ export function SendEmailDialog({
     const t = templates.find((x) => x.id === id);
     if (t) {
       setObjet(t.objet);
-      // Le template est en texte brut → converti en HTML pour l'éditeur riche,
-      // suivi de la signature par défaut.
-      const html =
-        plainToHtml(t.contenu) +
-        (defaultSigHtml ? `<br><br>${defaultSigHtml}` : "");
+      // Le template est en texte brut → converti en HTML pour l'éditeur riche.
+      const html = plainToHtml(t.contenu);
       setEditorInitial(html);
       setContenuHtml(html);
       setEditorKey((k) => k + 1);
@@ -143,19 +140,7 @@ export function SendEmailDialog({
         : "inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90";
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        setOpen(v);
-        // À l'ouverture (sans template), pré-insère la signature dans le corps.
-        if (v && !templateId) {
-          const init = defaultSigHtml ? `<br><br>${defaultSigHtml}` : "";
-          setEditorInitial(init);
-          setContenuHtml(init);
-          setEditorKey((k) => k + 1);
-        }
-      }}
-    >
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger className={triggerClass} disabled={!prospectEmail}>
         <Icon name="Mail" className="h-3.5 w-3.5" />
         Envoyer un email
@@ -223,6 +208,14 @@ export function SendEmailDialog({
             <p className="text-[11px] text-muted-foreground">
               Tu recevras automatiquement une copie sur ton Gmail.
             </p>
+            {defaultSigHtml && (
+              <div className="mt-2 rounded-md border border-dashed border-border bg-muted/20 p-3">
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Signature (ajoutée automatiquement)
+                </p>
+                <div dangerouslySetInnerHTML={{ __html: defaultSigHtml }} />
+              </div>
+            )}
           </div>
 
           <DialogFooter>

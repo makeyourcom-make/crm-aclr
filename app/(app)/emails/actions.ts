@@ -95,6 +95,28 @@ export async function getMyDefaultSignatureHtml(): Promise<string> {
   return sig?.html ?? "";
 }
 
+/**
+ * Signature par défaut d'un utilisateur, prête à être AJOUTÉE à un envoi
+ * (HTML fidèle + version texte). Ajoutée côté serveur pour éviter que le
+ * contentEditable du composer ne dégrade le tableau/logo de la signature.
+ */
+async function defaultSignatureParts(
+  userId: string,
+): Promise<{ html: string; text: string }> {
+  const sig = await prisma.emailSignature.findFirst({
+    where: { userId, isDefault: true },
+    select: { html: true },
+  });
+  if (!sig?.html) return { html: "", text: "" };
+  return {
+    html: `<br /><br />${sig.html}`,
+    text: `\n\n-- \n${sig.html
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()}`,
+  };
+}
+
 export async function sendEmailToProspect(
   input: unknown,
 ): Promise<SendEmailResult> {
@@ -147,21 +169,10 @@ export async function sendEmailToProspect(
     ? richHtml
     : `<pre style="font-family: sans-serif; white-space: pre-wrap;">${contenuTexte.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
 
-  // Signature email choisie (scopée à l'utilisateur) — ajoutée au contenu.
-  let signatureHtml = "";
-  let signatureText = "";
-  if (parsed.data.signatureId) {
-    const sig = await prisma.emailSignature.findFirst({
-      where: { id: parsed.data.signatureId, userId: user.id },
-      select: { html: true },
-    });
-    if (sig) {
-      signatureHtml = `<br /><br />${sig.html}`;
-      signatureText = `\n\n-- \n${sig.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()}`;
-    }
-  }
-  const contenuHtml = contenuHtmlBase + signatureHtml;
-  const contenuTexteFinal = contenuTexte + signatureText;
+  // Signature par défaut, ajoutée automatiquement au contenu.
+  const sigParts = await defaultSignatureParts(user.id);
+  const contenuHtml = contenuHtmlBase + sigParts.html;
+  const contenuTexteFinal = contenuTexte + sigParts.text;
 
   // Récupère le from
   const userFull = await prisma.user.findUnique({
@@ -308,11 +319,14 @@ export async function sendFreeFormEmail(
   const richHtml = parsed.data.contenuHtml
     ? sanitizeEmailHtml(parsed.data.contenuHtml)
     : "";
-  const contenuHtml = richHtml
-    ? richHtml
-    : `<pre style="font-family: sans-serif; white-space: pre-wrap;">${contenuTexte
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")}</pre>`;
+  const sigParts = await defaultSignatureParts(user.id);
+  const contenuHtml =
+    (richHtml
+      ? richHtml
+      : `<pre style="font-family: sans-serif; white-space: pre-wrap;">${contenuTexte
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")}</pre>`) + sigParts.html;
+  const contenuTexteFinal = contenuTexte + sigParts.text;
 
   const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@makeyourcom.ch>`;
   const threadId = randomBytes(8).toString("hex");
@@ -324,7 +338,7 @@ export async function sendFreeFormEmail(
     to: parsed.data.to,
     subject: objet,
     html: contenuHtml,
-    text: contenuTexte,
+    text: contenuTexteFinal,
     replyTo,
     messageId,
     attachments:
@@ -357,7 +371,7 @@ export async function sendFreeFormEmail(
       destinataireEmail: parsed.data.to,
       objet,
       contenuHtml,
-      contenuTexte,
+      contenuTexte: contenuTexteFinal,
       statut: isDryRun ? "BROUILLON" : "ENVOYE",
       envoyeLe: isDryRun ? null : new Date(),
       labels: sendResult.resendId ? [`resend:${sendResult.resendId}`] : [],
@@ -470,11 +484,14 @@ export async function replyToEmail(
   const richHtml = contenuHtmlInput
     ? sanitizeEmailHtml(apply(contenuHtmlInput))
     : "";
-  const contenuHtml = richHtml
-    ? richHtml
-    : `<pre style="font-family: sans-serif; white-space: pre-wrap;">${contenuTexte
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")}</pre>`;
+  const sigParts = await defaultSignatureParts(user.id);
+  const contenuHtml =
+    (richHtml
+      ? richHtml
+      : `<pre style="font-family: sans-serif; white-space: pre-wrap;">${contenuTexte
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")}</pre>`) + sigParts.html;
+  const contenuTexteFinal = contenuTexte + sigParts.text;
 
   // Adresse expéditeur (Arthur ou Sophie selon user connecté)
   const userFull = await prisma.user.findUnique({
@@ -496,7 +513,7 @@ export async function replyToEmail(
     to: replyTo,
     subject: objet,
     html: contenuHtml,
-    text: contenuTexte,
+    text: contenuTexteFinal,
     replyTo: replyToHeader,
     messageId,
     inReplyTo: original.messageId,
@@ -532,7 +549,7 @@ export async function replyToEmail(
       destinataireEmail: replyTo,
       objet,
       contenuHtml,
-      contenuTexte,
+      contenuTexte: contenuTexteFinal,
       statut: isDryRun ? "BROUILLON" : "ENVOYE",
       envoyeLe: isDryRun ? null : new Date(),
       labels: sendResult.resendId ? [`resend:${sendResult.resendId}`] : [],
@@ -661,11 +678,14 @@ export async function forwardEmail(input: unknown): Promise<SendEmailResult> {
       original.contenuTexte ?? "",
     )}</pre>`;
 
+  const sigParts = await defaultSignatureParts(user.id);
+
   const contenuHtml = [
     motHtml ||
       (motTexte
         ? `<pre style="font-family: sans-serif; white-space: pre-wrap;">${escape(motTexte)}</pre>`
         : ""),
+    sigParts.html, // signature après le mot, avant la citation
     `<p style="font-family: sans-serif; color: #666;">---------- Message transféré ----------<br>${enteteLignes
       .map(escape)
       .join("<br>")}</p>`,
@@ -676,6 +696,7 @@ export async function forwardEmail(input: unknown): Promise<SendEmailResult> {
 
   const contenuTexte = [
     motTexte,
+    sigParts.text.trim(),
     "---------- Message transféré ----------",
     enteteLignes.join("\n"),
     "",
