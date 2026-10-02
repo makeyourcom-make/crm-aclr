@@ -24,6 +24,12 @@ interface DeleteButtonProps {
   /** Si true, désactive le bouton avec un titre explicatif. */
   disabled?: boolean;
   disabledReason?: string;
+  /**
+   * Où aller après une suppression réussie. À utiliser quand l'élément
+   * supprimé EST la page courante (ex. fiche contrat) — sinon un refresh
+   * laisserait un 404. Sans valeur : simple router.refresh().
+   */
+  redirectTo?: string;
 }
 
 export function DeleteButton({
@@ -33,6 +39,7 @@ export function DeleteButton({
   variant = "icon",
   disabled = false,
   disabledReason,
+  redirectTo,
 }: DeleteButtonProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -48,7 +55,14 @@ export function DeleteButton({
         alert(res.error ?? "Erreur lors de la suppression.");
         return;
       }
-      router.refresh();
+      if (redirectTo) {
+        // L'élément supprimé est la page courante → on quitte vers une page
+        // valide (évite un 404 après refresh).
+        router.push(redirectTo);
+        router.refresh();
+      } else {
+        router.refresh();
+      }
     });
   };
 

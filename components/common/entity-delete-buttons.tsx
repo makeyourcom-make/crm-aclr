@@ -120,6 +120,7 @@ export function DeleteContractButton({
       }}
       confirmMessage="Supprimer / annuler ce contrat ? Les signatures et les factures brouillon liées seront effacées et, s'il était déjà signé, le client et le deal reviennent dans le pipeline. Action irréversible."
       label="Supprimer le contrat"
+      redirectTo="/contrats"
     />
   );
 }
