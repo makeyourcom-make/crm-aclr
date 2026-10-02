@@ -138,7 +138,7 @@ export default async function DashboardPage() {
                         </Link>
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Contre-signé par {c.commercialeName}
+                        Signé par {c.commercialeName}
                         {c.contreSigneLe
                           ? ` le ${formatDate(c.contreSigneLe)}`
                           : ""}
@@ -165,7 +165,7 @@ export default async function DashboardPage() {
                 <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-emerald-600 px-2 text-xs font-bold text-white">
                   {data.contratsAValider.length}
                 </span>
-                Contrats signés client — à contre-signer
+                Contrats signés client — signature commerciale à faire
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">

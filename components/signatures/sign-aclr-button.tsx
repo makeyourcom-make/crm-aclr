@@ -21,7 +21,7 @@ export function SignAclrButton({
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success("Contre-signée ✓ — deal sorti du pipeline.");
+      toast.success("Signée par le commercial ✓ — deal sorti du pipeline.");
       onSuccess?.();
     });
   return (
@@ -31,7 +31,7 @@ export function SignAclrButton({
       disabled={pending}
       className="inline-flex h-7 items-center rounded-md bg-primary px-2 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
     >
-      {pending ? "…" : "Contre-signer"}
+      {pending ? "…" : "Signer (commercial)"}
     </button>
   );
 }

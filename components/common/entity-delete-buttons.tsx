@@ -113,12 +113,12 @@ export function DeleteContractButton({
     <DeleteButton
       variant={variant}
       disabled={!canDelete}
-      disabledReason="Contrat signé ou avec factures payées — utiliser 'Résilier'"
+      disabledReason="Contrat actif ou avec facture payée — utiliser 'Résilier'"
       onDelete={async () => {
         const res = await deleteContract(contractId);
         return { ok: res.ok, error: res.error };
       }}
-      confirmMessage="Supprimer définitivement ce contrat ? Cette action effacera les factures brouillon liées et est irréversible."
+      confirmMessage="Supprimer / annuler ce contrat ? Les signatures et les factures brouillon liées seront effacées et, s'il était déjà signé, le client et le deal reviennent dans le pipeline. Action irréversible."
       label="Supprimer le contrat"
     />
   );

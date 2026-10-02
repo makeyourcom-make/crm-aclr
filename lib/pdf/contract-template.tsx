@@ -727,7 +727,7 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
 
           <View style={styles.signatureBox}>
             <Text style={styles.signatureBoxLabel}>
-              Pour ACLR Sàrl (contre-signature)
+              Pour le commercial (ACLR Sàrl)
             </Text>
             {data.signature?.signeParAclr ? (
               <>

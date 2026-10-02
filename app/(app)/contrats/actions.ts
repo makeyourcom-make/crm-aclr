@@ -1831,6 +1831,7 @@ export async function deleteContract(
         statut: true,
         assigneAId: true,
         prospectId: true,
+        dealId: true,
         signatures: { select: { signeParClient: true } },
         clientInvoices: {
           select: { statut: true, payments: { select: { id: true } } },
@@ -1841,12 +1842,18 @@ export async function deleteContract(
     if (user.role !== "ADMIN" && c.assigneAId !== user.id) {
       return { ok: false, error: "Accès refusé." };
     }
-    // Bloque si signature client déjà apposée
-    if (c.signatures.some((s) => s.signeParClient)) {
+    // Un contrat signé par le client reste ANNULABLE par l'ADMIN tant qu'il
+    // n'est pas exécutoire (pas encore validé → statut ATTENTE_*). C'est un
+    // refus/annulation avant activation. Sinon (actif, ou non-admin) → Résilier.
+    const clientSigned = c.signatures.some((s) => s.signeParClient);
+    const isPreActive =
+      c.statut === "ATTENTE_SIGNATURE_CLIENT" ||
+      c.statut === "ATTENTE_VALIDATION_ADMIN";
+    if (clientSigned && !(user.role === "ADMIN" && isPreActive)) {
       return {
         ok: false,
         error:
-          "Impossible de supprimer : contrat signé par le client. Utilise 'Résilier' à la place.",
+          "Impossible de supprimer : contrat signé par le client. Utilise 'Résilier' (seul l'admin peut l'annuler avant validation).",
       };
     }
     // Bloque si une facture est déjà PAYEE
@@ -1863,6 +1870,21 @@ export async function deleteContract(
     await prisma.$transaction(async (tx) => {
       await tx.signature.deleteMany({ where: { contractId } });
       await tx.clientInvoice.deleteMany({ where: { contractId } });
+      // Annulation d'un contrat déjà signé par le client : on remet le deal et
+      // le prospect dans le pipeline (ils avaient été passés en SIGNE lors de la
+      // signature client), pour ne pas les laisser « signés » sans contrat.
+      if (clientSigned) {
+        if (c.dealId) {
+          await tx.deal.update({
+            where: { id: c.dealId },
+            data: { stage: "PROPOSITION", probabilite: 50, closeReelLe: null },
+          });
+        }
+        await tx.prospect.update({
+          where: { id: c.prospectId },
+          data: { statut: "PROPOSITION_ENVOYEE" },
+        });
+      }
       await tx.contract.delete({ where: { id: contractId } });
     });
     revalidatePath("/contrats");

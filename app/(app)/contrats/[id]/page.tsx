@@ -224,8 +224,9 @@ export default async function ContractDetailPage({ params }: PageProps) {
               <DeleteContractButton
                 contractId={contract.id}
                 canDelete={
-                  contract.statut === "ATTENTE_SIGNATURE_CLIENT" &&
-                  !contract.signatures.some((s) => s.signeParClient)
+                  (contract.statut === "ATTENTE_SIGNATURE_CLIENT" ||
+                    contract.statut === "ATTENTE_VALIDATION_ADMIN") &&
+                  !contract.clientInvoices.some((f) => f.statut === "PAYEE")
                 }
               />
             )}
@@ -491,7 +492,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                     {sig.signeParAclr ? (
                       <>
                         <p className="mt-1 text-sm font-medium">
-                          ✓ Contre-signé{sig.nomAclr ? ` — ${sig.nomAclr}` : ""}
+                          ✓ Signé{sig.nomAclr ? ` — ${sig.nomAclr}` : ""}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           Le{" "}
@@ -515,7 +516,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                         contract.assigneAId === user.id) ? (
                       <>
                         <p className="mt-1 text-sm text-amber-700">
-                          En attente de ta contre-signature
+                          En attente de la signature du commercial
                         </p>
                         <div className="mt-2">
                           <SignAclrButton signatureId={sig.id} />
