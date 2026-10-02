@@ -15,7 +15,6 @@ export interface SignatureFields {
 
 const NAVY = "#0E1936";
 const CORAL = "#F47174";
-const MUTED = "#64748B";
 
 function esc(s: string): string {
   return s
@@ -32,7 +31,8 @@ function href(url: string): string {
   return `https://${u}`;
 }
 
-/** Construit le HTML de la signature. */
+/** Construit le HTML de la signature — bandeau bleu marine, texte blanc,
+ *  accents orange (site + séparateurs). Table-based, compatible clients email. */
 export function buildSignatureHtml(f: SignatureFields): string {
   const name = esc(f.displayName.trim());
   const fonction = f.fonction?.trim() ? esc(f.fonction.trim()) : "";
@@ -41,17 +41,19 @@ export function buildSignatureHtml(f: SignatureFields): string {
   const email = f.email?.trim() ?? "";
   const web = f.siteWeb?.trim() ?? "";
   const logo = f.logoUrl?.trim() ?? "";
+  const WHITE = "#FFFFFF";
+  const LIGHT = "#D8DEE8";
 
   const contactLines: string[] = [];
   if (tel) {
     const telClean = tel.replace(/[^\d+]/g, "");
     contactLines.push(
-      `<a href="tel:${esc(telClean)}" style="color:${MUTED};text-decoration:none;">${esc(tel)}</a>`,
+      `<a href="tel:${esc(telClean)}" style="color:${WHITE};text-decoration:none;">${esc(tel)}</a>`,
     );
   }
   if (email) {
     contactLines.push(
-      `<a href="mailto:${esc(email)}" style="color:${MUTED};text-decoration:none;">${esc(email)}</a>`,
+      `<a href="mailto:${esc(email)}" style="color:${WHITE};text-decoration:none;">${esc(email)}</a>`,
     );
   }
   if (web) {
@@ -60,22 +62,29 @@ export function buildSignatureHtml(f: SignatureFields): string {
     );
   }
   const contactHtml = contactLines.join(
-    ` <span style="color:#CBD5E1;">|</span> `,
+    ` <span style="color:${CORAL};">|</span> `,
   );
 
   const logoCell = logo
-    ? `<td style="padding-right:14px;vertical-align:middle;">
-         <img src="${esc(href(logo))}" alt="${entreprise || "Logo"}" height="48" style="display:block;border:0;max-height:48px;" />
+    ? `<td style="padding-right:18px;vertical-align:middle;">
+         <img src="${esc(href(logo))}" alt="${entreprise || "Make Your Com"}" height="52" style="display:block;border:0;max-height:52px;" />
        </td>`
     : "";
 
-  return `<table cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:${NAVY};line-height:1.45;">
+  // Bandeau navy pleine largeur : le fond couvre tout l'espace (logo + texte).
+  return `<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color:${NAVY};border-radius:8px;font-family:Arial,Helvetica,sans-serif;max-width:640px;">
   <tr>
-    ${logoCell}
-    <td style="vertical-align:middle;${logo ? `border-left:2px solid ${CORAL};padding-left:14px;` : ""}">
-      <div style="font-weight:bold;font-size:15px;color:${NAVY};">${name}</div>
-      ${fonction ? `<div style="color:${MUTED};">${fonction}${entreprise ? ` · ${entreprise}` : ""}</div>` : entreprise ? `<div style="color:${MUTED};">${entreprise}</div>` : ""}
-      ${contactHtml ? `<div style="margin-top:6px;font-size:12px;">${contactHtml}</div>` : ""}
+    <td style="padding:16px 22px;">
+      <table cellpadding="0" cellspacing="0" border="0" role="presentation">
+        <tr>
+          ${logoCell}
+          <td style="vertical-align:middle;${logo ? `border-left:2px solid ${CORAL};padding-left:18px;` : ""}">
+            <div style="font-weight:bold;font-size:15px;color:${WHITE};line-height:1.35;">${name}</div>
+            ${fonction ? `<div style="color:${LIGHT};font-size:13px;line-height:1.35;">${fonction}${entreprise ? ` · ${entreprise}` : ""}</div>` : entreprise ? `<div style="color:${LIGHT};font-size:13px;">${entreprise}</div>` : ""}
+            ${contactHtml ? `<div style="margin-top:7px;font-size:12px;color:${WHITE};">${contactHtml}</div>` : ""}
+          </td>
+        </tr>
+      </table>
     </td>
   </tr>
 </table>`;
