@@ -28,9 +28,15 @@ import type { DossiersBoardData } from "@/lib/queries/dossiers";
 interface DossiersBoardProps {
   initialData: DossiersBoardData;
   users: Array<{ id: string; name: string }>;
+  /** Affiche l'assigné sur les cartes — vrai seulement en vue « Tous ». */
+  showAssignee?: boolean;
 }
 
-export function DossiersBoard({ initialData, users }: DossiersBoardProps) {
+export function DossiersBoard({
+  initialData,
+  users,
+  showAssignee = false,
+}: DossiersBoardProps) {
   const router = useRouter();
   const [data, setData] = useState<DossiersBoardData>(initialData);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -135,13 +141,18 @@ export function DossiersBoard({ initialData, users }: DossiersBoardProps) {
             assigneNom={col.assigneNom}
             dossiers={col.dossiers}
             onOpen={setOpenedId}
+            showAssignee={showAssignee}
           />
         ))}
       </div>
 
       <DragOverlay>
         {activeDossier && (
-          <DossierCard dossier={activeDossier} onOpen={() => {}} />
+          <DossierCard
+            dossier={activeDossier}
+            onOpen={() => {}}
+            showAssignee={showAssignee}
+          />
         )}
       </DragOverlay>
 

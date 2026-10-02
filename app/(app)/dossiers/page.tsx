@@ -49,6 +49,10 @@ export default async function DossiersPage({ searchParams }: PageProps) {
   // Espace actuellement affiché (pour surligner le bon onglet).
   const espaceActif = isAdmin ? (espaceParam ?? user.id) : user.id;
   const archSuffix = avecArchives ? "&archives=1" : "";
+  // On n'affiche l'assigné sur les cartes que dans la vue « Tous » (admin) :
+  // partout ailleurs on est déjà dans l'espace d'une seule personne, donc le
+  // nom est redondant et mange de la place.
+  const showAssignee = isAdmin && espaceActif === "tous";
 
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
@@ -104,7 +108,11 @@ export default async function DossiersPage({ searchParams }: PageProps) {
         </div>
       )}
 
-      <DossiersBoard initialData={board} users={users} />
+      <DossiersBoard
+        initialData={board}
+        users={users}
+        showAssignee={showAssignee}
+      />
 
       <p className="mt-4 text-center text-xs text-muted-foreground">
         💡 Glisse une carte d&apos;une colonne à l&apos;autre pour changer son

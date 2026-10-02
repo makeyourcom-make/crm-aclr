@@ -18,6 +18,8 @@ interface DossiersColumnProps {
   assigneNom: string;
   dossiers: DossierForKanban[];
   onOpen: (id: string) => void;
+  /** Affiche l'assigné sur les cartes (vue « Tous » uniquement). */
+  showAssignee?: boolean;
 }
 
 export function DossiersColumn({
@@ -26,6 +28,7 @@ export function DossiersColumn({
   assigneNom,
   dossiers,
   onOpen,
+  showAssignee = false,
 }: DossiersColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: columnKey });
 
@@ -33,12 +36,12 @@ export function DossiersColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex h-full w-full shrink-0 flex-col rounded-lg border border-border border-t-4 bg-muted/30 transition-colors sm:w-72",
+        "flex h-full w-full shrink-0 flex-col rounded-lg border border-border border-t-4 bg-muted/30 transition-colors sm:w-64",
         DOSSIER_STATUT_ACCENTS[statut],
         isOver && "bg-primary/5 ring-2 ring-primary/30",
       )}
     >
-      <div className="flex items-baseline justify-between gap-2 px-3 py-2.5">
+      <div className="flex items-baseline justify-between gap-2 px-3 py-2">
         <h3 className="min-w-0 truncate text-sm font-semibold">
           {assigneNom && (
             <span className="text-muted-foreground">{assigneNom} · </span>
@@ -50,18 +53,23 @@ export function DossiersColumn({
         </span>
       </div>
 
-      <div className="flex-1 space-y-2 overflow-y-auto px-2 pb-2">
+      <div className="flex-1 space-y-1.5 overflow-y-auto px-2 pb-2">
         <SortableContext
           items={dossiers.map((d) => d.id)}
           strategy={verticalListSortingStrategy}
         >
           {dossiers.map((d) => (
-            <DossierCard key={d.id} dossier={d} onOpen={onOpen} />
+            <DossierCard
+              key={d.id}
+              dossier={d}
+              onOpen={onOpen}
+              showAssignee={showAssignee}
+            />
           ))}
         </SortableContext>
 
         {dossiers.length === 0 && (
-          <p className="rounded-md border border-dashed border-border bg-background/50 px-3 py-6 text-center text-xs text-muted-foreground">
+          <p className="rounded-md border border-dashed border-border bg-background/50 px-3 py-4 text-center text-xs text-muted-foreground">
             Glisse un projet ici
           </p>
         )}

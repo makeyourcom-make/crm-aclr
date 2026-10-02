@@ -13,9 +13,16 @@ import type { DossierForKanban } from "@/lib/queries/dossiers";
 interface DossierCardProps {
   dossier: DossierForKanban;
   onOpen: (id: string) => void;
+  /** Afficher l'assigné sur la carte — utile seulement dans la vue « Tous »,
+   * redondant quand on est déjà dans l'espace d'une personne. */
+  showAssignee?: boolean;
 }
 
-export function DossierCard({ dossier, onOpen }: DossierCardProps) {
+export function DossierCard({
+  dossier,
+  onOpen,
+  showAssignee = false,
+}: DossierCardProps) {
   const {
     attributes,
     listeners,
@@ -48,7 +55,7 @@ export function DossierCard({ dossier, onOpen }: DossierCardProps) {
         onOpen(dossier.id);
       }}
       className={cn(
-        "cursor-grab rounded-md border border-border bg-card p-3 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing",
+        "cursor-grab rounded-md border border-border bg-card px-2.5 py-2 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing",
         isDragging && "ring-2 ring-primary",
         // Visible uniquement via « Voir les projets archivés » : on la distingue
         // du travail vivant sans la rendre illisible.
@@ -72,7 +79,7 @@ export function DossierCard({ dossier, onOpen }: DossierCardProps) {
       </div>
 
       {dossier.prospect && (
-        <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
           <Icon name="Users" className="h-3 w-3" />
           {dossier.prospect.raisonSociale}
         </p>
@@ -81,7 +88,7 @@ export function DossierCard({ dossier, onOpen }: DossierCardProps) {
       {dossier.echeance && (
         <p
           className={cn(
-            "mt-1.5 flex items-center gap-1 text-[11px]",
+            "mt-1 flex items-center gap-1 text-[11px]",
             isOverdue ? "text-red-600" : "text-muted-foreground",
           )}
         >
@@ -91,28 +98,37 @@ export function DossierCard({ dossier, onOpen }: DossierCardProps) {
         </p>
       )}
 
-      <div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-        <span className="truncate">→ {dossier.assigneA.name}</span>
-        <span className="flex shrink-0 items-center gap-2">
-          {dossier.archive && (
-            <span className="rounded-full bg-slate-200 px-1.5 text-[9px] font-medium text-slate-600">
-              Archivée
-            </span>
+      {(showAssignee ||
+        dossier.archive ||
+        dossier.nbDocuments > 0 ||
+        dossier.nbUpdates > 0) && (
+        <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+          {showAssignee ? (
+            <span className="truncate">→ {dossier.assigneA.name}</span>
+          ) : (
+            <span />
           )}
-          {dossier.nbDocuments > 0 && (
-            <span className="flex items-center gap-1" title="Documents joints">
-              <Icon name="FileText" className="h-3 w-3" />
-              {dossier.nbDocuments}
-            </span>
-          )}
-          {dossier.nbUpdates > 0 && (
-            <span className="flex items-center gap-1" title="Mises à jour">
-              <Icon name="MessageSquare" className="h-3 w-3" />
-              {dossier.nbUpdates}
-            </span>
-          )}
-        </span>
-      </div>
+          <span className="flex shrink-0 items-center gap-2">
+            {dossier.archive && (
+              <span className="rounded-full bg-slate-200 px-1.5 text-[9px] font-medium text-slate-600">
+                Archivée
+              </span>
+            )}
+            {dossier.nbDocuments > 0 && (
+              <span className="flex items-center gap-1" title="Documents joints">
+                <Icon name="FileText" className="h-3 w-3" />
+                {dossier.nbDocuments}
+              </span>
+            )}
+            {dossier.nbUpdates > 0 && (
+              <span className="flex items-center gap-1" title="Mises à jour">
+                <Icon name="MessageSquare" className="h-3 w-3" />
+                {dossier.nbUpdates}
+              </span>
+            )}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
