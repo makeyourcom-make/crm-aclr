@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
@@ -91,7 +92,14 @@ export default async function ContractDetailPage({ params }: PageProps) {
     contract.signatures.find(
       (s) => s.statut !== "COMPLETEE" && s.expireA > new Date(),
     ) ?? null;
-  const appUrl = process.env.APP_URL ?? "";
+  // URL absolue OBLIGATOIRE pour le QR (un lien relatif n'est pas scannable :
+  // le téléphone le prend pour du texte). On dérive de l'hôte de la requête,
+  // avec APP_URL en secours.
+  const hdrs = await headers();
+  const host = hdrs.get("x-forwarded-host") ?? hdrs.get("host") ?? "";
+  const proto = hdrs.get("x-forwarded-proto") ?? "https";
+  const appUrl =
+    (host ? `${proto}://${host}` : "") || process.env.APP_URL || "";
   let clientSignUrl: string | null = null;
   let aclrSignUrl: string | null = null;
   let clientQr: string | null = null;
