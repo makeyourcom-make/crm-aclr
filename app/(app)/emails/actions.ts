@@ -82,6 +82,19 @@ export interface SendEmailResult {
  * base avec statut ENVOYE et on log côté serveur — sans appeler Resend.
  * À l'étape 26 V2 : intégration réelle Resend + webhooks inbound.
  */
+/**
+ * Signature HTML par défaut de l'utilisateur — pour pré-remplir le corps du
+ * composer (nouveau mail, réponse, transfert). Renvoie "" si aucune.
+ */
+export async function getMyDefaultSignatureHtml(): Promise<string> {
+  const user = await requireUser();
+  const sig = await prisma.emailSignature.findFirst({
+    where: { userId: user.id, isDefault: true },
+    select: { html: true },
+  });
+  return sig?.html ?? "";
+}
+
 export async function sendEmailToProspect(
   input: unknown,
 ): Promise<SendEmailResult> {

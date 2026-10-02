@@ -22,6 +22,7 @@ import {
   deleteThreadsBulk,
   emptyTrash,
   forwardEmail,
+  getMyDefaultSignatureHtml,
   markEmailAsSpam,
   markThreadRead,
   purgeEmail,
@@ -853,9 +854,31 @@ function ThreadDetail({
   const [forwardHtml, setForwardHtml] = useState("");
   const [forwardKey, setForwardKey] = useState(0);
   const [forwardPJ, setForwardPJ] = useState(true);
+  // Signature par défaut, pré-insérée dans le corps des réponses/transferts.
+  const [replyInitial, setReplyInitial] = useState("");
+  const [forwardInitial, setForwardInitial] = useState("");
+  const [sigHtml, setSigHtml] = useState("");
+  useEffect(() => {
+    void getMyDefaultSignatureHtml().then(setSigHtml);
+  }, []);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const replyText = htmlToPlainText(replyHtml);
+
+  const openReply = () => {
+    const init = sigHtml ? `<br><br>${sigHtml}` : "";
+    setReplyInitial(init);
+    setReplyHtml(init);
+    setReplyKey((k) => k + 1);
+    setShowReply(true);
+  };
+  const openForward = () => {
+    const init = sigHtml ? `<br><br>${sigHtml}` : "";
+    setForwardInitial(init);
+    setForwardHtml(init);
+    setForwardKey((k) => k + 1);
+    setShowForward(true);
+  };
 
   // Un thread d'un seul message qui est un vrai brouillon → éditeur dédié
   // (terminer / modifier / envoyer plus tard). Pas dans la corbeille.
@@ -1013,7 +1036,7 @@ function ThreadDetail({
           <div className="flex gap-2">
             <Button
               type="button"
-              onClick={() => setShowReply(true)}
+              onClick={openReply}
               className="flex-1"
               variant="outline"
             >
@@ -1022,7 +1045,7 @@ function ThreadDetail({
             </Button>
             <Button
               type="button"
-              onClick={() => setShowForward(true)}
+              onClick={openForward}
               className="flex-1"
               variant="outline"
             >
@@ -1049,6 +1072,7 @@ function ThreadDetail({
 
             <RichTextEditor
               key={forwardKey}
+              initialHtml={forwardInitial}
               onChange={setForwardHtml}
               disabled={pending}
               placeholder="Ajoute un mot (facultatif)…"
@@ -1099,6 +1123,7 @@ function ThreadDetail({
             </p>
             <RichTextEditor
               key={replyKey}
+              initialHtml={replyInitial}
               onChange={setReplyHtml}
               disabled={pending}
               placeholder="Tape ta réponse…"

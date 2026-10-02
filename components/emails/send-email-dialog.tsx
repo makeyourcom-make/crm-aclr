@@ -73,10 +73,8 @@ export function SendEmailDialog({
   // frappe. Le remontage est déclenché par `editorKey`.
   const [editorInitial, setEditorInitial] = useState("");
   const [editorKey, setEditorKey] = useState(0);
-  const [signatureId, setSignatureId] = useState(
-    signatures.find((s) => s.isDefault)?.id ?? "",
-  );
-  const selectedSig = signatures.find((s) => s.id === signatureId);
+  // Signature par défaut, pré-insérée dans le corps (visible + éditable).
+  const defaultSigHtml = signatures.find((s) => s.isDefault)?.html ?? "";
   const contenuTexte = htmlToPlainText(contenuHtml);
 
   const handleTemplateChange = (id: string) => {
@@ -84,8 +82,11 @@ export function SendEmailDialog({
     const t = templates.find((x) => x.id === id);
     if (t) {
       setObjet(t.objet);
-      // Le template est en texte brut → converti en HTML pour l'éditeur riche.
-      const html = plainToHtml(t.contenu);
+      // Le template est en texte brut → converti en HTML pour l'éditeur riche,
+      // suivi de la signature par défaut.
+      const html =
+        plainToHtml(t.contenu) +
+        (defaultSigHtml ? `<br><br>${defaultSigHtml}` : "");
       setEditorInitial(html);
       setContenuHtml(html);
       setEditorKey((k) => k + 1);
@@ -113,7 +114,6 @@ export function SendEmailDialog({
         objet: objet.trim(),
         contenu: contenuTexte.trim(),
         contenuHtml,
-        signatureId: signatureId || undefined,
       });
       if (!res.ok) {
         toast.error(res.error ?? "Échec de l'envoi.");
@@ -143,7 +143,19 @@ export function SendEmailDialog({
         : "inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90";
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        // À l'ouverture (sans template), pré-insère la signature dans le corps.
+        if (v && !templateId) {
+          const init = defaultSigHtml ? `<br><br>${defaultSigHtml}` : "";
+          setEditorInitial(init);
+          setContenuHtml(init);
+          setEditorKey((k) => k + 1);
+        }
+      }}
+    >
       <DialogTrigger className={triggerClass} disabled={!prospectEmail}>
         <Icon name="Mail" className="h-3.5 w-3.5" />
         Envoyer un email
@@ -212,32 +224,6 @@ export function SendEmailDialog({
               Tu recevras automatiquement une copie sur ton Gmail.
             </p>
           </div>
-
-          {signatures.length > 0 && (
-            <div className="space-y-1.5">
-              <Label htmlFor="signature">Signature</Label>
-              <select
-                id="signature"
-                value={signatureId}
-                onChange={(e) => setSignatureId(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-              >
-                <option value="">— Aucune signature —</option>
-                {signatures.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nom}
-                    {s.isDefault ? " (par défaut)" : ""}
-                  </option>
-                ))}
-              </select>
-              {selectedSig && (
-                <div
-                  className="mt-1 rounded-md border border-border bg-white p-3"
-                  dangerouslySetInnerHTML={{ __html: selectedSig.html }}
-                />
-              )}
-            </div>
-          )}
 
           <DialogFooter>
             <Button

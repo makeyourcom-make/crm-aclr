@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import {
+  getMyDefaultSignatureHtml,
   saveEmailDraft,
   searchProspectsForAttach,
   sendEmailToProspect,
@@ -68,7 +69,9 @@ export function ComposeEmailButton() {
   const [objet, setObjet] = useState("");
   const [contenuHtml, setContenuHtml] = useState("");
   const [attachments, setAttachments] = useState<PickedAttachment[]>([]);
-  // Change à chaque reset pour re-monter l'éditeur (vide son contenu).
+  // HTML initial de l'éditeur (signature pré-insérée). Change à chaque reset /
+  // chargement de la signature pour re-monter l'éditeur.
+  const [editorInitial, setEditorInitial] = useState("");
   const [editorKey, setEditorKey] = useState(0);
 
   const contenuTexte = htmlToPlainText(contenuHtml);
@@ -81,6 +84,7 @@ export function ComposeEmailButton() {
     setFreeEmail("");
     setObjet("");
     setContenuHtml("");
+    setEditorInitial("");
     setAttachments([]);
     setEditorKey((k) => k + 1);
   };
@@ -191,7 +195,17 @@ export function ComposeEmailButton() {
       open={open}
       onOpenChange={(v) => {
         setOpen(v);
-        if (!v) reset();
+        if (v) {
+          // Pré-insère la signature par défaut dans le corps (visible/éditable).
+          void getMyDefaultSignatureHtml().then((sigHtml) => {
+            const init = sigHtml ? `<br><br>${sigHtml}` : "";
+            setEditorInitial(init);
+            setContenuHtml(init);
+            setEditorKey((k) => k + 1);
+          });
+        } else {
+          reset();
+        }
       }}
     >
       <DialogTrigger className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
@@ -361,6 +375,7 @@ export function ComposeEmailButton() {
               </Label>
               <RichTextEditor
                 key={editorKey}
+                initialHtml={editorInitial}
                 onChange={setContenuHtml}
                 disabled={pending}
                 placeholder="Bonjour {{prenomContact}}, …"
