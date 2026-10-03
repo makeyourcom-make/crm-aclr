@@ -477,7 +477,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                         <div className="flex flex-col items-start gap-0.5">
                           <Badge
                             variant="secondary"
-                            className={`font-normal ${CLIENT_INV_BADGE[inv.statut]}`}
+                            className={`font-normal ${inv.isOverdue ? CLIENT_INV_BADGE.EN_RETARD : CLIENT_INV_BADGE[inv.statut]}`}
                           >
                             {inv.isOverdue ? "En retard" : CLIENT_INV_LABEL[inv.statut]}
                           </Badge>
