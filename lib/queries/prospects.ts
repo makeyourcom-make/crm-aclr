@@ -130,11 +130,24 @@ export async function getProspectById(user: SessionUser, id: string) {
 }
 
 /**
- * Stats globales sur les prospects (pour les bandeaux de la liste).
+ * Stats sur les prospects (pour les bandeaux de la liste).
  * Sépare actifs (en cours de prospection) et signés (migrés vers /contrats).
+ *
+ * `assigneAId` (optionnel, admin uniquement) : restreint le comptage au
+ * portefeuille d'un commercial précis — permet d'afficher « X entreprises
+ * attribuées à … » quand on sélectionne une commerciale dans le filtre.
+ * Un commercial reste toujours limité à ses propres fiches (RLS).
  */
-export async function getProspectStats(user: SessionUser) {
-  const scopeWhere = user.role === "ADMIN" ? {} : { assigneAId: user.id };
+export async function getProspectStats(
+  user: SessionUser,
+  assigneAId?: string,
+) {
+  const scopeWhere: Prisma.ProspectWhereInput =
+    user.role === "ADMIN"
+      ? assigneAId
+        ? { assigneAId }
+        : {}
+      : { assigneAId: user.id };
 
   const parStatut = await prisma.prospect.groupBy({
     by: ["statut"],

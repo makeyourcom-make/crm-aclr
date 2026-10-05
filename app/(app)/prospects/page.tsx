@@ -39,7 +39,7 @@ export default async function ProspectsPage({ searchParams }: PageProps) {
     products,
   ] = await Promise.all([
     getProspects(user, params),
-    getProspectStats(user),
+    getProspectStats(user, isAdmin ? params.assigneAId : undefined),
     isAdmin
       ? prisma.user.findMany({
           where: { isActive: true },
@@ -60,15 +60,24 @@ export default async function ProspectsPage({ searchParams }: PageProps) {
     }),
   ]);
 
+  // Si l'admin a sélectionné une commerciale dans le filtre, le bandeau décrit
+  // SON portefeuille (nombre d'entreprises attribuées) plutôt que le total global.
+  const selectedCommercial =
+    isAdmin && params.assigneAId
+      ? teamUsers.find((u) => u.id === params.assigneAId)
+      : undefined;
+
+  const headerDescription = selectedCommercial
+    ? `${stats.total} entreprise(s) attribuée(s) à ${selectedCommercial.name} - ${stats.nbSignes} client(s) signé(s) · ${stats.nbActifs} en cours de prospection.`
+    : stats.nbSignes > 0
+      ? `${stats.total} entreprise(s) au total - ${stats.nbSignes} client(s) signé(s) · ${stats.nbActifs} en cours de prospection.`
+      : `${stats.total} entreprise(s) - ${stats.nbActifs} en cours de prospection.`;
+
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
         title="Entreprises"
-        description={
-          stats.nbSignes > 0
-            ? `${stats.total} entreprise(s) au total — ${stats.nbSignes} client(s) signé(s) · ${stats.nbActifs} en cours de prospection.`
-            : `${stats.total} entreprise(s) — ${stats.nbActifs} en cours de prospection.`
-        }
+        description={headerDescription}
         actions={
           <>
             {user.role === "ADMIN" && (
