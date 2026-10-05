@@ -57,16 +57,17 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const now = new Date();
 
-  // Les nouvelles entreprises arrivant par la synchro sont auto-attribuées à la
-  // commerciale active (Sophie) — elles atterrissent directement dans son
-  // portefeuille au lieu de rester sans responsable. (Uniquement les créations ;
-  // les fiches existantes gardent leur attribution.)
-  const commerciale = await prisma.user.findFirst({
-    where: { role: "COMMERCIAL", isActive: true },
-    orderBy: { createdAt: "asc" },
-    select: { id: true },
-  });
-  const defaultAssigneeId = commerciale?.id ?? null;
+  // Les nouvelles entreprises arrivant par la synchro NE SONT PLUS auto-attribuées :
+  // elles restent dans le pool « non attribué ». L'attribution se fait ensuite
+  // DÉLIBÉRÉMENT par territoire (rayon géographique autour de St-Gingolph, cf. le
+  // découpage des portefeuilles ~335/commerciale).
+  //
+  // Avant, elles étaient collées à « la première commerciale active » : après le
+  // départ de Sophie, ça déversait tout le pays (Zurich, Tessin…) sur Lou-Anne,
+  // qui se retrouvait avec des centaines de fiches hors zone. (Les fiches
+  // existantes gardent de toute façon leur attribution — on ne touche qu'aux
+  // créations.)
+  const defaultAssigneeId: string | null = null;
 
   const masterIds = rows.map((r) => r.masterId).filter((n) => Number.isInteger(n));
   const nameNorms = [...new Set(rows.map((r) => normalizeName(r.nom)).filter(Boolean))];
