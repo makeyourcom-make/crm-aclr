@@ -8,6 +8,10 @@ import {
   getInvoiceEmailDefaults,
   sendClientInvoiceByEmail,
 } from "@/app/(app)/factures-clients/actions";
+import {
+  AttachmentPicker,
+  type PickedAttachment,
+} from "@/components/emails/attachment-picker";
 import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,10 +51,12 @@ export function SendInvoiceButton({
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [recipient, setRecipient] = useState(clientEmail ?? "");
+  const [attachments, setAttachments] = useState<PickedAttachment[]>([]);
 
   // Charge les valeurs par défaut quand on ouvre le dialog
   useEffect(() => {
     if (!open) return;
+    setAttachments([]);
     setLoading(true);
     void getInvoiceEmailDefaults(invoiceId).then((res) => {
       setLoading(false);
@@ -83,6 +89,11 @@ export function SendInvoiceButton({
         invoiceId,
         subject.trim(),
         body.trim(),
+        attachments.map((a) => ({
+          url: a.url,
+          filename: a.filename,
+          mimeType: a.mimeType,
+        })),
       );
       if (!res.ok) {
         toast.error(res.error ?? "Échec de l'envoi.");
@@ -181,6 +192,21 @@ export function SendInvoiceButton({
               <p className="text-[11px] text-muted-foreground">
                 Texte brut. Une copie sera archivée dans la fiche du client
                 (timeline d&apos;activités + boîte mail).
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Pièces jointes supplémentaires</Label>
+              <AttachmentPicker
+                value={attachments}
+                onChange={setAttachments}
+                disabled={pending}
+                pathPrefix={`invoice-attachments/${invoiceNumero}`}
+                label="Joindre un justificatif"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Le PDF de la facture est déjà joint. Ajoute ici d&apos;éventuels
+                justificatifs (ex. tickets de frais de déplacement).
               </p>
             </div>
           </div>

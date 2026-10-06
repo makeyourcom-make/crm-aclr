@@ -126,6 +126,9 @@ export async function sendClientInvoiceByEmail(
   invoiceId: string,
   customSubject?: string,
   customBody?: string,
+  /** Pièces jointes supplémentaires (déjà uploadées sur Blob) à joindre EN PLUS
+   * du PDF de la facture — ex. justificatifs de frais de déplacement. */
+  extraAttachments?: Array<{ url: string; filename: string; mimeType: string }>,
 ): Promise<SendInvoiceResult> {
   const user = await requireUser();
 
@@ -281,6 +284,11 @@ export async function sendClientInvoiceByEmail(
         path: blob.url,
         contentType: "application/pdf",
       },
+      ...(extraAttachments ?? []).map((a) => ({
+        filename: a.filename,
+        path: a.url,
+        contentType: a.mimeType || "application/octet-stream",
+      })),
     ],
   });
   const isDryRun = sendResult.dryRun;
