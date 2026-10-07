@@ -323,6 +323,9 @@ export async function getStats(
       where: {
         ...userScope,
         type: { in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"] },
+        // Un vrai RDV honoré est rattaché à un client : exclut le phoning et les
+        // points internes (ex. « RDV Arthur ») enregistrés avec le type RDV.
+        prospectId: { not: null },
         date: { gte: start, lte: end },
         statut: "FAIT",
       },
@@ -331,6 +334,7 @@ export async function getStats(
       where: {
         ...userScope,
         type: { in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"] },
+        prospectId: { not: null },
         date: { gte: start, lte: end },
         statut: "MANQUE",
       },

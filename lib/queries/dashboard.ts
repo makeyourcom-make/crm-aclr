@@ -536,6 +536,8 @@ async function computeMonthlyProgressPartial(
       where: {
         ...userScope,
         type: { in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"] },
+        // RDV honoré = rattaché à un client (exclut phoning / points internes).
+        prospectId: { not: null },
         date: { gte: startMonth, lte: endMonth },
         statut: "FAIT",
       },

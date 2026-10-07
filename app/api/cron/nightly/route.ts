@@ -171,6 +171,8 @@ async function handler(req: Request) {
           where: {
             userId: u.id,
             type: { in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"] },
+            // RDV honoré = rattaché à un client (exclut phoning / points internes).
+            prospectId: { not: null },
             date: { gte: today, lt: tomorrow },
             statut: "FAIT",
           },
@@ -179,6 +181,7 @@ async function handler(req: Request) {
           where: {
             userId: u.id,
             type: { in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"] },
+            prospectId: { not: null },
             date: { gte: today, lt: tomorrow },
             statut: "MANQUE",
           },

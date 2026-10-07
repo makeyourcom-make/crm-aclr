@@ -173,6 +173,8 @@ export async function getTodayCockpit(
         type: {
           in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"],
         },
+        // RDV honoré = rattaché à un client (exclut phoning / points internes).
+        prospectId: { not: null },
         date: { gte: startOfToday, lte: endOfToday },
         statut: "FAIT",
       },
@@ -209,6 +211,7 @@ export async function getTodayCockpit(
         type: {
           in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"],
         },
+        prospectId: { not: null },
         date: { gte: startOfWeek, lte: endOfWeek },
         statut: "FAIT",
       },
