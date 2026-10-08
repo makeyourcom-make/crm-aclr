@@ -9,6 +9,7 @@ import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { sendContractEmailCustom } from "@/app/(app)/contrats/actions";
+import { getMyDefaultSignatureHtml } from "@/app/(app)/emails/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -46,6 +47,10 @@ export function ContractEmailComposer({
   const [body, setBody] = useState(defaultBody);
   const [includeSignLink, setIncludeSignLink] = useState(true);
   const [includePdf, setIncludePdf] = useState(true);
+  // Aperçu (lecture seule) de la signature pro — ajoutée automatiquement à
+  // l'envoi côté serveur, donc absente du champ « Message » (pour ne pas
+  // l'abîmer). On la montre ici pour rassurer avant d'envoyer.
+  const [sigHtml, setSigHtml] = useState("");
 
   // Re-synchronise quand on rouvre avec un autre contrat.
   useEffect(() => {
@@ -54,6 +59,12 @@ export function ContractEmailComposer({
     setIncludeSignLink(true);
     setIncludePdf(true);
   }, [defaultSubject, defaultBody, contractId]);
+
+  // Charge la signature par défaut à l'ouverture.
+  useEffect(() => {
+    if (!open) return;
+    void getMyDefaultSignatureHtml().then(setSigHtml);
+  }, [open]);
 
   const handleSend = () => {
     if (!subject.trim() || !body.trim()) {
@@ -151,6 +162,18 @@ export function ContractEmailComposer({
               </span>
             </label>
           </div>
+
+          {sigHtml && (
+            <div className="space-y-1">
+              <Label className="text-xs">
+                Signature (ajoutée automatiquement)
+              </Label>
+              <div
+                className="overflow-x-auto rounded-md border border-border bg-white p-3"
+                dangerouslySetInnerHTML={{ __html: sigHtml }}
+              />
+            </div>
+          )}
         </div>
 
         <DialogFooter>
