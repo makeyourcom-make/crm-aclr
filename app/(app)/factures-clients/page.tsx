@@ -68,24 +68,26 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
   // --- Construction du WHERE ---
   const whereConditions: Prisma.ClientInvoiceWhereInput[] = [];
 
-  // Fenêtre glissante 30 j appliquée aux seuls brouillons (les autres statuts
-  // ne sont jamais datés dans le futur).
+  // Visibilité croisée statut facture × statut contrat × fenêtre glissante :
+  //   - BROUILLON : visible quel que soit le statut du contrat (y compris un
+  //     contrat encore en ATTENTE_SIGNATURE_CLIENT / ATTENTE_VALIDATION_ADMIN —
+  //     l'admin peut avoir créé une facture ponctuelle / d'acompte à l'avance
+  //     et doit la retrouver ici), tant que la date d'émission tombe dans les
+  //     30 jours. Les mensualités pré-créées loin dans le futur restent donc
+  //     masquées par la fenêtre glissante, sans masquer un brouillon imminent.
+  //   - Autres statuts (ENVOYEE/PAYEE/EN_RETARD/ANNULEE) : seulement si le
+  //     contrat est exécutoire ou historique (ACTIF/SUSPENDU/RESILIE/EXPIRE).
   whereConditions.push({
     OR: [
-      { statut: { not: "BROUILLON" } },
-      { dateEmission: { lte: brouillonHorizon } },
+      {
+        statut: "BROUILLON",
+        dateEmission: { lte: brouillonHorizon },
+      },
+      {
+        statut: { not: "BROUILLON" },
+        contract: { statut: { in: ["ACTIF", "SUSPENDU", "RESILIE", "EXPIRE"] } },
+      },
     ],
-  });
-
-  // Un contrat doit être ACTIF (ou suspendu/résilié/expiré = historique
-  // facturé) pour que ses factures apparaissent. Les contrats en
-  // ATTENTE_SIGNATURE_CLIENT ou ATTENTE_VALIDATION_ADMIN ne doivent PAS
-  // encombrer la liste — leurs factures (pré-créées en BROUILLON) restent
-  // en DB mais sont masquées tant que le contrat n'est pas exécutoire.
-  whereConditions.push({
-    contract: {
-      statut: { in: ["ACTIF", "SUSPENDU", "RESILIE", "EXPIRE"] },
-    },
   });
 
   if (user.role !== "ADMIN") {
@@ -145,12 +147,13 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
   const draftsWhere: Prisma.ClientInvoiceWhereInput = {
     statut: "BROUILLON",
     // Même fenêtre glissante 30 j : on n'envoie / ne compte que les brouillons
-    // échus ou à échoir dans les 30 jours.
+    // échus ou à échoir dans les 30 jours. Le statut du contrat n'est
+    // volontairement PAS restreint — un brouillon créé pour un contrat encore
+    // en attente de signature doit pouvoir être compté (KPI) et envoyé.
     dateEmission: { lte: brouillonHorizon },
-    contract: {
-      statut: { in: ["ACTIF", "SUSPENDU", "RESILIE", "EXPIRE"] },
-      ...(user.role !== "ADMIN" ? { assigneAId: user.id } : {}),
-    },
+    ...(user.role !== "ADMIN"
+      ? { contract: { assigneAId: user.id } }
+      : {}),
   };
 
   const [invoices, stats, prospectsList, draftRows] = await Promise.all([
