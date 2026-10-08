@@ -225,6 +225,11 @@ export function ContractWizard({
   const [modalitePaiement, setModalitePaiement] = useState<ModalitePaiement>(
     initial?.modalitePaiement ?? "CINQUANTE_CINQUANTE",
   );
+  // Suggestion auto de la modalité : un contrat avec un setup (one-shot) ET du
+  // mensuel bascule sur « one-shot + mensuel » (setup facturé UNE FOIS, jamais
+  // amorti ; renouvellement mois par mois ensuite). Toute sélection manuelle
+  // fige le choix. En édition, on ne suggère pas (on respecte l'existant).
+  const [modaliteManuallyEdited, setModaliteManuallyEdited] = useState(isEdit);
   // Note libre ajoutée au contrat (affichée sur le PDF, sous les prestations).
   const [note, setNote] = useState(initial?.note ?? "");
   // Devise : AUTO = détection selon le pays du client (Suisse → CHF, sinon EUR)
@@ -380,6 +385,17 @@ export function ContractWizard({
       commissionPart2,
     };
   }, [lines, allProducts, tauxCommission, dureeMois]);
+
+  // Suggestion auto de la modalité : dès qu'un contrat combine un setup
+  // (one-shot) ET du mensuel, on bascule sur « one-shot + mensuel » → le setup
+  // est facturé UNE FOIS (jamais amorti), puis les mensualités, renouvelables
+  // mois par mois. Respecte un choix manuel (modaliteManuallyEdited).
+  useEffect(() => {
+    if (modaliteManuallyEdited) return;
+    if (calc.oneShot > 0 && calc.mensuel > 0) {
+      setModalitePaiement("ONESHOT_PUIS_MENSUEL");
+    }
+  }, [calc.oneShot, calc.mensuel, modaliteManuallyEdited]);
 
   // ---- Mutations ----
   const addLine = () => {
@@ -635,7 +651,10 @@ export function ContractWizard({
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => setModalitePaiement(opt.value)}
+                  onClick={() => {
+                    setModalitePaiement(opt.value);
+                    setModaliteManuallyEdited(true);
+                  }}
                   className={cn(
                     "rounded-md border px-3 py-2 text-left text-sm",
                     modalitePaiement === opt.value

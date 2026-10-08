@@ -57,9 +57,25 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
   const explicitSort = typeof raw.sortBy === "string";
 
   const now = new Date();
+  // Fenêtre glissante : on n'affiche les BROUILLONS que jusqu'à 30 jours dans le
+  // futur (émission ≤ aujourd'hui + 30 j). Les brouillons passés non envoyés
+  // restent visibles ; ceux créés loin à l'avance (ex. mensualités de décembre)
+  // n'apparaissent qu'à l'approche de leur échéance. Évite une liste de
+  // brouillons pléthorique et projetée trop loin.
+  const brouillonHorizon = new Date(now);
+  brouillonHorizon.setDate(brouillonHorizon.getDate() + 30);
 
   // --- Construction du WHERE ---
   const whereConditions: Prisma.ClientInvoiceWhereInput[] = [];
+
+  // Fenêtre glissante 30 j appliquée aux seuls brouillons (les autres statuts
+  // ne sont jamais datés dans le futur).
+  whereConditions.push({
+    OR: [
+      { statut: { not: "BROUILLON" } },
+      { dateEmission: { lte: brouillonHorizon } },
+    ],
+  });
 
   // Un contrat doit être ACTIF (ou suspendu/résilié/expiré = historique
   // facturé) pour que ses factures apparaissent. Les contrats en
@@ -128,6 +144,9 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
   // filtre courant) — alimente le bouton « Envoyer tous les brouillons ».
   const draftsWhere: Prisma.ClientInvoiceWhereInput = {
     statut: "BROUILLON",
+    // Même fenêtre glissante 30 j : on n'envoie / ne compte que les brouillons
+    // échus ou à échoir dans les 30 jours.
+    dateEmission: { lte: brouillonHorizon },
     contract: {
       statut: { in: ["ACTIF", "SUSPENDU", "RESILIE", "EXPIRE"] },
       ...(user.role !== "ADMIN" ? { assigneAId: user.id } : {}),
@@ -254,8 +273,8 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
         />
         <Kpi
           label="Brouillons"
-          value={`${byStatut.BROUILLON?._count ?? 0}`}
-          subtitle="à envoyer"
+          value={`${drafts.length}`}
+          subtitle="à envoyer (30 j)"
         />
       </div>
 
