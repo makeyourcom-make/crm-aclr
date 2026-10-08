@@ -41,6 +41,25 @@ export interface ContractActionResult {
  * app/(app)/emails/actions.ts#defaultSignatureParts (non exportée depuis un
  * fichier "use server"). Renvoie "" si aucune signature.
  */
+/**
+ * URL de base publique de l'app, pour les liens envoyés aux CLIENTS (signature,
+ * PDF). On la dérive des headers de la requête (domaine réel derrière Vercel),
+ * avec repli sur APP_URL puis l'URL de prod — JAMAIS localhost, sinon les liens
+ * des emails sont cassés pour le destinataire.
+ */
+async function appBaseUrl(): Promise<string> {
+  try {
+    const { headers } = await import("next/headers");
+    const h = await headers();
+    const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+    const proto = h.get("x-forwarded-proto") ?? "https";
+    if (host) return `${proto}://${host}`;
+  } catch {
+    // headers() indisponible (hors requête) → repli ci-dessous
+  }
+  return process.env.APP_URL || "https://crm.makeyourcom.ch";
+}
+
 async function contractSignatureParts(
   userId: string,
 ): Promise<{ html: string; text: string }> {
@@ -900,7 +919,7 @@ export async function sendSignatureByEmail(
   }
 
   // Construction de l'email
-  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+  const appUrl = await appBaseUrl();
   const signUrl = `${appUrl}/sign/${inPersonRes.lienSignature}`;
   const pdfUrl = `${appUrl}/api/contrats/${inPersonRes.contractId}/pdf?token=${inPersonRes.lienSignature}`;
   const greeting = contract.prospect.contactPrenom
@@ -1067,7 +1086,7 @@ export async function sendContractSignatureEmail(
     token = sig.lienSignature;
   }
 
-  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+  const appUrl = await appBaseUrl();
   const signUrl = `${appUrl}/sign/${token}`;
   const pdfUrl = `${appUrl}/api/contrats/${contractId}/pdf?token=${token}`;
   const greeting = contract.prospect.contactPrenom
@@ -1292,7 +1311,7 @@ export async function sendContractEmailCustom(
     token = sig.lienSignature;
   }
 
-  const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+  const appUrl = await appBaseUrl();
   const signUrl = `${appUrl}/sign/${token}`;
   const pdfUrl = `${appUrl}/api/contrats/${contractId}/pdf?token=${token}`;
 
