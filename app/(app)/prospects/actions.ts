@@ -214,6 +214,7 @@ export async function updateProspectStatut(
  */
 const INLINE_EDITABLE_FIELDS = [
   "email",
+  "emailFacturation",
   "telephone",
   "telephoneMobile",
   "siteWeb",

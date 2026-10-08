@@ -283,6 +283,24 @@ export default async function ProspectDetailPage({ params }: PageProps) {
               />
             </Field>
 
+            <Field label="Email de facturation">
+              <InlineEditField
+                prospectId={prospect.id}
+                field="emailFacturation"
+                value={prospect.emailFacturation}
+                placeholder={
+                  prospect.email
+                    ? `Par défaut : ${prospect.email}`
+                    : "factures@…"
+                }
+                openHref={
+                  prospect.emailFacturation
+                    ? `mailto:${prospect.emailFacturation}`
+                    : null
+                }
+              />
+            </Field>
+
             <Field label="Téléphone">
               <InlineEditField
                 prospectId={prospect.id}
