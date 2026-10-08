@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
@@ -23,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { getNextRenewalDate, relativeDays } from "@/lib/contract-renewal";
+import { publicBaseUrl } from "@/lib/public-url";
 import { formatCHF, formatDate, formatDateLong, formatMoney } from "@/lib/format";
 import { getContractById } from "@/lib/queries/contracts";
 import { requireUser } from "@/lib/session";
@@ -93,13 +93,10 @@ export default async function ContractDetailPage({ params }: PageProps) {
       (s) => s.statut !== "COMPLETEE" && s.expireA > new Date(),
     ) ?? null;
   // URL absolue OBLIGATOIRE pour le QR (un lien relatif n'est pas scannable :
-  // le téléphone le prend pour du texte). On dérive de l'hôte de la requête,
-  // avec APP_URL en secours.
-  const hdrs = await headers();
-  const host = hdrs.get("x-forwarded-host") ?? hdrs.get("host") ?? "";
-  const proto = hdrs.get("x-forwarded-proto") ?? "https";
-  const appUrl =
-    (host ? `${proto}://${host}` : "") || process.env.APP_URL || "";
+  // le téléphone le prend pour du texte). publicBaseUrl() dérive l'hôte réel
+  // de la requête MAIS ignore tout host local (localhost → lien injoignable
+  // pour le client qui scanne), avec repli APP_URL / prod.
+  const appUrl = await publicBaseUrl();
   let clientSignUrl: string | null = null;
   let aclrSignUrl: string | null = null;
   let clientQr: string | null = null;
