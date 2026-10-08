@@ -76,9 +76,17 @@ export function ProspectForm({
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
     setError,
   } = form;
+
+  // Email de facturation : par défaut identique à l'email de l'entreprise.
+  // On n'écrit rien en base tant que l'admin ne saisit pas une adresse dédiée —
+  // le champ vide signifie « utiliser l'email de l'entreprise » (le serveur
+  // applique le repli emailFacturation ?? email). On reflète donc l'email
+  // général comme placeholder vivant pour que ce comportement soit explicite.
+  const emailValue = watch("email");
 
   const onSubmit = async (data: ProspectFormValues) => {
     setServerError(null);
@@ -162,12 +170,16 @@ export function ProspectForm({
           <Field
             label="Email de facturation"
             error={errors.emailFacturation?.message}
-            hint="Si renseigné, les factures partent ici au lieu de l'email général (ex. boîte compta/Odoo du client)."
+            hint="Par défaut, identique à l'email de l'entreprise. Renseigne une adresse dédiée seulement si les factures doivent partir ailleurs (ex. boîte compta/Odoo du client)."
           >
             <Input
               {...register("emailFacturation")}
               type="email"
-              placeholder="factures@entreprise.ch"
+              placeholder={
+                emailValue?.trim()
+                  ? `Par défaut : ${emailValue.trim()}`
+                  : "factures@entreprise.ch"
+              }
             />
           </Field>
 
