@@ -14,7 +14,7 @@
  *                             pas de session ; sinon le middleware redirige 307 → /login
  *                             et le cron ne s'exécute JAMAIS)
  *   - /api/calendar/feed/*   (abonnement iCalendar — auth par token dans l'URL)
- *   - /api/contrats/*/pdf    (PDF de contrat — auth par ?token= de signature dans
+ *   - /api/contrats/[id]/pdf (PDF de contrat — auth par ?token= de signature dans
  *                             l'URL, pour que le CLIENT sans compte puisse l'ouvrir ;
  *                             la route valide elle-même le token ou la session)
  *   - /api/google/callback   (retour OAuth Google — auth par state signé HMAC)
