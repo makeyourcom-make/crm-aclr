@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { createSignatureRequest } from "@/app/(app)/signatures/actions";
 import { prisma } from "@/lib/db";
+import { sendMail, resolveFromAddress } from "@/lib/mailer";
 import {
   buildSignaturePaymentPlan,
   centsToChf,
@@ -917,20 +918,28 @@ export async function sendSignatureByEmail(
     select: { email: true, name: true },
   });
 
-  const isDryRun = process.env.EMAIL_MODE !== "live";
   const { randomBytes } = await import("node:crypto");
-  const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@aclr.ch>`;
+  const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@makeyourcom.ch>`;
   const threadId = randomBytes(8).toString("hex");
 
-  if (isDryRun) {
-    console.log("📧 [DRY-RUN] Lien de signature envoyé", {
-      to: contract.prospect.email,
-      objet,
-      signUrl,
-    });
-  } else {
-    // V2 : appel Resend ici
-    console.log("📧 [LIVE] Envoi Resend non implémenté en V1");
+  // Envoi RÉEL via Resend (From = domaine makeyourcom.ch, Reply-To = commercial).
+  const { from, replyTo, fromName } = resolveFromAddress({
+    email: userFull?.email ?? "contact@makeyourcom.ch",
+    name: userFull?.name ?? null,
+  });
+  const sendResult = await sendMail({
+    from,
+    fromName,
+    to: contract.prospect.email,
+    subject: objet,
+    html: contenuHtml,
+    text: contenuTexte,
+    replyTo,
+    messageId,
+  });
+  const isDryRun = sendResult.dryRun;
+  if (!sendResult.ok && !isDryRun) {
+    return { ok: false, error: sendResult.error ?? "Échec de l'envoi via Resend." };
   }
 
   // Enregistre l'email
@@ -1070,16 +1079,26 @@ export async function sendContractSignatureEmail(
     where: { id: user.id },
     select: { email: true, name: true },
   });
-  const isDryRun = process.env.EMAIL_MODE !== "live";
   const { randomBytes } = await import("node:crypto");
-  const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@aclr.ch>`;
+  const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@makeyourcom.ch>`;
   const threadId = randomBytes(8).toString("hex");
-  if (isDryRun) {
-    console.log("📧 [DRY-RUN] Lien de signature envoyé", {
-      to: contract.prospect.email,
-      objet,
-      signUrl,
-    });
+  const { from, replyTo, fromName } = resolveFromAddress({
+    email: userFull?.email ?? "contact@makeyourcom.ch",
+    name: userFull?.name ?? null,
+  });
+  const sendResult = await sendMail({
+    from,
+    fromName,
+    to: contract.prospect.email,
+    subject: objet,
+    html: contenuHtml,
+    text: contenuTexte,
+    replyTo,
+    messageId,
+  });
+  const isDryRun = sendResult.dryRun;
+  if (!sendResult.ok && !isDryRun) {
+    return { ok: false, error: sendResult.error ?? "Échec de l'envoi via Resend." };
   }
 
   await prisma.email.create({
@@ -1283,15 +1302,26 @@ export async function sendContractEmailCustom(
     where: { id: user.id },
     select: { email: true, name: true },
   });
-  const isDryRun = process.env.EMAIL_MODE !== "live";
   const { randomBytes } = await import("node:crypto");
-  const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@aclr.ch>`;
+  const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@makeyourcom.ch>`;
   const threadId = randomBytes(8).toString("hex");
-  if (isDryRun) {
-    console.log("📧 [DRY-RUN] Email contrat", {
-      to: contract.prospect.email,
-      subject,
-    });
+  const { from, replyTo, fromName } = resolveFromAddress({
+    email: userFull?.email ?? "contact@makeyourcom.ch",
+    name: userFull?.name ?? null,
+  });
+  const sendResult = await sendMail({
+    from,
+    fromName,
+    to: contract.prospect.email,
+    subject,
+    html: contenuHtml,
+    text: contenuTexte,
+    replyTo,
+    messageId,
+  });
+  const isDryRun = sendResult.dryRun;
+  if (!sendResult.ok && !isDryRun) {
+    return { ok: false, error: sendResult.error ?? "Échec de l'envoi via Resend." };
   }
 
   await prisma.email.create({
