@@ -48,16 +48,23 @@ export interface ContractActionResult {
  * des emails sont cassés pour le destinataire.
  */
 async function appBaseUrl(): Promise<string> {
+  const fallback = process.env.APP_URL || "https://crm.makeyourcom.ch";
   try {
     const { headers } = await import("next/headers");
     const h = await headers();
     const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
     const proto = h.get("x-forwarded-proto") ?? "https";
-    if (host) return `${proto}://${host}`;
+    // Garde-fou : un host local (dev, preview, build) NE DOIT JAMAIS se
+    // retrouver dans un lien envoyé au client. On ignore alors le header et on
+    // retombe sur APP_URL / l'URL de prod.
+    const isLocal =
+      /^(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(:\d+)?$/i.test(host) ||
+      host.endsWith(".local");
+    if (host && !isLocal) return `${proto}://${host}`;
   } catch {
     // headers() indisponible (hors requête) → repli ci-dessous
   }
-  return process.env.APP_URL || "https://crm.makeyourcom.ch";
+  return fallback;
 }
 
 async function contractSignatureParts(
