@@ -36,6 +36,29 @@ export interface ContractActionResult {
 }
 
 /**
+ * Signature pro (bandeau) par défaut de l'utilisateur, à AJOUTER aux emails de
+ * contrat (comme dans le composer de l'onglet Emails). Réplique
+ * app/(app)/emails/actions.ts#defaultSignatureParts (non exportée depuis un
+ * fichier "use server"). Renvoie "" si aucune signature.
+ */
+async function contractSignatureParts(
+  userId: string,
+): Promise<{ html: string; text: string }> {
+  const sig = await prisma.emailSignature.findFirst({
+    where: { userId, isDefault: true },
+    select: { html: true },
+  });
+  if (!sig?.html) return { html: "", text: "" };
+  return {
+    html: `<br /><br />${sig.html}`,
+    text: `\n\n-- \n${sig.html
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()}`,
+  };
+}
+
+/**
  * Calcule le prix unitaire EFFECTIF d'une ligne après "offert" ou remise, en
  * tenant compte de la CIBLE (one-shot, récurrent, ou les deux).
  *  - offert     → met à 0 la/les part(s) ciblée(s). Récurrent offert = gratuit
@@ -927,13 +950,14 @@ export async function sendSignatureByEmail(
     email: userFull?.email ?? "contact@makeyourcom.ch",
     name: userFull?.name ?? null,
   });
+  const sig = await contractSignatureParts(user.id);
   const sendResult = await sendMail({
     from,
     fromName,
     to: contract.prospect.email,
     subject: objet,
-    html: contenuHtml,
-    text: contenuTexte,
+    html: contenuHtml + sig.html,
+    text: contenuTexte + sig.text,
     replyTo,
     messageId,
   });
@@ -954,8 +978,8 @@ export async function sendSignatureByEmail(
       expediteurNom: userFull?.name ?? "",
       destinataireEmail: contract.prospect.email,
       objet,
-      contenuHtml,
-      contenuTexte,
+      contenuHtml: contenuHtml + sig.html,
+      contenuTexte: contenuTexte + sig.text,
       statut: "ENVOYE",
       envoyeLe: new Date(),
       labels: ["signature"],
@@ -1086,13 +1110,14 @@ export async function sendContractSignatureEmail(
     email: userFull?.email ?? "contact@makeyourcom.ch",
     name: userFull?.name ?? null,
   });
+  const sig = await contractSignatureParts(user.id);
   const sendResult = await sendMail({
     from,
     fromName,
     to: contract.prospect.email,
     subject: objet,
-    html: contenuHtml,
-    text: contenuTexte,
+    html: contenuHtml + sig.html,
+    text: contenuTexte + sig.text,
     replyTo,
     messageId,
   });
@@ -1112,8 +1137,8 @@ export async function sendContractSignatureEmail(
       expediteurNom: userFull?.name ?? "",
       destinataireEmail: contract.prospect.email,
       objet,
-      contenuHtml,
-      contenuTexte,
+      contenuHtml: contenuHtml + sig.html,
+      contenuTexte: contenuTexte + sig.text,
       statut: "ENVOYE",
       envoyeLe: new Date(),
       labels: ["signature"],
@@ -1309,13 +1334,14 @@ export async function sendContractEmailCustom(
     email: userFull?.email ?? "contact@makeyourcom.ch",
     name: userFull?.name ?? null,
   });
+  const sig = await contractSignatureParts(user.id);
   const sendResult = await sendMail({
     from,
     fromName,
     to: contract.prospect.email,
     subject,
-    html: contenuHtml,
-    text: contenuTexte,
+    html: contenuHtml + sig.html,
+    text: contenuTexte + sig.text,
     replyTo,
     messageId,
   });
@@ -1335,8 +1361,8 @@ export async function sendContractEmailCustom(
       expediteurNom: userFull?.name ?? "",
       destinataireEmail: contract.prospect.email,
       objet: subject,
-      contenuHtml,
-      contenuTexte,
+      contenuHtml: contenuHtml + sig.html,
+      contenuTexte: contenuTexte + sig.text,
       statut: "ENVOYE",
       envoyeLe: new Date(),
       labels: ["signature"],
