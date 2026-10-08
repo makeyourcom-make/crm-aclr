@@ -159,6 +159,18 @@ export function ProspectForm({
             />
           </Field>
 
+          <Field
+            label="Email de facturation"
+            error={errors.emailFacturation?.message}
+            hint="Si renseigné, les factures partent ici au lieu de l'email général (ex. boîte compta/Odoo du client)."
+          >
+            <Input
+              {...register("emailFacturation")}
+              type="email"
+              placeholder="factures@entreprise.ch"
+            />
+          </Field>
+
           <Field label="Téléphone fixe" error={errors.telephone?.message}>
             <Input
               {...register("telephone")}
@@ -361,10 +373,18 @@ interface FieldProps {
   required?: boolean;
   error?: string;
   className?: string;
+  hint?: string;
   children: React.ReactNode;
 }
 
-function Field({ label, required, error, className, children }: FieldProps) {
+function Field({
+  label,
+  required,
+  error,
+  className,
+  hint,
+  children,
+}: FieldProps) {
   return (
     <div className={cn("space-y-1.5", className)}>
       <Label className="text-sm">
@@ -372,6 +392,9 @@ function Field({ label, required, error, className, children }: FieldProps) {
         {required && <span className="ml-1 text-red-500">*</span>}
       </Label>
       {children}
+      {hint && !error && (
+        <p className="text-[11px] text-muted-foreground">{hint}</p>
+      )}
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );

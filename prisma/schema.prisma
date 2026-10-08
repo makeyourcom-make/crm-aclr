@@ -724,6 +724,9 @@ model Prospect {
   contactFonction String?
 
   email           String?
+  /// Email dédié à l'envoi des factures (ex. boîte compta/Odoo du client). Si
+  /// renseigné, les factures partent ICI au lieu de `email`.
+  emailFacturation String?
   telephone       String?
   telephoneMobile String?
 

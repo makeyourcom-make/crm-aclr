@@ -194,7 +194,15 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
         total: true,
         devise: true,
         contract: {
-          select: { prospect: { select: { raisonSociale: true, email: true } } },
+          select: {
+            prospect: {
+              select: {
+                raisonSociale: true,
+                email: true,
+                emailFacturation: true,
+              },
+            },
+          },
         },
       },
       orderBy: { total: "desc" },
@@ -205,7 +213,8 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
     id: d.id,
     numero: d.numero,
     clientName: d.contract.prospect.raisonSociale,
-    clientEmail: d.contract.prospect.email,
+    clientEmail:
+      d.contract.prospect.emailFacturation ?? d.contract.prospect.email,
     total: Number(d.total),
     devise: d.devise,
   }));

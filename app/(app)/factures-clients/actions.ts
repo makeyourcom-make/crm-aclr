@@ -65,6 +65,7 @@ export async function getInvoiceEmailDefaults(
             select: {
               raisonSociale: true,
               email: true,
+              emailFacturation: true,
               contactPrenom: true,
             },
           },
@@ -116,7 +117,12 @@ export async function getInvoiceEmailDefaults(
 
   return {
     ok: true,
-    recipient: invoice.contract.prospect.email ?? "",
+    // Priorité à l'email de facturation dédié du client (ex. boîte compta/Odoo),
+    // sinon l'email général.
+    recipient:
+      invoice.contract.prospect.emailFacturation ??
+      invoice.contract.prospect.email ??
+      "",
     subject,
     body,
   };
@@ -152,6 +158,7 @@ export async function sendClientInvoiceByEmail(
               id: true,
               raisonSociale: true,
               email: true,
+              emailFacturation: true,
               contactPrenom: true,
             },
           },
@@ -163,7 +170,11 @@ export async function sendClientInvoiceByEmail(
   if (user.role !== "ADMIN" && invoice.contract.assigneAId !== user.id) {
     return { ok: false, error: "Accès refusé." };
   }
-  if (!invoice.contract.prospect.email) {
+  // Destinataire = email de facturation dédié si renseigné, sinon email général.
+  const factureRecipient =
+    invoice.contract.prospect.emailFacturation ??
+    invoice.contract.prospect.email;
+  if (!factureRecipient) {
     return {
       ok: false,
       error: "Pas d'email client — renseigne-le sur la fiche prospect d'abord.",
@@ -272,7 +283,7 @@ export async function sendClientInvoiceByEmail(
   const sendResult = await sendMail({
     from,
     fromName,
-    to: invoice.contract.prospect.email,
+    to: factureRecipient,
     subject,
     html,
     text,
@@ -311,7 +322,7 @@ export async function sendClientInvoiceByEmail(
         messageId,
         expediteurEmail: from,
         expediteurNom: fromName,
-        destinataireEmail: invoice.contract.prospect.email!,
+        destinataireEmail: factureRecipient,
         objet: subject,
         contenuHtml: html,
         contenuTexte: text,
@@ -338,7 +349,7 @@ export async function sendClientInvoiceByEmail(
         type: "EMAIL_ENVOYE",
         date: new Date(),
         sujet: `Facture ${invoice.numero} envoyée`,
-        contenu: `Facture ${invoice.numero} (${totalLabel}, échéance ${echeanceStr}) envoyée par email à ${invoice.contract.prospect.email}.`,
+        contenu: `Facture ${invoice.numero} (${totalLabel}, échéance ${echeanceStr}) envoyée par email à ${factureRecipient}.`,
         statut: "FAIT",
         emailId: email.id,
       },
@@ -366,7 +377,7 @@ export async function sendClientInvoiceByEmail(
   return {
     ok: true,
     dryRun: isDryRun,
-    recipient: invoice.contract.prospect.email!,
+    recipient: factureRecipient,
   };
 }
 

@@ -71,6 +71,7 @@ export const ProspectCreateSchema = z.object({
   contactFonction: stringOptional,
 
   email: emailOptional,
+  emailFacturation: emailOptional,
   telephone: phoneOptional,
   telephoneMobile: phoneOptional,
 
@@ -200,6 +201,7 @@ export const ProspectImportRowSchema = z.object({
   contactPrenom: stringOptional,
   contactFonction: stringOptional,
   email: emailOptional,
+  emailFacturation: emailOptional,
   telephone: phoneOptional,
   telephoneMobile: phoneOptional,
   adresse: stringOptional,

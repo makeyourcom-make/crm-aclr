@@ -43,6 +43,7 @@ export default async function EditProspectPage({ params }: PageProps) {
     contactPrenom: prospect.contactPrenom ?? undefined,
     contactFonction: prospect.contactFonction ?? undefined,
     email: prospect.email ?? undefined,
+    emailFacturation: prospect.emailFacturation ?? undefined,
     telephone: prospect.telephone ?? undefined,
     telephoneMobile: prospect.telephoneMobile ?? undefined,
     adresse: prospect.adresse ?? undefined,
