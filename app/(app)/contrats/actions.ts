@@ -2481,7 +2481,13 @@ export async function generateDueClientInvoices(): Promise<{
       const montant = Number(c.montantOneShot);
       if (montant <= 0) continue;
       created += await prisma.$transaction(async (tx) => {
-        const emission = firstOfMonthUTC(due);
+        // Émission au JOUR EXACT du renouvellement annuel (ex. 15 octobre),
+        // pas au 1er du mois : certaines dates d'anniversaire sont contractuelles
+        // (ex. Créer Ma Société, tous les 15 octobre). Le dédup reste mensuel
+        // (moisKeyLocal) + avancement +12 mois, donc insensible au jour.
+        const emission = new Date(
+          Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate()),
+        );
         const echeance = new Date(emission);
         echeance.setDate(echeance.getDate() + FACTURE_CLIENT_ECHEANCE_JOURS_DEFAULT);
         const periodeFin = new Date(
