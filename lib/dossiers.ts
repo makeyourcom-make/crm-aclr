@@ -20,7 +20,7 @@ export const DOSSIER_STATUTS: DossierStatut[] = [
 export const DOSSIER_STATUT_LABELS: Record<DossierStatut, string> = {
   A_FAIRE: "À faire",
   EN_COURS: "En cours",
-  EN_ATTENTE: "En attente",
+  EN_ATTENTE: "En attente du client",
   A_VERIFIER: "À vérifier",
   TERMINE: "Terminé",
 };

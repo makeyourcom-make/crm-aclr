@@ -8,8 +8,11 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -49,6 +52,18 @@ export function DossiersBoard({
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
+
+  // Détection de collision basée sur le POINTEUR d'abord : une colonne VIDE
+  // (ex. « En attente du client », sans carte) est sinon difficile à cibler avec
+  // rectIntersection (qui compare les rectangles). On retombe sur
+  // rectIntersection si le curseur n'est au-dessus d'aucune zone (ex. gouttière
+  // entre colonnes), pour ne jamais perdre un drop.
+  const collisionDetection: CollisionDetection = (args) => {
+    const pointerCollisions = pointerWithin(args);
+    return pointerCollisions.length > 0
+      ? pointerCollisions
+      : rectIntersection(args);
+  };
 
   /** Carte → clé de sa colonne actuelle (`${userId}:${statut}` ou "TERMINE"). */
   const columnKeyById = useMemo(() => {
@@ -129,6 +144,7 @@ export function DossiersBoard({
   return (
     <DndContext
       sensors={sensors}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
