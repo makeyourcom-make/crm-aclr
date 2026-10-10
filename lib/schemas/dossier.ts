@@ -31,8 +31,17 @@ export const DossierUpdateSchema = z.object({
 
 export const DossierMoveSchema = z.object({
   dossierId: z.string().min(1),
-  // EN_ATTENTE reste dans l'enum Prisma mais n'est plus proposé (cf. lib/dossiers.ts).
-  newStatut: z.enum(["A_FAIRE", "EN_COURS", "TERMINE"]),
+  // Les 5 colonnes du kanban (cf. DOSSIER_STATUTS dans lib/dossiers.ts) sont
+  // toutes des cibles de déplacement valides. EN_ATTENTE et A_VERIFIER doivent
+  // en faire partie, sinon un drop sur ces colonnes échoue en « Formulaire
+  // invalide ».
+  newStatut: z.enum([
+    "A_FAIRE",
+    "EN_COURS",
+    "EN_ATTENTE",
+    "A_VERIFIER",
+    "TERMINE",
+  ]),
   /**
    * Colonnes du kanban éclatées par personne → déposer une carte dans
    * « Sophie - en cours » change le statut ET l'assignation. Absent = on garde
