@@ -460,13 +460,15 @@ export function ContractWizard({
         return;
       }
 
-      // Signer EN DIRECT : on enchaîne sur la page de signature client
-      // (tablette / RDV) en créant la demande de signature.
+      // Signer : on crée la demande de signature et on ouvre la PAGE DU CONTRAT
+      // où s'affichent les QR codes (client + commercial) à scanner au
+      // téléphone. Le lien de signature sur écran reste accessible sous chaque
+      // QR. Cohérent avec le flux "Signer par QR code" du pipeline.
       if (mode === "sign" && res.contractId) {
         const sig = await createSignatureRequest(res.contractId);
         if (sig.ok && sig.lienSignature) {
-          toast.success("Contrat prêt — place à la signature client ✍️");
-          router.push(`/sign/${sig.lienSignature}`);
+          toast.success("Contrat prêt — QR codes de signature prêts ✍️");
+          router.push(`/contrats/${res.contractId}`);
           return;
         }
         toast.error(
