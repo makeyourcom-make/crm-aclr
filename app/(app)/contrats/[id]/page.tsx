@@ -296,6 +296,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
                 dateDebut: contract.dateDebut,
                 dureeMois: contract.dureeMois,
                 statut: contract.statut,
+                reconductible: contract.reconductible,
               });
               if (!renewal) {
                 return (

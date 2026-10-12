@@ -101,6 +101,7 @@ export default async function ProspectDetailPage({ params }: PageProps) {
         statut: true,
         dateDebut: true,
         dureeMois: true,
+        reconductible: true,
         devise: true,
         montantOneShot: true,
         montantMensuel: true,
@@ -136,6 +137,7 @@ export default async function ProspectDetailPage({ params }: PageProps) {
       dateDebut: c.dateDebut,
       dureeMois: c.dureeMois,
       statut: c.statut,
+      reconductible: c.reconductible,
     });
     if (r) echeances.push({ date: r, label: `Renouvellement ${c.numero}` });
   }
@@ -470,6 +472,7 @@ export default async function ProspectDetailPage({ params }: PageProps) {
                   dateDebut: c.dateDebut,
                   dureeMois: c.dureeMois,
                   statut: c.statut,
+                  reconductible: c.reconductible,
                 });
                 return (
                 <Link

@@ -139,6 +139,7 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
           dateDebut: row.original.dateDebut,
           dureeMois: row.original.dureeMois,
           statut: row.original.statut,
+          reconductible: row.original.reconductible,
         });
         if (!renewal) return <span className="text-xs text-muted-foreground">—</span>;
         const rel = relativeDays(renewal);
@@ -196,6 +197,7 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
               dateDebut: c.dateDebut,
               dureeMois: c.dureeMois,
               statut: c.statut,
+              reconductible: c.reconductible,
             });
             return (
               <div key={c.id} className="p-3">

@@ -35,9 +35,9 @@ export function getNextRenewalDate(
   const end = new Date(start);
   end.setMonth(end.getMonth() + duration);
 
-  // Si pas reconductible, c'est la date de fin sèche
+  // Pas reconductible (one-shot / durée ferme) : aucun renouvellement à venir.
   if (contract.reconductible === false) {
-    return end > now ? end : null;
+    return null;
   }
 
   // Reconductible (défaut) : on projette dans le futur par cycles

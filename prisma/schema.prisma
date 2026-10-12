@@ -1076,6 +1076,9 @@ model Contract {
   dateSignature DateTime
   dateDebut     DateTime
   dureeMois     Int      @default(12)
+  /// Reconductible à l'échéance (défaut). false = contrat one-shot / à durée
+  /// ferme : aucune date de renouvellement n'est projetée ni affichée.
+  reconductible Boolean  @default(true)
 
   statut           ContractStatut   @default(ATTENTE_SIGNATURE_CLIENT)
   modalitePaiement ModalitePaiement
