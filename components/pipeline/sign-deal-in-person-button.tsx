@@ -6,8 +6,9 @@
  * Sophie est face client (ou au bureau, peu importe). Elle remplit les
  * paramètres du contrat puis choisit :
  *
- *   📱  Signer en direct → ouvre la page de signature en plein écran,
- *                          tend la tablette au client
+ *   📱  Signer par QR code → ouvre la page du contrat avec les QR codes
+ *                            (client + commercial) à scanner au téléphone ;
+ *                            le lien de signature sur écran reste dispo dessous
  *
  *   📧  Envoyer par email → envoie au prospect le lien de signature +
  *                           le PDF complet, le client signe quand il veut
@@ -19,6 +20,7 @@
  * (commission, factures) s'exécute. Seul le client n'a pas encore signé.
  */
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import {
@@ -55,6 +57,7 @@ export function SignDealInPersonButton({
   dealId,
   hasExistingContract,
 }: SignDealInPersonButtonProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<Action>(null);
   const [, startTransition] = useTransition();
@@ -74,23 +77,30 @@ export function SignDealInPersonButton({
     dateDebut: new Date(dateDebut),
   });
 
-  /** Crée le contrat + signature, ouvre /sign/{token} en plein écran. */
+  /**
+   * Crée le contrat + signature et ouvre la PAGE DU CONTRAT, où s'affichent
+   * les QR codes (client + commercial) à scanner au téléphone pour signer au
+   * doigt. Le lien de signature directe (pour signer sur l'écran de
+   * l'ordinateur / la tablette) reste accessible sous chaque QR. On ne
+   * redirige donc plus vers /sign/{token} brut : la page contrat offre les
+   * deux modes au même endroit.
+   */
   const handleSignNow = () => {
     setPendingAction("sign-now");
     startTransition(async () => {
       const res = await signDealInPerson(payload());
       setPendingAction(null);
-      if (!res.ok || !res.lienSignature) {
+      if (!res.ok || !res.contractId) {
         toast.error(res.error ?? "Impossible de générer la signature.");
         return;
       }
       toast.success(
         res.numero
-          ? `Contrat ${res.numero} créé — passe la tablette au client.`
-          : "Lien prêt — passe la tablette au client.",
+          ? `Contrat ${res.numero} créé — QR codes de signature prêts.`
+          : "QR codes de signature prêts.",
       );
-      window.open(`/sign/${res.lienSignature}`, "_blank", "noopener");
       setOpen(false);
+      router.push(`/contrats/${res.contractId}`);
     });
   };
 
@@ -230,8 +240,8 @@ export function SignDealInPersonButton({
               <div className="grid gap-2 sm:grid-cols-3">
                 <ActionCard
                   icon="Smartphone"
-                  title="Signer en direct"
-                  description="Le client signe sur la tablette."
+                  title="Signer par QR code"
+                  description="QR à scanner au téléphone (ou sur l'écran)."
                   loading={pendingAction === "sign-now"}
                   disabled={pending}
                   onClick={handleSignNow}
