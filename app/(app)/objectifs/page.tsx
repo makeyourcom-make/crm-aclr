@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ObjectiveForm } from "@/components/objectifs/objective-form";
+import { DeleteObjectiveButton } from "@/components/common/entity-delete-buttons";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
@@ -64,11 +65,14 @@ export default async function ObjectifsPage() {
                     <Badge variant="secondary" className="font-normal">
                       {PERIODE_LABEL[o.periode]}
                     </Badge>
-                    {user.role === "ADMIN" && (
-                      <span className="text-xs text-muted-foreground">
-                        {o.user.name}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {user.role === "ADMIN" && (
+                        <span className="text-xs text-muted-foreground">
+                          {o.user.name}
+                        </span>
+                      )}
+                      <DeleteObjectiveButton objectiveId={o.id} />
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {formatDate(o.dateDebut)} → {formatDate(o.dateFin)}

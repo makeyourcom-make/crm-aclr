@@ -7,6 +7,7 @@
  */
 import { deleteEmail } from "@/app/(app)/emails/actions";
 import { deleteActivity } from "@/app/(app)/activites/actions";
+import { deleteObjective } from "@/app/(app)/objectifs/actions";
 import { deleteDeal } from "@/app/(app)/pipeline/actions";
 import { deleteSignature } from "@/app/(app)/signatures/actions";
 import {
@@ -46,6 +47,23 @@ export function DeleteActivityButton({
       }}
       confirmMessage="Supprimer cette activité de l'agenda ?"
       label="Supprimer l'activité"
+    />
+  );
+}
+
+export function DeleteObjectiveButton({
+  objectiveId,
+  variant = "icon",
+}: BaseProps & { objectiveId: string }) {
+  return (
+    <DeleteButton
+      variant={variant}
+      onDelete={async () => {
+        const res = await deleteObjective(objectiveId);
+        return { ok: res.ok, error: res.error };
+      }}
+      confirmMessage="Supprimer cet objectif ?"
+      label="Supprimer l'objectif"
     />
   );
 }
