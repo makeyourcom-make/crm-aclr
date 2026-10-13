@@ -146,6 +146,7 @@ export function ObjectiveForm({ users, defaultUserId }: ObjectiveFormProps) {
               onChange={(e) => setPeriode(e.target.value as ObjectivePeriode)}
               className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
             >
+              <option value="QUOTIDIEN">Quotidien (par jour)</option>
               <option value="HEBDOMADAIRE">Hebdomadaire</option>
               <option value="MENSUEL">Mensuel</option>
               <option value="TRIMESTRIEL">Trimestriel</option>

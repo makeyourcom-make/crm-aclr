@@ -15,6 +15,7 @@ export const metadata = { title: "Objectifs" };
 export const dynamic = "force-dynamic";
 
 const PERIODE_LABEL: Record<string, string> = {
+  QUOTIDIEN: "Jour",
   HEBDOMADAIRE: "Semaine",
   MENSUEL: "Mois",
   TRIMESTRIEL: "Trimestre",

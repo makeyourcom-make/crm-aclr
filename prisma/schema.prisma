@@ -282,6 +282,7 @@ enum SignatureStatut {
 }
 
 enum ObjectivePeriode {
+  QUOTIDIEN
   HEBDOMADAIRE
   MENSUEL
   TRIMESTRIEL

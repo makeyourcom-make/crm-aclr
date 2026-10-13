@@ -532,6 +532,7 @@ export const getSignatureStatutLabel = (v: SignatureStatut) =>
 // ============================================================================
 
 const OBJECTIVE_PERIODE_LABELS: Record<ObjectivePeriode, string> = {
+  QUOTIDIEN: "Quotidien",
   HEBDOMADAIRE: "Hebdomadaire",
   MENSUEL: "Mensuel",
   TRIMESTRIEL: "Trimestriel",
