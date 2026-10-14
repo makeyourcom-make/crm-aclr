@@ -2421,7 +2421,11 @@ export async function generateDueClientInvoices(): Promise<{
     // backfill des mois passés — évite de recréer d'anciennes factures).
     const floorMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const contracts = await prisma.contract.findMany({
-      where: { statut: "ACTIF" },
+      // Les contrats à jour fixe (facturationJourMois) sont facturés
+      // EXCLUSIVEMENT par generateAnticipatedInvoices (sur le jour configuré) :
+      // on les exclut ici pour que le filet ne crée pas le mois courant avant
+      // ce jour-là.
+      where: { statut: "ACTIF", facturationJourMois: null },
       select: {
         id: true,
         modalitePaiement: true,
@@ -2579,6 +2583,7 @@ export async function generateAnticipatedInvoices(): Promise<{
         devise: true,
         facturationReprendLe: true,
         facturationJourMois: true,
+        facturationAnticipee: true,
         montantOneShot: true,
         montantMensuel: true,
         lignesMeta: true,
@@ -2597,9 +2602,14 @@ export async function generateAnticipatedInvoices(): Promise<{
       const billing = reconstructContractBilling(c);
       if (billing.mensuelCents === 0) continue;
 
-      // Mois cible = mois SUIVANT (1er UTC).
+      // Mois cible = mois SUIVANT (facturation d'avance) ou mois EN COURS
+      // (facturationAnticipee = false), 1er UTC.
       const target = new Date(
-        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth() + (c.facturationAnticipee ? 1 : 0),
+          1,
+        ),
       );
       const targetKey = moisKeyLocal(target);
 
