@@ -92,7 +92,7 @@ export const PROSPECT_STATUT_COLORS: Record<ProspectStatut, string> = {
   PROPOSITION_ENVOYEE: "bg-amber-100 text-amber-700",
   SIGNE: "bg-emerald-100 text-emerald-700",
   PERDU: "bg-slate-200 text-slate-500",
-  NUMERO_INVALIDE: "bg-orange-100 text-orange-700",
+  NUMERO_INVALIDE: "bg-pink-100 text-pink-700",
   NE_PAS_RAPPELER: "bg-red-100 text-red-700",
 };
 
