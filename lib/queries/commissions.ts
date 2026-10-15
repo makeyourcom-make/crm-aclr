@@ -182,35 +182,97 @@ export async function getCommissionsByUser() {
     _sum: { montant: true },
   });
 
+  // Somme des paiements par commission et par statut.
+  const sumByCommission = new Map<
+    string,
+    { acquis: number; aVenir: number; annule: number }
+  >();
+  for (const g of grouped) {
+    const cur = sumByCommission.get(g.commissionId) ?? {
+      acquis: 0,
+      aVenir: 0,
+      annule: 0,
+    };
+    const m = Number(g._sum.montant ?? 0);
+    if (g.statut === "PAYE") cur.acquis += m;
+    else if (g.statut === "PREVU") cur.aVenir += m;
+    else if (g.statut === "ANNULE") cur.annule += m;
+    sumByCommission.set(g.commissionId, cur);
+  }
+
+  // Commissions sur contrats signés (même filtre que l'agrégat ci-dessus) +
+  // contexte contrat/client pour le détail dépliable.
   const commissions = await prisma.commission.findMany({
-    select: { id: true, userId: true, user: { select: { id: true, name: true } } },
+    where: {
+      contract: {
+        statut: {
+          notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"],
+        },
+      },
+    },
+    select: {
+      id: true,
+      userId: true,
+      user: { select: { id: true, name: true } },
+      contract: {
+        select: {
+          id: true,
+          numero: true,
+          prospect: { select: { raisonSociale: true } },
+        },
+      },
+    },
   });
 
+  interface Detail {
+    commissionId: string;
+    contractId: string;
+    contractNumero: string;
+    clientName: string;
+    acquis: number;
+    aVenir: number;
+    annule: number;
+  }
   const map = new Map<
     string,
-    { userId: string; userName: string; acquis: number; aVenir: number; annule: number }
+    {
+      userId: string;
+      userName: string;
+      acquis: number;
+      aVenir: number;
+      annule: number;
+      details: Detail[];
+    }
   >();
 
   for (const c of commissions) {
+    const s = sumByCommission.get(c.id) ?? { acquis: 0, aVenir: 0, annule: 0 };
     const cur = map.get(c.userId) ?? {
       userId: c.userId,
       userName: c.user.name,
       acquis: 0,
       aVenir: 0,
       annule: 0,
+      details: [] as Detail[],
     };
-    for (const g of grouped) {
-      if (g.commissionId === c.id) {
-        const m = Number(g._sum.montant ?? 0);
-        if (g.statut === "PAYE") cur.acquis += m;
-        else if (g.statut === "PREVU") cur.aVenir += m;
-        else if (g.statut === "ANNULE") cur.annule += m;
-      }
-    }
+    cur.acquis += s.acquis;
+    cur.aVenir += s.aVenir;
+    cur.annule += s.annule;
+    cur.details.push({
+      commissionId: c.id,
+      contractId: c.contract.id,
+      contractNumero: c.contract.numero,
+      clientName: c.contract.prospect.raisonSociale,
+      acquis: s.acquis,
+      aVenir: s.aVenir,
+      annule: s.annule,
+    });
     map.set(c.userId, cur);
   }
 
-  return Array.from(map.values()).sort((a, b) =>
-    a.userName.localeCompare(b.userName),
-  );
+  const rows = Array.from(map.values());
+  for (const r of rows) {
+    r.details.sort((a, b) => b.acquis + b.aVenir - (a.acquis + a.aVenir));
+  }
+  return rows.sort((a, b) => a.userName.localeCompare(b.userName));
 }
