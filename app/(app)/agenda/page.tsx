@@ -10,6 +10,11 @@ import { MonthView } from "@/components/agenda/month-view";
 import { WeekView } from "@/components/agenda/week-view";
 import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
+import {
+  activityCategory,
+  ALL_CATEGORY_KEYS,
+  type ActivityCategory,
+} from "@/lib/activity-category";
 import { AGENDA_DEFAULT_VIEW } from "@/lib/agenda-view";
 import { prisma } from "@/lib/db";
 import { getAgendaRange, getStartOfWeek } from "@/lib/queries/agenda";
@@ -43,6 +48,22 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   const refDate = isNaN(requested.getTime()) ? new Date() : requested;
   refDate.setHours(0, 0, 0, 0);
   const hideDone = raw.hideDone === "1";
+
+  // Filtre par catégorie d'activité (?cat=rdv,mail,appel). Absent = tout.
+  const catParam = typeof raw.cat === "string" ? raw.cat : undefined;
+  const activeCats: ActivityCategory[] = catParam
+    ? (catParam
+        .split(",")
+        .map((c) => c.trim())
+        .filter((c) =>
+          ALL_CATEGORY_KEYS.includes(c as ActivityCategory),
+        ) as ActivityCategory[])
+    : ALL_CATEGORY_KEYS;
+  // Filtre actif dès qu'un cat= est fourni et qu'il ne couvre pas tout
+  // (y compris "none"/vide → on n'affiche rien).
+  const catFilterActive =
+    catParam !== undefined &&
+    activeCats.length < ALL_CATEGORY_KEYS.length;
 
   // Construit la liste des colonnes (dates) + l'intervalle de requête
   let dates: Date[];
@@ -101,13 +122,17 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   // Le sélecteur de client du dialogue d'activité fait sa recherche côté
   // serveur (ProspectCombobox) — plus besoin de précharger la liste entière
   // des prospects ici (jusqu'à ~121k pour l'admin), gros gain de payload.
-  const activities = await getAgendaRange(
+  const allActivities = await getAgendaRange(
     user,
     rangeStart,
     rangeEnd,
     hideDone,
     view,
   );
+  const activeCatSet = new Set(activeCats);
+  const activities = catFilterActive
+    ? allActivities.filter((a) => activeCatSet.has(activityCategory(a.type)))
+    : allActivities;
 
   const today = new Date();
 
@@ -170,6 +195,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
           date={refDate}
           view={view}
           hideDone={hideDone}
+          activeCats={activeCats}
         />
       </div>
 

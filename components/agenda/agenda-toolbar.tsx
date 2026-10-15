@@ -3,6 +3,11 @@
 import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button";
+import {
+  ACTIVITY_CATEGORIES,
+  ALL_CATEGORY_KEYS,
+  type ActivityCategory,
+} from "@/lib/activity-category";
 import { AGENDA_DEFAULT_VIEW } from "@/lib/agenda-view";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +19,8 @@ interface AgendaToolbarProps {
   date: Date;
   view: string;
   hideDone: boolean;
+  /** Catégories d'activité affichées (toutes = pas de filtre). */
+  activeCats: ActivityCategory[];
 }
 
 function toIso(d: Date): string {
@@ -28,13 +35,47 @@ function startOfWeek(d: Date): Date {
   return x;
 }
 
-export function AgendaToolbar({ mode, date, view, hideDone }: AgendaToolbarProps) {
+export function AgendaToolbar({
+  mode,
+  date,
+  view,
+  hideDone,
+  activeCats,
+}: AgendaToolbarProps) {
+  // Paramètre cat= à préserver dans les liens (omis quand tout est affiché).
+  const allShown = activeCats.length === ALL_CATEGORY_KEYS.length;
+  const catValue = allShown
+    ? null
+    : activeCats.length === 0
+      ? "none"
+      : activeCats.join(",");
+
   const href = (m: AgendaMode, d: Date) => {
     const sp = new URLSearchParams();
     sp.set("mode", m);
     sp.set("date", toIso(d));
     if (view && view !== AGENDA_DEFAULT_VIEW) sp.set("view", view);
     if (hideDone) sp.set("hideDone", "1");
+    if (catValue) sp.set("cat", catValue);
+    return `/agenda?${sp.toString()}`;
+  };
+
+  // Lien d'un chip de catégorie : bascule cette catégorie dans l'ensemble
+  // affiché. Tout affiché → on omet le paramètre.
+  const chipHref = (c: ActivityCategory) => {
+    const set = new Set(activeCats);
+    if (set.has(c)) set.delete(c);
+    else set.add(c);
+    const next = ALL_CATEGORY_KEYS.filter((k) => set.has(k));
+    const sp = new URLSearchParams();
+    sp.set("mode", mode);
+    sp.set("date", toIso(date));
+    if (view && view !== AGENDA_DEFAULT_VIEW) sp.set("view", view);
+    if (hideDone) sp.set("hideDone", "1");
+    if (next.length > 0 && next.length < ALL_CATEGORY_KEYS.length)
+      sp.set("cat", next.join(","));
+    // next vide = aucune catégorie : on encode "none" pour ne rien afficher.
+    if (next.length === 0) sp.set("cat", "none");
     return `/agenda?${sp.toString()}`;
   };
 
@@ -122,12 +163,50 @@ export function AgendaToolbar({ mode, date, view, hideDone }: AgendaToolbarProps
           sp.set("date", toIso(date));
           if (view && view !== AGENDA_DEFAULT_VIEW) sp.set("view", view);
           if (!hideDone) sp.set("hideDone", "1");
+          if (catValue) sp.set("cat", catValue);
           return `/agenda?${sp.toString()}`;
         })()}
         className="text-xs text-muted-foreground underline-offset-2 hover:underline"
       >
         {hideDone ? "Afficher tout" : "Cacher les « fait »"}
       </Link>
+
+      {/* Filtre par type d'activité — chips à bascule (RDV / Mails / Appels / Autres) */}
+      <div className="flex w-full items-center gap-1.5">
+        <span className="text-xs text-muted-foreground">Afficher :</span>
+        {ACTIVITY_CATEGORIES.map((c) => {
+          const on = activeCats.includes(c.key);
+          return (
+            <Link
+              key={c.key}
+              href={chipHref(c.key)}
+              className={cn(
+                "rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+                on
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {c.label}
+            </Link>
+          );
+        })}
+        {!allShown && (
+          <Link
+            href={(() => {
+              const sp = new URLSearchParams();
+              sp.set("mode", mode);
+              sp.set("date", toIso(date));
+              if (view && view !== AGENDA_DEFAULT_VIEW) sp.set("view", view);
+              if (hideDone) sp.set("hideDone", "1");
+              return `/agenda?${sp.toString()}`;
+            })()}
+            className="ml-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
+          >
+            Réinitialiser
+          </Link>
+        )}
+      </div>
     </div>
   );
 }

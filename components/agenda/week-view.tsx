@@ -49,6 +49,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { defaultDureeByType } from "@/lib/activity-category";
 import { STATUT_FILL, textOn } from "@/lib/agenda-colors";
 import { formatTime } from "@/lib/format";
 import { getActivityTypeLabel } from "@/lib/labels";
@@ -62,7 +63,6 @@ const WEEKDAY_SHORT = ["DIM.", "LUN.", "MAR.", "MER.", "JEU.", "VEN.", "SAM."];
 const HOUR_HEIGHT = 48; // px par heure
 const TOTAL_HEIGHT = 24 * HOUR_HEIGHT;
 const GUTTER_W = 56; // largeur gouttière heures
-const DEFAULT_DUR_MIN = 30; // durée par défaut si non renseignée
 const SCROLL_TO_HOUR = 7; // ancrage du scroll au chargement
 
 interface UserOption {
@@ -108,7 +108,9 @@ function minOfDay(d: Date): number {
   return d.getHours() * 60 + d.getMinutes();
 }
 function dureeMin(a: AgendaActivity): number {
-  return a.duree && a.duree > 0 ? a.duree : DEFAULT_DUR_MIN;
+  // Durée saisie/redimensionnée à la main prioritaire ; sinon défaut par type
+  // (appels 30 min, mails et RDV 1 h).
+  return a.duree && a.duree > 0 ? a.duree : defaultDureeByType(a.type);
 }
 function hhmm(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
