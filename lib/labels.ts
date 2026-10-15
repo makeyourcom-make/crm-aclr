@@ -88,11 +88,11 @@ export const PROSPECT_STATUT_COLORS: Record<ProspectStatut, string> = {
   VIERGE: "", // badge non rendu (statut « vierge » = vu, pas contacté)
   CONTACTE: "bg-blue-100 text-blue-700",
   QUALIFIE: "bg-cyan-100 text-cyan-700",
-  RDV_PRIS: "bg-violet-100 text-violet-700",
+  RDV_PRIS: "bg-pink-100 text-pink-700",
   PROPOSITION_ENVOYEE: "bg-amber-100 text-amber-700",
   SIGNE: "bg-emerald-100 text-emerald-700",
   PERDU: "bg-slate-200 text-slate-500",
-  NUMERO_INVALIDE: "bg-pink-100 text-pink-700",
+  NUMERO_INVALIDE: "bg-orange-100 text-orange-700",
   NE_PAS_RAPPELER: "bg-red-100 text-red-700",
 };
 
