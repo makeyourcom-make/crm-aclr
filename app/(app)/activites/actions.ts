@@ -453,9 +453,21 @@ export async function recordCallResult(
             where: { id: updated.prospectId },
             data: { statut: "NE_PAS_RAPPELER" },
           });
-        } else if (r !== "INVALIDE") {
-          // Numéro mort (INVALIDE) → pas un vrai contact, aucune promotion.
-          // Sinon on avance selon le résultat, depuis les statuts « en amont ».
+        } else if (r === "INVALIDE") {
+          // Numéro mort → classe en NUMERO_INVALIDE, mais uniquement depuis les
+          // statuts « en amont » (on n'écrase pas un RDV / signé / proposition,
+          // ni NE_PAS_RAPPELER).
+          await tx.prospect.updateMany({
+            where: {
+              id: updated.prospectId,
+              statut: {
+                in: ["NOUVEAU", "VIERGE", "CONTACTE", "QUALIFIE", "PERDU"],
+              },
+            },
+            data: { statut: "NUMERO_INVALIDE" },
+          });
+        } else {
+          // On avance selon le résultat, depuis les statuts « en amont ».
           const promo: { target: ProspectStatut; from: ProspectStatut[] } =
             r === "RDV_PRIS"
               ? {
