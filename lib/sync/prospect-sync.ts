@@ -73,7 +73,9 @@ export function mapStatutFromMaster(raw: string | null | undefined): ProspectSta
   const s = (raw ?? "").trim().toLowerCase();
   if (!s) return "NOUVEAU";
   if (s.includes("pas int") || s.includes("perdu")) return "PERDU";
-  if (s.includes("ne plus") || s.includes("invalide")) return "NE_PAS_RAPPELER";
+  if (s.includes("invalide") || s.includes("injoignable"))
+    return "NUMERO_INVALIDE";
+  if (s.includes("ne plus")) return "NE_PAS_RAPPELER";
   if (s.includes("répondu") || s.includes("repondu")) return "CONTACTE";
   if (s.includes("relan") || s.includes("envoy")) return "CONTACTE";
   return "NOUVEAU";
@@ -90,6 +92,7 @@ export function mapStatutToMaster(statut: ProspectStatut): string {
     PROPOSITION_ENVOYEE: "Proposition envoyée",
     SIGNE: "Signé",
     PERDU: "Répondu - Pas intéressé",
+    NUMERO_INVALIDE: "Numéro invalide",
     NE_PAS_RAPPELER: "Ne plus contacter",
   };
   return M[statut] ?? "";
