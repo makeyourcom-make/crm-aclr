@@ -36,24 +36,14 @@ export function DailyGoalsBanner({
 }: DailyGoalsBannerProps) {
   const items = [
     {
-      label: "Appels",
-      value: counters.appels,
-      goal: goals.appels,
-    },
-    {
-      label: "Emails",
-      value: counters.emails,
-      goal: goals.emails,
-    },
-    {
       label: "RDV pris",
       value: counters.rdvPris,
       goal: goals.rdv,
     },
     {
-      label: "Propositions",
-      value: counters.propositionsEnvoyees,
-      goal: goals.propositions,
+      label: "RDV effectué",
+      value: counters.rdvEffectues,
+      goal: goals.rdv,
     },
   ];
 
@@ -95,7 +85,7 @@ export function DailyGoalsBanner({
   return (
     <div className="sticky top-14 z-20 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="px-6 py-3 lg:px-8">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2">
           {items.map((item) => (
             <GoalBar key={item.label} {...item} />
           ))}

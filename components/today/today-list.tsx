@@ -25,24 +25,13 @@ export function TodayList({ sections, counters, goals }: TodayListProps) {
 
   // La journée est "terminée" SEULEMENT si tous les objectifs du jour
   // sont atteints. Sinon il reste du travail, peu importe l'agenda.
-  const allGoalsReached =
-    counters.appels >= goals.appels &&
-    counters.emails >= goals.emails &&
-    counters.rdvPris >= goals.rdv &&
-    counters.propositionsEnvoyees >= goals.propositions;
+  // Objectif du jour recentré sur les RDV pris (décrochés au téléphone).
+  const allGoalsReached = counters.rdvPris >= goals.rdv;
 
   // Calcul du manque pour l'encouragement contextuel
   const manques: string[] = [];
-  if (counters.appels < goals.appels)
-    manques.push(`${goals.appels - counters.appels} appel·s`);
-  if (counters.emails < goals.emails)
-    manques.push(`${goals.emails - counters.emails} email·s`);
   if (counters.rdvPris < goals.rdv)
     manques.push(`${goals.rdv - counters.rdvPris} RDV`);
-  if (counters.propositionsEnvoyees < goals.propositions)
-    manques.push(
-      `${goals.propositions - counters.propositionsEnvoyees} proposition·s`,
-    );
 
   return (
     <div className="space-y-6">

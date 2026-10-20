@@ -50,6 +50,8 @@ export interface TodayCounters {
   emails: number;
   /** RDV PRIS aujourd'hui (décrochés au téléphone = résultat d'appel RDV_PRIS). */
   rdvPris: number;
+  /** RDV EFFECTUÉS aujourd'hui (rendez-vous honorés = activité RDV faite). */
+  rdvEffectues: number;
   propositionsEnvoyees: number;
 }
 
@@ -118,6 +120,7 @@ export async function getTodayCockpit(
     appelsAujourdhui,
     emailsAujourdhui,
     rdvPrisAujourdhui,
+    rdvEffectuesAujourdhui,
     propositionsAujourdhui,
     appelsSemaine,
     emailsSemaine,
@@ -175,6 +178,17 @@ export async function getTodayCockpit(
         ...scopeWhere,
         resultat: "RDV_PRIS",
         date: { gte: startOfToday, lte: endOfToday },
+      },
+    }),
+    // RDV EFFECTUÉS aujourd'hui = rendez-vous honorés : activité de type RDV,
+    // rattachée à un client, faite aujourd'hui.
+    prisma.activity.count({
+      where: {
+        ...scopeWhere,
+        type: { in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"] },
+        prospectId: { not: null },
+        date: { gte: startOfToday, lte: endOfToday },
+        statut: "FAIT",
       },
     }),
     // Heuristique propositions : les prospects qu'on a fait passer à
@@ -253,6 +267,7 @@ export async function getTodayCockpit(
       appels: appelsAujourdhui,
       emails: emailsAujourdhui,
       rdvPris: rdvPrisAujourdhui,
+      rdvEffectues: rdvEffectuesAujourdhui,
       propositionsEnvoyees: propositionsAujourdhui,
     },
     semaine: {
