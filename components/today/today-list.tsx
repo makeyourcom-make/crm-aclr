@@ -28,7 +28,7 @@ export function TodayList({ sections, counters, goals }: TodayListProps) {
   const allGoalsReached =
     counters.appels >= goals.appels &&
     counters.emails >= goals.emails &&
-    counters.rdvHonores >= goals.rdv &&
+    counters.rdvPris >= goals.rdv &&
     counters.propositionsEnvoyees >= goals.propositions;
 
   // Calcul du manque pour l'encouragement contextuel
@@ -37,8 +37,8 @@ export function TodayList({ sections, counters, goals }: TodayListProps) {
     manques.push(`${goals.appels - counters.appels} appel·s`);
   if (counters.emails < goals.emails)
     manques.push(`${goals.emails - counters.emails} email·s`);
-  if (counters.rdvHonores < goals.rdv)
-    manques.push(`${goals.rdv - counters.rdvHonores} RDV`);
+  if (counters.rdvPris < goals.rdv)
+    manques.push(`${goals.rdv - counters.rdvPris} RDV`);
   if (counters.propositionsEnvoyees < goals.propositions)
     manques.push(
       `${goals.propositions - counters.propositionsEnvoyees} proposition·s`,

@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Bandeau sticky des objectifs du jour (4 KPI avec progress bars).
  *
@@ -5,7 +7,12 @@
  *   - Rouge   si < 50 % de l'objectif
  *   - Orange  si 50-80 %
  *   - Vert    si ≥ 80 %
+ *
+ * Cotillons 🎉 quand l'objectif de RDV pris du jour est atteint (une fois/jour).
  */
+import { useEffect } from "react";
+import confetti from "canvas-confetti";
+
 import { DEFAULT_DAILY_GOALS } from "@/lib/constants";
 import type { TodayCounters } from "@/lib/queries/today";
 import { cn } from "@/lib/utils";
@@ -39,8 +46,8 @@ export function DailyGoalsBanner({
       goal: goals.emails,
     },
     {
-      label: "RDV honorés",
-      value: counters.rdvHonores,
+      label: "RDV pris",
+      value: counters.rdvPris,
       goal: goals.rdv,
     },
     {
@@ -49,6 +56,26 @@ export function DailyGoalsBanner({
       goal: goals.propositions,
     },
   ];
+
+  // Cotillons quand l'objectif de RDV pris du jour est atteint — une seule fois
+  // par jour (garde-fou localStorage), côté client.
+  const rdvDone = goals.rdv > 0 && counters.rdvPris >= goals.rdv;
+  useEffect(() => {
+    if (!rdvDone) return;
+    const key = `cotillons-rdv-${new Date().toISOString().slice(0, 10)}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, "1");
+    } catch {
+      // localStorage indisponible → on tire quand même les cotillons
+    }
+    const end = Date.now() + 1500;
+    (function frame() {
+      confetti({ particleCount: 5, angle: 60, spread: 60, startVelocity: 45, origin: { x: 0, y: 0.7 } });
+      confetti({ particleCount: 5, angle: 120, spread: 60, startVelocity: 45, origin: { x: 1, y: 0.7 } });
+      if (Date.now() < end) requestAnimationFrame(frame);
+    })();
+  }, [rdvDone]);
 
   // Encouragement contextuel : le KPI le plus en retard
   const worst = items

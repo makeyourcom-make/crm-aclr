@@ -48,7 +48,8 @@ export interface TodaySections {
 export interface TodayCounters {
   appels: number;
   emails: number;
-  rdvHonores: number;
+  /** RDV PRIS aujourd'hui (décrochés au téléphone = résultat d'appel RDV_PRIS). */
+  rdvPris: number;
   propositionsEnvoyees: number;
 }
 
@@ -116,7 +117,7 @@ export async function getTodayCockpit(
     tomorrow,
     appelsAujourdhui,
     emailsAujourdhui,
-    rdvHonoresAujourdhui,
+    rdvPrisAujourdhui,
     propositionsAujourdhui,
     appelsSemaine,
     emailsSemaine,
@@ -167,16 +168,13 @@ export async function getTodayCockpit(
         date: { gte: startOfToday, lte: endOfToday },
       },
     }),
+    // RDV PRIS aujourd'hui = rendez-vous décrochés au téléphone : activité
+    // (appel) dont le RÉSULTAT est RDV_PRIS, enregistrée aujourd'hui.
     prisma.activity.count({
       where: {
         ...scopeWhere,
-        type: {
-          in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"],
-        },
-        // RDV honoré = rattaché à un client (exclut phoning / points internes).
-        prospectId: { not: null },
+        resultat: "RDV_PRIS",
         date: { gte: startOfToday, lte: endOfToday },
-        statut: "FAIT",
       },
     }),
     // Heuristique propositions : les prospects qu'on a fait passer à
@@ -205,15 +203,12 @@ export async function getTodayCockpit(
         date: { gte: startOfWeek, lte: endOfWeek },
       },
     }),
+    // RDV PRIS cette semaine (résultat d'appel RDV_PRIS).
     prisma.activity.count({
       where: {
         ...scopeWhere,
-        type: {
-          in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"],
-        },
-        prospectId: { not: null },
+        resultat: "RDV_PRIS",
         date: { gte: startOfWeek, lte: endOfWeek },
-        statut: "FAIT",
       },
     }),
     prisma.contract.count({
@@ -257,7 +252,7 @@ export async function getTodayCockpit(
     jour: {
       appels: appelsAujourdhui,
       emails: emailsAujourdhui,
-      rdvHonores: rdvHonoresAujourdhui,
+      rdvPris: rdvPrisAujourdhui,
       propositionsEnvoyees: propositionsAujourdhui,
     },
     semaine: {
