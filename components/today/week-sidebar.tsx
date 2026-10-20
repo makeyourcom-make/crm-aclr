@@ -3,31 +3,43 @@ import { DEFAULT_WEEKLY_GOALS } from "@/lib/constants";
 import type { WeeklyCounters } from "@/lib/queries/today";
 import { cn } from "@/lib/utils";
 
-interface WeekSidebarProps {
-  counters: WeeklyCounters;
+interface WeeklyGoals {
+  appels: number;
+  emails: number;
+  rdv: number;
+  signatures: number;
 }
 
-export function WeekSidebar({ counters }: WeekSidebarProps) {
+interface WeekSidebarProps {
+  counters: WeeklyCounters;
+  /** Cibles hebdo (objectif QUOTIDIEN × 5 jours ouvrés, sinon défauts). */
+  goals?: WeeklyGoals;
+}
+
+export function WeekSidebar({
+  counters,
+  goals = DEFAULT_WEEKLY_GOALS,
+}: WeekSidebarProps) {
   const items = [
     {
       label: "Appels semaine",
       value: counters.appels,
-      goal: DEFAULT_WEEKLY_GOALS.appels,
+      goal: goals.appels,
     },
     {
       label: "Emails semaine",
       value: counters.emails,
-      goal: DEFAULT_WEEKLY_GOALS.emails,
+      goal: goals.emails,
     },
     {
       label: "RDV semaine",
       value: counters.rdv,
-      goal: DEFAULT_WEEKLY_GOALS.rdv,
+      goal: goals.rdv,
     },
     {
       label: "Signatures",
       value: counters.signatures,
-      goal: DEFAULT_WEEKLY_GOALS.signatures,
+      goal: goals.signatures,
     },
   ];
 

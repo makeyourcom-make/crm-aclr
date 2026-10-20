@@ -4,7 +4,8 @@ import { DailyGoalsBanner } from "@/components/today/daily-goals-banner";
 import { TodayList } from "@/components/today/today-list";
 import { TodayShortcuts } from "@/components/today/today-shortcuts";
 import { WeekSidebar } from "@/components/today/week-sidebar";
-import { DEFAULT_DAILY_GOALS } from "@/lib/constants";
+import { DEFAULT_DAILY_GOALS, DEFAULT_WEEKLY_GOALS } from "@/lib/constants";
+import { prisma } from "@/lib/db";
 import { getTodayCockpit } from "@/lib/queries/today";
 import { requireUser } from "@/lib/session";
 
@@ -20,6 +21,38 @@ export default async function AujourdhuiPage() {
   }
   const cockpit = await getTodayCockpit(user);
 
+  // Objectif QUOTIDIEN actif du collaborateur → cibles du jour (sinon défauts).
+  const now = new Date();
+  const objQuotidien = await prisma.objective.findFirst({
+    where: {
+      userId: user.id,
+      periode: "QUOTIDIEN",
+      isActif: true,
+      dateDebut: { lte: now },
+      dateFin: { gte: now },
+    },
+    orderBy: { dateFin: "desc" },
+  });
+  const dailyGoals = {
+    appels: objQuotidien?.nbAppelsObjectif ?? DEFAULT_DAILY_GOALS.appels,
+    emails: objQuotidien?.nbEmailsObjectif ?? DEFAULT_DAILY_GOALS.emails,
+    rdv: objQuotidien?.nbRdvObjectif ?? DEFAULT_DAILY_GOALS.rdv,
+    propositions:
+      objQuotidien?.nbPropositionsObjectif ?? DEFAULT_DAILY_GOALS.propositions,
+  };
+  // Hebdo = objectif quotidien × 5 jours ouvrés (sinon défauts hebdo).
+  const weeklyGoals = objQuotidien
+    ? {
+        appels: dailyGoals.appels * 5,
+        emails: dailyGoals.emails * 5,
+        rdv: dailyGoals.rdv * 5,
+        signatures:
+          (objQuotidien.nbSignaturesObjectif ?? 0) > 0
+            ? objQuotidien.nbSignaturesObjectif! * 5
+            : DEFAULT_WEEKLY_GOALS.signatures,
+      }
+    : DEFAULT_WEEKLY_GOALS;
+
   const todayLabel = new Date().toLocaleDateString("fr-CH", {
     weekday: "long",
     day: "numeric",
@@ -31,7 +64,7 @@ export default async function AujourdhuiPage() {
     <>
       <TodayShortcuts />
 
-      <DailyGoalsBanner counters={cockpit.jour} />
+      <DailyGoalsBanner counters={cockpit.jour} goals={dailyGoals} />
 
       <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
         <div className="mb-6">
@@ -49,13 +82,13 @@ export default async function AujourdhuiPage() {
             <TodayList
               sections={cockpit.sections}
               counters={cockpit.jour}
-              goals={DEFAULT_DAILY_GOALS}
+              goals={dailyGoals}
             />
           </div>
 
           {/* Sidebar droite — compteurs hebdo */}
           <aside className="space-y-4">
-            <WeekSidebar counters={cockpit.semaine} />
+            <WeekSidebar counters={cockpit.semaine} goals={weeklyGoals} />
 
             {/* Aide raccourcis clavier */}
             <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">

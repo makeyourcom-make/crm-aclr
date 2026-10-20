@@ -10,31 +10,43 @@ import { DEFAULT_DAILY_GOALS } from "@/lib/constants";
 import type { TodayCounters } from "@/lib/queries/today";
 import { cn } from "@/lib/utils";
 
-interface DailyGoalsBannerProps {
-  counters: TodayCounters;
+interface DailyGoals {
+  appels: number;
+  emails: number;
+  rdv: number;
+  propositions: number;
 }
 
-export function DailyGoalsBanner({ counters }: DailyGoalsBannerProps) {
+interface DailyGoalsBannerProps {
+  counters: TodayCounters;
+  /** Cibles du jour (issues de l'objectif QUOTIDIEN du collaborateur, sinon défauts). */
+  goals?: DailyGoals;
+}
+
+export function DailyGoalsBanner({
+  counters,
+  goals = DEFAULT_DAILY_GOALS,
+}: DailyGoalsBannerProps) {
   const items = [
     {
       label: "Appels",
       value: counters.appels,
-      goal: DEFAULT_DAILY_GOALS.appels,
+      goal: goals.appels,
     },
     {
       label: "Emails",
       value: counters.emails,
-      goal: DEFAULT_DAILY_GOALS.emails,
+      goal: goals.emails,
     },
     {
       label: "RDV honorés",
       value: counters.rdvHonores,
-      goal: DEFAULT_DAILY_GOALS.rdv,
+      goal: goals.rdv,
     },
     {
       label: "Propositions",
       value: counters.propositionsEnvoyees,
-      goal: DEFAULT_DAILY_GOALS.propositions,
+      goal: goals.propositions,
     },
   ];
 
