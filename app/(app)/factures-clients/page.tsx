@@ -57,13 +57,14 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
   const explicitSort = typeof raw.sortBy === "string";
 
   const now = new Date();
-  // Fenêtre glissante : on n'affiche les BROUILLONS que jusqu'à 30 jours dans le
-  // futur (émission ≤ aujourd'hui + 30 j). Les brouillons passés non envoyés
-  // restent visibles ; ceux créés loin à l'avance (ex. mensualités de décembre)
-  // n'apparaissent qu'à l'approche de leur échéance. Évite une liste de
-  // brouillons pléthorique et projetée trop loin.
+  // Brouillons "à envoyer MAINTENANT" : on n'affiche QUE ceux dont la date
+  // d'émission est déjà arrivée (émission ≤ fin de journée aujourd'hui). Les
+  // brouillons pré-générés pour un mois futur (mensualités de novembre, décembre…)
+  // restent masqués jusqu'à leur date d'émission — ils ne sont pas supprimés et
+  // réapparaissent automatiquement le jour venu. Évite toute confusion entre
+  // "à traiter" et "planifié", et tout envoi anticipé par erreur.
   const brouillonHorizon = new Date(now);
-  brouillonHorizon.setDate(brouillonHorizon.getDate() + 30);
+  brouillonHorizon.setHours(23, 59, 59, 999);
 
   // --- Construction du WHERE ---
   const whereConditions: Prisma.ClientInvoiceWhereInput[] = [];
@@ -146,10 +147,10 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
   // filtre courant) — alimente le bouton « Envoyer tous les brouillons ».
   const draftsWhere: Prisma.ClientInvoiceWhereInput = {
     statut: "BROUILLON",
-    // Même fenêtre glissante 30 j : on n'envoie / ne compte que les brouillons
-    // échus ou à échoir dans les 30 jours. Le statut du contrat n'est
-    // volontairement PAS restreint — un brouillon créé pour un contrat encore
-    // en attente de signature doit pouvoir être compté (KPI) et envoyé.
+    // Même règle que l'affichage : on n'envoie / ne compte QUE les brouillons dont
+    // la date d'émission est déjà arrivée (≤ aujourd'hui). Le statut du contrat
+    // n'est volontairement PAS restreint — un brouillon créé pour un contrat
+    // encore en attente de signature doit pouvoir être compté (KPI) et envoyé.
     dateEmission: { lte: brouillonHorizon },
     ...(user.role !== "ADMIN"
       ? { contract: { assigneAId: user.id } }
@@ -222,11 +223,18 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
     devise: d.devise,
   }));
 
+  // Début du mois courant : sert à repérer les brouillons "en retard de
+  // traitement" (émis un mois précédent et toujours pas envoyés).
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
   // Marque automatiquement en retard les ENVOYEE dont dateEcheance < now (visuel)
+  // et les BROUILLON émis avant le mois courant (à envoyer d'urgence).
   const enriched = invoices.map((inv) => {
     const isOverdue =
       inv.statut === "ENVOYEE" && inv.dateEcheance < now;
-    return { ...inv, isOverdue };
+    const isStaleDraft =
+      inv.statut === "BROUILLON" && inv.dateEmission < startOfMonth;
+    return { ...inv, isOverdue, isStaleDraft };
   });
 
   // Ordre métier par défaut (si aucun tri de colonne demandé) :
@@ -240,11 +248,16 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
       if (i.statut === "PAYEE") return 3;
       return 4; // ANNULEE et autres
     };
-    enriched.sort(
-      (a, b) =>
-        rank(a) - rank(b) ||
-        b.dateEmission.getTime() - a.dateEmission.getTime(),
-    );
+    enriched.sort((a, b) => {
+      const r = rank(a) - rank(b);
+      if (r !== 0) return r;
+      // Dans le groupe BROUILLON : le plus ANCIEN en premier (= le plus en
+      // retard à envoyer remonte en haut). Ailleurs : du plus récent au plus ancien.
+      if (a.statut === "BROUILLON" && b.statut === "BROUILLON") {
+        return a.dateEmission.getTime() - b.dateEmission.getTime();
+      }
+      return b.dateEmission.getTime() - a.dateEmission.getTime();
+    });
   }
 
   const byStatut = Object.fromEntries(stats.map((s) => [s.statut, s]));
@@ -286,7 +299,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
         <Kpi
           label="Brouillons"
           value={`${drafts.length}`}
-          subtitle="à envoyer (30 j)"
+          subtitle="à envoyer (émis à ce jour)"
         />
       </div>
 
@@ -331,7 +344,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                 return (
                   <div
                     key={inv.id}
-                    className={`p-3 ${inv.isOverdue ? "bg-red-50/40" : ""}`}
+                    className={`p-3 ${inv.isOverdue || inv.isStaleDraft ? "bg-red-50/40" : ""}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -352,9 +365,13 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                       <Badge
                         variant="secondary"
-                        className={`font-normal ${CLIENT_INV_BADGE[inv.statut]}`}
+                        className={`font-normal ${inv.isOverdue || inv.isStaleDraft ? CLIENT_INV_BADGE.EN_RETARD : CLIENT_INV_BADGE[inv.statut]}`}
                       >
-                        {inv.isOverdue ? "En retard" : CLIENT_INV_LABEL[inv.statut]}
+                        {inv.isOverdue
+                          ? "En retard"
+                          : inv.isStaleDraft
+                            ? "Brouillon · en retard"
+                            : CLIENT_INV_LABEL[inv.statut]}
                       </Badge>
                       <span className="text-[10px] text-muted-foreground">
                         {inv.statut === "PAYEE" && inv.datePaiement
@@ -464,7 +481,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                   enriched.map((inv) => (
                     <tr
                       key={inv.id}
-                      className={`border-b border-border last:border-0 hover:bg-muted/30 ${inv.isOverdue ? "bg-red-50/40" : ""}`}
+                      className={`border-b border-border last:border-0 hover:bg-muted/30 ${inv.isOverdue || inv.isStaleDraft ? "bg-red-50/40" : ""}`}
                     >
                       <td className="px-3 py-2 font-mono text-xs">
                         <a
@@ -478,6 +495,14 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                       </td>
                       <td className="hidden px-3 py-2 text-xs md:table-cell">
                         {formatDate(inv.dateEmission)}
+                        {inv.isStaleDraft && (
+                          <span
+                            className="ml-1 font-semibold text-red-600"
+                            title="Brouillon émis un mois précédent — à envoyer d'urgence"
+                          >
+                            !
+                          </span>
+                        )}
                       </td>
                       <td className="hidden px-3 py-2 text-xs md:table-cell">
                         {formatDate(inv.dateEcheance)}
