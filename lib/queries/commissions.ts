@@ -72,6 +72,10 @@ export async function getCommissionsCockpit(
     where: {
       commission: {
         ...(userFilter ? { userId: userFilter } : {}),
+        // On masque les commissions rattachées à un compte ADMIN : ce sont des
+        // contrats signés par le patron lui-même, qui n'a personne à commissionner.
+        // Ces « auto-commissions » fausseraient les totaux (artefact de génération).
+        user: { role: { not: "ADMIN" } },
         contract: {
           statut: {
             notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"],
@@ -172,6 +176,7 @@ export async function getCommissionsByUser() {
     // (on exclut les propositions en attente de signature).
     where: {
       commission: {
+        user: { role: { not: "ADMIN" } },
         contract: {
           statut: {
             notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"],
@@ -204,6 +209,7 @@ export async function getCommissionsByUser() {
   // contexte contrat/client pour le détail dépliable.
   const commissions = await prisma.commission.findMany({
     where: {
+      user: { role: { not: "ADMIN" } },
       contract: {
         statut: {
           notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"],
