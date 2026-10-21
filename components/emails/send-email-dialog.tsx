@@ -13,6 +13,10 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { sendEmailToProspect } from "@/app/(app)/emails/actions";
+import {
+  AttachmentPicker,
+  type PickedAttachment,
+} from "@/components/emails/attachment-picker";
 import { RichTextEditor } from "@/components/emails/rich-text-editor";
 import { htmlToPlainText } from "@/lib/email-html";
 import { Button } from "@/components/ui/button";
@@ -73,6 +77,7 @@ export function SendEmailDialog({
   // frappe. Le remontage est déclenché par `editorKey`.
   const [editorInitial, setEditorInitial] = useState("");
   const [editorKey, setEditorKey] = useState(0);
+  const [attachments, setAttachments] = useState<PickedAttachment[]>([]);
   // Signature par défaut, pré-insérée dans le corps (visible + éditable).
   const defaultSigHtml = signatures.find((s) => s.isDefault)?.html ?? "";
   const contenuTexte = htmlToPlainText(contenuHtml);
@@ -111,6 +116,7 @@ export function SendEmailDialog({
         objet: objet.trim(),
         contenu: contenuTexte.trim(),
         contenuHtml,
+        attachments: attachments.length > 0 ? attachments : undefined,
       });
       if (!res.ok) {
         toast.error(res.error ?? "Échec de l'envoi.");
@@ -127,6 +133,7 @@ export function SendEmailDialog({
       setContenuHtml("");
       setEditorInitial("");
       setEditorKey((k) => k + 1);
+      setAttachments([]);
       setOpen(false);
       router.refresh();
     });
@@ -216,6 +223,16 @@ export function SendEmailDialog({
                 <div dangerouslySetInnerHTML={{ __html: defaultSigHtml }} />
               </div>
             )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Pièces jointes</Label>
+            <AttachmentPicker
+              value={attachments}
+              onChange={setAttachments}
+              disabled={pending}
+              pathPrefix={`email-attachments/${prospectId}`}
+            />
           </div>
 
           <DialogFooter>
