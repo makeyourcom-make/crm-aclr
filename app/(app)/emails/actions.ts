@@ -599,6 +599,8 @@ const ForwardEmailSchema = z.object({
   contenuHtml: z.string().optional(),
   /** Réexpédier les pièces jointes de l'original (coché par défaut côté UI). */
   inclurePiecesJointes: z.boolean().default(true),
+  /** Pièces jointes AJOUTÉES au transfert (en plus de celles de l'original). */
+  attachments: z.array(AttachmentSchema).optional(),
 });
 
 /**
@@ -715,7 +717,18 @@ export async function forwardEmail(input: unknown): Promise<SendEmailResult> {
   });
 
   const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@makeyourcom.ch>`;
-  const pjs = inclurePiecesJointes ? original.attachments : [];
+  // Pièces jointes de l'original (réexpédiées si coché) + celles ajoutées au
+  // transfert. Normalisées en une liste unique {nom, taille, mimeType, url}.
+  const addedPjs = (parsed.data.attachments ?? []).map((a) => ({
+    nom: a.filename,
+    taille: a.size,
+    mimeType: a.mimeType,
+    url: a.url,
+  }));
+  const pjs = [
+    ...(inclurePiecesJointes ? original.attachments : []),
+    ...addedPjs,
+  ];
 
   const sendResult = await sendMail({
     from,

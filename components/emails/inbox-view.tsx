@@ -854,6 +854,9 @@ function ThreadDetail({
   const [forwardHtml, setForwardHtml] = useState("");
   const [forwardKey, setForwardKey] = useState(0);
   const [forwardPJ, setForwardPJ] = useState(true);
+  const [forwardAttachments, setForwardAttachments] = useState<
+    PickedAttachment[]
+  >([]);
   // Aperçu (lecture seule) de la signature ajoutée automatiquement à l'envoi.
   const [sigHtml, setSigHtml] = useState("");
   useEffect(() => {
@@ -871,6 +874,7 @@ function ThreadDetail({
   const openForward = () => {
     setForwardHtml("");
     setForwardKey((k) => k + 1);
+    setForwardAttachments([]);
     setShowForward(true);
   };
 
@@ -916,6 +920,7 @@ function ThreadDetail({
     setForwardHtml("");
     setForwardKey((k) => k + 1);
     setForwardPJ(true);
+    setForwardAttachments([]);
   };
 
   const handleForward = () => {
@@ -930,6 +935,8 @@ function ThreadDetail({
         contenu: htmlToPlainText(forwardHtml).trim(),
         contenuHtml: forwardHtml,
         inclurePiecesJointes: forwardPJ,
+        attachments:
+          forwardAttachments.length > 0 ? forwardAttachments : undefined,
       });
       if (!res.ok) {
         toast.error(res.error ?? "Échec du transfert.");
@@ -1098,6 +1105,18 @@ function ThreadDetail({
                 {nbPJ > 1 ? "s" : ""} de l&apos;original
               </label>
             )}
+
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-medium text-muted-foreground">
+                Ajouter des pièces jointes
+              </p>
+              <AttachmentPicker
+                value={forwardAttachments}
+                onChange={setForwardAttachments}
+                disabled={pending}
+                pathPrefix="email-attachments/transfert"
+              />
+            </div>
 
             <div className="flex justify-end gap-2">
               <Button
