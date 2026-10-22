@@ -17,9 +17,7 @@ import { getProspectSecteurLabel } from "@/lib/labels";
 import {
   getCallProductivity,
   getStats,
-  getTeamActivityOverview,
   getTopRankings,
-  resolvePeriode,
 } from "@/lib/queries/stats";
 import { requireUser } from "@/lib/session";
 
@@ -49,19 +47,10 @@ export default async function StatsPage({ searchParams }: PageProps) {
   const viewAsUserId =
     isAdmin && typeof raw.user === "string" ? raw.user : undefined;
 
-  // Période de l'« Activité de l'équipe » (indépendante du range d'analyse) :
-  // jour (défaut) / semaine / mois.
-  const periodeActivite = resolvePeriode(
-    typeof raw.activite === "string" ? raw.activite : "jour",
-  );
-
-  const [data, callProd, rankings, teamActivity] = await Promise.all([
+  const [data, callProd, rankings] = await Promise.all([
     getStats(user, rangeJours, viewAsUserId),
     isAdmin ? getCallProductivity(rangeJours, viewAsUserId) : null,
     getTopRankings(user, rangeJours, viewAsUserId),
-    isAdmin
-      ? getTeamActivityOverview(periodeActivite.start, periodeActivite.end)
-      : null,
   ]);
 
   // Liste des users pour le switcher (admin uniquement)
@@ -92,161 +81,6 @@ export default async function StatsPage({ searchParams }: PageProps) {
         title="Statistiques"
         description={`${viewLabel} · Analyse sur les ${rangeJours} derniers jours.`}
       />
-
-      {/* ====================================================================
-          ACTIVITÉ DE L'ÉQUIPE — tableau par collaborateur · jour/semaine/mois
-          Admin uniquement. Répond à « combien d'appels / RDV pris / RDV
-          effectués par commerciale aujourd'hui ? »
-      ==================================================================== */}
-      {isAdmin && teamActivity && (
-        <section className="mb-8">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Activité de l&apos;équipe · {periodeActivite.label}
-            </h2>
-            <div className="flex gap-2">
-              {(
-                [
-                  ["jour", "Aujourd'hui"],
-                  ["semaine", "Cette semaine"],
-                  ["mois", "Ce mois"],
-                ] as const
-              ).map(([val, label]) => {
-                const qs = new URLSearchParams();
-                qs.set("activite", val);
-                if (rangeJours !== 30) qs.set("range", String(rangeJours));
-                if (viewAsUserId) qs.set("user", viewAsUserId);
-                return (
-                  <Link
-                    key={val}
-                    href={`/stats?${qs.toString()}`}
-                    className={buttonVariants({
-                      variant:
-                        periodeActivite.type === val ? "default" : "outline",
-                      size: "sm",
-                    })}
-                  >
-                    {label}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2">Collaborateur</th>
-                      <th className="px-3 py-2 text-right">Appels</th>
-                      <th className="px-3 py-2 text-right">RDV pris</th>
-                      <th className="px-3 py-2 text-right">RDV effectués</th>
-                      <th className="px-3 py-2 text-right">Emails</th>
-                      <th className="px-3 py-2 text-right">Signatures</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teamActivity.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={6}
-                          className="px-3 py-6 text-center text-muted-foreground"
-                        >
-                          Aucun collaborateur actif.
-                        </td>
-                      </tr>
-                    ) : (
-                      teamActivity.map((r) => {
-                        const isJour = periodeActivite.type === "jour";
-                        const rdvAtteint =
-                          isJour &&
-                          r.objRdvJour > 0 &&
-                          r.rdvPris >= r.objRdvJour;
-                        return (
-                          <tr
-                            key={r.userId}
-                            className="border-b border-border last:border-0 hover:bg-muted/20"
-                          >
-                            <td className="px-3 py-2 font-medium">
-                              <Link
-                                href={`/stats?user=${r.userId}&range=${rangeJours}`}
-                                className="hover:underline"
-                              >
-                                {r.name}
-                              </Link>
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              {r.appels}
-                              {isJour && r.objAppelsJour > 0 && (
-                                <span className="text-muted-foreground">
-                                  {" "}
-                                  / {r.objAppelsJour}
-                                </span>
-                              )}
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-right font-semibold tabular-nums ${
-                                rdvAtteint ? "text-emerald-700" : ""
-                              }`}
-                            >
-                              {r.rdvPris}
-                              {isJour && r.objRdvJour > 0 && (
-                                <span className="font-normal text-muted-foreground">
-                                  {" "}
-                                  / {r.objRdvJour}
-                                  {rdvAtteint ? " 🎉" : ""}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              {r.rdvEffectues}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              {r.emails}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              {r.signatures}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                  {teamActivity.length > 1 && (
-                    <tfoot className="border-t border-border bg-muted/20 font-semibold">
-                      <tr>
-                        <td className="px-3 py-2">Total équipe</td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {teamActivity.reduce((s, r) => s + r.appels, 0)}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {teamActivity.reduce((s, r) => s + r.rdvPris, 0)}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {teamActivity.reduce((s, r) => s + r.rdvEffectues, 0)}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {teamActivity.reduce((s, r) => s + r.emails, 0)}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {teamActivity.reduce((s, r) => s + r.signatures, 0)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            RDV pris = rendez-vous décrochés au téléphone · RDV effectués =
-            rendez-vous honorés. En vue « Aujourd&apos;hui », la valeur après «
-            / » est l&apos;objectif quotidien. Clique un nom pour le détail.
-          </p>
-        </section>
-      )}
 
       {/* Switcher commerciale (admin uniquement) */}
       {isAdmin && teamUsers.length > 1 && (

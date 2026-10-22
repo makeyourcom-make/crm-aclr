@@ -5,16 +5,38 @@ import { ValidateContractButton } from "@/components/contrats/validate-contract-
 import { SignAclrButton } from "@/components/signatures/sign-aclr-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/icon";
+import { buttonVariants } from "@/components/ui/button";
 import { formatCHF, formatCHFCompact, formatDate } from "@/lib/format";
 import { getDashboard } from "@/lib/queries/dashboard";
+import {
+  getTeamActivityOverview,
+  resolvePeriode,
+} from "@/lib/queries/stats";
 import { requireUser } from "@/lib/session";
 
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function DashboardPage({ searchParams }: PageProps) {
   const user = await requireUser();
   const data = await getDashboard(user);
+
+  // Pilotage équipe (admin) : activité par collaborateur sur jour/semaine/mois.
+  const raw = await searchParams;
+  const periodeActivite = resolvePeriode(
+    typeof raw.activite === "string" ? raw.activite : "jour",
+  );
+  const teamActivity =
+    user.role === "ADMIN"
+      ? await getTeamActivityOverview(
+          periodeActivite.start,
+          periodeActivite.end,
+        )
+      : null;
   const yoy = data.caAnnuel;
   const caAnnuelSubtitle = yoy
     ? yoy.variationPct === null
@@ -202,6 +224,146 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         )}
+
+      {/* ====================================================================
+          PILOTAGE ÉQUIPE — activité par collaborateur (jour/semaine/mois)
+          Admin uniquement : appels / RDV pris / RDV effectués / emails / sign.
+      ==================================================================== */}
+      {user.role === "ADMIN" && teamActivity && (
+        <Card className="mt-6">
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base">
+                Activité de l&apos;équipe · {periodeActivite.label}
+              </CardTitle>
+              <div className="flex gap-2">
+                {(
+                  [
+                    ["jour", "Aujourd'hui"],
+                    ["semaine", "Cette semaine"],
+                    ["mois", "Ce mois"],
+                  ] as const
+                ).map(([val, label]) => (
+                  <Link
+                    key={val}
+                    href={`/?activite=${val}`}
+                    className={buttonVariants({
+                      variant:
+                        periodeActivite.type === val ? "default" : "outline",
+                      size: "sm",
+                    })}
+                  >
+                    {label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-2">Collaborateur</th>
+                    <th className="px-4 py-2 text-right">Appels</th>
+                    <th className="px-4 py-2 text-right">RDV pris</th>
+                    <th className="px-4 py-2 text-right">RDV effectués</th>
+                    <th className="px-4 py-2 text-right">Emails</th>
+                    <th className="px-4 py-2 text-right">Signatures</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamActivity.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-4 py-6 text-center text-muted-foreground"
+                      >
+                        Aucun collaborateur actif.
+                      </td>
+                    </tr>
+                  ) : (
+                    teamActivity.map((r) => {
+                      const isJour = periodeActivite.type === "jour";
+                      const rdvAtteint =
+                        isJour && r.objRdvJour > 0 && r.rdvPris >= r.objRdvJour;
+                      return (
+                        <tr
+                          key={r.userId}
+                          className="border-b border-border last:border-0 hover:bg-muted/20"
+                        >
+                          <td className="px-4 py-2 font-medium">
+                            <Link
+                              href={`/stats?user=${r.userId}`}
+                              className="hover:underline"
+                            >
+                              {r.name}
+                            </Link>
+                          </td>
+                          <td className="px-4 py-2 text-right tabular-nums">
+                            {r.appels}
+                            {isJour && r.objAppelsJour > 0 && (
+                              <span className="text-muted-foreground">
+                                {" "}
+                                / {r.objAppelsJour}
+                              </span>
+                            )}
+                          </td>
+                          <td
+                            className={`px-4 py-2 text-right font-semibold tabular-nums ${
+                              rdvAtteint ? "text-emerald-700" : ""
+                            }`}
+                          >
+                            {r.rdvPris}
+                            {isJour && r.objRdvJour > 0 && (
+                              <span className="font-normal text-muted-foreground">
+                                {" "}
+                                / {r.objRdvJour}
+                                {rdvAtteint ? " 🎉" : ""}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-right tabular-nums">
+                            {r.rdvEffectues}
+                          </td>
+                          <td className="px-4 py-2 text-right tabular-nums">
+                            {r.emails}
+                          </td>
+                          <td className="px-4 py-2 text-right tabular-nums">
+                            {r.signatures}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+                {teamActivity.length > 1 && (
+                  <tfoot className="border-t border-border bg-muted/20 font-semibold">
+                    <tr>
+                      <td className="px-4 py-2">Total équipe</td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {teamActivity.reduce((s, r) => s + r.appels, 0)}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {teamActivity.reduce((s, r) => s + r.rdvPris, 0)}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {teamActivity.reduce((s, r) => s + r.rdvEffectues, 0)}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {teamActivity.reduce((s, r) => s + r.emails, 0)}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {teamActivity.reduce((s, r) => s + r.signatures, 0)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="mt-6">
         <CardHeader>
