@@ -41,6 +41,8 @@ export interface SendEmailParams {
   html: string;
   /** Contenu texte brut (fallback) */
   text: string;
+  /** CC (copie visible) */
+  cc?: string[];
   /** BCC additionnels (en plus du from auto-BCCé) */
   bcc?: string[];
   /** Reply-To (défaut = from) */
@@ -105,6 +107,7 @@ export async function sendMail(
     const result = await resend.emails.send({
       from: fromHeader,
       to: [params.to],
+      cc: params.cc && params.cc.length > 0 ? params.cc : undefined,
       bcc: allBcc.length > 0 ? allBcc : undefined,
       subject: params.subject,
       html: params.html,

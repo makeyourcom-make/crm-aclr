@@ -34,6 +34,9 @@ const SendEmailSchema = z.object({
   /** Corps riche (gras/italique/…) — optionnel ; prime sur le texte brut. */
   contenuHtml: z.string().optional(),
   attachments: z.array(AttachmentSchema).optional(),
+  /** CC / CCI (copie visible / cachée) — adresses séparées par , ou ; */
+  cc: z.string().optional(),
+  bcc: z.string().optional(),
   /** Signature email à ajouter (id d'une EmailSignature de l'utilisateur). */
   signatureId: z.string().optional(),
 });
@@ -45,7 +48,37 @@ const SendFreeFormEmailSchema = z.object({
   /** Corps riche (gras/italique/…) — optionnel ; prime sur le texte brut. */
   contenuHtml: z.string().optional(),
   attachments: z.array(AttachmentSchema).optional(),
+  /** CC / CCI (copie visible / cachée) — adresses séparées par , ou ; */
+  cc: z.string().optional(),
+  bcc: z.string().optional(),
 });
+
+/**
+ * Parse une saisie libre « a@x.ch, b@y.ch ; c@z.ch » en liste d'adresses
+ * validées. Renvoie { emails } ou { error } si une adresse est invalide.
+ */
+function parseAddressList(raw: string | undefined | null): {
+  emails: string[];
+  error: string | null;
+} {
+  if (!raw || !raw.trim()) return { emails: [], error: null };
+  const parts = raw
+    .split(/[,;]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  const seen = new Set<string>();
+  const emails: string[] = [];
+  for (const p of parts) {
+    if (!z.string().email().safeParse(p).success) {
+      return { emails: [], error: `Adresse invalide : « ${p} »` };
+    }
+    if (!seen.has(p)) {
+      seen.add(p);
+      emails.push(p);
+    }
+  }
+  return { emails, error: null };
+}
 
 /**
  * Marqueur de brouillon « vrai » (créé volontairement via « Enregistrer le
@@ -189,6 +222,12 @@ export async function sendEmailToProspect(
     name: userFull?.name ?? null,
   });
 
+  // CC / CCI (copie visible / cachée) — saisie libre validée.
+  const ccParsed = parseAddressList(parsed.data.cc);
+  if (ccParsed.error) return { ok: false, error: `CC — ${ccParsed.error}` };
+  const bccParsed = parseAddressList(parsed.data.bcc);
+  if (bccParsed.error) return { ok: false, error: `CCI — ${bccParsed.error}` };
+
   // Envoi réel via Resend (avec BCC auto vers expéditeur pour copie Gmail).
   // En dry-run, sendMail() log et renvoie ok=true sans envoyer.
   const attachments = parsed.data.attachments ?? [];
@@ -201,6 +240,8 @@ export async function sendEmailToProspect(
     text: contenuTexteFinal,
     replyTo,
     messageId,
+    cc: ccParsed.emails.length > 0 ? ccParsed.emails : undefined,
+    bcc: bccParsed.emails.length > 0 ? bccParsed.emails : undefined,
     attachments:
       attachments.length > 0
         ? attachments.map((a) => ({
@@ -230,6 +271,8 @@ export async function sendEmailToProspect(
       expediteurEmail: from,
       expediteurNom: fromName,
       destinataireEmail: prospect.email,
+      cc: ccParsed.emails.length > 0 ? ccParsed.emails.join(", ") : null,
+      bcc: bccParsed.emails.length > 0 ? bccParsed.emails.join(", ") : null,
       objet,
       contenuHtml,
       contenuTexte: contenuTexteFinal,
@@ -331,6 +374,11 @@ export async function sendFreeFormEmail(
   const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@makeyourcom.ch>`;
   const threadId = randomBytes(8).toString("hex");
 
+  const ccParsed = parseAddressList(parsed.data.cc);
+  if (ccParsed.error) return { ok: false, error: `CC — ${ccParsed.error}` };
+  const bccParsed = parseAddressList(parsed.data.bcc);
+  if (bccParsed.error) return { ok: false, error: `CCI — ${bccParsed.error}` };
+
   const attachments = parsed.data.attachments ?? [];
   const sendResult = await sendMail({
     from,
@@ -341,6 +389,8 @@ export async function sendFreeFormEmail(
     text: contenuTexteFinal,
     replyTo,
     messageId,
+    cc: ccParsed.emails.length > 0 ? ccParsed.emails : undefined,
+    bcc: bccParsed.emails.length > 0 ? bccParsed.emails : undefined,
     attachments:
       attachments.length > 0
         ? attachments.map((a) => ({
@@ -369,6 +419,8 @@ export async function sendFreeFormEmail(
       expediteurEmail: from,
       expediteurNom: fromName,
       destinataireEmail: parsed.data.to,
+      cc: ccParsed.emails.length > 0 ? ccParsed.emails.join(", ") : null,
+      bcc: bccParsed.emails.length > 0 ? bccParsed.emails.join(", ") : null,
       objet,
       contenuHtml,
       contenuTexte: contenuTexteFinal,

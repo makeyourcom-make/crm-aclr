@@ -78,6 +78,9 @@ export function SendEmailDialog({
   const [editorInitial, setEditorInitial] = useState("");
   const [editorKey, setEditorKey] = useState(0);
   const [attachments, setAttachments] = useState<PickedAttachment[]>([]);
+  const [showCc, setShowCc] = useState(false);
+  const [cc, setCc] = useState("");
+  const [bcc, setBcc] = useState("");
   // Signature par défaut, pré-insérée dans le corps (visible + éditable).
   const defaultSigHtml = signatures.find((s) => s.isDefault)?.html ?? "";
   const contenuTexte = htmlToPlainText(contenuHtml);
@@ -117,6 +120,8 @@ export function SendEmailDialog({
         contenu: contenuTexte.trim(),
         contenuHtml,
         attachments: attachments.length > 0 ? attachments : undefined,
+        cc: cc.trim() || undefined,
+        bcc: bcc.trim() || undefined,
       });
       if (!res.ok) {
         toast.error(res.error ?? "Échec de l'envoi.");
@@ -134,6 +139,9 @@ export function SendEmailDialog({
       setEditorInitial("");
       setEditorKey((k) => k + 1);
       setAttachments([]);
+      setCc("");
+      setBcc("");
+      setShowCc(false);
       setOpen(false);
       router.refresh();
     });
@@ -165,6 +173,40 @@ export function SendEmailDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* CC / CCI — repliés par défaut (comme Gmail). */}
+          <div className="space-y-1.5">
+            {!showCc ? (
+              <button
+                type="button"
+                onClick={() => setShowCc(true)}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                + Cc / Cci
+              </button>
+            ) : (
+              <div className="space-y-1.5">
+                <Label htmlFor="cc">Cc</Label>
+                <Input
+                  id="cc"
+                  value={cc}
+                  onChange={(e) => setCc(e.target.value)}
+                  placeholder="copie@exemple.ch, autre@exemple.ch"
+                />
+                <Label htmlFor="bcc">Cci (copie cachée)</Label>
+                <Input
+                  id="bcc"
+                  value={bcc}
+                  onChange={(e) => setBcc(e.target.value)}
+                  placeholder="copie.cachee@exemple.ch"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Plusieurs adresses séparées par une virgule ou un
+                  point-virgule.
+                </p>
+              </div>
+            )}
+          </div>
+
           {templates.length > 0 && (
             <div className="space-y-1.5">
               <Label htmlFor="template">Template (optionnel)</Label>

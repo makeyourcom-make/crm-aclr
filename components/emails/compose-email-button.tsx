@@ -69,6 +69,9 @@ export function ComposeEmailButton() {
   const [objet, setObjet] = useState("");
   const [contenuHtml, setContenuHtml] = useState("");
   const [attachments, setAttachments] = useState<PickedAttachment[]>([]);
+  const [showCc, setShowCc] = useState(false);
+  const [cc, setCc] = useState("");
+  const [bcc, setBcc] = useState("");
   // Aperçu (lecture seule) de la signature ajoutée automatiquement à l'envoi.
   const [sigPreview, setSigPreview] = useState("");
   const [editorKey, setEditorKey] = useState(0);
@@ -84,6 +87,9 @@ export function ComposeEmailButton() {
     setObjet("");
     setContenuHtml("");
     setAttachments([]);
+    setCc("");
+    setBcc("");
+    setShowCc(false);
     setEditorKey((k) => k + 1);
   };
 
@@ -161,6 +167,8 @@ export function ComposeEmailButton() {
               contenu: contenuTexte.trim(),
               contenuHtml,
               attachments: attachments.length > 0 ? attachments : undefined,
+              cc: cc.trim() || undefined,
+              bcc: bcc.trim() || undefined,
             })
           : await sendFreeFormEmail({
               to: freeEmail.trim(),
@@ -168,6 +176,8 @@ export function ComposeEmailButton() {
               contenu: contenuTexte.trim(),
               contenuHtml,
               attachments: attachments.length > 0 ? attachments : undefined,
+              cc: cc.trim() || undefined,
+              bcc: bcc.trim() || undefined,
             });
       if (!res.ok) {
         toast.error(res.error ?? "Échec de l'envoi.");
@@ -348,6 +358,40 @@ export function ComposeEmailButton() {
         {/* Étape 2 : rédaction */}
         {hasRecipient && (
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* CC / CCI — repliés par défaut. */}
+            <div className="space-y-1.5">
+              {!showCc ? (
+                <button
+                  type="button"
+                  onClick={() => setShowCc(true)}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  + Cc / Cci
+                </button>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label htmlFor="cc">Cc</Label>
+                  <Input
+                    id="cc"
+                    value={cc}
+                    onChange={(e) => setCc(e.target.value)}
+                    placeholder="copie@exemple.ch, autre@exemple.ch"
+                  />
+                  <Label htmlFor="bcc">Cci (copie cachée)</Label>
+                  <Input
+                    id="bcc"
+                    value={bcc}
+                    onChange={(e) => setBcc(e.target.value)}
+                    placeholder="copie.cachee@exemple.ch"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Plusieurs adresses séparées par une virgule ou un
+                    point-virgule.
+                  </p>
+                </div>
+              )}
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="objet">
                 Sujet <span className="text-red-500">*</span>
