@@ -848,6 +848,9 @@ function ThreadDetail({
   const [replyHtml, setReplyHtml] = useState("");
   const [replyKey, setReplyKey] = useState(0);
   const [replyAttachments, setReplyAttachments] = useState<PickedAttachment[]>([]);
+  const [showReplyCc, setShowReplyCc] = useState(false);
+  const [replyCc, setReplyCc] = useState("");
+  const [replyBcc, setReplyBcc] = useState("");
   // Transfert — panneau distinct de la réponse (destinataire libre).
   const [showForward, setShowForward] = useState(false);
   const [forwardTo, setForwardTo] = useState("");
@@ -857,6 +860,9 @@ function ThreadDetail({
   const [forwardAttachments, setForwardAttachments] = useState<
     PickedAttachment[]
   >([]);
+  const [showForwardCc, setShowForwardCc] = useState(false);
+  const [forwardCc, setForwardCc] = useState("");
+  const [forwardBcc, setForwardBcc] = useState("");
   // Aperçu (lecture seule) de la signature ajoutée automatiquement à l'envoi.
   const [sigHtml, setSigHtml] = useState("");
   useEffect(() => {
@@ -900,6 +906,8 @@ function ThreadDetail({
         undefined,
         replyAttachments.length > 0 ? replyAttachments : undefined,
         replyHtml,
+        replyCc.trim() || undefined,
+        replyBcc.trim() || undefined,
       );
       if (!res.ok) {
         toast.error(res.error ?? "Échec d'envoi.");
@@ -909,6 +917,9 @@ function ThreadDetail({
       setReplyHtml("");
       setReplyKey((k) => k + 1);
       setReplyAttachments([]);
+      setReplyCc("");
+      setReplyBcc("");
+      setShowReplyCc(false);
       setShowReply(false);
       router.refresh();
     });
@@ -921,6 +932,9 @@ function ThreadDetail({
     setForwardKey((k) => k + 1);
     setForwardPJ(true);
     setForwardAttachments([]);
+    setForwardCc("");
+    setForwardBcc("");
+    setShowForwardCc(false);
   };
 
   const handleForward = () => {
@@ -937,6 +951,8 @@ function ThreadDetail({
         inclurePiecesJointes: forwardPJ,
         attachments:
           forwardAttachments.length > 0 ? forwardAttachments : undefined,
+        cc: forwardCc.trim() || undefined,
+        bcc: forwardBcc.trim() || undefined,
       });
       if (!res.ok) {
         toast.error(res.error ?? "Échec du transfert.");
@@ -1071,6 +1087,33 @@ function ThreadDetail({
               />
             </label>
 
+            {!showForwardCc ? (
+              <button
+                type="button"
+                onClick={() => setShowForwardCc(true)}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                + Cc / Cci
+              </button>
+            ) : (
+              <div className="space-y-1.5">
+                <input
+                  value={forwardCc}
+                  onChange={(e) => setForwardCc(e.target.value)}
+                  placeholder="Cc : copie@exemple.ch, autre@exemple.ch"
+                  disabled={pending}
+                  className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                />
+                <input
+                  value={forwardBcc}
+                  onChange={(e) => setForwardBcc(e.target.value)}
+                  placeholder="Cci : copie.cachee@exemple.ch"
+                  disabled={pending}
+                  className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                />
+              </div>
+            )}
+
             <RichTextEditor
               key={forwardKey}
               onChange={setForwardHtml}
@@ -1142,6 +1185,32 @@ function ThreadDetail({
                   : thread.last.destinataireEmail}
               </strong>
             </p>
+            {!showReplyCc ? (
+              <button
+                type="button"
+                onClick={() => setShowReplyCc(true)}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                + Cc / Cci
+              </button>
+            ) : (
+              <div className="space-y-1.5">
+                <input
+                  value={replyCc}
+                  onChange={(e) => setReplyCc(e.target.value)}
+                  placeholder="Cc : copie@exemple.ch, autre@exemple.ch"
+                  disabled={pending}
+                  className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                />
+                <input
+                  value={replyBcc}
+                  onChange={(e) => setReplyBcc(e.target.value)}
+                  placeholder="Cci : copie.cachee@exemple.ch"
+                  disabled={pending}
+                  className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                />
+              </div>
+            )}
             <RichTextEditor
               key={replyKey}
               onChange={setReplyHtml}
@@ -1171,6 +1240,9 @@ function ThreadDetail({
                   setReplyHtml("");
                   setReplyKey((k) => k + 1);
                   setReplyAttachments([]);
+                  setReplyCc("");
+                  setReplyBcc("");
+                  setShowReplyCc(false);
                 }}
                 disabled={pending}
               >

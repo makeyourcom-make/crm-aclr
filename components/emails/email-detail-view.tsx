@@ -60,6 +60,9 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
   const [replyAttachments, setReplyAttachments] = useState<PickedAttachment[]>(
     [],
   );
+  const [showReplyCc, setShowReplyCc] = useState(false);
+  const [replyCc, setReplyCc] = useState("");
+  const [replyBcc, setReplyBcc] = useState("");
 
   const handleRefetch = () => {
     startTransition(async () => {
@@ -116,6 +119,9 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
         replyContent.trim(),
         undefined,
         replyAttachments.length > 0 ? replyAttachments : undefined,
+        undefined,
+        replyCc.trim() || undefined,
+        replyBcc.trim() || undefined,
       );
       if (!res.ok) {
         toast.error(res.error ?? "Échec.");
@@ -124,6 +130,9 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
       toast.success(res.dryRun ? "Réponse enregistrée (dry-run)." : "Réponse envoyée ✓");
       setReplyContent("");
       setReplyAttachments([]);
+      setReplyCc("");
+      setReplyBcc("");
+      setShowReplyCc(false);
       setShowReply(false);
       router.refresh();
     });
@@ -317,6 +326,32 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
                   : email.destinataireEmail}
               </strong>
             </p>
+            {!showReplyCc ? (
+              <button
+                type="button"
+                onClick={() => setShowReplyCc(true)}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                + Cc / Cci
+              </button>
+            ) : (
+              <div className="space-y-1.5">
+                <input
+                  value={replyCc}
+                  onChange={(e) => setReplyCc(e.target.value)}
+                  placeholder="Cc : copie@exemple.ch, autre@exemple.ch"
+                  disabled={pending}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                <input
+                  value={replyBcc}
+                  onChange={(e) => setReplyBcc(e.target.value)}
+                  placeholder="Cci : copie.cachee@exemple.ch"
+                  disabled={pending}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+            )}
             <textarea
               value={replyContent}
               onChange={(e) => setReplyContent(e.target.value)}

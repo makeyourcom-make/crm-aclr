@@ -474,6 +474,8 @@ export async function replyToEmail(
   objetOverride?: string,
   attachmentsInput?: Array<{ url: string; filename: string; mimeType: string; size: number }>,
   contenuHtmlInput?: string,
+  ccInput?: string,
+  bccInput?: string,
 ): Promise<SendEmailResult> {
   const user = await requireUser();
   const original = await prisma.email.findUnique({
@@ -559,6 +561,11 @@ export async function replyToEmail(
 
   const attachmentsValidated = (attachmentsInput ?? []).filter((a) => a.url && a.filename);
 
+  const ccParsed = parseAddressList(ccInput);
+  if (ccParsed.error) return { ok: false, error: `CC — ${ccParsed.error}` };
+  const bccParsed = parseAddressList(bccInput);
+  if (bccParsed.error) return { ok: false, error: `CCI — ${bccParsed.error}` };
+
   const sendResult = await sendMail({
     from,
     fromName,
@@ -569,6 +576,8 @@ export async function replyToEmail(
     replyTo: replyToHeader,
     messageId,
     inReplyTo: original.messageId,
+    cc: ccParsed.emails.length > 0 ? ccParsed.emails : undefined,
+    bcc: bccParsed.emails.length > 0 ? bccParsed.emails : undefined,
     attachments:
       attachmentsValidated.length > 0
         ? attachmentsValidated.map((a) => ({
@@ -599,6 +608,8 @@ export async function replyToEmail(
       expediteurEmail: from,
       expediteurNom: fromName,
       destinataireEmail: replyTo,
+      cc: ccParsed.emails.length > 0 ? ccParsed.emails.join(", ") : null,
+      bcc: bccParsed.emails.length > 0 ? bccParsed.emails.join(", ") : null,
       objet,
       contenuHtml,
       contenuTexte: contenuTexteFinal,
@@ -653,6 +664,9 @@ const ForwardEmailSchema = z.object({
   inclurePiecesJointes: z.boolean().default(true),
   /** Pièces jointes AJOUTÉES au transfert (en plus de celles de l'original). */
   attachments: z.array(AttachmentSchema).optional(),
+  /** CC / CCI — adresses séparées par , ou ; */
+  cc: z.string().optional(),
+  bcc: z.string().optional(),
 });
 
 /**
@@ -782,6 +796,11 @@ export async function forwardEmail(input: unknown): Promise<SendEmailResult> {
     ...addedPjs,
   ];
 
+  const ccParsed = parseAddressList(parsed.data.cc);
+  if (ccParsed.error) return { ok: false, error: `CC — ${ccParsed.error}` };
+  const bccParsed = parseAddressList(parsed.data.bcc);
+  if (bccParsed.error) return { ok: false, error: `CCI — ${bccParsed.error}` };
+
   const sendResult = await sendMail({
     from,
     fromName,
@@ -791,6 +810,8 @@ export async function forwardEmail(input: unknown): Promise<SendEmailResult> {
     text: contenuTexte,
     replyTo,
     messageId,
+    cc: ccParsed.emails.length > 0 ? ccParsed.emails : undefined,
+    bcc: bccParsed.emails.length > 0 ? bccParsed.emails : undefined,
     attachments:
       pjs.length > 0
         ? pjs.map((a) => ({
@@ -816,6 +837,8 @@ export async function forwardEmail(input: unknown): Promise<SendEmailResult> {
       expediteurEmail: from,
       expediteurNom: fromName,
       destinataireEmail: to,
+      cc: ccParsed.emails.length > 0 ? ccParsed.emails.join(", ") : null,
+      bcc: bccParsed.emails.length > 0 ? bccParsed.emails.join(", ") : null,
       objet,
       contenuHtml,
       contenuTexte,
