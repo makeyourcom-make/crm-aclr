@@ -259,6 +259,155 @@ export async function getCallProductivity(
   };
 }
 
+// ===========================================================================
+// ACTIVITÉ DE L'ÉQUIPE — tableau par collaborateur sur une période (admin)
+// ===========================================================================
+//
+// Une ligne par commercial·e actif·ve, avec l'activité brute de la période :
+// appels passés, RDV PRIS au téléphone (résultat RDV_PRIS), RDV EFFECTUÉS
+// (rendez-vous honorés), emails envoyés, signatures. Plus l'objectif quotidien
+// (appels / RDV) pour comparaison, surtout en vue « Aujourd'hui ».
+
+export interface TeamActivityRow {
+  userId: string;
+  name: string;
+  appels: number;
+  rdvPris: number;
+  rdvEffectues: number;
+  emails: number;
+  signatures: number;
+  /** Objectif quotidien actif (0 si aucun). */
+  objAppelsJour: number;
+  objRdvJour: number;
+}
+
+/** Résout un libellé de période en fenêtre [start, end] + nb de jours. */
+export function resolvePeriode(p: string): {
+  type: "jour" | "semaine" | "mois";
+  label: string;
+  start: Date;
+  end: Date;
+} {
+  const now = new Date();
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+
+  if (p === "semaine") {
+    const day = start.getDay() || 7; // lundi = 1 … dimanche = 7
+    start.setDate(start.getDate() - (day - 1));
+    return { type: "semaine", label: "Cette semaine", start, end };
+  }
+  if (p === "mois") {
+    start.setDate(1);
+    return { type: "mois", label: "Ce mois", start, end };
+  }
+  return { type: "jour", label: "Aujourd'hui", start, end };
+}
+
+export async function getTeamActivityOverview(
+  start: Date,
+  end: Date,
+): Promise<TeamActivityRow[]> {
+  const users = await prisma.user.findMany({
+    where: { isActive: true, role: { not: "ADMIN" } },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  if (users.length === 0) return [];
+  const userIds = users.map((u) => u.id);
+  const range = { gte: start, lte: end };
+
+  const [appels, rdvPris, rdvEffectues, emails, signatures, objectifs] =
+    await Promise.all([
+      prisma.activity.groupBy({
+        by: ["userId"],
+        where: {
+          userId: { in: userIds },
+          type: "APPEL_SORTANT",
+          statut: { in: ["FAIT", "EN_COURS"] },
+          date: range,
+        },
+        _count: true,
+      }),
+      prisma.activity.groupBy({
+        by: ["userId"],
+        where: { userId: { in: userIds }, resultat: "RDV_PRIS", date: range },
+        _count: true,
+      }),
+      prisma.activity.groupBy({
+        by: ["userId"],
+        where: {
+          userId: { in: userIds },
+          type: { in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"] },
+          prospectId: { not: null },
+          statut: "FAIT",
+          date: range,
+        },
+        _count: true,
+      }),
+      prisma.activity.groupBy({
+        by: ["userId"],
+        where: { userId: { in: userIds }, type: "EMAIL_ENVOYE", date: range },
+        _count: true,
+      }),
+      prisma.contract.groupBy({
+        by: ["assigneAId"],
+        where: {
+          assigneAId: { in: userIds },
+          statut: { notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"] },
+          dateSignature: range,
+        },
+        _count: true,
+      }),
+      prisma.objective.findMany({
+        where: {
+          userId: { in: userIds },
+          periode: "QUOTIDIEN",
+          isActif: true,
+          dateDebut: { lte: end },
+          dateFin: { gte: start },
+        },
+        select: { userId: true, nbAppelsObjectif: true, nbRdvObjectif: true },
+        orderBy: { dateFin: "desc" },
+      }),
+    ]);
+
+  const toMap = (rows: Array<{ userId: string; _count: number }>) =>
+    new Map(rows.map((r) => [r.userId, r._count]));
+  const mAppels = toMap(appels as never);
+  const mRdvPris = toMap(rdvPris as never);
+  const mRdvEff = toMap(rdvEffectues as never);
+  const mEmails = toMap(emails as never);
+  const mSign = new Map(
+    (signatures as Array<{ assigneAId: string; _count: number }>).map((r) => [
+      r.assigneAId,
+      r._count,
+    ]),
+  );
+  const mObj = new Map<string, { appels: number; rdv: number }>();
+  for (const o of objectifs) {
+    if (mObj.has(o.userId)) continue; // 1er = le plus récent (orderBy dateFin desc)
+    mObj.set(o.userId, {
+      appels: o.nbAppelsObjectif ?? 0,
+      rdv: o.nbRdvObjectif ?? 0,
+    });
+  }
+
+  return users.map((u) => ({
+    userId: u.id,
+    name: u.name,
+    appels: mAppels.get(u.id) ?? 0,
+    rdvPris: mRdvPris.get(u.id) ?? 0,
+    rdvEffectues: mRdvEff.get(u.id) ?? 0,
+    emails: mEmails.get(u.id) ?? 0,
+    signatures: mSign.get(u.id) ?? 0,
+    objAppelsJour: mObj.get(u.id)?.appels ?? 0,
+    objRdvJour: mObj.get(u.id)?.rdv ?? 0,
+  }));
+}
+
 export async function getStats(
   user: SessionUser,
   rangeJours: number,
