@@ -8,7 +8,7 @@
  *  2. Sélection prospect → bascule sur le formulaire de rédaction
  *  3. Envoi via sendEmailToProspect()
  */
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -44,6 +44,12 @@ interface ProspectOption {
   raisonSociale: string;
   ville: string | null;
   email: string | null;
+  contactPrenom?: string | null;
+  contactNom?: string | null;
+  /** Client avec contrat (affiché en premier, pastille « Client »). */
+  isClient?: boolean;
+  /** Résultat approchant (faute de frappe tolérée), pas exact. */
+  approx?: boolean;
 }
 
 type Mode = "client" | "freeform";
@@ -97,17 +103,39 @@ export function ComposeEmailButton() {
   const hasRecipient =
     mode === "client" ? selected !== null : /^\S+@\S+\.\S+$/.test(freeEmail.trim());
 
+  // Recherche « live » : attend 250 ms après la dernière frappe, et ignore les
+  // réponses périmées (une requête lente pour « C » ne doit pas écraser celle
+  // pour « Cle » arrivée avant elle).
+  const searchSeq = useRef(0);
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 1) return;
+    const seq = ++searchSeq.current;
+    const timer = setTimeout(() => {
+      void searchProspectsForAttach(q)
+        .then((r) => {
+          if (seq !== searchSeq.current) return; // réponse périmée
+          setResults(r);
+          setSearching(false);
+        })
+        .catch(() => {
+          if (seq !== searchSeq.current) return;
+          setResults([]);
+          setSearching(false);
+        });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [query]);
+
   const handleSearch = (q: string) => {
     setQuery(q);
     if (q.trim().length < 1) {
+      searchSeq.current++; // invalide une recherche encore en vol
       setResults([]);
+      setSearching(false);
       return;
     }
     setSearching(true);
-    void searchProspectsForAttach(q).then((r) => {
-      setResults(r);
-      setSearching(false);
-    });
   };
 
   const handleSelect = (prospect: ProspectOption) => {
@@ -289,7 +317,7 @@ export function ComposeEmailButton() {
                   autoFocus
                   value={query}
                   onChange={(e) => handleSearch(e.target.value)}
-                  placeholder="Rechercher un client…"
+                  placeholder="Raison sociale, nom du contact, email, ville…"
                   disabled={pending}
                 />
                 <div className="max-h-72 overflow-y-auto rounded-md border border-border">
@@ -305,18 +333,38 @@ export function ComposeEmailButton() {
                   )}
                   {!searching && query && results.length === 0 && (
                     <p className="p-4 text-center text-xs text-muted-foreground">
-                      Aucun client trouvé.
+                      Aucun client trouvé. Tu peux passer en « Adresse libre ».
+                    </p>
+                  )}
+                  {!searching && results.length > 0 && results[0]!.approx && (
+                    <p className="border-b border-border bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800">
+                      Aucun résultat exact — résultats approchants :
                     </p>
                   )}
                   {!searching &&
-                    results.map((p) => (
+                    results.map((p) => {
+                      const contact = [p.contactPrenom, p.contactNom]
+                        .filter(Boolean)
+                        .join(" ")
+                        .trim();
+                      return (
                       <button
                         key={p.id}
                         type="button"
                         onClick={() => handleSelect(p)}
                         className="block w-full border-b border-border px-3 py-2 text-left text-sm hover:bg-muted last:border-b-0"
                       >
-                        <p className="truncate font-medium">{p.raisonSociale}</p>
+                        <p className="flex items-center gap-1.5 truncate font-medium">
+                          <span className="truncate">{p.raisonSociale}</span>
+                          {p.isClient && (
+                            <span className="shrink-0 rounded-full bg-emerald-100 px-1.5 text-[10px] font-medium text-emerald-700">
+                              Client
+                            </span>
+                          )}
+                        </p>
+                        {contact && contact.toLowerCase() !== p.raisonSociale.toLowerCase() && (
+                          <p className="truncate text-xs">{contact}</p>
+                        )}
                         <p className="truncate text-xs text-muted-foreground">
                           {p.ville && <span>{p.ville}</span>}
                           {p.ville && p.email && <span> · </span>}
@@ -327,7 +375,8 @@ export function ComposeEmailButton() {
                           )}
                         </p>
                       </button>
-                    ))}
+                      );
+                    })}
                 </div>
               </div>
             )}

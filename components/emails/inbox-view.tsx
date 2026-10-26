@@ -467,8 +467,8 @@ export function InboxView({
         <FolderButton
           label="Boîte de réception"
           icon="Inbox"
-          // Comme Gmail : compteur = non lus (gras) ; rien si tout est lu.
-          count={counts.inboxUnread}
+          // Nombre de conversations reçues ; en gras s'il y a des non lus.
+          count={counts.inbox}
           emphasize={counts.inboxUnread > 0}
           active={folder === "inbox"}
           onClick={() => {

@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { prisma } from "@/lib/db";
+import { type ProspectSearchHit, searchProspects } from "@/lib/prospect-search";
 import {
   SPAM_LABEL,
   describeBlockRule,
@@ -1029,28 +1030,14 @@ export async function attachEmailToProspect(
  */
 export async function searchProspectsForAttach(
   query: string,
-): Promise<
-  Array<{ id: string; raisonSociale: string; ville: string | null; email: string | null }>
-> {
+): Promise<ProspectSearchHit[]> {
   const user = await requireUser();
-  const q = query.trim();
-  if (q.length < 1) return [];
-  const prospects = await prisma.prospect.findMany({
-    where: {
-      ...(user.role !== "ADMIN" ? { assigneAId: user.id } : {}),
-      OR: [
-        { raisonSociale: { contains: q, mode: "insensitive" } },
-        { contactPrenom: { contains: q, mode: "insensitive" } },
-        { contactNom: { contains: q, mode: "insensitive" } },
-        { email: { contains: q, mode: "insensitive" } },
-        { ville: { contains: q, mode: "insensitive" } },
-      ],
-    },
-    select: { id: true, raisonSociale: true, ville: true, email: true },
-    orderBy: { raisonSociale: "asc" },
-    take: 20,
+  // Recherche multi-mots, sans accents, clients d'abord, + contacts avec qui
+  // on a échangé des mails, + repli tolérant aux fautes (lib/prospect-search).
+  return searchProspects(query, {
+    userId: user.id,
+    isAdmin: user.role === "ADMIN",
   });
-  return prospects;
 }
 
 /**
