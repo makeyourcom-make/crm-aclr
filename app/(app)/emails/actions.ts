@@ -6,7 +6,12 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { prisma } from "@/lib/db";
-import { findBlockingRule } from "@/lib/email-block";
+import {
+  SPAM_LABEL,
+  describeBlockRule,
+  findAllBlockingRules,
+  findBlockingRule,
+} from "@/lib/email-block";
 import { htmlToPlainText, sanitizeEmailHtml } from "@/lib/email-html";
 import { resolveFromAddress, sendMail } from "@/lib/mailer";
 import { put } from "@vercel/blob";
@@ -99,6 +104,11 @@ const SaveDraftSchema = z.object({
   /** Corps riche (gras/italique/…) — optionnel. */
   contenuHtml: z.string().optional(),
   attachments: z.array(AttachmentSchema).optional(),
+  /** CC / CCI conservés dans le brouillon (envoyés avec lui). */
+  cc: z.string().optional(),
+  bcc: z.string().optional(),
+  /** Brouillon de RÉPONSE : id du mail auquel on répond (même fil, In-Reply-To). */
+  replyToEmailId: z.string().optional(),
 });
 
 export interface SendEmailResult {
@@ -1407,18 +1417,239 @@ export async function emptyTrash(): Promise<{
   error?: string;
 }> {
   const user = await requireUser();
+  // Corbeille = supprimés HORS spam : le spam a son propre dossier et ne doit
+  // jamais être purgé par erreur en vidant la corbeille.
+  return purgeWhere({
+    userId: user.id,
+    supprime: true,
+    NOT: { labels: { has: SPAM_LABEL } },
+  });
+}
+
+/** Vide le dossier Spam (suppression définitive des mails filtrés). */
+export async function emptySpam(): Promise<{
+  ok: boolean;
+  count?: number;
+  error?: string;
+}> {
+  const user = await requireUser();
+  return purgeWhere({
+    userId: user.id,
+    supprime: true,
+    labels: { has: SPAM_LABEL },
+  });
+}
+
+async function purgeWhere(where: {
+  userId: string;
+  supprime: true;
+  labels?: { has: string };
+  NOT?: { labels: { has: string } };
+}): Promise<{ ok: boolean; count?: number }> {
   const impacted = await prisma.email.findMany({
-    where: { userId: user.id, supprime: true },
+    where,
     select: { prospectId: true },
   });
-  const result = await prisma.email.deleteMany({
-    where: { userId: user.id, supprime: true },
-  });
+  const result = await prisma.email.deleteMany({ where });
   revalidatePath("/emails");
   for (const pid of new Set(impacted.map((e) => e.prospectId).filter(Boolean))) {
     revalidatePath(`/prospects/${pid}`);
   }
   return { ok: true, count: result.count };
+}
+
+// ===========================================================================
+// SPAM — « Pas un spam » / « Spam » (sélection multiple)
+// ===========================================================================
+
+export interface SpamActionResult {
+  ok: boolean;
+  error?: string;
+  /** Nb de mails déplacés (vers Reçus ou vers Spam). */
+  moved?: number;
+  /** Règles anti-spam désactivées (libellés lisibles). */
+  rulesDisabled?: string[];
+  /** Conversations ignorées (ex. rattachées à un client). */
+  skipped?: number;
+}
+
+/**
+ * « Pas un spam » : sort du dossier Spam les fils donnés ET tous les mails
+ * filtrés des mêmes expéditeurs, les remet en Reçus (non lus), et désactive
+ * les règles qui les avaient bloqués — sinon le prochain mail repartirait en
+ * spam. Les règles restent visibles (et réactivables) dans « Filtres anti-spam ».
+ */
+export async function markThreadsNotSpam(
+  threadIds: string[],
+): Promise<SpamActionResult> {
+  const user = await requireUser();
+  if (threadIds.length === 0) return { ok: true, moved: 0, rulesDisabled: [] };
+
+  const seeds = await prisma.email.findMany({
+    where: {
+      userId: user.id,
+      threadId: { in: threadIds },
+      supprime: true,
+      labels: { has: SPAM_LABEL },
+    },
+    select: { expediteurEmail: true, objet: true, direction: true },
+  });
+  if (seeds.length === 0) {
+    return { ok: false, error: "Aucun mail en spam dans la sélection." };
+  }
+  const senders = [
+    ...new Set(
+      seeds
+        .filter((s) => s.direction === "ENTRANT")
+        .map((s) => s.expediteurEmail.toLowerCase().trim()),
+    ),
+  ];
+
+  // Mails à repêcher : les fils sélectionnés + tout le spam des mêmes expéditeurs.
+  const toRestore = await prisma.email.findMany({
+    where: {
+      userId: user.id,
+      supprime: true,
+      labels: { has: SPAM_LABEL },
+      OR: [
+        { threadId: { in: threadIds } },
+        ...senders.map((s) => ({
+          expediteurEmail: { equals: s, mode: "insensitive" as const },
+        })),
+      ],
+    },
+    select: { id: true, labels: true, direction: true, prospectId: true },
+  });
+
+  // Règles fautives (adresse, domaine ou mot-clé de l'objet).
+  const activeRules = await prisma.emailBlockRule.findMany({
+    where: { actif: true },
+    select: { id: true, type: true, value: true },
+  });
+  const fautives = new Map<string, (typeof activeRules)[number]>();
+  for (const s of seeds) {
+    if (s.direction !== "ENTRANT") continue;
+    for (const r of findAllBlockingRules(s.expediteurEmail, s.objet, activeRules)) {
+      fautives.set(r.id, r);
+    }
+  }
+
+  await prisma.$transaction([
+    ...toRestore.map((e) =>
+      prisma.email.update({
+        where: { id: e.id },
+        data: {
+          supprime: false,
+          supprimeeLe: null,
+          // Un mail reçu repêché redevient « non lu » pour être vu en Reçus.
+          lu: e.direction === "ENTRANT" ? false : true,
+          labels: e.labels.filter((l) => l !== SPAM_LABEL),
+        },
+      }),
+    ),
+    ...(fautives.size > 0
+      ? [
+          prisma.emailBlockRule.updateMany({
+            where: { id: { in: [...fautives.keys()] } },
+            data: { actif: false },
+          }),
+        ]
+      : []),
+  ]);
+
+  revalidatePath("/emails");
+  revalidatePath("/emails/filtres");
+  for (const pid of new Set(toRestore.map((e) => e.prospectId).filter(Boolean))) {
+    revalidatePath(`/prospects/${pid}`);
+  }
+  return {
+    ok: true,
+    moved: toRestore.length,
+    rulesDisabled: [...fautives.values()].map((r) => describeBlockRule(r)),
+  };
+}
+
+/**
+ * « Spam » depuis la sélection multiple de la boîte : pour chaque fil, bloque
+ * l'expéditeur (règle SENDER, comme « Marquer comme spam » sur un mail) et
+ * envoie dans le dossier Spam le fil + tous les mails de ces expéditeurs.
+ * Un fil rattaché à un client est ignoré (un client prime toujours).
+ */
+export async function markThreadsAsSpam(
+  threadIds: string[],
+): Promise<SpamActionResult> {
+  const user = await requireUser();
+  if (threadIds.length === 0) return { ok: true, moved: 0, skipped: 0 };
+
+  const msgs = await prisma.email.findMany({
+    where: { userId: user.id, threadId: { in: threadIds }, supprime: false },
+    select: {
+      threadId: true,
+      direction: true,
+      expediteurEmail: true,
+      prospectId: true,
+    },
+  });
+  const byThread = new Map<string, typeof msgs>();
+  for (const m of msgs) {
+    byThread.set(m.threadId, [...(byThread.get(m.threadId) ?? []), m]);
+  }
+
+  const okThreads: string[] = [];
+  const senders = new Set<string>();
+  let skipped = 0;
+  for (const [tid, list] of byThread) {
+    const entrants = list.filter((m) => m.direction === "ENTRANT");
+    if (entrants.length === 0 || list.some((m) => m.prospectId)) {
+      skipped++;
+      continue;
+    }
+    okThreads.push(tid);
+    for (const m of entrants) senders.add(m.expediteurEmail.toLowerCase().trim());
+  }
+  if (okThreads.length === 0) {
+    return {
+      ok: false,
+      error:
+        "Rien à classer en spam : les conversations sélectionnées sont liées à un client ou ne contiennent aucun mail reçu.",
+      skipped,
+    };
+  }
+
+  const now = new Date();
+  const [, moved] = await prisma.$transaction([
+    ...[...senders].map((value) =>
+      prisma.emailBlockRule.upsert({
+        where: { type_value: { type: "SENDER", value } },
+        create: { type: "SENDER", value, creeParId: user.id },
+        update: { actif: true },
+      }),
+    ),
+    prisma.email.updateMany({
+      where: {
+        userId: user.id,
+        supprime: false,
+        prospectId: null,
+        OR: [
+          { threadId: { in: okThreads } },
+          ...[...senders].map((s) => ({
+            direction: "ENTRANT" as const,
+            expediteurEmail: { equals: s, mode: "insensitive" as const },
+          })),
+        ],
+      },
+      data: {
+        supprime: true,
+        supprimeeLe: now,
+        lu: true,
+        labels: { push: SPAM_LABEL },
+      },
+    }),
+  ]).then((res) => [res, res[res.length - 1] as { count: number }] as const);
+
+  revalidatePath("/emails");
+  revalidatePath("/emails/filtres");
+  return { ok: true, moved: moved.count, skipped };
 }
 
 /**
@@ -1481,8 +1712,8 @@ export async function saveEmailDraft(input: unknown): Promise<SendEmailResult> {
   const parsed = SaveDraftSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Formulaire invalide." };
 
-  const { draftId, prospectId, to, attachments } = parsed.data;
-  const objet = (parsed.data.objet ?? "").trim();
+  const { draftId, prospectId, to, attachments, replyToEmailId } = parsed.data;
+  let objet = (parsed.data.objet ?? "").trim();
   const richHtml = parsed.data.contenuHtml
     ? sanitizeEmailHtml(parsed.data.contenuHtml)
     : "";
@@ -1493,10 +1724,84 @@ export async function saveEmailDraft(input: unknown): Promise<SendEmailResult> {
     return { ok: false, error: "Rien à enregistrer (sujet et contenu vides)." };
   }
 
-  // Résout le destinataire (client enregistré ou adresse libre).
+  // CC / CCI : validés ; `undefined` = non fourni (on ne touche pas l'existant).
+  const ccParsed = parseAddressList(parsed.data.cc);
+  if (ccParsed.error) return { ok: false, error: `CC — ${ccParsed.error}` };
+  const bccParsed = parseAddressList(parsed.data.bcc);
+  if (bccParsed.error) return { ok: false, error: `CCI — ${bccParsed.error}` };
+  const ccValue =
+    parsed.data.cc === undefined
+      ? undefined
+      : ccParsed.emails.length > 0
+        ? ccParsed.emails.join(", ")
+        : null;
+  const bccValue =
+    parsed.data.bcc === undefined
+      ? undefined
+      : bccParsed.emails.length > 0
+        ? bccParsed.emails.join(", ")
+        : null;
+
+  // Brouillon existant (mise à jour) : chargé d'abord — un brouillon de RÉPONSE
+  // garde son destinataire et son client (fixés par le fil), sinon reprendre le
+  // brouillon le renverrait à l'adresse principale du client.
+  const existing = draftId
+    ? await prisma.email.findUnique({
+        where: { id: draftId },
+        select: {
+          userId: true,
+          statut: true,
+          labels: true,
+          inReplyTo: true,
+          destinataireEmail: true,
+          prospectId: true,
+        },
+      })
+    : null;
+  if (draftId) {
+    if (!existing) return { ok: false, error: "Brouillon introuvable." };
+    if (existing.userId !== user.id) return { ok: false, error: "Accès refusé." };
+    if (existing.statut !== "BROUILLON") {
+      return { ok: false, error: "Ce message a déjà été envoyé." };
+    }
+  }
+
+  // Résout le destinataire : réponse (même fil), client enregistré ou adresse libre.
   let destinataireEmail = "";
   let resolvedProspectId: string | null = null;
-  if (prospectId) {
+  let replyThread: { threadId: string; inReplyTo: string } | null = null;
+  if (existing?.inReplyTo) {
+    destinataireEmail = existing.destinataireEmail;
+    resolvedProspectId = existing.prospectId;
+  } else if (replyToEmailId && !draftId) {
+    const original = await prisma.email.findUnique({
+      where: { id: replyToEmailId },
+      select: {
+        userId: true,
+        threadId: true,
+        messageId: true,
+        direction: true,
+        expediteurEmail: true,
+        destinataireEmail: true,
+        objet: true,
+        prospectId: true,
+      },
+    });
+    if (!original) return { ok: false, error: "Email original introuvable." };
+    if (user.role !== "ADMIN" && original.userId !== user.id) {
+      return { ok: false, error: "Accès refusé." };
+    }
+    destinataireEmail =
+      original.direction === "ENTRANT"
+        ? original.expediteurEmail
+        : original.destinataireEmail;
+    resolvedProspectId = original.prospectId;
+    replyThread = { threadId: original.threadId, inReplyTo: original.messageId };
+    if (!objet) {
+      const base = original.objet.trim();
+      objet = /^re\s*:/i.test(base) ? base : `Re: ${base}`;
+    }
+  } else if (prospectId) {
     const prospect = await prisma.prospect.findUnique({
       where: { id: prospectId },
       select: { id: true, email: true, assigneAId: true },
@@ -1537,16 +1842,7 @@ export async function saveEmailDraft(input: unknown): Promise<SendEmailResult> {
       : undefined;
 
   // --- Mise à jour d'un brouillon existant ---
-  if (draftId) {
-    const existing = await prisma.email.findUnique({
-      where: { id: draftId },
-      select: { userId: true, statut: true, labels: true },
-    });
-    if (!existing) return { ok: false, error: "Brouillon introuvable." };
-    if (existing.userId !== user.id) return { ok: false, error: "Accès refusé." };
-    if (existing.statut !== "BROUILLON") {
-      return { ok: false, error: "Ce message a déjà été envoyé." };
-    }
+  if (draftId && existing) {
     await prisma.$transaction(async (tx) => {
       await tx.emailAttachment.deleteMany({ where: { emailId: draftId } });
       await tx.email.update({
@@ -1554,6 +1850,8 @@ export async function saveEmailDraft(input: unknown): Promise<SendEmailResult> {
         data: {
           prospectId: resolvedProspectId,
           destinataireEmail,
+          ...(ccValue !== undefined ? { cc: ccValue } : {}),
+          ...(bccValue !== undefined ? { bcc: bccValue } : {}),
           objet: objetStored,
           contenuTexte: contenu,
           contenuHtml,
@@ -1569,8 +1867,10 @@ export async function saveEmailDraft(input: unknown): Promise<SendEmailResult> {
   }
 
   // --- Nouveau brouillon ---
+  // Brouillon de réponse : rattaché au fil d'origine (In-Reply-To) pour que
+  // l'envoi tombe dans la même conversation, chez nous comme chez le client.
   const messageId = `<${randomBytes(8).toString("hex")}.${Date.now()}@makeyourcom.ch>`;
-  const threadId = randomBytes(8).toString("hex");
+  const threadId = replyThread?.threadId ?? randomBytes(8).toString("hex");
   const created = await prisma.email.create({
     data: {
       prospectId: resolvedProspectId,
@@ -1578,9 +1878,12 @@ export async function saveEmailDraft(input: unknown): Promise<SendEmailResult> {
       direction: "SORTANT",
       threadId,
       messageId,
+      inReplyTo: replyThread?.inReplyTo ?? null,
       expediteurEmail: from,
       expediteurNom: fromName,
       destinataireEmail,
+      cc: ccValue ?? null,
+      bcc: bccValue ?? null,
       objet: objetStored,
       contenuHtml,
       contenuTexte: contenu,
@@ -1657,15 +1960,32 @@ export async function sendDraft(draftId: string): Promise<SendEmailResult> {
     name: userFull?.name ?? null,
   });
 
+  // Signature ajoutée À L'ENVOI (comme pour un mail direct) — le brouillon
+  // stocke le corps nu, sinon elle serait dupliquée à chaque ré-enregistrement.
+  const sigParts = await defaultSignatureParts(user.id);
+  const htmlFinal = contenuHtml + sigParts.html;
+  const texteFinal = contenuTexte + sigParts.text;
+
+  const splitAddresses = (s: string | null) =>
+    (s ?? "")
+      .split(/[,;]+/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+  const cc = splitAddresses(draft.cc);
+  const bcc = splitAddresses(draft.bcc);
+
   const sendResult = await sendMail({
     from,
     fromName,
     to: destinataire,
     subject: objet,
-    html: contenuHtml,
-    text: contenuTexte,
+    html: htmlFinal,
+    text: texteFinal,
     replyTo,
     messageId: draft.messageId,
+    inReplyTo: draft.inReplyTo ?? undefined,
+    cc: cc.length > 0 ? cc : undefined,
+    bcc: bcc.length > 0 ? bcc : undefined,
     attachments:
       draft.attachments.length > 0
         ? draft.attachments.map((a) => ({
@@ -1691,8 +2011,10 @@ export async function sendDraft(draftId: string): Promise<SendEmailResult> {
     where: { id: draftId },
     data: {
       objet,
-      contenuTexte,
-      contenuHtml,
+      // Envoi réel : on archive le message tel qu'il est parti (avec signature).
+      // Dry-run : on garde le corps nu (le brouillon reste éditable).
+      contenuTexte: isDryRun ? contenuTexte : texteFinal,
+      contenuHtml: isDryRun ? contenuHtml : htmlFinal,
       statut: isDryRun ? "BROUILLON" : "ENVOYE",
       envoyeLe: isDryRun ? null : new Date(),
       labels,

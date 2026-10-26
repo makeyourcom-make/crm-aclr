@@ -59,6 +59,8 @@ export default async function EmailsPage() {
     expediteurEmail: e.expediteurEmail,
     expediteurNom: e.expediteurNom,
     destinataireEmail: e.destinataireEmail,
+    cc: e.cc,
+    bcc: e.bcc,
     objet: e.objet,
     contenuHtml: e.contenuHtml,
     contenuTexte: e.contenuTexte,

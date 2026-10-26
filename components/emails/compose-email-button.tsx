@@ -135,6 +135,8 @@ export function ComposeEmailButton() {
         contenu: contenuTexte.trim(),
         contenuHtml,
         attachments: attachments.length > 0 ? attachments : undefined,
+        cc: cc.trim(),
+        bcc: bcc.trim(),
       });
       if (!res.ok) {
         toast.error(res.error ?? "Échec de l'enregistrement.");

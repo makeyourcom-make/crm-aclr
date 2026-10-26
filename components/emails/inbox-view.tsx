@@ -3,10 +3,13 @@
 /**
  * Vraie boîte de réception emails : sidebar (dossiers) + liste threads + lecture.
  *
- * - Sidebar : Tous / Reçus / Envoyés / Brouillons (avec compteurs)
+ * - Sidebar (à la Gmail) : Boîte de réception / Messages envoyés / Brouillons /
+ *   Tous les messages, puis Spam et Corbeille (dossiers distincts).
  * - Liste : threads regroupés par threadId, dernier email en haut
  * - Détail : timeline du thread (tous les messages chronologiquement)
- * - Bouton "Répondre" : modal qui appelle replyToEmail()
+ * - Répondre / Transférer, brouillon de réponse enregistrable dans le fil
+ * - Spam : « Pas un spam » (→ boîte de réception + règle désactivée) ;
+ *   « Spam » en sélection multiple depuis la boîte.
  */
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
@@ -20,11 +23,14 @@ import {
   attachEmailToProspect,
   deleteEmail,
   deleteThreadsBulk,
+  emptySpam,
   emptyTrash,
   forwardEmail,
   getMyDefaultSignatureHtml,
   markEmailAsSpam,
   markThreadRead,
+  markThreadsAsSpam,
+  markThreadsNotSpam,
   purgeEmail,
   refetchEmailBody,
   replyToEmail,
@@ -86,6 +92,8 @@ export interface InboxEmail {
   expediteurEmail: string;
   expediteurNom: string | null;
   destinataireEmail: string;
+  cc?: string | null;
+  bcc?: string | null;
   objet: string;
   contenuHtml: string;
   contenuTexte: string;
@@ -149,7 +157,18 @@ interface InboxViewProps {
   currentUserEmail: string;
 }
 
-type FolderType = "all" | "inbox" | "sent" | "draft" | "trash";
+type FolderType = "all" | "inbox" | "sent" | "draft" | "spam" | "trash";
+
+/** Mail filtré par l'anti-spam (vit dans le dossier Spam, pas la Corbeille). */
+const isSpam = (m: InboxEmail) => m.labels.includes("spam");
+
+/** Message de confirmation après « Pas un spam ». */
+function notSpamMessage(moved: number, rulesDisabled: string[]): string {
+  const base = `${moved} message(s) remis dans la boîte de réception`;
+  return rulesDisabled.length > 0
+    ? `${base} · filtre désactivé : ${rulesDisabled.join(", ")}`
+    : base;
+}
 
 export function InboxView({
   emails,
@@ -159,7 +178,8 @@ export function InboxView({
 }: InboxViewProps) {
   const router = useRouter();
   const [bulkPending, startBulk] = useTransition();
-  const [folder, setFolder] = useState<FolderType>("all");
+  // Comme Gmail : on ouvre sur la boîte de réception.
+  const [folder, setFolder] = useState<FolderType>("inbox");
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   // Sélection multiple (par threadId) pour archivage / suppression en masse.
@@ -190,17 +210,23 @@ export function InboxView({
   // propriétaire — la page ne sert QUE les mails du user connecté côté serveur.
 
   const inTrash = folder === "trash";
+  const inSpam = folder === "spam";
 
-  // Regroupe les emails par thread (boîte active + corbeille séparément).
+  // Regroupe les emails par thread : boîte active, Spam et Corbeille séparés
+  // (les mails filtrés portent le label "spam" ; le reste des supprimés = Corbeille).
   const threads = useMemo(() => groupThreads(emails), [emails]);
+  const spamThreads = useMemo(
+    () => groupThreads(trashedEmails.filter(isSpam)),
+    [trashedEmails],
+  );
   const trashThreads = useMemo(
-    () => groupThreads(trashedEmails),
+    () => groupThreads(trashedEmails.filter((m) => !isSpam(m))),
     [trashedEmails],
   );
 
   // Filtre par dossier
   const filteredThreads = useMemo(() => {
-    let t = inTrash ? trashThreads : threads;
+    let t = inSpam ? spamThreads : inTrash ? trashThreads : threads;
     if (folder === "inbox") {
       t = t.filter((th) => th.msgs.some((m) => m.direction === "ENTRANT"));
     } else if (folder === "sent") {
@@ -222,19 +248,24 @@ export function InboxView({
       );
     }
     return t;
-  }, [threads, trashThreads, inTrash, folder, search]);
+  }, [threads, spamThreads, trashThreads, inSpam, inTrash, folder, search]);
 
   const counts = useMemo(
     () => ({
       all: threads.length,
       inbox: threads.filter((t) => t.msgs.some((m) => m.direction === "ENTRANT")).length,
+      // Non lus de la boîte de réception (affiché en gras comme Gmail).
+      inboxUnread: threads.filter((t) =>
+        t.msgs.some((m) => m.direction === "ENTRANT" && !m.lu),
+      ).length,
       sent: threads.filter((t) =>
         t.msgs.some((m) => m.direction === "SORTANT" && !isGenuineDraft(m)),
       ).length,
       draft: threads.filter((t) => t.msgs.some(isGenuineDraft)).length,
+      spam: spamThreads.length,
       trash: trashThreads.length,
     }),
-    [threads, trashThreads],
+    [threads, spamThreads, trashThreads],
   );
 
   const selectedThread = filteredThreads.find((t) => t.threadId === selectedThreadId);
@@ -364,45 +395,149 @@ export function InboxView({
     });
   };
 
+  const handleBulkNotSpam = () => {
+    const ids = visibleCheckedIds.map((t) => t.threadId);
+    if (ids.length === 0) return;
+    startBulk(async () => {
+      const res = await markThreadsNotSpam(ids);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success(notSpamMessage(res.moved ?? 0, res.rulesDisabled ?? []));
+      clearSelection();
+      if (selectedThreadId && ids.includes(selectedThreadId))
+        setSelectedThreadId(null);
+      router.refresh();
+    });
+  };
+
+  const handleBulkSpam = () => {
+    const ids = visibleCheckedIds.map((t) => t.threadId);
+    if (ids.length === 0) return;
+    if (
+      !confirm(
+        `Signaler ${ids.length} conversation(s) comme spam ?\n\nLes expéditeurs seront bloqués : leurs mails actuels et futurs iront dans le dossier Spam (récupérables via « Pas un spam »).`,
+      )
+    )
+      return;
+    startBulk(async () => {
+      const res = await markThreadsAsSpam(ids);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success(
+        `${res.moved ?? 0} message(s) déplacé(s) dans Spam` +
+          (res.skipped
+            ? ` · ${res.skipped} conversation(s) liée(s) à un client ignorée(s)`
+            : ""),
+      );
+      clearSelection();
+      if (selectedThreadId && ids.includes(selectedThreadId))
+        setSelectedThreadId(null);
+      router.refresh();
+    });
+  };
+
+  const handleEmptySpam = () => {
+    if (
+      !confirm(
+        "Vider le dossier Spam ? Tous les mails filtrés seront supprimés définitivement (irréversible).",
+      )
+    )
+      return;
+    startBulk(async () => {
+      const res = await emptySpam();
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success(`Spam vidé (${res.count ?? 0} email(s) supprimé(s)).`);
+      clearSelection();
+      setSelectedThreadId(null);
+      router.refresh();
+    });
+  };
+
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[180px_320px_1fr]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[200px_320px_1fr]">
       {/* Sidebar */}
       <aside className="space-y-1 lg:sticky lg:top-4 lg:self-start">
         <FolderButton
-          label="Tous"
+          label="Boîte de réception"
           icon="Inbox"
-          count={counts.all}
-          active={folder === "all"}
-          onClick={() => setFolder("all")}
-        />
-        <FolderButton
-          label="Reçus"
-          icon="MailOpen"
-          count={counts.inbox}
+          // Comme Gmail : compteur = non lus (gras) ; rien si tout est lu.
+          count={counts.inboxUnread}
+          emphasize={counts.inboxUnread > 0}
           active={folder === "inbox"}
-          onClick={() => setFolder("inbox")}
+          onClick={() => {
+            setFolder("inbox");
+            setSelectedThreadId(null);
+          }}
         />
         <FolderButton
-          label="Envoyés"
-          icon="MailPlus"
+          label="Messages envoyés"
+          icon="Send"
           count={counts.sent}
           active={folder === "sent"}
-          onClick={() => setFolder("sent")}
+          onClick={() => {
+            setFolder("sent");
+            setSelectedThreadId(null);
+          }}
         />
         <FolderButton
           label="Brouillons"
           icon="FileText"
           count={counts.draft}
+          emphasize={counts.draft > 0}
           active={folder === "draft"}
-          onClick={() => setFolder("draft")}
+          onClick={() => {
+            setFolder("draft");
+            setSelectedThreadId(null);
+          }}
+        />
+        <FolderButton
+          label="Tous les messages"
+          icon="Mails"
+          count={counts.all}
+          active={folder === "all"}
+          onClick={() => {
+            setFolder("all");
+            setSelectedThreadId(null);
+          }}
         />
         <div className="my-1 border-t border-border" />
+        <FolderButton
+          label="Spam"
+          icon="ShieldBan"
+          count={counts.spam}
+          active={folder === "spam"}
+          onClick={() => {
+            setFolder("spam");
+            setSelectedThreadId(null);
+          }}
+        />
+        {inSpam && counts.spam > 0 && (
+          <button
+            type="button"
+            onClick={handleEmptySpam}
+            disabled={bulkPending}
+            className="mt-1 flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-[11px] text-red-600 hover:bg-red-50 disabled:opacity-50"
+          >
+            <Icon name="Trash2" className="h-3 w-3" />
+            Vider le spam
+          </button>
+        )}
         <FolderButton
           label="Corbeille"
           icon="Trash2"
           count={counts.trash}
           active={folder === "trash"}
-          onClick={() => setFolder("trash")}
+          onClick={() => {
+            setFolder("trash");
+            setSelectedThreadId(null);
+          }}
         />
         {inTrash && counts.trash > 0 && (
           <button
@@ -437,7 +572,18 @@ export function InboxView({
               {visibleCheckedIds.length > 1 ? "s" : ""}
             </span>
             <div className="ml-auto flex items-center gap-1">
-              {inTrash ? (
+              {inSpam ? (
+                <button
+                  type="button"
+                  onClick={handleBulkNotSpam}
+                  disabled={bulkPending}
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
+                  title="Remettre dans la boîte de réception et désactiver le filtre"
+                >
+                  <Icon name="ShieldCheck" className="h-3 w-3" />
+                  Pas un spam
+                </button>
+              ) : inTrash ? (
                 <button
                   type="button"
                   onClick={handleBulkRestore}
@@ -450,6 +596,16 @@ export function InboxView({
                 </button>
               ) : (
                 <>
+                  <button
+                    type="button"
+                    onClick={handleBulkSpam}
+                    disabled={bulkPending}
+                    className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-orange-50 hover:text-orange-700 disabled:opacity-50"
+                    title="Signaler comme spam (bloque les expéditeurs)"
+                  >
+                    <Icon name="ShieldBan" className="h-3 w-3" />
+                    Spam
+                  </button>
                   <button
                     type="button"
                     onClick={handleBulkArchive}
@@ -500,7 +656,13 @@ export function InboxView({
         <ul className="max-h-[calc(100vh-280px)] divide-y divide-border overflow-y-auto lg:max-h-[calc(100vh-220px)]">
           {filteredThreads.length === 0 ? (
             <li className="p-8 text-center text-xs text-muted-foreground">
-              {inTrash ? "La corbeille est vide." : "Aucun email dans ce dossier."}
+              {inSpam
+                ? "Aucun spam. 🎉"
+                : inTrash
+                  ? "La corbeille est vide."
+                  : folder === "draft"
+                    ? "Aucun brouillon."
+                    : "Aucun email dans ce dossier."}
             </li>
           ) : (
             filteredThreads.map((t) => (
@@ -521,10 +683,12 @@ export function InboxView({
       <section className="rounded-lg border border-border bg-card">
         {selectedThread ? (
           <ThreadDetail
+            key={selectedThread.threadId}
             thread={selectedThread}
             currentUserEmail={currentUserEmail}
             isAdmin={isAdmin}
             inTrash={inTrash}
+            inSpam={inSpam}
           />
         ) : (
           <div className="flex h-[calc(100vh-280px)] items-center justify-center text-center lg:h-[calc(100vh-220px)]">
@@ -546,35 +710,40 @@ function FolderButton({
   icon,
   count,
   active,
+  emphasize = false,
   onClick,
 }: {
   label: string;
   icon: string;
   count: number;
   active: boolean;
+  /** Gras (non lus / brouillons en attente), comme dans Gmail. */
+  emphasize?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm transition-colors ${
+      className={`flex w-full items-center justify-between rounded-full px-3 py-2 text-sm transition-colors ${
         active
           ? "bg-primary text-primary-foreground"
           : "hover:bg-muted"
-      }`}
+      } ${emphasize ? "font-semibold" : ""}`}
     >
-      <span className="flex items-center gap-2">
-        <Icon name={icon} className="h-3.5 w-3.5" />
-        {label}
+      <span className="flex min-w-0 items-center gap-2">
+        <Icon name={icon} className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">{label}</span>
       </span>
-      <span
-        className={`text-[10px] tabular-nums ${
-          active ? "opacity-80" : "text-muted-foreground"
-        }`}
-      >
-        {count}
-      </span>
+      {count > 0 && (
+        <span
+          className={`text-[11px] tabular-nums ${
+            active ? "opacity-80" : emphasize ? "" : "text-muted-foreground"
+          }`}
+        >
+          {count}
+        </span>
+      )}
     </button>
   );
 }
@@ -635,6 +804,12 @@ function ThreadListItem({
             {thread.msgs.length}
           </span>
         )}
+        {/* Comme Gmail : « Brouillon » en rouge si un brouillon attend dans le fil. */}
+        {thread.msgs.some(isGenuineDraft) && (
+          <span className="shrink-0 text-[10px] font-semibold text-red-600">
+            Brouillon
+          </span>
+        )}
         <span className="ml-auto shrink-0 text-[10px] text-muted-foreground tabular-nums">
           {formatShortDate(last.envoyeLe ?? last.createdAt)}
         </span>
@@ -677,11 +852,19 @@ function DraftEditor({ draft }: { draft: InboxEmail }) {
       size: a.taille,
     })),
   );
+  const [cc, setCc] = useState(draft.cc ?? "");
+  const [bcc, setBcc] = useState(draft.bcc ?? "");
+  const [showCc, setShowCc] = useState(!!(draft.cc || draft.bcc));
 
   // Destinataire figé (stocké dans le brouillon) — client lié ou adresse libre.
-  const recipientArgs = draft.prospect
-    ? { prospectId: draft.prospect.id }
-    : { to: draft.destinataireEmail };
+  // Cc/Cci renvoyés à chaque enregistrement (vides = retirés).
+  const recipientArgs = {
+    ...(draft.prospect
+      ? { prospectId: draft.prospect.id }
+      : { to: draft.destinataireEmail }),
+    cc: cc.trim(),
+    bcc: bcc.trim(),
+  };
 
   const handleSaveDraft = () => {
     if (!objet.trim() && !contenu.trim()) {
@@ -768,6 +951,32 @@ function DraftEditor({ draft }: { draft: InboxEmail }) {
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+        {!showCc ? (
+          <button
+            type="button"
+            onClick={() => setShowCc(true)}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            + Cc / Cci
+          </button>
+        ) : (
+          <div className="space-y-1.5">
+            <input
+              value={cc}
+              onChange={(e) => setCc(e.target.value)}
+              placeholder="Cc : copie@exemple.ch, autre@exemple.ch"
+              disabled={pending}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            <input
+              value={bcc}
+              onChange={(e) => setBcc(e.target.value)}
+              placeholder="Cci : copie.cachee@exemple.ch"
+              disabled={pending}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+        )}
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">
             Sujet
@@ -838,14 +1047,20 @@ function ThreadDetail({
   currentUserEmail,
   isAdmin,
   inTrash = false,
+  inSpam = false,
 }: {
   thread: { threadId: string; msgs: InboxEmail[]; last: InboxEmail };
   currentUserEmail: string;
   isAdmin: boolean;
   inTrash?: boolean;
+  inSpam?: boolean;
 }) {
   const [showReply, setShowReply] = useState(false);
   const [replyHtml, setReplyHtml] = useState("");
+  // HTML initial de l'éditeur de réponse (vide, ou le brouillon repris).
+  const [replyInitial, setReplyInitial] = useState("");
+  // Brouillon de réponse en cours d'édition (null = nouvelle réponse).
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [replyKey, setReplyKey] = useState(0);
   const [replyAttachments, setReplyAttachments] = useState<PickedAttachment[]>([]);
   const [showReplyCc, setShowReplyCc] = useState(false);
@@ -872,11 +1087,77 @@ function ThreadDetail({
   const [pending, startTransition] = useTransition();
   const replyText = htmlToPlainText(replyHtml);
 
+  // Un thread d'un seul message qui est un vrai brouillon → éditeur dédié
+  // (terminer / modifier / envoyer plus tard). Pas dans la corbeille ni le spam.
+  const draftMsg =
+    !inTrash &&
+    !inSpam &&
+    thread.msgs.length === 1 &&
+    isGenuineDraft(thread.msgs[0]!)
+      ? thread.msgs[0]!
+      : null;
+
+  // Brouillon de RÉPONSE dans un fil existant : affiché à part (bandeau
+  // « Reprendre »), pas comme un message de la conversation.
+  const replyDraft =
+    !inTrash && !inSpam && thread.msgs.length > 1
+      ? (thread.msgs.find(isGenuineDraft) ?? null)
+      : null;
+  const visibleMsgs = replyDraft
+    ? thread.msgs.filter((m) => m.id !== replyDraft.id)
+    : thread.msgs;
+  // Dernier VRAI message du fil : c'est à lui qu'on répond / qu'on transfère.
+  const lastReal = visibleMsgs[visibleMsgs.length - 1] ?? thread.last;
+  const replyRecipient =
+    lastReal.direction === "ENTRANT"
+      ? lastReal.expediteurEmail
+      : lastReal.destinataireEmail;
+  const replyObjet = (() => {
+    const base = thread.msgs[0]!.objet.trim();
+    return /^re\s*:/i.test(base) ? base : `Re: ${base}`;
+  })();
+
+  const resetReply = () => {
+    setShowReply(false);
+    setReplyHtml("");
+    setReplyInitial("");
+    setEditingDraftId(null);
+    setReplyKey((k) => k + 1);
+    setReplyAttachments([]);
+    setReplyCc("");
+    setReplyBcc("");
+    setShowReplyCc(false);
+  };
+
   const openReply = () => {
     setReplyHtml("");
+    setReplyInitial("");
+    setEditingDraftId(null);
     setReplyKey((k) => k + 1);
     setShowReply(true);
   };
+
+  /** Reprend le brouillon de réponse dans l'éditeur (contenu, PJ, Cc/Cci). */
+  const resumeReplyDraft = () => {
+    if (!replyDraft) return;
+    setReplyInitial(replyDraft.contenuHtml);
+    setReplyHtml(replyDraft.contenuHtml);
+    setEditingDraftId(replyDraft.id);
+    setReplyAttachments(
+      replyDraft.attachments.map((a) => ({
+        url: a.url,
+        filename: a.nom,
+        mimeType: a.mimeType,
+        size: a.taille,
+      })),
+    );
+    setReplyCc(replyDraft.cc ?? "");
+    setReplyBcc(replyDraft.bcc ?? "");
+    setShowReplyCc(!!(replyDraft.cc || replyDraft.bcc));
+    setReplyKey((k) => k + 1);
+    setShowReply(true);
+  };
+
   const openForward = () => {
     setForwardHtml("");
     setForwardKey((k) => k + 1);
@@ -884,15 +1165,55 @@ function ThreadDetail({
     setShowForward(true);
   };
 
-  // Un thread d'un seul message qui est un vrai brouillon → éditeur dédié
-  // (terminer / modifier / envoyer plus tard). Pas dans la corbeille.
-  const draftMsg =
-    !inTrash && thread.msgs.length === 1 && isGenuineDraft(thread.msgs[0]!)
-      ? thread.msgs[0]!
-      : null;
   if (draftMsg) {
     return <DraftEditor key={draftMsg.id} draft={draftMsg} />;
   }
+
+  /** Enregistre (ou met à jour) la réponse en brouillon, dans le même fil. */
+  const saveReplyDraft = async () =>
+    saveEmailDraft({
+      ...(editingDraftId
+        ? { draftId: editingDraftId }
+        : { replyToEmailId: lastReal.id }),
+      objet: replyObjet,
+      contenu: replyText.trim(),
+      contenuHtml: replyHtml,
+      attachments: replyAttachments.length > 0 ? replyAttachments : undefined,
+      cc: replyCc.trim(),
+      bcc: replyBcc.trim(),
+    });
+
+  const handleSaveReplyDraft = () => {
+    if (!replyText.trim()) {
+      toast.error("Écris un contenu avant d'enregistrer le brouillon.");
+      return;
+    }
+    startTransition(async () => {
+      const res = await saveReplyDraft();
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec de l'enregistrement.");
+        return;
+      }
+      toast.success("Brouillon enregistré — retrouve-le dans « Brouillons » ✓");
+      resetReply();
+      router.refresh();
+    });
+  };
+
+  const handleDeleteReplyDraft = () => {
+    if (!replyDraft) return;
+    if (!confirm("Supprimer ce brouillon de réponse ?")) return;
+    startTransition(async () => {
+      const res = await deleteEmail(replyDraft.id);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success("Brouillon supprimé.");
+      resetReply();
+      router.refresh();
+    });
+  };
 
   const handleSend = () => {
     if (!replyText.trim()) {
@@ -900,27 +1221,33 @@ function ThreadDetail({
       return;
     }
     startTransition(async () => {
-      const res = await replyToEmail(
-        thread.last.id,
-        replyText.trim(),
-        undefined,
-        replyAttachments.length > 0 ? replyAttachments : undefined,
-        replyHtml,
-        replyCc.trim() || undefined,
-        replyBcc.trim() || undefined,
-      );
+      let res;
+      if (editingDraftId) {
+        // Brouillon repris : on enregistre les dernières modifs puis on l'envoie
+        // (il reste dans le fil, In-Reply-To conservé).
+        const saved = await saveReplyDraft();
+        if (!saved.ok) {
+          toast.error(saved.error ?? "Échec de l'enregistrement.");
+          return;
+        }
+        res = await sendDraft(editingDraftId);
+      } else {
+        res = await replyToEmail(
+          lastReal.id,
+          replyText.trim(),
+          undefined,
+          replyAttachments.length > 0 ? replyAttachments : undefined,
+          replyHtml,
+          replyCc.trim() || undefined,
+          replyBcc.trim() || undefined,
+        );
+      }
       if (!res.ok) {
         toast.error(res.error ?? "Échec d'envoi.");
         return;
       }
       toast.success(res.dryRun ? "Réponse enregistrée (dry-run)." : "Réponse envoyée ✓");
-      setReplyHtml("");
-      setReplyKey((k) => k + 1);
-      setReplyAttachments([]);
-      setReplyCc("");
-      setReplyBcc("");
-      setShowReplyCc(false);
-      setShowReply(false);
+      resetReply();
       router.refresh();
     });
   };
@@ -944,7 +1271,7 @@ function ThreadDetail({
     }
     startTransition(async () => {
       const res = await forwardEmail({
-        emailId: thread.last.id,
+        emailId: lastReal.id,
         to: forwardTo.trim(),
         contenu: htmlToPlainText(forwardHtml).trim(),
         contenuHtml: forwardHtml,
@@ -967,7 +1294,7 @@ function ThreadDetail({
   };
 
   // Pièces jointes de l'original — pour proposer (ou non) de les réexpédier.
-  const nbPJ = thread.last.attachments?.length ?? 0;
+  const nbPJ = lastReal.attachments?.length ?? 0;
 
   return (
     <div className="flex h-[calc(100vh-280px)] flex-col lg:h-[calc(100vh-220px)]">
@@ -1029,7 +1356,7 @@ function ThreadDetail({
 
       {/* Timeline messages */}
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
-        {thread.msgs.map((m) => (
+        {visibleMsgs.map((m) => (
           <MessageBubble
             key={m.id}
             message={m}
@@ -1038,27 +1365,50 @@ function ThreadDetail({
               m.expediteurEmail.toLowerCase() === currentUserEmail.toLowerCase()
             }
             isAdmin={isAdmin}
-            inTrash={inTrash}
+            inTrash={inTrash || inSpam}
+            inSpam={inSpam}
             onRefresh={() => router.refresh()}
           />
         ))}
       </div>
 
-      {/* Zone de réponse — remplacée par les actions corbeille si on y est */}
-      {inTrash ? (
+      {/* Zone de réponse — remplacée par les actions Spam / Corbeille si on y est */}
+      {inSpam ? (
+        <SpamActionsBar thread={thread} onRefresh={() => router.refresh()} />
+      ) : inTrash ? (
         <TrashActionsBar thread={thread} onRefresh={() => router.refresh()} />
       ) : (
       <div className="border-t border-border bg-card p-3">
         {!showReply && !showForward ? (
+          <div className="space-y-2">
+            {replyDraft && (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <span className="min-w-0 truncate">
+                  <strong>Brouillon de réponse</strong> enregistré le{" "}
+                  {formatFullDate(replyDraft.createdAt)}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleDeleteReplyDraft}
+                  disabled={pending}
+                  className="shrink-0 rounded px-1.5 py-0.5 text-red-700 hover:bg-red-100 disabled:opacity-50"
+                >
+                  Supprimer
+                </button>
+              </div>
+            )}
           <div className="flex gap-2">
             <Button
               type="button"
-              onClick={openReply}
+              onClick={replyDraft ? resumeReplyDraft : openReply}
               className="flex-1"
               variant="outline"
             >
-              <Icon name="MailPlus" className="mr-2 h-3.5 w-3.5" />
-              Répondre
+              <Icon
+                name={replyDraft ? "Pencil" : "MailPlus"}
+                className="mr-2 h-3.5 w-3.5"
+              />
+              {replyDraft ? "Reprendre le brouillon" : "Répondre"}
             </Button>
             <Button
               type="button"
@@ -1069,6 +1419,7 @@ function ThreadDetail({
               <Icon name="Forward" className="mr-2 h-3.5 w-3.5" />
               Transférer
             </Button>
+          </div>
           </div>
         ) : showForward ? (
           <div className="space-y-2">
@@ -1178,12 +1529,8 @@ function ThreadDetail({
         ) : (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              Répondre à{" "}
-              <strong>
-                {thread.last.direction === "ENTRANT"
-                  ? thread.last.expediteurEmail
-                  : thread.last.destinataireEmail}
-              </strong>
+              {editingDraftId ? "Brouillon de réponse à " : "Répondre à "}
+              <strong>{replyRecipient}</strong>
             </p>
             {!showReplyCc ? (
               <button
@@ -1213,6 +1560,7 @@ function ThreadDetail({
             )}
             <RichTextEditor
               key={replyKey}
+              initialHtml={replyInitial}
               onChange={setReplyHtml}
               disabled={pending}
               placeholder="Tape ta réponse…"
@@ -1231,22 +1579,23 @@ function ThreadDetail({
               onChange={setReplyAttachments}
               disabled={pending}
             />
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <Button
                 type="button"
-                variant="outline"
-                onClick={() => {
-                  setShowReply(false);
-                  setReplyHtml("");
-                  setReplyKey((k) => k + 1);
-                  setReplyAttachments([]);
-                  setReplyCc("");
-                  setReplyBcc("");
-                  setShowReplyCc(false);
-                }}
+                variant="ghost"
+                onClick={resetReply}
                 disabled={pending}
               >
                 Annuler
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSaveReplyDraft}
+                disabled={pending}
+              >
+                <Icon name="Save" className="mr-1.5 h-3.5 w-3.5" />
+                Enregistrer en brouillon
               </Button>
               <Button type="button" onClick={handleSend} disabled={pending}>
                 {pending ? "Envoi…" : "Envoyer la réponse"}
@@ -1256,6 +1605,70 @@ function ThreadDetail({
         )}
       </div>
       )}
+    </div>
+  );
+}
+
+/** Barre d'actions affichée sous un thread ouvert depuis le dossier Spam. */
+function SpamActionsBar({
+  thread,
+  onRefresh,
+}: {
+  thread: { threadId: string; msgs: InboxEmail[] };
+  onRefresh: () => void;
+}) {
+  const [pending, startTransition] = useTransition();
+
+  const handleNotSpam = () => {
+    startTransition(async () => {
+      const res = await markThreadsNotSpam([thread.threadId]);
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec.");
+        return;
+      }
+      toast.success(notSpamMessage(res.moved ?? 0, res.rulesDisabled ?? []));
+      onRefresh();
+    });
+  };
+
+  const handlePurge = () => {
+    if (!confirm("Supprimer définitivement cette conversation ? Irréversible."))
+      return;
+    startTransition(async () => {
+      for (const m of thread.msgs) {
+        const res = await purgeEmail(m.id);
+        if (!res.ok) {
+          toast.error(res.error ?? "Échec de la suppression définitive.");
+          return;
+        }
+      }
+      toast.success("Conversation supprimée définitivement.");
+      onRefresh();
+    });
+  };
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-orange-50/60 p-3">
+      <p className="text-xs text-orange-900">
+        Filtré comme spam. Si c&apos;est une erreur, remets-le dans la boîte de
+        réception : le filtre correspondant sera désactivé.
+      </p>
+      <div className="flex gap-2">
+        <Button type="button" onClick={handleNotSpam} disabled={pending}>
+          <Icon name="ShieldCheck" className="mr-1.5 h-3.5 w-3.5" />
+          Pas un spam
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={handlePurge}
+          disabled={pending}
+          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+        >
+          <Icon name="Trash2" className="mr-1.5 h-3.5 w-3.5" />
+          Supprimer définitivement
+        </Button>
+      </div>
     </div>
   );
 }
@@ -1338,12 +1751,15 @@ function MessageBubble({
   isMine,
   isAdmin,
   inTrash = false,
+  inSpam = false,
   onRefresh,
 }: {
   message: InboxEmail;
   isMine: boolean;
   isAdmin: boolean;
   inTrash?: boolean;
+  /** Dossier Spam : « restaurer » = « Pas un spam » (désactive le filtre). */
+  inSpam?: boolean;
   onRefresh: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
@@ -1376,6 +1792,16 @@ function MessageBubble({
 
   const handleRestore = () => {
     startTransition(async () => {
+      if (inSpam) {
+        const res = await markThreadsNotSpam([message.threadId]);
+        if (!res.ok) {
+          toast.error(res.error ?? "Échec.");
+          return;
+        }
+        toast.success(notSpamMessage(res.moved ?? 0, res.rulesDisabled ?? []));
+        onRefresh();
+        return;
+      }
       const res = await restoreEmail(message.id);
       if (!res.ok) {
         toast.error(res.error ?? "Échec.");
@@ -1418,7 +1844,7 @@ function MessageBubble({
   const handleSpam = () => {
     if (
       !confirm(
-        `Bloquer « ${message.expediteurEmail} » ?\n\nCe message et tous ceux de cet expéditeur partent à la corbeille, et les futurs seront filtrés automatiquement. Récupérable à tout moment via Filtres.`,
+        `Signaler « ${message.expediteurEmail} » comme spam ?\n\nCe message et tous ceux de cet expéditeur vont dans le dossier Spam, et les futurs y seront filtrés automatiquement. Récupérable à tout moment via « Pas un spam ».`,
       )
     )
       return;
@@ -1429,7 +1855,7 @@ function MessageBubble({
         return;
       }
       toast.success(
-        `Expéditeur bloqué — ${res.moved ?? 0} message(s) à la corbeille.`,
+        `Expéditeur bloqué — ${res.moved ?? 0} message(s) déplacé(s) dans Spam.`,
       );
       onRefresh();
     });
@@ -1487,9 +1913,16 @@ function MessageBubble({
                 onClick={handleRestore}
                 disabled={pending}
                 className="rounded-md p-1 text-muted-foreground hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
-                title="Restaurer le message"
+                title={
+                  inSpam
+                    ? "Pas un spam (remettre en boîte de réception)"
+                    : "Restaurer le message"
+                }
               >
-                <Icon name="RotateCcw" className="h-3 w-3" />
+                <Icon
+                  name={inSpam ? "ShieldCheck" : "RotateCcw"}
+                  className="h-3 w-3"
+                />
               </button>
               <button
                 type="button"

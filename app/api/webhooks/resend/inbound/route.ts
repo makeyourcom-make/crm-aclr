@@ -376,7 +376,7 @@ export async function POST(req: Request) {
         envoyeLe: payload.data?.created_at ? new Date(payload.data.created_at) : new Date(),
         labels: blocked ? ["inbound:resend", "spam"] : ["inbound:resend"],
         lu: blocked ? true : false, // spam → pas compté comme non-lu
-        supprime: !!blocked, // spam → corbeille direct (récupérable)
+        supprime: !!blocked, // spam → dossier Spam (récupérable via « Pas un spam »)
         supprimeeLe: blocked ? new Date() : null,
       },
     });

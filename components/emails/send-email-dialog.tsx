@@ -12,7 +12,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { sendEmailToProspect } from "@/app/(app)/emails/actions";
+import { saveEmailDraft, sendEmailToProspect } from "@/app/(app)/emails/actions";
 import {
   AttachmentPicker,
   type PickedAttachment,
@@ -132,18 +132,46 @@ export function SendEmailDialog({
       } else {
         toast.success(`Email envoyé à ${prospectName} ✓`);
       }
-      // Reset + close
-      setTemplateId("");
-      setObjet("");
-      setContenuHtml("");
-      setEditorInitial("");
-      setEditorKey((k) => k + 1);
-      setAttachments([]);
-      setCc("");
-      setBcc("");
-      setShowCc(false);
-      setOpen(false);
-      router.refresh();
+      resetAndClose();
+    });
+  };
+
+  const resetAndClose = () => {
+    setTemplateId("");
+    setObjet("");
+    setContenuHtml("");
+    setEditorInitial("");
+    setEditorKey((k) => k + 1);
+    setAttachments([]);
+    setCc("");
+    setBcc("");
+    setShowCc(false);
+    setOpen(false);
+    router.refresh();
+  };
+
+  /** Prépare le mail pour plus tard : il part dans « Brouillons » de la boîte. */
+  const handleSaveDraft = () => {
+    if (!objet.trim() && !contenuTexte.trim()) {
+      toast.error("Rien à enregistrer (sujet et contenu vides).");
+      return;
+    }
+    startTransition(async () => {
+      const res = await saveEmailDraft({
+        prospectId,
+        objet: objet.trim(),
+        contenu: contenuTexte.trim(),
+        contenuHtml,
+        attachments: attachments.length > 0 ? attachments : undefined,
+        cc: cc.trim(),
+        bcc: bcc.trim(),
+      });
+      if (!res.ok) {
+        toast.error(res.error ?? "Échec de l'enregistrement.");
+        return;
+      }
+      toast.success("Brouillon enregistré — retrouve-le dans Emails › Brouillons ✓");
+      resetAndClose();
     });
   };
 
@@ -280,11 +308,20 @@ export function SendEmailDialog({
           <DialogFooter>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               onClick={() => setOpen(false)}
               disabled={pending}
             >
               Annuler
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSaveDraft}
+              disabled={pending}
+            >
+              <Icon name="Save" className="mr-1.5 h-3.5 w-3.5" />
+              Enregistrer en brouillon
             </Button>
             <Button type="submit" disabled={pending || !prospectEmail}>
               {pending ? "Envoi…" : "Envoyer l'email"}
