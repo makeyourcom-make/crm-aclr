@@ -3,8 +3,9 @@
 /**
  * Vraie boîte de réception emails : sidebar (dossiers) + liste threads + lecture.
  *
- * - Sidebar (à la Gmail) : Boîte de réception / Messages envoyés / Brouillons /
- *   Tous les messages, puis Spam et Corbeille (dossiers distincts).
+ * - Sidebar (à la Gmail) : Boîte de réception / Messages envoyés / Brouillons,
+ *   puis Spam et Corbeille (dossiers distincts). Pas de « Tous les messages » :
+ *   sans archivés, ce serait l'union exacte réception + envoyés (doublon).
  * - Liste : threads regroupés par threadId, dernier email en haut
  * - Détail : timeline du thread (tous les messages chronologiquement)
  * - Répondre / Transférer, brouillon de réponse enregistrable dans le fil
@@ -494,16 +495,6 @@ export function InboxView({
           active={folder === "draft"}
           onClick={() => {
             setFolder("draft");
-            setSelectedThreadId(null);
-          }}
-        />
-        <FolderButton
-          label="Tous les messages"
-          icon="Mails"
-          count={counts.all}
-          active={folder === "all"}
-          onClick={() => {
-            setFolder("all");
             setSelectedThreadId(null);
           }}
         />
