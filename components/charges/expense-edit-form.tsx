@@ -1,13 +1,20 @@
 "use client";
 
+import { AlertTriangle, Loader2, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { updateExpense } from "@/app/(app)/charges/actions";
+import { FormField } from "@/components/common/form-field";
+import {
+  CHECKBOX_CLASS,
+  FIELD_CLASS,
+  SELECT_CLASS,
+  TEXTAREA_CLASS,
+} from "@/components/common/form-styles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 const CATEGORIES = [
   { value: "LOYER", label: "Loyer" },
@@ -37,10 +44,10 @@ const METHODES = [
 ];
 
 const STATUTS = [
-  { value: "EN_ATTENTE", label: "🟡 En attente de débit" },
-  { value: "PAYE", label: "✓ Payé (débit confirmé)" },
-  { value: "LITIGE", label: "⚠ Litige" },
-  { value: "REMBOURSE", label: "↩ Remboursé" },
+  { value: "EN_ATTENTE", label: "En attente de débit" },
+  { value: "PAYE", label: "Payé (débit confirmé)" },
+  { value: "LITIGE", label: "Litige" },
+  { value: "REMBOURSE", label: "Remboursé" },
 ];
 
 interface ExpenseInitial {
@@ -61,6 +68,18 @@ interface ExpenseInitial {
   prospectId: string;
 }
 
+/**
+ * Si statutPaiement = PAYE et pas de dateReglement, suggère aujourd'hui.
+ * Même règle que l'ancien effet, appliquée à chaque mise à jour du
+ * formulaire (et à l'initialisation) au lieu d'un useEffect.
+ */
+function withPaidDefault(s: ExpenseInitial): ExpenseInitial {
+  if (s.statutPaiement === "PAYE" && !s.dateReglement) {
+    return { ...s, dateReglement: new Date().toISOString().slice(0, 10) };
+  }
+  return s;
+}
+
 export function ExpenseEditForm({
   expense,
   prospects,
@@ -72,14 +91,8 @@ export function ExpenseEditForm({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [f, setF] = useState(expense);
-
-  // Si statutPaiement = PAYE et pas de dateReglement, suggère aujourd'hui
-  useEffect(() => {
-    if (f.statutPaiement === "PAYE" && !f.dateReglement) {
-      setF((s) => ({ ...s, dateReglement: new Date().toISOString().slice(0, 10) }));
-    }
-  }, [f.statutPaiement, f.dateReglement]);
+  const [f, setFRaw] = useState(() => withPaidDefault(expense));
+  const setF = (next: ExpenseInitial) => setFRaw(withPaidDefault(next));
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,21 +124,22 @@ export function ExpenseEditForm({
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Date du ticket *">
+    <form onSubmit={submit} className="space-y-5">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FormField label="Date du ticket" required>
           <Input
             type="date"
             value={f.date}
             onChange={(e) => setF({ ...f, date: e.target.value })}
             required
+            className={FIELD_CLASS}
           />
-        </Field>
-        <Field label="Catégorie *">
+        </FormField>
+        <FormField label="Catégorie" required>
           <select
             value={f.categorie}
             onChange={(e) => setF({ ...f, categorie: e.target.value })}
-            className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+            className={SELECT_CLASS}
           >
             {CATEGORIES.map((c) => (
               <option key={c.value} value={c.value}>
@@ -133,12 +147,12 @@ export function ExpenseEditForm({
               </option>
             ))}
           </select>
-        </Field>
-        <Field label="Statut paiement">
+        </FormField>
+        <FormField label="Statut paiement">
           <select
             value={f.statutPaiement}
             onChange={(e) => setF({ ...f, statutPaiement: e.target.value })}
-            className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+            className={SELECT_CLASS}
           >
             {STATUTS.map((s) => (
               <option key={s.value} value={s.value}>
@@ -146,31 +160,34 @@ export function ExpenseEditForm({
               </option>
             ))}
           </select>
-        </Field>
-        <Field label="Date de règlement">
+        </FormField>
+        <FormField label="Date de règlement">
           <Input
             type="date"
             value={f.dateReglement}
             onChange={(e) => setF({ ...f, dateReglement: e.target.value })}
+            className={FIELD_CLASS}
           />
-        </Field>
-        <Field label="Fournisseur" full>
+        </FormField>
+        <FormField label="Fournisseur" className="sm:col-span-2">
           <Input
             value={f.fournisseur}
             onChange={(e) => setF({ ...f, fournisseur: e.target.value })}
+            className={FIELD_CLASS}
           />
-        </Field>
-        <Field label="N° ticket / facture">
+        </FormField>
+        <FormField label="N° ticket / facture">
           <Input
             value={f.reference}
             onChange={(e) => setF({ ...f, reference: e.target.value })}
+            className={FIELD_CLASS}
           />
-        </Field>
-        <Field label="Mode de paiement">
+        </FormField>
+        <FormField label="Mode de paiement">
           <select
             value={f.methodPaiement}
             onChange={(e) => setF({ ...f, methodPaiement: e.target.value })}
-            className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+            className={SELECT_CLASS}
           >
             {METHODES.map((m) => (
               <option key={m.value} value={m.value}>
@@ -178,15 +195,27 @@ export function ExpenseEditForm({
               </option>
             ))}
           </select>
-        </Field>
-        <Field label="Client rattaché" full>
+        </FormField>
+        <FormField
+          label="Client rattaché"
+          className="sm:col-span-2"
+          hint={
+            disableProspectIfAllocated ? (
+              <span className="inline-flex items-start gap-1.5 font-semibold text-gold-700">
+                <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+                Cette charge a des allocations multi-clients : retire-les
+                d&apos;abord si tu veux changer le client direct.
+              </span>
+            ) : undefined
+          }
+        >
           <select
             value={f.prospectId}
             onChange={(e) => setF({ ...f, prospectId: e.target.value })}
             disabled={disableProspectIfAllocated}
-            className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm disabled:opacity-50"
+            className={SELECT_CLASS}
           >
-            <option value="">— Aucun (interne / multi-clients) —</option>
+            <option value="">Aucun (interne / multi-clients)</option>
             {prospects.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.raisonSociale}{" "}
@@ -194,29 +223,24 @@ export function ExpenseEditForm({
               </option>
             ))}
           </select>
-          {disableProspectIfAllocated && (
-            <p className="mt-1 text-[11px] text-amber-700">
-              ⚠ Cette charge a des allocations multi-clients : retire-les
-              d'abord si tu veux changer le client direct.
-            </p>
-          )}
-        </Field>
-        <Field label="Description" full>
+        </FormField>
+        <FormField label="Description" className="sm:col-span-2">
           <textarea
             value={f.description}
             onChange={(e) => setF({ ...f, description: e.target.value })}
             rows={2}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            className={TEXTAREA_CLASS}
           />
-        </Field>
+        </FormField>
       </div>
 
-      <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-4">
-        <Field label="HT *">
+      <div className="grid gap-4 border-t border-border pt-5 sm:grid-cols-2 xl:grid-cols-4">
+        <FormField label="HT" required>
           <Input
             type="number"
             step="0.01"
             min={0}
+            inputMode="decimal"
             value={f.montantHT}
             onChange={(e) => {
               const v = Number(e.target.value) || 0;
@@ -224,9 +248,10 @@ export function ExpenseEditForm({
               setF({ ...f, montantHT: v, montantTVA: tva, montantTTC: v + tva });
             }}
             required
+            className={`${FIELD_CLASS} tabular-nums`}
           />
-        </Field>
-        <Field label="Taux TVA">
+        </FormField>
+        <FormField label="Taux TVA">
           <select
             value={f.tauxTVA}
             onChange={(e) => {
@@ -239,7 +264,7 @@ export function ExpenseEditForm({
                 montantTTC: f.montantHT + tva,
               });
             }}
-            className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+            className={SELECT_CLASS}
           >
             <option value={0.077}>7.7 %</option>
             <option value={0.025}>2.5 %</option>
@@ -247,66 +272,56 @@ export function ExpenseEditForm({
             <option value={0.081}>8.1 % (nouveau)</option>
             <option value={0}>0 %</option>
           </select>
-        </Field>
-        <Field label="TVA">
+        </FormField>
+        <FormField label="TVA">
           <Input
             type="number"
             step="0.01"
+            inputMode="decimal"
             value={f.montantTVA}
             onChange={(e) =>
               setF({ ...f, montantTVA: Number(e.target.value) || 0 })
             }
+            className={`${FIELD_CLASS} tabular-nums`}
           />
-        </Field>
-        <Field label="TTC *">
+        </FormField>
+        <FormField label="TTC" required>
           <Input
             type="number"
             step="0.01"
             min={0}
+            inputMode="decimal"
             value={f.montantTTC}
             onChange={(e) =>
               setF({ ...f, montantTTC: Number(e.target.value) || 0 })
             }
             required
+            className={`${FIELD_CLASS} tabular-nums`}
           />
-        </Field>
-        <Field full label="">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={f.tvaRecuperable}
-              onChange={(e) =>
-                setF({ ...f, tvaRecuperable: e.target.checked })
-              }
-              className="h-4 w-4"
-            />
-            TVA récupérable
-          </label>
-        </Field>
+        </FormField>
       </div>
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={pending}>
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <label className="inline-flex cursor-pointer items-center gap-2.5 text-sm font-semibold">
+          <input
+            type="checkbox"
+            checked={f.tvaRecuperable}
+            onChange={(e) =>
+              setF({ ...f, tvaRecuperable: e.target.checked })
+            }
+            className={CHECKBOX_CLASS}
+          />
+          TVA récupérable
+        </label>
+        <Button type="submit" size="lg" disabled={pending}>
+          {pending ? (
+            <Loader2 aria-hidden="true" className="animate-spin" />
+          ) : (
+            <Save aria-hidden="true" />
+          )}
           {pending ? "Sauvegarde…" : "Sauvegarder"}
         </Button>
       </div>
     </form>
-  );
-}
-
-function Field({
-  label,
-  children,
-  full,
-}: {
-  label: string;
-  children: React.ReactNode;
-  full?: boolean;
-}) {
-  return (
-    <div className={full ? "sm:col-span-2 lg:col-span-4" : ""}>
-      {label && <Label className="mb-1 block text-xs">{label}</Label>}
-      {children}
-    </div>
   );
 }

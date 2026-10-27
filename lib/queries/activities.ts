@@ -7,6 +7,7 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
+import { zurichDayBounds } from "@/lib/queries/phoning";
 import type { ActivityListParams } from "@/lib/schemas/activity";
 import { type SessionUser } from "@/lib/session";
 
@@ -53,12 +54,12 @@ export async function getProspectActivities(
         select: { id: true, type: true, date: true },
       },
     },
-    take: 100, // garde-fou perf — les plus anciennes sont raremement utiles
+    take: 100, // garde-fou perf - les plus anciennes sont raremement utiles
   });
 }
 
 // ===========================================================================
-// LISTE GLOBALE — pour /activites
+// LISTE GLOBALE - pour /activites
 // ===========================================================================
 
 export interface ActivityListResult {
@@ -108,13 +109,22 @@ export async function getActivities(
 // COMPTEUR D'APPELS DU JOUR (sidebar / dashboard)
 // ===========================================================================
 
-export async function getTodayCallStats(user: SessionUser) {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
+/**
+ * Compteurs du jour (journée Europe/Zurich, comme le moteur de jeu).
+ *
+ * Périmètre : un commercial ne compte que SES activités. Un admin compte
+ * toute l'équipe par défaut, ou un seul utilisateur si `scopeUserId` est
+ * fourni (vue « Mes activités » ou vue d'une commerciale sur /activites).
+ */
+export async function getTodayCallStats(user: SessionUser, scopeUserId?: string) {
+  const { start, end } = zurichDayBounds();
 
-  const whereOwn = user.role === "ADMIN" ? {} : { userId: user.id };
+  const whereOwn =
+    user.role === "ADMIN"
+      ? scopeUserId
+        ? { userId: scopeUserId }
+        : {}
+      : { userId: user.id };
 
   const [appelsSortants, rdvFaits, emailsEnvoyes] = await Promise.all([
     prisma.activity.count({
@@ -148,7 +158,7 @@ export async function getTodayCallStats(user: SessionUser) {
 }
 
 // ===========================================================================
-// INTERNAL — WHERE builder
+// INTERNAL - WHERE builder
 // ===========================================================================
 
 function buildActivityWhere(

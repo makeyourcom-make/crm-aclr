@@ -5,12 +5,14 @@
  *
  * Met à jour ?sortBy=X&sortDir=Y dans l'URL et reset à la page 1.
  *
- * Indicateurs :
- *   ↕ : pas triée
- *   ↑ : ascendant
- *   ↓ : descendant
+ * Style MYC Arena : 11 px, 700, majuscules espacées 0.08em ; flèches Lucide
+ * (double flèche = non triée, flèche haut / bas = sens du tri). Le sens du
+ * tri est aussi annoncé aux lecteurs d'écran.
  */
+import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+
+import { cn } from "@/lib/utils";
 
 interface SortableHeaderProps {
   label: string;
@@ -47,26 +49,37 @@ export function SortableHeader({
     router.push(`?${params.toString()}`);
   };
 
-  const indicator = !isActive ? "↕" : activeSortDir === "asc" ? "↑" : "↓";
+  const Indicator = !isActive
+    ? ChevronsUpDown
+    : activeSortDir === "asc"
+      ? ArrowUp
+      : ArrowDown;
 
   return (
     <button
       type="button"
       onClick={handleClick}
-      className={`group inline-flex items-center gap-1 text-left text-xs font-semibold uppercase tracking-wider transition-colors ${
+      className={cn(
+        "group -mx-1 inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-left text-[11px] font-bold tracking-[0.08em] uppercase transition-colors",
         isActive
-          ? "text-primary"
-          : "text-muted-foreground hover:text-foreground"
-      }`}
+          ? "text-foreground"
+          : "text-muted-foreground hover:text-foreground",
+      )}
     >
       <span>{label}</span>
-      <span
-        className={`text-[10px] ${
-          isActive ? "" : "opacity-40 group-hover:opacity-100"
-        }`}
-        aria-hidden
-      >
-        {indicator}
+      <Indicator
+        aria-hidden="true"
+        className={cn(
+          "size-3.5 shrink-0",
+          isActive ? "text-coral-600" : "opacity-50 group-hover:opacity-100",
+        )}
+      />
+      <span className="sr-only">
+        {isActive
+          ? activeSortDir === "asc"
+            ? ", trié par ordre croissant"
+            : ", trié par ordre décroissant"
+          : ", cliquer pour trier"}
       </span>
     </button>
   );

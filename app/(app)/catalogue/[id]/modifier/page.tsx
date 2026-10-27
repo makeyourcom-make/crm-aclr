@@ -1,9 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Icon } from "@/components/icon";
-import { PageHeader } from "@/components/page-header";
+import { StatusPill } from "@/components/arena/pills";
 import { ProductForm } from "@/components/catalogue/product-form";
+import { BackLink } from "@/components/common/back-link";
+import { PageShell } from "@/components/common/page-shell";
+import { PageHeader } from "@/components/page-header";
 import { getCategories } from "@/lib/categories";
 import { getProductById, getProducts } from "@/lib/queries/products";
 import { requireAdmin } from "@/lib/session";
@@ -26,18 +27,18 @@ export default async function EditProductPage({ params }: PageProps) {
   if (!product) notFound();
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-6 lg:px-8">
+    <PageShell width="narrow">
       <PageHeader
+        rubrique="finance"
         title={`Modifier · ${product.nom}`}
-        breadcrumb={
-          <Link
-            href="/catalogue"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Icon name="ChevronRight" className="h-3 w-3 rotate-180" />
-            Retour au catalogue
-          </Link>
+        description={
+          product.isActive ? (
+            <StatusPill tone="green">En ligne</StatusPill>
+          ) : (
+            <StatusPill tone="navy">Hors ligne</StatusPill>
+          )
         }
+        breadcrumb={<BackLink href="/catalogue">Retour au catalogue</BackLink>}
       />
       <ProductForm
         initial={product}
@@ -51,6 +52,6 @@ export default async function EditProductPage({ params }: PageProps) {
           }))}
         categories={categories.map((c) => ({ code: c.code, label: c.label }))}
       />
-    </div>
+    </PageShell>
   );
 }

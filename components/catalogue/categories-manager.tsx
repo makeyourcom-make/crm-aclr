@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronRight, Plus, Save, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -10,10 +11,14 @@ import {
   renameCategorieLabel,
   setProductCategorie,
 } from "@/app/(app)/catalogue/actions";
-import { Icon } from "@/components/icon";
+import { StatusPill } from "@/components/arena/pills";
+import {
+  FIELD_CLASS,
+  SELECT_SM_CLASS,
+} from "@/components/common/form-styles";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 interface CatProduct {
   id: string;
@@ -48,27 +53,35 @@ export function CategoriesManager({
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success(`Catégorie « ${newLabel.trim()} » créée ✓`);
+      toast.success(`Catégorie « ${newLabel.trim()} » créée.`);
       setNewLabel("");
       router.refresh();
     });
   };
 
   return (
-    <div className="mt-4 space-y-3">
+    <div className="space-y-3">
       {/* Ajouter une catégorie */}
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3">
-        <Icon name="Plus" className="h-4 w-4 text-primary" />
-        <Input
-          value={newLabel}
-          onChange={(e) => setNewLabel(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleCreate();
-          }}
-          placeholder="Nom d'une nouvelle catégorie…"
-          className="h-9 max-w-xs"
-        />
-        <Button type="button" size="sm" onClick={handleCreate} disabled={pending}>
+      <div className="flex flex-wrap items-center gap-2 rounded-[16px] border border-dashed border-border-strong bg-card p-3">
+        <span
+          aria-hidden="true"
+          className="hidden size-9 shrink-0 items-center justify-center rounded-[12px] bg-navy-100 text-navy-700 sm:flex"
+        >
+          <Plus className="size-4" />
+        </span>
+        <label className="min-w-0 flex-1 sm:max-w-xs">
+          <span className="sr-only">Nom de la nouvelle catégorie</span>
+          <Input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleCreate();
+            }}
+            placeholder="Nom d'une nouvelle catégorie…"
+            className={FIELD_CLASS}
+          />
+        </label>
+        <Button type="button" size="lg" onClick={handleCreate} disabled={pending}>
           Ajouter la catégorie
         </Button>
       </div>
@@ -93,6 +106,7 @@ function CategoryCard({
   const [expanded, setExpanded] = useState(false);
 
   const dirty = label.trim() !== cat.label && label.trim().length > 0;
+  const panelId = `cat-products-${cat.code}`;
 
   const handleRename = () => {
     startTransition(async () => {
@@ -101,7 +115,7 @@ function CategoryCard({
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success("Catégorie renommée ✓");
+      toast.success("Catégorie renommée.");
       router.refresh();
     });
   };
@@ -113,7 +127,7 @@ function CategoryCard({
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success("Produit déplacé ✓");
+      toast.success("Produit déplacé.");
       router.refresh();
     });
   };
@@ -126,83 +140,94 @@ function CategoryCard({
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success("Catégorie supprimée ✓");
+      toast.success("Catégorie supprimée.");
       router.refresh();
     });
   };
 
   return (
-    <Card>
-      <CardContent className="space-y-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded bg-muted px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-            {cat.code}
-          </span>
-          {cat.systeme && (
-            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-medium uppercase text-blue-700">
-              système
-            </span>
-          )}
+    <div className="rounded-[20px] border border-border bg-card p-4 shadow-arena sm:p-5">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <span className="rounded-[8px] bg-navy-50 px-2 py-1 font-mono text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
+          {cat.code}
+        </span>
+        {cat.systeme && (
+          <StatusPill tone="blue" dot={false}>
+            Système
+          </StatusPill>
+        )}
+        <span className="text-sm font-semibold text-muted-foreground">
+          {cat.count} produit{cat.count > 1 ? "s" : ""}
+        </span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <label className="min-w-0 flex-1 sm:max-w-xs">
+          <span className="sr-only">Nom de la catégorie {cat.code}</span>
           <Input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            className="h-9 max-w-xs"
-            aria-label={`Nom de la catégorie ${cat.code}`}
+            className={FIELD_CLASS}
           />
-          <Button
+        </label>
+        <Button
+          type="button"
+          size="lg"
+          onClick={handleRename}
+          disabled={!dirty || pending}
+        >
+          <Save aria-hidden="true" />
+          Renommer
+        </Button>
+        {!cat.systeme && cat.count === 0 && (
+          <button
             type="button"
-            size="sm"
-            onClick={handleRename}
-            disabled={!dirty || pending}
+            onClick={handleDelete}
+            disabled={pending}
+            className="inline-flex size-11 items-center justify-center rounded-[12px] border border-border-strong text-muted-foreground transition-colors hover:border-alert-500/40 hover:bg-alert-50 hover:text-alert-700 disabled:opacity-50"
+            title="Supprimer cette catégorie"
+            aria-label={`Supprimer la catégorie ${cat.label}`}
           >
-            <Icon name="Save" className="mr-1.5 h-3.5 w-3.5" />
-            Renommer
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            {cat.count} produit{cat.count > 1 ? "s" : ""}
-          </span>
-          {!cat.systeme && cat.count === 0 && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={pending}
-              className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-              title="Supprimer cette catégorie"
-            >
-              <Icon name="Trash2" className="h-3.5 w-3.5" />
-            </button>
-          )}
-          {cat.count > 0 && (
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="ml-auto inline-flex items-center gap-1 text-xs text-primary hover:underline"
-            >
-              <Icon
-                name={expanded ? "ChevronDown" : "ChevronRight"}
-                className="h-3.5 w-3.5"
-              />
-              {expanded ? "Masquer" : "Voir / réaffecter les produits"}
-            </button>
-          )}
-        </div>
+            <Trash2 aria-hidden="true" className="size-4" />
+          </button>
+        )}
+        {cat.count > 0 && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            aria-controls={panelId}
+            className="inline-flex h-11 items-center gap-1.5 rounded-[12px] px-3 text-sm font-bold text-info-700 transition-colors hover:bg-info-50 sm:ml-auto"
+          >
+            <ChevronRight
+              aria-hidden="true"
+              className={cn("size-4 transition-transform", expanded && "rotate-90")}
+            />
+            {expanded ? "Masquer" : "Voir / réaffecter les produits"}
+          </button>
+        )}
+      </div>
 
-        {expanded && (
-          <div className="divide-y divide-border rounded-md border border-border">
-            {cat.products.map((p) => (
-              <div
-                key={p.id}
-                className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm"
-              >
-                <span className="min-w-0 flex-1 truncate">
-                  {p.nom}
-                  {!p.isActive && (
-                    <span className="ml-2 text-[10px] text-muted-foreground">
-                      (inactif)
-                    </span>
-                  )}
-                </span>
-                <span className="text-xs text-muted-foreground">
+      {expanded && (
+        <div
+          id={panelId}
+          className="mt-3 divide-y divide-border overflow-hidden rounded-[14px] border border-border"
+        >
+          {cat.products.map((p) => (
+            <div
+              key={p.id}
+              className="flex flex-wrap items-center gap-2 px-3 py-2.5 text-sm"
+            >
+              <span className="min-w-0 flex-1 truncate font-semibold">
+                {p.nom}
+                {!p.isActive && (
+                  <span className="ml-2 text-xs font-medium text-muted-foreground">
+                    (inactif)
+                  </span>
+                )}
+              </span>
+              <label className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-muted-foreground">
                   Déplacer vers :
                 </span>
                 <select
@@ -211,9 +236,9 @@ function CategoryCard({
                   onChange={(e) => {
                     if (e.target.value) handleMove(p.id, e.target.value);
                   }}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                  className={cn(SELECT_SM_CLASS, "w-auto min-w-[150px]")}
                 >
-                  <option value="">— choisir —</option>
+                  <option value="">Choisir</option>
                   {allCategories
                     .filter((c) => c.code !== cat.code)
                     .map((c) => (
@@ -222,11 +247,11 @@ function CategoryCard({
                       </option>
                     ))}
                 </select>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              </label>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

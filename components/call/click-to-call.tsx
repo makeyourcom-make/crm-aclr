@@ -65,11 +65,11 @@ export function ClickToCall({
       onClick={handleClick}
       className={cn(
         inline
-          ? "text-left text-primary hover:underline"
-          : "inline-flex items-center gap-1 rounded-md text-primary hover:underline",
+          ? "text-left font-semibold text-info-700 underline-offset-2 hover:underline"
+          : "inline-flex items-center gap-1 rounded-[10px] font-semibold text-info-700 underline-offset-2 hover:underline",
         className,
       )}
-      title={`Démarrer le suivi d'appel — ${display}`}
+      title={`Démarrer le suivi d'appel - ${formatPhone(numero)}`}
     >
       {display}
     </button>

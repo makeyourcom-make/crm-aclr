@@ -18,46 +18,58 @@ interface CommissionsChartProps {
   tooltipLabel?: string;
 }
 
+/**
+ * Courbe MYC Arena : trait navy, remplissage coral léger (charte : graphiques
+ * navy / coral), grille #E5E8F0, axes en texte secondaire #5B6478.
+ */
 export function CommissionsChart({
   data,
   tooltipLabel = "CA signé",
 }: CommissionsChartProps) {
   return (
-    <div className="h-56 w-full">
+    <div className="h-60 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="commGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#0E1936" stopOpacity={0.5} />
-              <stop offset="100%" stopColor="#0E1936" stopOpacity={0} />
+              <stop offset="0%" stopColor="#F47174" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="#F47174" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+          <CartesianGrid stroke="#E5E8F0" strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 11, fill: "#64748b" }}
-            stroke="#cbd5e1"
+            tick={{ fontSize: 12, fill: "#5B6478", fontWeight: 600 }}
+            stroke="#D5DAE6"
+            tickLine={false}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: "#64748b" }}
-            stroke="#cbd5e1"
+            tick={{ fontSize: 12, fill: "#5B6478", fontWeight: 600 }}
+            stroke="#D5DAE6"
+            tickLine={false}
+            axisLine={false}
             tickFormatter={(v) => formatCHFCompact(v).replace("CHF ", "")}
-            width={56}
+            width={60}
           />
           <Tooltip
             formatter={(value) => [formatCHFCompact(Number(value)), tooltipLabel]}
+            cursor={{ stroke: "#D5DAE6", strokeWidth: 1 }}
             contentStyle={{
               fontSize: 12,
-              borderRadius: 6,
-              border: "1px solid #e2e8f0",
+              fontWeight: 600,
+              borderRadius: 12,
+              border: "1px solid #E5E8F0",
+              boxShadow: "0 8px 24px rgba(14,25,54,0.10)",
+              color: "#0E1936",
             }}
           />
           <Area
             type="monotone"
             dataKey="montant"
             stroke="#0E1936"
-            strokeWidth={2}
+            strokeWidth={2.5}
             fill="url(#commGrad)"
+            activeDot={{ r: 5, fill: "#E95256", stroke: "#FFFFFF", strokeWidth: 2 }}
           />
         </AreaChart>
       </ResponsiveContainer>

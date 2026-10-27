@@ -1,7 +1,7 @@
 import { InvoiceStatut } from "@prisma/client";
 
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { StatusPill } from "@/components/arena/pills";
+import type { Tone } from "@/components/arena/tones";
 
 const LABELS: Record<InvoiceStatut, string> = {
   BROUILLON: "Brouillon",
@@ -9,16 +9,13 @@ const LABELS: Record<InvoiceStatut, string> = {
   PAYEE: "Payée",
 };
 
-const COLORS: Record<InvoiceStatut, string> = {
-  BROUILLON: "bg-slate-100 text-slate-600",
-  ENVOYEE: "bg-blue-100 text-blue-700",
-  PAYEE: "bg-emerald-100 text-emerald-700",
+const TONES: Record<InvoiceStatut, Tone> = {
+  BROUILLON: "navy",
+  ENVOYEE: "blue",
+  PAYEE: "green",
 };
 
+/** Pastille de statut d'une fiche de salaire (MYC Arena). */
 export function InvoiceStatutBadge({ statut }: { statut: InvoiceStatut }) {
-  return (
-    <Badge variant="secondary" className={cn("font-normal", COLORS[statut])}>
-      {LABELS[statut]}
-    </Badge>
-  );
+  return <StatusPill tone={TONES[statut]}>{LABELS[statut]}</StatusPill>;
 }

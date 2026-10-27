@@ -106,7 +106,7 @@ export async function confirmTotpEnrollment(code: string) {
   try {
     secret = decryptPassword(dbUser.totpSecretEnc);
   } catch {
-    return { ok: false as const, error: "Secret illisible — recommence." };
+    return { ok: false as const, error: "Secret illisible : recommence." };
   }
   if (!verifyTotp(secret, (code ?? "").trim())) {
     return { ok: false as const, error: "Code invalide. Réessaie." };
@@ -149,7 +149,7 @@ export async function disableTotp(code: string) {
     }
   }
   if (!ok) {
-    return { ok: false as const, error: "Code invalide — désactivation refusée." };
+    return { ok: false as const, error: "Code invalide : désactivation refusée." };
   }
   await prisma.user.update({
     where: { id: user.id },

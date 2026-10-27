@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { PlayerAvatar, toneForRole } from "@/components/arena/player-avatar";
 import { DossiersTabs } from "@/components/dossiers/dossiers-tabs";
 import { PageHeader } from "@/components/page-header";
 import { PlanningBoard } from "@/components/planning/planning-board";
@@ -7,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { addDays, addMonths, todayZurich } from "@/lib/planning/dates";
 import { ensurePlanning } from "@/lib/planning/engine";
 import { getPlanningData } from "@/lib/planning/queries";
+import { getProductionStats } from "@/lib/queries/dossiers-production";
 import { requireUser } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +20,11 @@ interface PageProps {
 }
 
 type Vue = "mois" | "semaine" | "jour";
+
+function initiales(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "")).toUpperCase() || "?";
+}
 
 export default async function PlanningPage({ searchParams }: PageProps) {
   const user = await requireUser();
@@ -33,8 +40,7 @@ export default async function PlanningPage({ searchParams }: PageProps) {
   });
   if (!owner) return null;
 
-  const vue: Vue =
-    raw.vue === "semaine" ? "semaine" : raw.vue === "jour" ? "jour" : "mois";
+  const vue: Vue = raw.vue === "semaine" ? "semaine" : raw.vue === "jour" ? "jour" : "mois";
   const today = todayZurich();
 
   // Début de fenêtre : mois courant (glissant) ou lundi de la semaine choisie.
@@ -45,7 +51,10 @@ export default async function PlanningPage({ searchParams }: PageProps) {
     from = m ? new Date(`${m}-01T00:00:00.000Z`) : addMonths(today, 0);
     to = addMonths(from, 12);
   } else if (vue === "semaine") {
-    const d = typeof raw.debut === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.debut) ? new Date(`${raw.debut}T00:00:00.000Z`) : today;
+    const d =
+      typeof raw.debut === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.debut)
+        ? new Date(`${raw.debut}T00:00:00.000Z`)
+        : today;
     from = addDays(d, -((d.getUTCDay() || 7) - 1)); // lundi
     to = addDays(from, 7);
   } else {
@@ -54,52 +63,73 @@ export default async function PlanningPage({ searchParams }: PageProps) {
   }
 
   await ensurePlanning(owner);
-  const data = await getPlanningData(owner.id, from, to);
-
-  const collaborateurs = isAdmin
-    ? await prisma.user.findMany({
+  const collaborateursP: Promise<{ id: string; name: string; role: string }[]> = isAdmin
+    ? prisma.user.findMany({
         where: { isActive: true },
-        select: { id: true, name: true },
+        select: { id: true, name: true, role: true },
         orderBy: { name: "asc" },
       })
-    : [];
+    : Promise.resolve([]);
+  const [data, production, collaborateurs] = await Promise.all([
+    getPlanningData(owner.id, from, to),
+    getProductionStats(owner.id),
+    collaborateursP,
+  ]);
+
+  const isSelf = owner.id === user.id;
+  const ownerFirstName = owner.name.split(" ")[0] ?? owner.name;
 
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
+        rubrique="projets"
         title="Gestion des projets"
-        description="Planning de production : toutes les tâches clients récurrentes sur 12 mois glissants."
+        description={
+          isSelf
+            ? "Planning de production · tu livres, tes clients restent."
+            : `Planning de production de ${owner.name} · 12 mois glissants.`
+        }
       />
-      <DossiersTabs />
 
-      {isAdmin && collaborateurs.length > 1 && (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <span className="mr-1 text-xs text-muted-foreground">Planning de :</span>
-          {collaborateurs.map((c) => (
-            <Link
-              key={c.id}
-              href={c.id === user.id ? `/dossiers/planning?vue=${vue}` : `/dossiers/planning?vue=${vue}&pour=${c.id}`}
-              className={cn(
-                "rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
-                c.id === owner.id
-                  ? "border-primary/30 bg-primary/10 text-primary"
-                  : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              {c.id === user.id ? `Moi (${c.name.split(" ")[0]})` : c.name.split(" ")[0]}
-            </Link>
-          ))}
-        </div>
-      )}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <DossiersTabs />
+        {isAdmin && collaborateurs.length > 1 && (
+          <div role="group" aria-label="Planning de" className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold text-muted-foreground">Planning de :</span>
+            {collaborateurs.map((c) => {
+              const actif = c.id === owner.id;
+              return (
+                <Link
+                  key={c.id}
+                  href={c.id === user.id ? `/dossiers/planning?vue=${vue}` : `/dossiers/planning?vue=${vue}&pour=${c.id}`}
+                  aria-current={actif ? "page" : undefined}
+                  className={cn(
+                    "inline-flex h-9 items-center gap-2 rounded-full border py-0 pr-3.5 pl-1.5 text-[13px] font-bold transition-colors",
+                    actif
+                      ? "border-navy-700 bg-navy-700 text-white"
+                      : "border-border-strong bg-card text-foreground hover:bg-navy-50",
+                  )}
+                >
+                  <PlayerAvatar initials={initiales(c.name)} tone={toneForRole(c.role)} size={26} />
+                  {c.id === user.id ? `Moi (${c.name.split(" ")[0]})` : c.name.split(" ")[0]}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       <PlanningBoard
         vue={vue}
         from={from.toISOString().slice(0, 10)}
         today={today.toISOString().slice(0, 10)}
         ownerId={owner.id}
-        ownerQuery={owner.id === user.id ? "" : `&pour=${owner.id}`}
+        ownerQuery={isSelf ? "" : `&pour=${owner.id}`}
+        ownerFirstName={ownerFirstName}
+        isSelf={isSelf}
         lignes={data.lignes}
         taches={data.taches}
+        production={production}
       />
     </div>
   );

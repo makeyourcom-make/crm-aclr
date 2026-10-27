@@ -3,7 +3,7 @@
  * Sert notamment pour la validation OAuth Google (URL requise pour publier
  * l'app dans Google Auth Platform).
  */
-export const metadata = { title: "Politique de confidentialité — Make Your Com" };
+export const metadata = { title: "Politique de confidentialité - Make Your Com" };
 export const dynamic = "force-static";
 
 export default function ConfidentialitePage() {
@@ -13,7 +13,7 @@ export default function ConfidentialitePage() {
         Politique de confidentialité
       </h1>
       <p className="mt-2 text-sm text-slate-500">
-        Make Your Com — CRM d&apos;ACLR Sàrl · Route de la Jorette 66, 1899
+        Make Your Com · CRM d&apos;ACLR Sàrl · Route de la Jorette 66, 1899
         Torgon, Suisse · contact@makeyourcom.ch
       </p>
       <p className="mt-1 text-sm text-slate-500">

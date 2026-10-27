@@ -1,13 +1,15 @@
 "use client";
 
+import { Loader2, Save, UserRound } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { updateMyProfile } from "@/app/(app)/parametres/actions";
+import { SectionCard } from "@/components/arena/section-card";
+import { FormField } from "@/components/common/form-field";
+import { FIELD_CLASS } from "@/components/common/form-styles";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 interface ProfileFormProps {
   user: {
@@ -41,66 +43,72 @@ export function ProfileForm({ user }: ProfileFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Mon profil</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label>Email</Label>
-            <Input value={user.email} disabled />
-            <p className="text-[11px] text-muted-foreground">
-              L&apos;email est immuable. Demande à l&apos;admin pour le
-              changer.
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Nom complet</Label>
+    <form onSubmit={handleSubmit}>
+      <SectionCard
+        title="Mon profil"
+        description="Tes coordonnées personnelles"
+        icon={UserRound}
+        tone="navy"
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            label="Email"
+            hint="L'email est immuable. Demande à l'admin pour le changer."
+          >
+            <Input value={user.email} disabled className={FIELD_CLASS} />
+          </FormField>
+          <FormField label="Nom complet" required>
             <Input
               value={state.name}
               onChange={(e) => setState({ ...state, name: e.target.value })}
               required
+              autoComplete="name"
+              className={FIELD_CLASS}
             />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>Adresse</Label>
+          </FormField>
+          <FormField label="Adresse" className="sm:col-span-2">
             <Input
               value={state.adresse}
               onChange={(e) =>
                 setState({ ...state, adresse: e.target.value })
               }
+              autoComplete="street-address"
+              className={FIELD_CLASS}
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Téléphone</Label>
+          </FormField>
+          <FormField label="Téléphone">
             <Input
               value={state.telephone}
               onChange={(e) =>
                 setState({ ...state, telephone: e.target.value })
               }
               placeholder="+41 79 000 00 00"
+              type="tel"
+              autoComplete="tel"
+              className={FIELD_CLASS}
             />
-          </div>
-          <div className="space-y-1.5">
-            <Label>IBAN</Label>
+          </FormField>
+          <FormField label="IBAN" hint="Apparaît sur tes factures mensuelles PDF.">
             <Input
               value={state.iban}
               onChange={(e) => setState({ ...state, iban: e.target.value })}
               placeholder="CH00 0000 0000 0000 0000 0"
+              className={`${FIELD_CLASS} font-mono`}
             />
-            <p className="text-[11px] text-muted-foreground">
-              Apparaît sur tes factures mensuelles PDF.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+          </FormField>
+        </div>
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={pending}>
-          {pending ? "Enregistrement…" : "Enregistrer mon profil"}
-        </Button>
-      </div>
+        <div className="mt-5 flex justify-end">
+          <Button type="submit" size="lg" disabled={pending}>
+            {pending ? (
+              <Loader2 aria-hidden="true" className="animate-spin" />
+            ) : (
+              <Save aria-hidden="true" />
+            )}
+            {pending ? "Enregistrement…" : "Enregistrer mon profil"}
+          </Button>
+        </div>
+      </SectionCard>
     </form>
   );
 }

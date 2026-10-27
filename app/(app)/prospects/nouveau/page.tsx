@@ -1,9 +1,9 @@
+import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/page-header";
 import { ProspectForm } from "@/components/prospects/prospect-form";
 import { createProspectRaw } from "@/app/(app)/prospects/actions";
-import { Icon } from "@/components/icon";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 
@@ -27,16 +27,17 @@ export default async function NewProspectPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-6 lg:px-8">
+    <div className="mx-auto max-w-3xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
+        rubrique="leads"
         title="Nouvelle entreprise"
         description="Saisis manuellement une entreprise (prospect ou client). Pour importer en masse, utilise plutôt l'import CSV."
         breadcrumb={
           <Link
             href="/prospects"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            className="inline-flex h-9 items-center gap-1 rounded-[10px] pr-2.5 pl-1.5 text-[13px] font-bold text-muted-foreground transition-colors hover:bg-navy-50 hover:text-foreground"
           >
-            <Icon name="ChevronRight" className="h-3 w-3 rotate-180" />
+            <ChevronLeft aria-hidden="true" className="size-4" />
             Retour aux entreprises
           </Link>
         }

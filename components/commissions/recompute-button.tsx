@@ -5,12 +5,16 @@
  *
  * Force le passage de tous les CommissionPayment ETALEMENT dont la date
  * prévue est passée à statut PAYE (acquis). Sera automatique chaque nuit
- * via CRON (étape 27) — bouton manuel pour tester / rattraper.
+ * via CRON (étape 27) : bouton manuel pour tester / rattraper.
+ *
+ * Utilisé aussi sur la fiche contrat (/contrats/[id]) : même API, sans props.
  */
+import { RefreshCw } from "lucide-react";
 import { useTransition } from "react";
 import { toast } from "sonner";
 
 import { recomputeOverdueEtalements } from "@/app/(app)/commissions/actions";
+import { Button } from "@/components/ui/button";
 
 export function RecomputeButton() {
   const [pending, startTransition] = useTransition();
@@ -35,14 +39,16 @@ export function RecomputeButton() {
   };
 
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size="sm"
       onClick={handleClick}
       disabled={pending}
-      className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-xs hover:bg-muted transition-colors disabled:opacity-50"
       title="Force la mise à jour des CommissionPayment dont la date est échue. Tâche automatique chaque nuit via CRON."
     >
-      {pending ? "Recalcul…" : "🔄 Recalculer"}
-    </button>
+      <RefreshCw aria-hidden="true" className={pending ? "animate-spin" : undefined} />
+      {pending ? "Recalcul…" : "Recalculer"}
+    </Button>
   );
 }

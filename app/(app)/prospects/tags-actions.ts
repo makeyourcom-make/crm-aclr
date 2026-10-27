@@ -18,10 +18,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import {
-  AVAILABLE_TAG_COLORS as TAG_COLORS,
-  type TagColorOption as TagColor,
-} from "@/app/(app)/prospects/tags-constants";
+import { AVAILABLE_TAG_COLORS as TAG_COLORS } from "@/app/(app)/prospects/tags-constants";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 

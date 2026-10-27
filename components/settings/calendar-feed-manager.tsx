@@ -7,7 +7,8 @@
  *   - Désactive (supprime le token, l'URL renvoie 404)
  *   - Instructions par client (Infomaniak, Google, Apple)
  */
-import { useState, useTransition } from "react";
+import { Copy, Info, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -15,8 +16,10 @@ import {
   disableCalendarFeed,
   regenerateCalendarFeedToken,
 } from "@/app/(app)/settings/calendar/actions";
-import { Icon } from "@/components/icon";
+import { Callout } from "@/components/common/callout";
+import { FIELD_CLASS, LABEL_CLASS } from "@/components/common/form-styles";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface CalendarFeedManagerProps {
   initialToken: string | null;
@@ -83,105 +86,76 @@ export function CalendarFeedManager({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Bloc principal : URL + actions */}
-      <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
-        <h2 className="mb-3 text-base font-semibold">Lien d&apos;abonnement</h2>
-        {!token ? (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Aucun lien d&apos;abonnement actif. Génère-en un pour brancher
-              ton agenda externe.
-            </p>
-            <Button type="button" onClick={handleGenerate} disabled={pending}>
-              <Icon name="Plus" className="mr-1.5 h-4 w-4" />
-              {pending ? "Génération…" : "Créer le lien d'abonnement"}
+      {!token ? (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Aucun lien d&apos;abonnement actif. Génère-en un pour brancher ton
+            agenda externe.
+          </p>
+          <Button type="button" size="lg" onClick={handleGenerate} disabled={pending}>
+            {pending ? (
+              <Loader2 aria-hidden="true" className="animate-spin" />
+            ) : (
+              <Plus aria-hidden="true" />
+            )}
+            {pending ? "Génération…" : "Créer le lien d'abonnement"}
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Garde cette URL <strong className="text-foreground">privée</strong> :
+            toute personne qui connaît le lien peut lire l&apos;agenda de{" "}
+            {userName}. Pour révoquer (ex. fuite), clique « Régénérer »
+            ci-dessous.
+          </p>
+
+          <CopyField
+            label="URL HTTPS (Infomaniak, Google Calendar)"
+            value={feedUrl ?? ""}
+            onCopy={() => feedUrl && handleCopy(feedUrl)}
+            disabled={pending}
+          />
+          <CopyField
+            label="URL webcal:// (Apple Calendar · abonnement en 1 clic)"
+            value={webcalUrl ?? ""}
+            onCopy={() => webcalUrl && handleCopy(webcalUrl)}
+            disabled={pending}
+          />
+
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={handleGenerate}
+              disabled={pending}
+            >
+              <RefreshCw aria-hidden="true" />
+              Régénérer (révoque l&apos;ancien)
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="lg"
+              onClick={handleDisable}
+              disabled={pending}
+            >
+              <Trash2 aria-hidden="true" />
+              Désactiver l&apos;abonnement
             </Button>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <p className="text-xs text-muted-foreground">
-              Garde cette URL <strong>privée</strong> — toute personne qui
-              connaît le lien peut lire l&apos;agenda de {userName}. Pour
-              révoquer (ex. fuite), clique &quot;Régénérer&quot; ci-dessous.
-            </p>
-
-            <div className="space-y-2">
-              <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                URL HTTPS (Infomaniak, Google Calendar)
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={feedUrl ?? ""}
-                  onClick={(e) => e.currentTarget.select()}
-                  className="flex-1 truncate rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => feedUrl && handleCopy(feedUrl)}
-                  disabled={pending}
-                >
-                  <Icon name="Download" className="h-4 w-4" />
-                  <span className="ml-1 hidden sm:inline">Copier</span>
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                URL webcal:// (Apple Calendar — abonnement en 1 clic)
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={webcalUrl ?? ""}
-                  onClick={(e) => e.currentTarget.select()}
-                  className="flex-1 truncate rounded-md border border-input bg-background px-3 py-2 text-xs font-mono"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => webcalUrl && handleCopy(webcalUrl)}
-                  disabled={pending}
-                >
-                  <Icon name="Download" className="h-4 w-4" />
-                  <span className="ml-1 hidden sm:inline">Copier</span>
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleGenerate}
-                disabled={pending}
-              >
-                <Icon name="Repeat" className="mr-1.5 h-3.5 w-3.5" />
-                Régénérer (révoque l&apos;ancien)
-              </Button>
-              <button
-                type="button"
-                onClick={handleDisable}
-                disabled={pending}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
-              >
-                <Icon name="Trash2" className="h-3.5 w-3.5" />
-                Désactiver l&apos;abonnement
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Instructions */}
       {token && (
-        <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
-          <h2 className="mb-4 text-base font-semibold">Comment s&apos;abonner</h2>
+        <div className="rounded-[14px] border border-border bg-ground p-4 sm:p-5">
+          <h3 className="mb-4 font-display text-base font-extrabold">
+            Comment s&apos;abonner
+          </h3>
 
           <Section
             title="Infomaniak Calendar"
@@ -208,21 +182,62 @@ export function CalendarFeedManager({
           <Section
             title="Apple Calendar (iPhone / Mac)"
             steps={[
-              "Sur iPhone : Réglages → Calendrier → Comptes → Ajouter un compte → Autre → Ajouter un abonnement de calendrier",
-              "Sur Mac : Calendrier → Fichier → Nouvel abonnement à un calendrier…",
+              "Sur iPhone : Réglages · Calendrier · Comptes · Ajouter un compte · Autre · Ajouter un abonnement de calendrier",
+              "Sur Mac : Calendrier · Fichier · Nouvel abonnement à un calendrier…",
               "Colle l'URL webcal:// (1 clic dessus sur l'iPhone ouvre directement le dialogue)",
               "Mise à jour : Apple sync automatiquement",
             ]}
           />
 
-          <p className="mt-4 rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
-            ⚠️ <strong>Sens unique :</strong> les RDV créés dans le CRM
-            apparaissent dans ton agenda externe (lecture seule). Pour
-            modifier un RDV, fais-le depuis le CRM — la modification se
-            propagera à la sync suivante (5 min de cache).
-          </p>
+          <Callout tone="gold" icon={Info} title="Sens unique" className="mt-4">
+            Les RDV créés dans le CRM apparaissent dans ton agenda externe
+            (lecture seule). Pour modifier un RDV, fais-le depuis le CRM : la
+            modification se propagera à la sync suivante (5 min de cache).
+          </Callout>
         </div>
       )}
+    </div>
+  );
+}
+
+function CopyField({
+  label,
+  value,
+  onCopy,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onCopy: () => void;
+  disabled?: boolean;
+}) {
+  const id = useId();
+  return (
+    <div>
+      <label htmlFor={id} className={LABEL_CLASS}>
+        {label}
+      </label>
+      <div className="flex gap-2">
+        <input
+          id={id}
+          type="text"
+          readOnly
+          value={value}
+          onClick={(e) => e.currentTarget.select()}
+          className={cn(FIELD_CLASS, "flex-1 truncate font-mono text-xs md:text-xs")}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          onClick={onCopy}
+          disabled={disabled}
+          aria-label={`Copier : ${label}`}
+        >
+          <Copy aria-hidden="true" />
+          <span className="hidden sm:inline">Copier</span>
+        </Button>
+      </div>
     </div>
   );
 }
@@ -230,8 +245,8 @@ export function CalendarFeedManager({
 function Section({ title, steps }: { title: string; steps: string[] }) {
   return (
     <div className="mb-5 last:mb-0">
-      <h3 className="mb-2 text-sm font-semibold">{title}</h3>
-      <ol className="ml-4 list-decimal space-y-1 text-xs text-muted-foreground">
+      <h4 className="mb-2 text-sm font-extrabold">{title}</h4>
+      <ol className="ml-4 list-decimal space-y-1 text-xs leading-relaxed text-muted-foreground">
         {steps.map((s, i) => (
           <li key={i}>{s}</li>
         ))}

@@ -1,13 +1,15 @@
 "use client";
 
+import { Loader2, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { createRecurrence } from "@/app/(app)/charges/recurrences/actions";
+import { FormField } from "@/components/common/form-field";
+import { FIELD_CLASS, SELECT_CLASS } from "@/components/common/form-styles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 const CATEGORIES = [
   { value: "LOYER", label: "Loyer" },
@@ -83,22 +85,21 @@ export function RecurrenceForm({ prospects }: Props) {
   };
 
   return (
-    <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <div className="lg:col-span-2">
-        <Label className="mb-1 block text-xs">Libellé *</Label>
+    <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <FormField label="Libellé" required className="lg:col-span-2">
         <Input
           placeholder="Sunrise mobile + internet, Workspace Business..."
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           required
+          className={FIELD_CLASS}
         />
-      </div>
-      <div>
-        <Label className="mb-1 block text-xs">Catégorie *</Label>
+      </FormField>
+      <FormField label="Catégorie" required>
         <select
           value={categorie}
           onChange={(e) => setCategorie(e.target.value)}
-          className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+          className={SELECT_CLASS}
         >
           {CATEGORIES.map((c) => (
             <option key={c.value} value={c.value}>
@@ -106,44 +107,43 @@ export function RecurrenceForm({ prospects }: Props) {
             </option>
           ))}
         </select>
-      </div>
-      <div>
-        <Label className="mb-1 block text-xs">Fournisseur</Label>
+      </FormField>
+      <FormField label="Fournisseur">
         <Input
           value={fournisseur}
           onChange={(e) => setFournisseur(e.target.value)}
+          className={FIELD_CLASS}
         />
-      </div>
-      <div>
-        <Label className="mb-1 block text-xs">Montant TTC estimé *</Label>
+      </FormField>
+      <FormField label="Montant TTC estimé" required>
         <Input
           type="number"
           step="0.01"
           min={0}
+          inputMode="decimal"
           value={montantEstime}
           onChange={(e) => setMontantEstime(Number(e.target.value) || 0)}
           required
+          className={`${FIELD_CLASS} tabular-nums`}
         />
-      </div>
-      <div>
-        <Label className="mb-1 block text-xs">Taux TVA</Label>
+      </FormField>
+      <FormField label="Taux TVA">
         <select
           value={tauxTVA}
           onChange={(e) => setTauxTVA(Number(e.target.value))}
-          className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+          className={SELECT_CLASS}
         >
           <option value={0.077}>7.7 %</option>
           <option value={0.025}>2.5 %</option>
           <option value={0.038}>3.8 %</option>
           <option value={0}>0 %</option>
         </select>
-      </div>
-      <div>
-        <Label className="mb-1 block text-xs">Fréquence</Label>
+      </FormField>
+      <FormField label="Fréquence">
         <select
           value={frequence}
           onChange={(e) => setFrequence(e.target.value)}
-          className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+          className={SELECT_CLASS}
         >
           {FREQUENCES.map((f) => (
             <option key={f.value} value={f.value}>
@@ -151,42 +151,47 @@ export function RecurrenceForm({ prospects }: Props) {
             </option>
           ))}
         </select>
-      </div>
-      <div>
-        <Label className="mb-1 block text-xs">Jour du mois</Label>
+      </FormField>
+      <FormField label="Jour du mois">
         <Input
           type="number"
           min={1}
           max={28}
+          inputMode="numeric"
           value={jourMois}
           onChange={(e) => setJourMois(Number(e.target.value) || 1)}
+          className={`${FIELD_CLASS} tabular-nums`}
         />
-      </div>
-      <div>
-        <Label className="mb-1 block text-xs">Client rattaché</Label>
+      </FormField>
+      <FormField label="Client rattaché">
         <select
           value={prospectId}
           onChange={(e) => setProspectId(e.target.value)}
-          className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+          className={SELECT_CLASS}
         >
-          <option value="">— Interne —</option>
+          <option value="">Interne</option>
           {prospects.map((p) => (
             <option key={p.id} value={p.id}>
               {p.raisonSociale}
             </option>
           ))}
         </select>
-      </div>
-      <div>
-        <Label className="mb-1 block text-xs">Date de fin (optionnel)</Label>
+      </FormField>
+      <FormField label="Date de fin (optionnel)">
         <Input
           type="date"
           value={dateFin}
           onChange={(e) => setDateFin(e.target.value)}
+          className={FIELD_CLASS}
         />
-      </div>
-      <div className="flex items-end lg:col-span-4">
-        <Button type="submit" disabled={pending}>
+      </FormField>
+      <div className="flex items-end sm:col-span-2 lg:col-span-4">
+        <Button type="submit" size="lg" disabled={pending}>
+          {pending ? (
+            <Loader2 aria-hidden="true" className="animate-spin" />
+          ) : (
+            <Plus aria-hidden="true" />
+          )}
           {pending ? "Création…" : "Créer la récurrence"}
         </Button>
       </div>

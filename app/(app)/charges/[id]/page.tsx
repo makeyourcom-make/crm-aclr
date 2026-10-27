@@ -1,13 +1,18 @@
+import { CalendarCheck, PenLine, Repeat, UserRound } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { SectionCard } from "@/components/arena/section-card";
 import { ExpenseAllocationsPanel } from "@/components/charges/expense-allocations-panel";
 import { ExpenseAttachmentsPanel } from "@/components/charges/expense-attachments-panel";
-import { ExpenseEditForm } from "@/components/charges/expense-edit-form";
 import { ExpenseDeleteButton } from "@/components/charges/expense-delete-button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Icon } from "@/components/icon";
+import { ExpenseEditForm } from "@/components/charges/expense-edit-form";
+import {
+  CategoryChip,
+  ExpenseStatutPill,
+} from "@/components/charges/expense-statut-pill";
+import { BackLink } from "@/components/common/back-link";
+import { PageShell } from "@/components/common/page-shell";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
 import { formatCHF, formatDate } from "@/lib/format";
@@ -27,7 +32,7 @@ export async function generateMetadata({ params }: PageProps) {
   });
   const label =
     exp?.description ?? exp?.fournisseur ?? "Charge";
-  return { title: `Charge — ${label.slice(0, 40)}` };
+  return { title: `Charge · ${label.slice(0, 40)}` };
 }
 
 export default async function ExpenseDetailPage({ params }: PageProps) {
@@ -55,7 +60,7 @@ export default async function ExpenseDetailPage({ params }: PageProps) {
 
   if (!expense) notFound();
 
-  // Total alloué vs montant HT — indicateur de cohérence
+  // Total alloué vs montant HT : indicateur de cohérence
   const totalAlloue = expense.allocations.reduce(
     (s, a) => s + Number(a.montantHT),
     0,
@@ -63,72 +68,77 @@ export default async function ExpenseDetailPage({ params }: PageProps) {
   const reste = Number(expense.montantHT) - totalAlloue;
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-6 lg:px-8">
+    <PageShell width="medium">
       <PageHeader
+        rubrique="finance"
         title={
           expense.description ?? expense.fournisseur ?? "Charge"
         }
         description={`${formatDate(expense.date)} · ${formatCHF(Number(expense.montantTTC))} TTC`}
-        breadcrumb={
-          <Link
-            href="/charges"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Icon name="ChevronRight" className="h-3 w-3 rotate-180" />
-            Retour aux charges
-          </Link>
-        }
+        breadcrumb={<BackLink href="/charges">Retour aux charges</BackLink>}
         actions={<ExpenseDeleteButton id={expense.id} />}
       />
 
       {/* Méta info */}
-      <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <StatutBadge statut={expense.statutPaiement} />
+      <div className="mb-5 flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
+        <ExpenseStatutPill statut={expense.statutPaiement} />
+        <CategoryChip categorie={expense.categorie} />
         {expense.dateReglement && (
-          <span>réglé le {formatDate(expense.dateReglement)}</span>
+          <span className="inline-flex items-center gap-1">
+            <CalendarCheck aria-hidden="true" className="size-3.5" />
+            réglé le {formatDate(expense.dateReglement)}
+          </span>
         )}
         {expense.recurrence && (
-          <Badge variant="outline">
-            <Icon name="Repeat" className="mr-1 h-3 w-3" />
+          <Link
+            href="/charges/recurrences"
+            className="inline-flex h-6 items-center gap-1 rounded-full bg-lvl-50 px-2.5 font-bold text-lvl-700 hover:underline"
+          >
+            <Repeat aria-hidden="true" className="size-3" />
             généré par : {expense.recurrence.label}
-          </Badge>
+          </Link>
         )}
-        {expense.createdBy && <span>· créé par {expense.createdBy.name}</span>}
+        {expense.createdBy && (
+          <span className="inline-flex items-center gap-1">
+            <UserRound aria-hidden="true" className="size-3.5" />
+            créé par {expense.createdBy.name}
+          </span>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Form principal */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Détails de la charge</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ExpenseEditForm
-                expense={{
-                  id: expense.id,
-                  date: expense.date.toISOString().slice(0, 10),
-                  dateReglement: expense.dateReglement
-                    ? expense.dateReglement.toISOString().slice(0, 10)
-                    : "",
-                  statutPaiement: expense.statutPaiement,
-                  categorie: expense.categorie,
-                  fournisseur: expense.fournisseur ?? "",
-                  description: expense.description ?? "",
-                  reference: expense.reference ?? "",
-                  montantHT: Number(expense.montantHT),
-                  tauxTVA: Number(expense.tauxTVA),
-                  montantTVA: Number(expense.montantTVA),
-                  montantTTC: Number(expense.montantTTC),
-                  tvaRecuperable: expense.tvaRecuperable,
-                  methodPaiement: expense.methodPaiement ?? "CARTE_BANCAIRE",
-                  prospectId: expense.prospectId ?? "",
-                }}
-                prospects={prospects}
-                disableProspectIfAllocated={expense.allocations.length > 0}
-              />
-            </CardContent>
-          </Card>
+        {/* Formulaire principal */}
+        <div className="min-w-0 space-y-6 lg:col-span-2">
+          <SectionCard
+            title="Détails de la charge"
+            description="Modifie puis sauvegarde"
+            icon={PenLine}
+            tone="navy"
+          >
+            <ExpenseEditForm
+              expense={{
+                id: expense.id,
+                date: expense.date.toISOString().slice(0, 10),
+                dateReglement: expense.dateReglement
+                  ? expense.dateReglement.toISOString().slice(0, 10)
+                  : "",
+                statutPaiement: expense.statutPaiement,
+                categorie: expense.categorie,
+                fournisseur: expense.fournisseur ?? "",
+                description: expense.description ?? "",
+                reference: expense.reference ?? "",
+                montantHT: Number(expense.montantHT),
+                tauxTVA: Number(expense.tauxTVA),
+                montantTVA: Number(expense.montantTVA),
+                montantTTC: Number(expense.montantTTC),
+                tvaRecuperable: expense.tvaRecuperable,
+                methodPaiement: expense.methodPaiement ?? "CARTE_BANCAIRE",
+                prospectId: expense.prospectId ?? "",
+              }}
+              prospects={prospects}
+              disableProspectIfAllocated={expense.allocations.length > 0}
+            />
+          </SectionCard>
 
           {/* Allocations */}
           <ExpenseAllocationsPanel
@@ -148,8 +158,8 @@ export default async function ExpenseDetailPage({ params }: PageProps) {
           />
         </div>
 
-        {/* Sidebar : pièces jointes */}
-        <div className="space-y-6">
+        {/* Colonne : pièces jointes */}
+        <div className="min-w-0 space-y-6">
           <ExpenseAttachmentsPanel
             expenseId={expense.id}
             ticketUrl={expense.ticketUrl}
@@ -164,35 +174,6 @@ export default async function ExpenseDetailPage({ params }: PageProps) {
           />
         </div>
       </div>
-    </div>
-  );
-}
-
-function StatutBadge({ statut }: { statut: string }) {
-  const config: Record<string, { label: string; cls: string }> = {
-    EN_ATTENTE: {
-      label: "En attente",
-      cls: "bg-amber-100 text-amber-800 border-amber-200",
-    },
-    PAYE: {
-      label: "Payé",
-      cls: "bg-emerald-100 text-emerald-800 border-emerald-200",
-    },
-    LITIGE: {
-      label: "Litige",
-      cls: "bg-rose-100 text-rose-800 border-rose-200",
-    },
-    REMBOURSE: {
-      label: "Remboursé",
-      cls: "bg-blue-100 text-blue-800 border-blue-200",
-    },
-  };
-  const c = config[statut] ?? config.EN_ATTENTE;
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${c.cls}`}
-    >
-      {c.label}
-    </span>
+    </PageShell>
   );
 }

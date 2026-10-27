@@ -1,7 +1,8 @@
-import Link from "next/link";
+import { PenLine } from "lucide-react";
 
-import { Icon } from "@/components/icon";
-import { PageHeader } from "@/components/page-header";
+import { BackLink } from "@/components/common/back-link";
+import { IconPageHeader } from "@/components/common/icon-page-header";
+import { PageShell } from "@/components/common/page-shell";
 import {
   SignaturesManager,
   type SignatureItem,
@@ -41,19 +42,13 @@ export default async function SignaturesPage() {
   }));
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-6 lg:px-8">
-      <PageHeader
+    <PageShell width="form">
+      <IconPageHeader
+        icon={PenLine}
+        tone="teal"
         title="Signatures email"
         description="Crée et personnalise tes signatures. La signature par défaut est ajoutée automatiquement à tes emails."
-        breadcrumb={
-          <Link
-            href="/parametres"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Icon name="ChevronRight" className="h-3 w-3 rotate-180" />
-            Retour aux paramètres
-          </Link>
-        }
+        breadcrumb={<BackLink href="/parametres">Retour aux paramètres</BackLink>}
       />
 
       <SignaturesManager
@@ -64,6 +59,6 @@ export default async function SignaturesPage() {
           telephone: userFull?.telephone ?? "",
         }}
       />
-    </div>
+    </PageShell>
   );
 }

@@ -8,23 +8,14 @@
  *   nouveau tag à la volée (ex. "Passeport Beauté")
  * - Sinon : lecture seule
  */
-import { useState, useTransition } from "react";
+import { Check, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { createTag, setProspectTags } from "@/app/(app)/prospects/tags-actions";
-import { Icon } from "@/components/icon";
 
-const COLOR_CLASSES: Record<string, string> = {
-  slate: "bg-slate-100 text-slate-700",
-  blue: "bg-blue-100 text-blue-800",
-  emerald: "bg-emerald-100 text-emerald-800",
-  amber: "bg-amber-100 text-amber-800",
-  rose: "bg-rose-100 text-rose-800",
-  purple: "bg-purple-100 text-purple-800",
-  cyan: "bg-cyan-100 text-cyan-800",
-  orange: "bg-orange-100 text-orange-800",
-};
+import { TAG_COLOR_CLASSES as COLOR_CLASSES } from "./tag-colors";
 
 interface TagOption {
   id: string;
@@ -75,7 +66,7 @@ export function ProspectTagsEditor({
       setTags((prev) => [...prev, created]);
       setSelected((prev) => [...prev, created.id]);
       setNewTagName("");
-      toast.success(`Tag « ${nom} » créé et sélectionné ✓`);
+      toast.success(`Tag « ${nom} » créé et sélectionné.`);
     });
   };
 
@@ -86,7 +77,7 @@ export function ProspectTagsEditor({
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success("Tags mis à jour ✓");
+      toast.success("Tags mis à jour.");
       setOpen(false);
       router.refresh();
     });
@@ -115,7 +106,7 @@ export function ProspectTagsEditor({
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1.5">
         {currentTags.length === 0 ? (
-          <span className="text-xs italic text-muted-foreground">
+          <span className="text-xs font-semibold text-muted-foreground">
             Aucun tag
           </span>
         ) : (
@@ -126,21 +117,22 @@ export function ProspectTagsEditor({
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="inline-flex h-6 items-center gap-1 rounded-full border border-dashed border-border bg-background px-2 text-xs hover:bg-muted"
+          aria-expanded={open}
+          className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-border-strong bg-card px-2.5 text-xs font-bold text-foreground hover:bg-navy-50"
         >
-          <Icon name="Plus" className="h-3 w-3" />
-          Modifier
+          <Plus aria-hidden="true" className="size-3" />
+          {currentTags.length === 0 ? "Ajouter un tag" : "Modifier les tags"}
         </button>
       </div>
 
       {open && (
-        <div className="rounded-lg border border-border bg-popover p-3 shadow-sm space-y-2 max-w-md">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        <div className="max-w-md space-y-2.5 rounded-[14px] border border-border bg-popover p-3 shadow-arena">
+          <p className="text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
             Choisir les tags
           </p>
           {tags.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              Aucun tag pour l&apos;instant — crée le premier ci-dessous.
+              Aucun tag pour l&apos;instant : crée le premier ci-dessous.
             </p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
@@ -151,14 +143,15 @@ export function ProspectTagsEditor({
                     key={t.id}
                     type="button"
                     onClick={() => toggleTag(t.id)}
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs transition-all ${
+                    aria-pressed={isSelected}
+                    className={`inline-flex min-h-7 items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold transition-all ${
                       isSelected
-                        ? `${COLOR_CLASSES[t.couleur] ?? COLOR_CLASSES.slate} ring-2 ring-offset-1 ring-primary/40`
-                        : "border border-border bg-background text-muted-foreground hover:bg-muted"
+                        ? `${COLOR_CLASSES[t.couleur] ?? COLOR_CLASSES.slate} ring-2 ring-navy-700/40 ring-offset-1`
+                        : "border border-border-strong bg-card text-muted-foreground hover:bg-navy-50"
                     }`}
                     disabled={pending}
                   >
-                    {isSelected && <Icon name="Check" className="h-3 w-3" />}
+                    {isSelected && <Check aria-hidden="true" className="size-3" />}
                     {t.nom}
                   </button>
                 );
@@ -176,17 +169,18 @@ export function ProspectTagsEditor({
                   handleCreateTag();
                 }
               }}
-              placeholder="Nouveau tag (ex. Passeport Beauté)…"
+              placeholder="Nouveau tag (ex. Passeport Beauté)"
               disabled={pending}
-              className="h-7 flex-1 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+              aria-label="Nom du nouveau tag"
+              className="h-9 min-w-0 flex-1 rounded-[10px] border border-border-strong bg-card px-2.5 text-xs font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             />
             <button
               type="button"
               onClick={handleCreateTag}
               disabled={pending || newTagName.trim().length < 1}
-              className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-xs hover:bg-muted disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-1 rounded-[10px] border border-border-strong bg-card px-2.5 text-xs font-bold hover:bg-navy-50 disabled:opacity-50"
             >
-              <Icon name="Plus" className="h-3 w-3" />
+              <Plus aria-hidden="true" className="size-3" />
               Créer
             </button>
           </div>
@@ -199,7 +193,7 @@ export function ProspectTagsEditor({
                 setSelected(currentTags.map((t) => t.id));
               }}
               disabled={pending}
-              className="text-xs text-muted-foreground hover:underline"
+              className="h-9 rounded-[10px] px-2 text-xs font-bold text-muted-foreground hover:underline"
             >
               Annuler
             </button>
@@ -207,9 +201,9 @@ export function ProspectTagsEditor({
               type="button"
               onClick={handleSave}
               disabled={pending}
-              className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              className="h-9 rounded-[10px] bg-navy-700 px-3 text-xs font-bold text-white hover:bg-navy-600 disabled:opacity-50"
             >
-              {pending ? "…" : "Enregistrer"}
+              {pending ? "Enregistrement..." : "Enregistrer"}
             </button>
           </div>
         </div>
@@ -221,7 +215,7 @@ export function ProspectTagsEditor({
 function TagPill({ nom, couleur }: { nom: string; couleur: string }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+      className={`inline-flex h-6 items-center rounded-full px-2.5 text-xs font-bold ${
         COLOR_CLASSES[couleur] ?? COLOR_CLASSES.slate
       }`}
     >

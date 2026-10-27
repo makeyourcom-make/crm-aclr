@@ -1,14 +1,22 @@
 "use client";
 
+import { Check, CircleDollarSign, Layers, Loader2, Lock, Shapes, Tag } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { createProduct, updateProduct } from "@/app/(app)/catalogue/actions";
+import { SectionCard } from "@/components/arena/section-card";
+import { Callout } from "@/components/common/callout";
+import {
+  FIELD_CLASS,
+  HINT_CLASS,
+  LABEL_CLASS,
+  SELECT_CLASS,
+  TEXTAREA_CLASS,
+} from "@/components/common/form-styles";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 import type { Product, ProductCategorie, ProductType } from "@prisma/client";
@@ -93,7 +101,7 @@ export function ProductForm({
   const isPack = type === "PACK";
 
   // Tous les prix sont éditables : un produit peut combiner un frais unique
-  // (setup) ET un récurrent (abonnement) — ex. e-commerce 999.- + 49.-/mois.
+  // (setup) ET un récurrent (abonnement), ex. e-commerce 999.- + 49.-/mois.
   // Le "Type" reste une simple classification, il ne bride plus la saisie.
   const showOneShot = true;
   const showMensuel = true;
@@ -151,72 +159,77 @@ export function ProductForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Identité</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="nom">
-              Nom <span className="text-red-500">*</span>
-            </Label>
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <SectionCard title="Identité" icon={Tag} tone="navy">
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="nom" className={LABEL_CLASS}>
+              Nom <span aria-hidden="true" className="text-coral-600">*</span>
+              <span className="sr-only"> (obligatoire)</span>
+            </label>
             <Input
               id="nom"
               value={nom}
               onChange={(e) => setNom(e.target.value)}
               placeholder="Ex. Site web simple"
               required
+              className={FIELD_CLASS}
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="description">Description</Label>
+          <div>
+            <label htmlFor="description" className={LABEL_CLASS}>
+              Description
+            </label>
             <textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className={TEXTAREA_CLASS}
               placeholder="Ce qui est inclus, livraison, …"
             />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </SectionCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Classification</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label>Type</Label>
-            <div className="grid grid-cols-2 gap-1.5">
-              {TYPE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setType(opt.value)}
-                  className={cn(
-                    "rounded-md border px-2 py-1.5 text-xs",
-                    type === opt.value
-                      ? "border-primary bg-primary/10 text-primary font-medium"
-                      : "border-border bg-background hover:bg-muted",
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
+      <SectionCard title="Classification" icon={Shapes} tone="violet">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <fieldset>
+            <legend className={LABEL_CLASS}>Type</legend>
+            <div className="grid grid-cols-2 gap-2">
+              {TYPE_OPTIONS.map((opt) => {
+                const selected = type === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setType(opt.value)}
+                    aria-pressed={selected}
+                    className={cn(
+                      "inline-flex h-11 items-center justify-center gap-1.5 rounded-[12px] border px-2 text-sm font-bold transition-colors",
+                      selected
+                        ? "border-navy-700 bg-navy-700 text-white"
+                        : "border-border-strong bg-card text-foreground hover:bg-navy-50",
+                    )}
+                  >
+                    {selected && <Check aria-hidden="true" className="size-4" />}
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
-          </div>
+          </fieldset>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="categorie">Catégorie</Label>
+          <div>
+            <label htmlFor="categorie" className={LABEL_CLASS}>
+              Catégorie
+            </label>
             <select
               id="categorie"
               value={categorieCode}
               onChange={(e) => setCategorieCode(e.target.value)}
-              className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+              className={SELECT_CLASS}
             >
               {categories.map((c) => (
                 <option key={c.code} value={c.code}>
@@ -224,18 +237,15 @@ export function ProductForm({
                 </option>
               ))}
             </select>
-            <p className="text-[11px] text-muted-foreground">
-              Gère les catégories depuis Catalogue → « Gérer les catégories ».
+            <p className={HINT_CLASS}>
+              Gère les catégories depuis Catalogue · « Gérer les catégories ».
             </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </SectionCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Tarification</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <SectionCard title="Tarification" description="Prix de vente au client" icon={CircleDollarSign} tone="green">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <PrixField
             label="Prix one-shot (CHF)"
             id="prixOneShot"
@@ -257,94 +267,96 @@ export function ProductForm({
             onChange={setPrixAnnuel}
             disabled={!showAnnuel}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </SectionCard>
 
-      {/* Coûts internes — pour la rentabilité par projet (admin only) */}
-      <Card className="border-amber-200">
-        <CardHeader>
-          <CardTitle className="text-base">
-            Coûts internes (rentabilité)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            🔒 Information interne — jamais affichée au client. Sert à calculer
-            la marge nette par projet sur{" "}
-            <strong>Administration → Comptabilité → Rentabilité</strong>.
-          </p>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <PrixField
-              label="Coût one-shot interne (CHF)"
-              id="coutOneShot"
-              value={coutOneShot}
-              onChange={setCoutOneShot}
-              helper="Setup, intégration, licences à l'install."
-            />
-            <PrixField
-              label="Coût mensuel interne (CHF)"
-              id="coutMensuel"
-              value={coutMensuel}
-              onChange={setCoutMensuel}
-              helper="Hébergement, SaaS récurrent, ad spend mensuel."
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Coûts internes : pour la rentabilité par projet (admin only) */}
+      <SectionCard
+        title="Coûts internes (rentabilité)"
+        description="Information interne, jamais affichée au client"
+        icon={Lock}
+        tone="gold"
+      >
+        <Callout tone="gold" icon={Lock} className="mb-4">
+          Sert à calculer la marge nette par projet sur{" "}
+          <strong>Administration · Comptabilité · Rentabilité</strong>.
+        </Callout>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <PrixField
+            label="Coût one-shot interne (CHF)"
+            id="coutOneShot"
+            value={coutOneShot}
+            onChange={setCoutOneShot}
+            helper="Setup, intégration, licences à l'install."
+          />
+          <PrixField
+            label="Coût mensuel interne (CHF)"
+            id="coutMensuel"
+            value={coutMensuel}
+            onChange={setCoutMensuel}
+            helper="Hébergement, SaaS récurrent, ad spend mensuel."
+          />
+        </div>
+      </SectionCard>
 
       {isPack && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              Composition du pack ({composantsIds.length} sélectionné·s)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {composableUnitaires.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Aucun produit unitaire en ligne. Crée ou réactive d&apos;abord
-                les composants individuels.
-              </p>
-            ) : (
-              <div className="grid gap-1.5 sm:grid-cols-2">
-                {composableUnitaires.map((u) => {
-                  const checked = composantsIds.includes(u.id);
-                  return (
-                    <label
-                      key={u.id}
-                      className={cn(
-                        "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors",
-                        checked
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:bg-muted",
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleComposant(u.id)}
-                        className="h-4 w-4"
-                      />
-                      <span>{u.nom}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <SectionCard
+          title="Composition du pack"
+          description={`${composantsIds.length} composant(s) sélectionné(s)`}
+          icon={Layers}
+          tone="violet"
+        >
+          {composableUnitaires.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Aucun produit unitaire en ligne. Crée ou réactive d&apos;abord
+              les composants individuels.
+            </p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {composableUnitaires.map((u) => {
+                const checked = composantsIds.includes(u.id);
+                return (
+                  <label
+                    key={u.id}
+                    className={cn(
+                      "flex min-h-11 cursor-pointer items-center gap-2.5 rounded-[12px] border px-3 py-2 text-sm font-semibold transition-colors focus-within:ring-4 focus-within:ring-navy-100",
+                      checked
+                        ? "border-lvl-500 bg-lvl-50 text-lvl-700"
+                        : "border-border-strong bg-card hover:bg-navy-50",
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleComposant(u.id)}
+                      className="size-4 shrink-0 accent-lvl-700"
+                    />
+                    <span className="min-w-0">{u.nom}</span>
+                    {!u.isActive && (
+                      <span className="ml-auto text-xs font-medium text-muted-foreground">
+                        (inactif)
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </SectionCard>
       )}
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
         <Button
           type="button"
           variant="outline"
+          size="lg"
           onClick={() => router.back()}
           disabled={pending}
         >
           Annuler
         </Button>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" size="lg" disabled={pending}>
+          {pending && <Loader2 aria-hidden="true" className="animate-spin" />}
           {pending ? "Enregistrement…" : initial ? "Enregistrer" : "Créer"}
         </Button>
       </div>
@@ -368,21 +380,23 @@ function PrixField({
   helper?: string;
 }) {
   return (
-    <div className={cn("space-y-1.5", disabled && "opacity-50")}>
-      <Label htmlFor={id}>{label}</Label>
+    <div className={cn(disabled && "opacity-50")}>
+      <label htmlFor={id} className={LABEL_CLASS}>
+        {label}
+      </label>
       <Input
         id={id}
         type="number"
         min={0}
         step="0.01"
+        inputMode="decimal"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         placeholder="0.00"
+        className={cn(FIELD_CLASS, "tabular-nums")}
       />
-      {helper && (
-        <p className="text-[11px] text-muted-foreground">{helper}</p>
-      )}
+      {helper && <p className={HINT_CLASS}>{helper}</p>}
     </div>
   );
 }

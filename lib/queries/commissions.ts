@@ -68,7 +68,7 @@ export async function getCommissionsCockpit(
   const payments = await prisma.commissionPayment.findMany({
     // On ne compte QUE les commissions sur contrats réellement signés : un
     // contrat en attente de signature (proposition) n'a pas encore généré de
-    // commission « à venir » — sinon les totaux étaient massivement gonflés.
+    // commission « à venir », sinon les totaux étaient massivement gonflés.
     where: {
       commission: {
         ...(userFilter ? { userId: userFilter } : {}),
@@ -163,6 +163,121 @@ export async function getCommissionsCockpit(
     annule,
     parMois,
   };
+}
+
+// ---------------------------------------------------------------------------
+// FRISE DES COMMISSIONS (historique + calendrier des versements)
+// ---------------------------------------------------------------------------
+
+const zurichDayFmt = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Zurich",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+const shortMonthFmt = new Intl.DateTimeFormat("fr-CH", { timeZone: "UTC", month: "short" });
+const longMonthFmt = new Intl.DateTimeFormat("fr-CH", {
+  timeZone: "UTC",
+  month: "long",
+  year: "numeric",
+});
+
+/** Clé « AAAA-MM » du mois (vu de Suisse) contenant l'instant `d`. */
+export function zurichMonthKey(d: Date): string {
+  return zurichDayFmt.format(d).slice(0, 7);
+}
+
+function capitalizeFirst(s: string): string {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
+export interface TimelineMonth {
+  /** « AAAA-MM » */
+  key: string;
+  /** « Oct. » */
+  label: string;
+  /** « 26 » */
+  year2: string;
+  /** « Octobre 2026 » */
+  full: string;
+  /** Part versée à la signature (SIGNATURE). */
+  signature: number;
+  /** Part récurrente (ETALEMENT + RENOUVELLEMENT). */
+  recurrent: number;
+  /** Déjà acquis (PAYE). */
+  acquis: number;
+  /** Encore prévu (PREVU). */
+  aVenir: number;
+  /** Contrats signés ce mois-là (null si non calculé ou mois futur). */
+  contrats: number | null;
+  isCurrent: boolean;
+  isFuture: boolean;
+}
+
+type TimelinePayment = Pick<
+  CommissionPaymentDetail,
+  "montant" | "statut" | "typePart" | "dateVersement" | "dateVersementPrevue"
+>;
+
+/**
+ * Frise mois par mois : `pastMonths` mois passés (les mois vides en tête sont
+ * retirés), le mois en cours, puis `futureMonths` mois à venir. Les versements
+ * annulés sont exclus. Date de référence = date de versement réelle, sinon
+ * date prévue (même règle que le calendrier du cockpit).
+ */
+export function buildCommissionTimeline(
+  payments: TimelinePayment[],
+  opts: {
+    pastMonths: number;
+    futureMonths: number;
+    /** Contrats signés par mois (« AAAA-MM » → nombre). */
+    signedByMonth?: Map<string, number>;
+    now?: Date;
+  },
+): TimelineMonth[] {
+  const now = opts.now ?? new Date();
+  const [cy, cm] = zurichMonthKey(now).split("-").map(Number) as [number, number];
+
+  const months: TimelineMonth[] = [];
+  const index = new Map<string, TimelineMonth>();
+  for (let i = -opts.pastMonths; i <= opts.futureMonths; i++) {
+    const first = new Date(Date.UTC(cy, cm - 1 + i, 1));
+    const key = `${first.getUTCFullYear()}-${String(first.getUTCMonth() + 1).padStart(2, "0")}`;
+    const m: TimelineMonth = {
+      key,
+      label: capitalizeFirst(shortMonthFmt.format(first)),
+      year2: String(first.getUTCFullYear()).slice(2),
+      full: capitalizeFirst(longMonthFmt.format(first)),
+      signature: 0,
+      recurrent: 0,
+      acquis: 0,
+      aVenir: 0,
+      contrats: i <= 0 ? (opts.signedByMonth?.get(key) ?? (opts.signedByMonth ? 0 : null)) : null,
+      isCurrent: i === 0,
+      isFuture: i > 0,
+    };
+    months.push(m);
+    index.set(key, m);
+  }
+
+  for (const p of payments) {
+    if (p.statut === "ANNULE") continue;
+    const ref = p.dateVersement ?? p.dateVersementPrevue;
+    const m = index.get(zurichMonthKey(ref));
+    if (!m) continue;
+    const montant = Number(p.montant);
+    if (p.typePart === "SIGNATURE") m.signature += montant;
+    else m.recurrent += montant;
+    if (p.statut === "PAYE") m.acquis += montant;
+    else m.aVenir += montant;
+  }
+
+  // Retire les mois passés vides en tête (avant la toute première commission).
+  let firstUseful = months.findIndex(
+    (m) => m.isCurrent || m.isFuture || m.signature + m.recurrent > 0 || (m.contrats ?? 0) > 0,
+  );
+  if (firstUseful < 0) firstUseful = 0;
+  return months.slice(firstUseful);
 }
 
 // ---------------------------------------------------------------------------

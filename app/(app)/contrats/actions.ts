@@ -505,7 +505,7 @@ export async function updateContract(
       return {
         ok: false,
         error:
-          "Contrat déjà signé par le client — modification impossible. Utilise 'Résilier' puis refais un contrat.",
+          "Contrat déjà signé par le client : modification impossible. Utilise 'Résilier' puis refais un contrat.",
       };
     }
     if (
@@ -515,7 +515,7 @@ export async function updateContract(
     ) {
       return {
         ok: false,
-        error: "Au moins une facture est déjà payée — modification impossible.",
+        error: "Au moins une facture est déjà payée : modification impossible.",
       };
     }
 

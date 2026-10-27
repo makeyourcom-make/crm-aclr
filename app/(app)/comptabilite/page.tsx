@@ -1,13 +1,36 @@
+import {
+  ArrowUpRight,
+  Banknote,
+  BarChart3,
+  CalendarRange,
+  ChartLine,
+  Landmark,
+  Receipt,
+  Table2,
+  Users,
+  Wallet,
+} from "lucide-react";
 import Link from "next/link";
 
+import { HeroPanel, ProgressRing, SectionCard, StatTile, StatusPill } from "@/components/arena";
+import {
+  TABLE_CLASS,
+  THEAD_CLASS,
+  TR_CLASS,
+  TableScroll,
+  Td,
+  Th,
+} from "@/components/common/arena-table";
+import { Callout } from "@/components/common/callout";
+import { ChfValue } from "@/components/common/chf-value";
+import { PageShell } from "@/components/common/page-shell";
 import { MonthlyPnLChart } from "@/components/compta/monthly-pnl-chart";
-import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
+import { buttonVariants } from "@/components/ui/button";
 import { formatCHF, formatCHFCompact } from "@/lib/format";
 import { getComptaCockpit } from "@/lib/queries/compta";
 import { requireAdmin } from "@/lib/session";
+import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Comptabilité" };
 export const dynamic = "force-dynamic";
@@ -29,276 +52,297 @@ export default async function ComptaPage({ searchParams }: PageProps) {
     .toLocaleDateString("fr-CH", { month: "long", year: "numeric" })
     .replace(/^(.)/, (m) => m.toUpperCase());
 
+  const t = data.totals;
+  // Taux d'encaissement YTD : part du CA facturé réellement arrivée sur le compte.
+  const tauxEncaissement =
+    t.caFactureYTD > 0 ? Math.round((t.caEncaisseYTD / t.caFactureYTD) * 100) : 0;
+  const resteAEncaisser = Math.max(0, t.caFactureYTD - t.caEncaisseYTD);
+
   return (
-    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+    <PageShell>
       <PageHeader
+        rubrique="finance"
         title="Comptabilité"
-        description={`P&L mois par mois — ${monthsBack} mois passés + ${monthsForward} mois projetés. Aujourd'hui : ${currentMonthLabel}.`}
+        description={`P&L mois par mois · ${monthsBack} mois passés + ${monthsForward} mois projetés. Aujourd'hui : ${currentMonthLabel}.`}
         actions={
           <Link
             href="/comptabilite/projets"
-            className={buttonVariants({ variant: "outline" })}
+            className={buttonVariants({ variant: "outline", size: "lg" })}
           >
-            <Icon name="BarChart3" className="mr-1.5 h-4 w-4" />
+            <BarChart3 aria-hidden="true" />
             Rentabilité par projet
           </Link>
         }
       />
 
-      {/* KPIs YTD */}
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      {/* HÉROS : où en est la trésorerie de l'année */}
+      <HeroPanel aria-labelledby="compta-hero-title" className="mb-6">
+        <div className="flex flex-wrap items-center gap-x-10 gap-y-6">
+          <div className="min-w-0 flex-[1_1_260px]">
+            <p
+              id="compta-hero-title"
+              className="text-[11px] font-bold tracking-[0.08em] text-navy-300 uppercase"
+            >
+              Marge réelle (cash) · année en cours
+            </p>
+            <p
+              className={cn(
+                "score-number mt-2 text-[40px] break-words sm:text-[52px]",
+                t.margeReelleYTD < 0 && "text-coral-400",
+              )}
+            >
+              <ChfValue amount={t.margeReelleYTD} unitClassName="text-navy-300" />
+            </p>
+            <p className="mt-2 text-[13px] font-medium text-navy-200">
+              Encaissé - Charges - Salaires · ton argent réellement disponible
+            </p>
+          </div>
+
+          <div className="min-w-0 flex-[1_1_200px]">
+            <p className="text-[11px] font-bold tracking-[0.08em] text-navy-300 uppercase">
+              Marge projetée (compta)
+            </p>
+            <p
+              className={cn(
+                "score-number mt-2 text-[28px] break-words sm:text-[32px]",
+                t.margeProjeteeYTD < 0 && "text-coral-400",
+              )}
+            >
+              <ChfValue amount={t.margeProjeteeYTD} unitClassName="text-navy-300" />
+            </p>
+            <p className="mt-2 text-[13px] font-medium text-navy-200">
+              Facturé - Charges - Salaires
+            </p>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <ProgressRing
+              value={t.caEncaisseYTD}
+              max={t.caFactureYTD}
+              size={104}
+              stroke={11}
+              tone="green"
+              trackColor="#2F4470"
+              label={`Taux d'encaissement : ${tauxEncaissement} % du CA facturé encaissé`}
+            >
+              <span className="score-number text-2xl text-white">
+                {tauxEncaissement} %
+              </span>
+            </ProgressRing>
+            <div className="max-w-[180px] min-w-0">
+              <p className="text-sm font-extrabold">Taux d&apos;encaissement</p>
+              <p className="mt-1 text-xs font-medium text-navy-200">
+                {resteAEncaisser > 0
+                  ? `${formatCHFCompact(resteAEncaisser)} facturés pas encore encaissés`
+                  : "Tout le facturé est encaissé"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </HeroPanel>
+
+      {/* KPIs année en cours */}
+      <h2 className="mb-3 text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
         Année en cours (YTD)
       </h2>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
           label="CA facturé"
-          value={formatCHF(data.totals.caFactureYTD)}
-          subtitle="ClientInvoice émises"
-          tone="primary"
+          value={<ChfValue amount={t.caFactureYTD} />}
+          sub="Factures clients émises"
+          tone="blue"
+          icon={Receipt}
         />
-        <Kpi
+        <StatTile
           label="CA encaissé"
-          value={formatCHF(data.totals.caEncaisseYTD)}
-          subtitle="Argent reçu sur le compte"
-          tone="emerald"
+          value={<ChfValue amount={t.caEncaisseYTD} />}
+          sub="Argent reçu sur le compte"
+          tone="green"
+          icon={Banknote}
         />
-        <Kpi
+        <StatTile
           label="Charges"
-          value={formatCHF(data.totals.chargesYTD)}
-          subtitle="Tickets + factures fournisseurs"
+          value={<ChfValue amount={t.chargesYTD} />}
+          sub="Tickets + factures fournisseurs"
           tone="red"
+          icon={Wallet}
+          href="/charges?periode=ytd"
         />
-        <Kpi
+        <StatTile
           label="Salaires"
-          value={formatCHF(data.totals.salairesYTD)}
-          subtitle="Versés aux commerciales"
-          tone="red"
+          value={<ChfValue amount={t.salairesYTD} />}
+          sub="Versés aux commerciales"
+          tone="violet"
+          icon={Users}
         />
       </div>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <Kpi
-          label="Marge réelle (cash) YTD"
-          value={formatCHF(data.totals.margeReelleYTD)}
-          subtitle="Encaissé - Charges - Salaires"
-          tone={data.totals.margeReelleYTD >= 0 ? "emerald" : "red"}
-          size="lg"
-        />
-        <Kpi
-          label="Marge projetée (compta) YTD"
-          value={formatCHF(data.totals.margeProjeteeYTD)}
-          subtitle="Facturé - Charges - Salaires"
-          tone={data.totals.margeProjeteeYTD >= 0 ? "emerald" : "red"}
-          size="lg"
-        />
-      </div>
-
-      <p className="mt-3 text-xs text-muted-foreground">
-        💡 La marge réelle reflète ta trésorerie réelle (argent dispo).
-        La marge projetée reflète l&apos;activité comptable (ce que tu as
-        gagné, même si le client n&apos;a pas encore payé). Les deux sont
-        hors impôts (IBC, AVS, etc.) — pense à provisionner.
-      </p>
+      <Callout tone="blue" icon={Landmark} className="mt-3">
+        La marge réelle reflète ta trésorerie réelle (argent disponible). La
+        marge projetée reflète l&apos;activité comptable (ce que tu as gagné,
+        même si le client n&apos;a pas encore payé). Les deux sont hors impôts
+        (IBC, AVS, etc.) : pense à provisionner.
+      </Callout>
 
       {/* Graphique */}
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle className="text-base">
-            P&L mensuel — passé + projection
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <MonthlyPnLChart
-            data={data.months.map((m) => ({
-              label: m.label,
-              caFacture: m.caFacture,
-              caEncaisse: m.caEncaisse,
-              charges: m.charges,
-              salaires: m.salaires,
-              margeReelle: m.margeReelle,
-              margeProjetee: m.margeProjetee,
-              phase: m.phase,
-            }))}
-          />
-          <div className="mt-3 flex flex-wrap gap-4 text-xs">
-            <Legend color="#10b981" label="CA encaissé (barre pleine)" />
-            <Legend color="#0E1936" label="CA facturé (barre transparente)" />
-            <Legend
-              color="#0E1936"
-              label="Marge réelle (trait plein)"
-              isLine
-            />
-            <Legend
-              color="#F47174"
-              label="Marge projetée (pointillé)"
-              isLine
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <SectionCard
+        className="mt-6"
+        title="P&L mensuel"
+        description="Passé et projection, mois par mois"
+        icon={ChartLine}
+        tone="navy"
+      >
+        <MonthlyPnLChart
+          data={data.months.map((m) => ({
+            label: m.label,
+            caFacture: m.caFacture,
+            caEncaisse: m.caEncaisse,
+            charges: m.charges,
+            salaires: m.salaires,
+            margeReelle: m.margeReelle,
+            margeProjetee: m.margeProjetee,
+            phase: m.phase,
+          }))}
+        />
+        <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-muted-foreground">
+          <Legend color="#12A150" label="CA encaissé (barre pleine)" />
+          <Legend color="#0E1936" label="CA facturé (barre claire)" faded />
+          <Legend color="#0E1936" label="Marge réelle (trait plein)" isLine />
+          <Legend color="#E95256" label="Marge projetée (pointillé)" isLine dashed />
+        </ul>
+      </SectionCard>
 
       {/* Tableau détaillé */}
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle className="text-base">Détail mois par mois</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+      <SectionCard
+        className="mt-6 overflow-hidden"
+        title="Détail mois par mois"
+        description="Les mois projetés sont des estimations (voir hypothèses)"
+        icon={Table2}
+        tone="navy"
+        contentClassName="-mx-5 -mb-5 sm:-mx-6 sm:-mb-6"
+      >
+        <TableScroll label="Détail du P&L mois par mois">
+          <table className={TABLE_CLASS}>
+            <thead className={THEAD_CLASS}>
               <tr>
-                <Th>Mois</Th>
+                <Th className="pl-5 sm:pl-6">Mois</Th>
                 <Th className="text-right">CA facturé</Th>
                 <Th className="text-right">CA encaissé</Th>
                 <Th className="text-right">Charges</Th>
                 <Th className="text-right">Salaires</Th>
                 <Th className="text-right">Marge réelle</Th>
-                <Th className="text-right">Marge projetée</Th>
+                <Th className="pr-5 text-right sm:pr-6">Marge projetée</Th>
               </tr>
             </thead>
             <tbody>
               {data.months.map((m) => (
                 <tr
                   key={m.monthStart.toISOString()}
-                  className={`border-b border-border last:border-0 ${
-                    m.phase === "current"
-                      ? "bg-primary/5 font-medium"
-                      : m.phase === "future"
-                        ? "bg-amber-50/30 text-muted-foreground"
-                        : ""
-                  }`}
+                  className={cn(
+                    TR_CLASS,
+                    m.phase === "current" && "bg-navy-50/80 font-semibold",
+                    m.phase === "future" && "bg-gold-50/40 text-muted-foreground",
+                  )}
                 >
-                  <td className="px-3 py-2">
-                    <div className="flex items-baseline gap-2">
-                      <span className="capitalize">{m.label}</span>
+                  <Td className="pl-5 sm:pl-6">
+                    <div className="flex items-center gap-2 whitespace-nowrap">
+                      <span className="font-bold capitalize text-foreground">
+                        {m.label}
+                      </span>
                       {m.phase === "current" && (
-                        <span className="text-[10px] uppercase text-primary">
-                          en cours
-                        </span>
+                        <StatusPill tone="navy">En cours</StatusPill>
                       )}
                       {m.phase === "future" && (
-                        <span className="text-[10px] uppercase text-amber-700">
-                          projeté
-                        </span>
+                        <StatusPill tone="gold">Projeté</StatusPill>
                       )}
                     </div>
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  </Td>
+                  <Td className="text-right tabular-nums whitespace-nowrap">
                     {formatCHFCompact(m.caFacture)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-emerald-700">
+                  </Td>
+                  <Td className="text-right text-win-700 tabular-nums whitespace-nowrap">
                     {formatCHFCompact(m.caEncaisse)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-red-700">
+                  </Td>
+                  <Td className="text-right text-alert-700 tabular-nums whitespace-nowrap">
                     -{formatCHFCompact(m.charges)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-red-700">
+                  </Td>
+                  <Td className="text-right text-alert-700 tabular-nums whitespace-nowrap">
                     -{formatCHFCompact(m.salaires)}
-                  </td>
-                  <td
-                    className={`px-3 py-2 text-right font-semibold tabular-nums ${
-                      m.margeReelle >= 0 ? "text-emerald-700" : "text-red-700"
-                    }`}
+                  </Td>
+                  <Td
+                    className={cn(
+                      "text-right font-extrabold tabular-nums whitespace-nowrap",
+                      m.margeReelle >= 0 ? "text-win-700" : "text-alert-700",
+                    )}
                   >
                     {formatCHFCompact(m.margeReelle)}
-                  </td>
-                  <td
-                    className={`px-3 py-2 text-right tabular-nums ${
-                      m.margeProjetee >= 0 ? "text-emerald-700" : "text-red-700"
-                    }`}
+                  </Td>
+                  <Td
+                    className={cn(
+                      "pr-5 text-right tabular-nums whitespace-nowrap sm:pr-6",
+                      m.margeProjetee >= 0 ? "text-win-700" : "text-alert-700",
+                    )}
                   >
                     {formatCHFCompact(m.margeProjetee)}
-                  </td>
+                  </Td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </CardContent>
-      </Card>
+        </TableScroll>
+      </SectionCard>
 
       {/* Hypothèses de projection */}
-      <Card className="mt-6 border-amber-200 bg-amber-50/30">
-        <CardHeader>
-          <CardTitle className="text-base">
-            Hypothèses de projection (mois à venir)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <p>
-            🔹 <strong>CA facturé</strong> : factures déjà émises pour des
-            mois futurs (contrats à mensualités, renouvellements
-            programmés).
-          </p>
-          <p>
-            🔹 <strong>Charges projetées</strong> :{" "}
-            <span className="font-semibold">
-              {formatCHF(data.averages.chargesMoyennes6m)} / mois
-            </span>{" "}
-            (moyenne des 6 derniers mois). Si tu signes un nouvel
-            abonnement SaaS ou un loyer, viens l&apos;ajouter dans Charges
-            pour rendre la projection plus juste.
-          </p>
-          <p>
-            🔹 <strong>Salaires projetés</strong> :{" "}
-            <span className="font-semibold">
-              {formatCHF(data.averages.salairesMoyens6m)} / mois
-            </span>{" "}
-            (moyenne 6 mois) — vision réaliste basée sur l&apos;historique
-            commercial. La projection théorique des minimums garantis se fait
-            sur les mois sans données réelles.
-          </p>
-          <p className="text-xs text-muted-foreground pt-2 border-t">
-            ⚠ <strong>Hors impôts.</strong> N&apos;oublie pas de provisionner
-            IBC (~12 %), AVS/AI/APG (~12 %) sur les salaires, et de la
-            cotisation prévoyance. Pour une vision après impôts, applique un
-            facteur ~0.75 à 0.80 sur la marge nette.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function Kpi({
-  label,
-  value,
-  subtitle,
-  tone,
-  size,
-}: {
-  label: string;
-  value: string;
-  subtitle?: string;
-  tone?: "emerald" | "primary" | "red";
-  size?: "lg";
-}) {
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">
-          {label}
-        </p>
-        <p
-          className={`mt-1 tabular-nums font-semibold ${
-            size === "lg" ? "text-3xl" : "text-2xl"
-          } ${
-            tone === "emerald"
-              ? "text-emerald-700"
-              : tone === "primary"
-                ? "text-primary"
-                : tone === "red"
-                  ? "text-red-700"
-                  : ""
-          }`}
-        >
-          {value}
-        </p>
-        {subtitle && (
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {subtitle}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+      <SectionCard
+        className="mt-6"
+        title="Hypothèses de projection"
+        description="Comment sont estimés les mois à venir"
+        icon={CalendarRange}
+        tone="gold"
+      >
+        <ul className="space-y-3 text-sm leading-relaxed">
+          <li className="flex gap-2.5">
+            <ArrowUpRight aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-info-700" />
+            <span>
+              <strong>CA facturé</strong> : factures déjà émises pour des mois
+              futurs (contrats à mensualités, renouvellements programmés).
+            </span>
+          </li>
+          <li className="flex gap-2.5">
+            <ArrowUpRight aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-info-700" />
+            <span>
+              <strong>Charges projetées</strong> :{" "}
+              <span className="font-bold tabular-nums">
+                {formatCHF(data.averages.chargesMoyennes6m)} / mois
+              </span>{" "}
+              (moyenne des 6 derniers mois). Si tu signes un nouvel abonnement
+              SaaS ou un loyer, viens l&apos;ajouter dans{" "}
+              <Link href="/charges" className="font-bold text-info-700 hover:underline">
+                Charges
+              </Link>{" "}
+              pour rendre la projection plus juste.
+            </span>
+          </li>
+          <li className="flex gap-2.5">
+            <ArrowUpRight aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-info-700" />
+            <span>
+              <strong>Salaires projetés</strong> :{" "}
+              <span className="font-bold tabular-nums">
+                {formatCHF(data.averages.salairesMoyens6m)} / mois
+              </span>{" "}
+              (moyenne 6 mois) : vision réaliste basée sur l&apos;historique
+              commercial. La projection théorique des minimums garantis se fait
+              sur les mois sans données réelles.
+            </span>
+          </li>
+        </ul>
+        <Callout tone="gold" title="Hors impôts" className="mt-4">
+          N&apos;oublie pas de provisionner IBC (~12 %), AVS/AI/APG (~12 %) sur
+          les salaires, et la cotisation prévoyance. Pour une vision après
+          impôts, applique un facteur ~0.75 à 0.80 sur la marge nette.
+        </Callout>
+      </SectionCard>
+    </PageShell>
   );
 }
 
@@ -306,38 +350,31 @@ function Legend({
   color,
   label,
   isLine,
+  dashed,
+  faded,
 }: {
   color: string;
   label: string;
   isLine?: boolean;
+  dashed?: boolean;
+  faded?: boolean;
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+    <li className="inline-flex items-center gap-2">
       <span
-        className="inline-block h-2 w-4"
+        aria-hidden="true"
+        className="inline-block h-2.5 w-5"
         style={
           isLine
-            ? { borderTop: `2px solid ${color}` }
-            : { backgroundColor: color, borderRadius: 2 }
+            ? { borderTop: `3px ${dashed ? "dashed" : "solid"} ${color}`, height: 0 }
+            : {
+                backgroundColor: color,
+                opacity: faded ? 0.3 : 0.9,
+                borderRadius: 4,
+              }
         }
       />
       {label}
-    </span>
-  );
-}
-
-function Th({
-  children,
-  className,
-}: {
-  children?: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <th
-      className={`px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground ${className ?? ""}`}
-    >
-      {children}
-    </th>
+    </li>
   );
 }

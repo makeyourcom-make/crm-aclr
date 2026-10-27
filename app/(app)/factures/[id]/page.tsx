@@ -1,16 +1,29 @@
+import { CalendarDays, FileDown, ListChecks, ReceiptText, UserRound } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { SectionCard } from "@/components/arena/section-card";
 import {
-  InvoiceStatusButtons,
-} from "@/components/factures/invoice-actions";
+  TABLE_CLASS,
+  THEAD_CLASS,
+  TR_CLASS,
+  TableEmptyRow,
+  TableScroll,
+  Td,
+  Th,
+} from "@/components/common/arena-table";
+import { BackLink } from "@/components/common/back-link";
+import { Callout } from "@/components/common/callout";
+import { ChfValue } from "@/components/common/chf-value";
+import { PageShell } from "@/components/common/page-shell";
+import { InvoiceStatusButtons } from "@/components/factures/invoice-actions";
 import { InvoiceStatutBadge } from "@/components/factures/invoice-statut-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
+import { buttonVariants } from "@/components/ui/button";
 import { formatCHF, formatDateLong } from "@/lib/format";
 import { getInvoiceById } from "@/lib/queries/invoices";
 import { requireUser } from "@/lib/session";
+import { cn } from "@/lib/utils";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -42,28 +55,21 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
   const garantieActivee = Number(invoice.montantGarantieAbsorbee) > 0;
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-6 lg:px-8">
+    <PageShell width="form">
       <PageHeader
+        rubrique="finance"
         title={invoice.referenceFacture}
         description={`Facture mensuelle · ${monthLabel(invoice.mois)}`}
-        breadcrumb={
-          <Link
-            href="/factures"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Icon name="ChevronRight" className="h-3 w-3 rotate-180" />
-            Retour aux factures
-          </Link>
-        }
+        breadcrumb={<BackLink href="/factures">Retour aux salaires</BackLink>}
         actions={
-          <div className="flex items-center gap-2">
+          <>
             <a
               href={`/api/factures/${invoice.id}/pdf`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm hover:bg-muted transition-colors"
+              className={buttonVariants({ variant: "outline", size: "lg" })}
             >
-              <Icon name="Receipt" className="h-4 w-4" />
+              <FileDown aria-hidden="true" />
               PDF
             </a>
             <InvoiceStatusButtons
@@ -71,129 +77,123 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
               statut={invoice.statut}
               isAdmin={user.role === "ADMIN"}
             />
-          </div>
+          </>
         }
       />
 
-      {/* Header info */}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+      {/* Méta */}
+      <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs font-medium text-muted-foreground">
         <InvoiceStatutBadge statut={invoice.statut} />
-        <span className="text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <CalendarDays aria-hidden="true" className="size-3.5" />
           Émise le {formatDateLong(invoice.createdAt)}
         </span>
-        <span className="text-xs text-muted-foreground">
-          · Commerciale : <strong>{invoice.user.name}</strong>
+        <span className="inline-flex items-center gap-1">
+          <UserRound aria-hidden="true" className="size-3.5" />
+          Commerciale : <strong className="text-foreground">{invoice.user.name}</strong>
         </span>
       </div>
 
       {/* Récap montants */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Récapitulatif</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2 text-sm">
-            <Row
-              label={`Sous-total commissions (${invoice.commissionPayments.length} versement·s acquis ce mois)`}
-              value={formatCHF(Number(invoice.montantCommissions))}
-            />
-            {garantieActivee && (
-              <Row
-                label={`Garantie absorbée — complète jusqu'au minimum (${formatCHF(Number(invoice.user.garantieMensuelle))})`}
-                value={`+ ${formatCHF(Number(invoice.montantGarantieAbsorbee))}`}
-                tone="amber"
-              />
-            )}
-            <Row
-              label="Forfait frais"
-              value={`+ ${formatCHF(Number(invoice.montantFrais))}`}
-              tone="muted"
-            />
-            <div className="my-2 border-t border-border" />
-            <div className="flex items-center justify-between">
-              <span className="text-base font-semibold">Total à verser</span>
-              <span className="text-2xl font-semibold text-primary tabular-nums">
-                {formatCHF(Number(invoice.montantTotal))}
-              </span>
-            </div>
-          </div>
-
+      <SectionCard title="Récapitulatif" icon={ReceiptText} tone="navy">
+        <dl className="space-y-2.5 text-sm">
+          <Row
+            label={`Sous-total commissions (${invoice.commissionPayments.length} versement·s acquis ce mois)`}
+            value={formatCHF(Number(invoice.montantCommissions))}
+          />
           {garantieActivee && (
-            <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              ⓘ La garantie absorbée (CHF {Number(invoice.montantGarantieAbsorbee).toFixed(2)}) a
-              complété les commissions ({formatCHF(Number(invoice.montantCommissions))})
-              pour atteindre la garantie mensuelle.
-            </div>
+            <Row
+              label={`Garantie absorbée : complète jusqu'au minimum (${formatCHF(Number(invoice.user.garantieMensuelle))})`}
+              value={`+ ${formatCHF(Number(invoice.montantGarantieAbsorbee))}`}
+              tone="gold"
+            />
           )}
-        </CardContent>
-      </Card>
+          <Row
+            label="Forfait frais"
+            value={`+ ${formatCHF(Number(invoice.montantFrais))}`}
+            tone="muted"
+          />
+        </dl>
+        <div className="mt-4 flex flex-wrap items-end justify-between gap-3 rounded-[14px] bg-ground px-4 py-3.5">
+          <span className="text-sm font-extrabold">Total à verser</span>
+          <span className="score-number text-[32px] sm:text-[38px]">
+            <ChfValue amount={Number(invoice.montantTotal)} cents />
+          </span>
+        </div>
+
+        {garantieActivee && (
+          <Callout tone="gold" className="mt-4">
+            La garantie absorbée ({formatCHF(Number(invoice.montantGarantieAbsorbee))}) a
+            complété les commissions ({formatCHF(Number(invoice.montantCommissions))})
+            pour atteindre la garantie mensuelle.
+          </Callout>
+        )}
+      </SectionCard>
 
       {/* Détail des versements */}
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="text-base">
-            Versements de commission acquis ce mois (
-            {invoice.commissionPayments.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border bg-muted/30 text-left">
-                <tr>
-                  <Th>Contrat</Th>
-                  <Th>Client</Th>
-                  <Th>Type</Th>
-                  <Th>Mois</Th>
-                  <Th className="text-right">Montant</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoice.commissionPayments.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="px-3 py-6 text-center text-muted-foreground"
-                    >
-                      Aucun versement acquis ce mois — la garantie absorbée
-                      couvre le minimum.
-                    </td>
+      <SectionCard
+        className="mt-6 overflow-hidden"
+        title="Versements de commission acquis ce mois"
+        description={`${invoice.commissionPayments.length} versement(s)`}
+        icon={ListChecks}
+        tone="green"
+        contentClassName="-mx-5 -mb-5 sm:-mx-6 sm:-mb-6"
+      >
+        <TableScroll label="Versements de commission du mois">
+          <table className={TABLE_CLASS}>
+            <thead className={THEAD_CLASS}>
+              <tr>
+                <Th className="pl-5 sm:pl-6">Contrat</Th>
+                <Th>Client</Th>
+                <Th>Type</Th>
+                <Th>Mois</Th>
+                <Th className="pr-5 text-right sm:pr-6">Montant</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoice.commissionPayments.length === 0 ? (
+                <TableEmptyRow colSpan={5}>
+                  <p className="py-4 text-center text-sm text-muted-foreground">
+                    Aucun versement acquis ce mois : la garantie absorbée
+                    couvre le minimum.
+                  </p>
+                </TableEmptyRow>
+              ) : (
+                invoice.commissionPayments.map((p) => (
+                  <tr key={p.id} className={TR_CLASS}>
+                    <Td className="pl-5 font-mono text-xs whitespace-nowrap sm:pl-6">
+                      <Link
+                        href={`/contrats/${p.commission.contract.id}`}
+                        className="font-bold text-info-700 hover:underline"
+                      >
+                        {p.commission.contract.numero}
+                      </Link>
+                    </Td>
+                    <Td className="min-w-[160px] font-semibold">
+                      {p.commission.contract.prospect.raisonSociale}
+                    </Td>
+                    <Td className="text-xs whitespace-nowrap">
+                      {TYPE_PART_LABEL[p.typePart]}
+                    </Td>
+                    <Td className="text-xs tabular-nums">
+                      {p.numeroMois ?? (
+                        <span className="text-muted-foreground">
+                          <span aria-hidden="true">·</span>
+                          <span className="sr-only">Non applicable</span>
+                        </span>
+                      )}
+                    </Td>
+                    <Td className="pr-5 text-right font-bold tabular-nums whitespace-nowrap sm:pr-6">
+                      {formatCHF(Number(p.montant))}
+                    </Td>
                   </tr>
-                ) : (
-                  invoice.commissionPayments.map((p) => (
-                    <tr
-                      key={p.id}
-                      className="border-b border-border last:border-0"
-                    >
-                      <td className="px-3 py-2 font-mono text-xs">
-                        <Link
-                          href={`/contrats/${p.commission.contract.id}`}
-                          className="hover:underline"
-                        >
-                          {p.commission.contract.numero}
-                        </Link>
-                      </td>
-                      <td className="px-3 py-2 text-xs">
-                        {p.commission.contract.prospect.raisonSociale}
-                      </td>
-                      <td className="px-3 py-2 text-xs">
-                        {TYPE_PART_LABEL[p.typePart]}
-                      </td>
-                      <td className="px-3 py-2 text-xs">
-                        {p.numeroMois ?? "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {formatCHF(Number(p.montant))}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+                ))
+              )}
+            </tbody>
+          </table>
+        </TableScroll>
+      </SectionCard>
+    </PageShell>
   );
 }
 
@@ -204,38 +204,20 @@ function Row({
 }: {
   label: string;
   value: string;
-  tone?: "amber" | "muted";
+  tone?: "gold" | "muted";
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <span
-        className={
-          tone === "amber"
-            ? "text-amber-700"
-            : tone === "muted"
-              ? "text-muted-foreground"
-              : ""
-        }
+      <dt
+        className={cn(
+          "min-w-0",
+          tone === "gold" && "font-semibold text-gold-700",
+          tone === "muted" && "text-muted-foreground",
+        )}
       >
         {label}
-      </span>
-      <span className="font-medium tabular-nums">{value}</span>
+      </dt>
+      <dd className="shrink-0 font-bold tabular-nums">{value}</dd>
     </div>
-  );
-}
-
-function Th({
-  children,
-  className,
-}: {
-  children?: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <th
-      className={`px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${className ?? ""}`}
-    >
-      {children}
-    </th>
   );
 }

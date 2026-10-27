@@ -7,10 +7,10 @@
  * Usage :
  *   <DocumentPreviewButton url={url} filename="Facture XX.pdf" />
  *
- * - PDF → iframe natif du navigateur
- * - Image (jpg/png/webp/gif) → balise <img> avec zoom
- * - Bouton "Télécharger" + "Ouvrir dans un onglet" disponibles dans la modal
- * - Ferme avec Escape ou clic en dehors
+ * - PDF → rendu PDF.js (react-pdf), chargé à la demande
+ * - Image (jpg/png/webp/gif) → balise <img>
+ * - Boutons "Onglet" + "Télécharger" dans la barre de la modal
+ * - Ferme avec Échap ou clic en dehors
  */
 import { useEffect, useState } from "react";
 
@@ -30,6 +30,9 @@ export interface DocumentPreviewButtonProps {
   showLabel?: boolean;
 }
 
+const TOOLBAR_BTN =
+  "inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-border-strong bg-card px-2.5 text-xs font-bold text-foreground transition-colors hover:bg-navy-50";
+
 export function DocumentPreviewButton({
   url,
   filename,
@@ -45,6 +48,17 @@ export function DocumentPreviewButton({
 
   const isImage = /\.(jpe?g|png|gif|webp|bmp|svg)(\?|$)/i.test(url);
   const displayName = filename ?? extractFilename(url) ?? "Document";
+
+  const openPreview = () => {
+    // Réinitialise l'état de chargement AU CLIC (et non dans l'effet) :
+    // l'effet ne fait plus que lancer le téléchargement.
+    if (!isImage) {
+      setLoading(true);
+      setError(null);
+      setBlobUrl(null);
+    }
+    setOpen(true);
+  };
 
   // Ferme avec Escape + lock scroll
   useEffect(() => {
@@ -67,9 +81,6 @@ export function DocumentPreviewButton({
     if (!open || isImage) return;
     let canceled = false;
     let currentBlobUrl: string | null = null;
-    setLoading(true);
-    setError(null);
-    setBlobUrl(null);
     fetch(url, { credentials: "include" })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -102,29 +113,36 @@ export function DocumentPreviewButton({
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          setOpen(true);
+          openPreview();
         }}
         title={displayName}
+        aria-label={showLabel ? undefined : `${label} : ${displayName}`}
         className={cn(
-          "inline-flex h-6 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] hover:bg-muted",
+          "inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-border-strong bg-card px-2.5 text-xs font-bold text-foreground transition-colors hover:bg-navy-50",
           className,
         )}
       >
-        <Icon name={icon} className="h-3 w-3" />
+        <Icon name={icon} className="size-3.5" aria-hidden="true" />
         {showLabel && label}
       </button>
       {open && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-navy-700/70 p-3 backdrop-blur-sm"
           onClick={() => setOpen(false)}
         >
           <div
-            className="relative flex h-[92vh] w-[92vw] max-w-6xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Aperçu : ${displayName}`}
+            className="relative flex h-[92vh] w-[94vw] max-w-6xl flex-col overflow-hidden rounded-[20px] bg-card shadow-arena-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Toolbar */}
-            <div className="flex items-center justify-between border-b border-border bg-muted/30 px-3 py-2">
-              <div className="truncate text-sm font-medium" title={displayName}>
+            {/* Barre d'outils */}
+            <div className="flex items-center justify-between gap-2 border-b border-border bg-ground px-3 py-2.5">
+              <div
+                className="min-w-0 truncate text-sm font-bold text-foreground"
+                title={displayName}
+              >
                 {displayName}
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
@@ -132,65 +150,59 @@ export function DocumentPreviewButton({
                   href={url}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] hover:bg-muted"
+                  className={TOOLBAR_BTN}
                   title="Ouvrir dans un nouvel onglet"
                 >
-                  <Icon name="ExternalLink" className="h-3 w-3" />
-                  Onglet
+                  <Icon name="ExternalLink" className="size-3.5" aria-hidden="true" />
+                  <span className="hidden sm:inline">Onglet</span>
+                  <span className="sr-only sm:hidden">Ouvrir dans un onglet</span>
                 </a>
                 <a
                   href={url}
                   download={displayName}
-                  className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] hover:bg-muted"
+                  className={TOOLBAR_BTN}
                   title="Télécharger"
                 >
-                  <Icon name="Download" className="h-3 w-3" />
-                  Télécharger
+                  <Icon name="Download" className="size-3.5" aria-hidden="true" />
+                  <span className="hidden sm:inline">Télécharger</span>
+                  <span className="sr-only sm:hidden">Télécharger</span>
                 </a>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background hover:bg-muted"
+                  className="inline-flex size-9 items-center justify-center rounded-[10px] border border-border-strong bg-card text-foreground transition-colors hover:bg-navy-50"
                   title="Fermer (Échap)"
-                  aria-label="Fermer"
+                  aria-label="Fermer l'aperçu"
                 >
-                  <Icon name="X" className="h-3.5 w-3.5" />
+                  <Icon name="X" className="size-4" aria-hidden="true" />
                 </button>
               </div>
             </div>
 
             {/* Contenu */}
-            <div className="flex-1 overflow-auto bg-muted/10">
+            <div className="flex-1 overflow-auto bg-ground">
               {isImage ? (
                 <div className="flex h-full items-center justify-center p-4">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={url}
                     alt={displayName}
-                    className="max-h-full max-w-full object-contain"
+                    className="max-h-full max-w-full rounded-[12px] object-contain"
                   />
                 </div>
               ) : loading ? (
-                <div className="flex h-full items-center justify-center">
-                  <div className="text-center">
-                    <Icon
-                      name="Loader"
-                      className="mx-auto h-8 w-8 animate-spin text-muted-foreground"
-                    />
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Chargement du PDF…
-                    </p>
-                  </div>
-                </div>
+                <PreviewStatus>Chargement du PDF…</PreviewStatus>
               ) : error ? (
-                <div className="flex h-full items-center justify-center">
+                <div className="flex h-full items-center justify-center p-6">
                   <div className="text-center">
-                    <p className="text-sm text-rose-700">Erreur : {error}</p>
+                    <p className="text-sm font-bold text-alert-700">
+                      Erreur : {error}
+                    </p>
                     <a
                       href={url}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-2 inline-block text-sm text-primary hover:underline"
+                      className="mt-2 inline-block text-sm font-bold text-info-700 hover:underline"
                     >
                       Ouvrir dans un nouvel onglet
                     </a>
@@ -207,8 +219,23 @@ export function DocumentPreviewButton({
   );
 }
 
+function PreviewStatus({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex h-full items-center justify-center" role="status">
+      <div className="text-center">
+        <Icon
+          name="Loader"
+          className="mx-auto size-8 animate-spin text-subtle"
+          aria-hidden="true"
+        />
+        <p className="mt-2 text-sm font-medium text-muted-foreground">{children}</p>
+      </div>
+    </div>
+  );
+}
+
 /**
- * Rendu PDF via react-pdf (PDF.js par Mozilla) — fonctionne dans tous les
+ * Rendu PDF via react-pdf (PDF.js par Mozilla) : fonctionne dans tous les
  * navigateurs même quand le visualiseur PDF natif est désactivé.
  *
  * Charge dynamiquement react-pdf (lourd, ~500KB) uniquement quand on ouvre
@@ -225,7 +252,10 @@ function PdfRender({
 }) {
   const [Doc, setDoc] = useState<null | typeof import("react-pdf")>(null);
   const [pageCount, setPageCount] = useState(0);
-  const [containerWidth, setContainerWidth] = useState(800);
+  // Rendu uniquement côté client (après un clic) : window est disponible.
+  const [containerWidth, setContainerWidth] = useState(() =>
+    typeof window !== "undefined" ? Math.min(window.innerWidth * 0.85, 1100) : 800,
+  );
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Lazy load react-pdf + configure worker
@@ -234,7 +264,7 @@ function PdfRender({
     import("react-pdf")
       .then((mod) => {
         if (canceled) return;
-        // Worker servi en LOCAL (même origine) — compatible CSP 'self', pas de
+        // Worker servi en LOCAL (même origine) : compatible CSP 'self', pas de
         // dépendance CDN. Copié dans /public par scripts/copy-pdf-worker.mjs
         // (prebuild), version alignée sur pdfjs-dist.
         mod.pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
@@ -248,29 +278,27 @@ function PdfRender({
     };
   }, []);
 
-  // Suit la largeur du conteneur pour rendre les pages à bonne échelle
+  // Suit la largeur de la fenêtre pour rendre les pages à bonne échelle
   useEffect(() => {
     const update = () => {
-      const w = Math.min(window.innerWidth * 0.85, 1100);
-      setContainerWidth(w);
+      setContainerWidth(Math.min(window.innerWidth * 0.85, 1100));
     };
-    update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
 
   if (loadError) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex h-full items-center justify-center p-6">
         <div className="text-center">
-          <p className="text-sm text-rose-700">
+          <p className="text-sm font-bold text-alert-700">
             Impossible de charger le visualiseur : {loadError}
           </p>
           <a
             href={fallbackHref}
             target="_blank"
             rel="noreferrer"
-            className="mt-2 inline-block text-sm text-primary hover:underline"
+            className="mt-2 inline-block text-sm font-bold text-info-700 hover:underline"
           >
             Ouvrir dans un nouvel onglet
           </a>
@@ -280,40 +308,32 @@ function PdfRender({
   }
 
   if (!Doc) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-center">
-          <Icon
-            name="Loader"
-            className="mx-auto h-8 w-8 animate-spin text-muted-foreground"
-          />
-          <p className="mt-2 text-sm text-muted-foreground">
-            Initialisation du visualiseur PDF…
-          </p>
-        </div>
-      </div>
-    );
+    return <PreviewStatus>Initialisation du visualiseur PDF…</PreviewStatus>;
   }
 
   const { Document: PdfDoc, Page: PdfPage } = Doc;
   return (
-    <div className="relative flex h-full flex-col items-center overflow-auto bg-muted/30 p-4">
+    <div
+      aria-label={title}
+      className="relative flex h-full flex-col items-center overflow-auto p-4"
+    >
       <PdfDoc
         file={url}
         onLoadSuccess={({ numPages }: { numPages: number }) => setPageCount(numPages)}
         onLoadError={(e: Error) => setLoadError(e.message)}
         loading={
           <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-            <Icon name="Loader" className="h-4 w-4 animate-spin" /> Chargement du PDF…
+            <Icon name="Loader" className="size-4 animate-spin" aria-hidden="true" />
+            Chargement du PDF…
           </div>
         }
       >
         {Array.from({ length: pageCount }, (_, i) => (
           <div
             key={i}
-            className="mb-6 overflow-hidden rounded shadow-lg ring-1 ring-black/10"
+            className="mb-6 overflow-hidden rounded-[12px] border border-border bg-card shadow-arena"
           >
-            <div className="border-b border-border bg-white px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="border-b border-border bg-card px-3 py-1.5 text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
               Page {i + 1} / {pageCount}
             </div>
             <PdfPage
@@ -326,7 +346,7 @@ function PdfRender({
         ))}
       </PdfDoc>
       {pageCount > 0 && (
-        <div className="sticky bottom-2 rounded-full bg-black/80 px-3 py-1 text-xs font-medium text-white shadow-lg">
+        <div className="sticky bottom-2 rounded-full bg-navy-700 px-3 py-1 text-xs font-bold text-white shadow-arena-lg">
           {pageCount} page{pageCount > 1 ? "s" : ""} au total
         </div>
       )}

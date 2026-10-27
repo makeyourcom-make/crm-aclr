@@ -1,21 +1,36 @@
-import { ProspectStatut } from "@prisma/client";
+/**
+ * Pastille de statut d'entreprise (MYC Arena) : 12 px 700, rayon 999,
+ * fond clair + texte foncé de la teinte du statut (voir statut-meta.ts).
+ * « Vierge » s'affiche « À attaquer » (bord pointillé coral), comme dans la
+ * maquette validée. Server-safe.
+ */
+import type { ProspectStatut } from "@prisma/client";
 
-import { Badge } from "@/components/ui/badge";
-import {
-  PROSPECT_STATUT_COLORS,
-  getProspectStatutLabel,
-} from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
-export function ProspectStatutBadge({ statut }: { statut: ProspectStatut }) {
-  // « Vierge » = fiche ouverte mais pas encore contactée → aucun badge (vide).
-  if (statut === "VIERGE") return null;
+import { STATUT_META } from "./statut-meta";
+
+export function ProspectStatutBadge({
+  statut,
+  size = "sm",
+  className,
+}: {
+  statut: ProspectStatut;
+  size?: "sm" | "md";
+  className?: string;
+}) {
+  const meta = STATUT_META[statut];
   return (
-    <Badge
-      variant="secondary"
-      className={cn("font-normal", PROSPECT_STATUT_COLORS[statut])}
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full border font-bold leading-none whitespace-nowrap",
+        size === "md" ? "h-8 px-3 text-[13px]" : "h-6 px-2.5 text-xs",
+        meta.pill,
+        className,
+      )}
     >
-      {getProspectStatutLabel(statut)}
-    </Badge>
+      <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", meta.solid)} />
+      {meta.label}
+    </span>
   );
 }

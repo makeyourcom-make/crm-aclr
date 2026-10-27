@@ -177,7 +177,7 @@ export async function sendClientInvoiceByEmail(
   if (!factureRecipient) {
     return {
       ok: false,
-      error: "Pas d'email client — renseigne-le sur la fiche prospect d'abord.",
+      error: "Pas d'email client : renseigne-le sur la fiche prospect d'abord.",
     };
   }
 
@@ -566,7 +566,7 @@ export async function sendDueSoonReminders(): Promise<{
             userId: inv.contract.assigneAId,
             type: "EMAIL_ENVOYE",
             date: new Date(),
-            sujet: `Relance J+20 — facture ${inv.numero}`,
+            sujet: `Relance J+20 - facture ${inv.numero}`,
             contenu: `Relance automatique (échéance ${echeanceStr}) envoyée à ${email} pour la facture ${inv.numero} (${totalLabel}).`,
             statut: "FAIT",
             emailId: emailRec.id,

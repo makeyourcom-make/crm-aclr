@@ -6,11 +6,16 @@
  * Workflow :
  *  1. Clic → dialog avec recherche prospect (live)
  *  2. Sélection prospect → bascule sur le formulaire de rédaction
- *  3. Envoi via sendEmailToProspect()
+ *  3. Envoi via sendEmailToProspect() (client) ou sendFreeFormEmail()
+ *
+ * MYC Arena : variante `hero` (CTA dégradé coral du bandeau). Un mail envoyé à
+ * un client crée l'activité EMAIL_ENVOYE → toast « +3 XP » puis rafraîchissement
+ * de la coquille (pilules XP / série).
  */
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Mail, MailPlus, Save, Send, Users } from "lucide-react";
 
 import {
   getMyDefaultSignatureHtml,
@@ -19,14 +24,16 @@ import {
   sendEmailToProspect,
   sendFreeFormEmail,
 } from "@/app/(app)/emails/actions";
+import { xpToast } from "@/components/arena/celebrate";
+import { XpPill } from "@/components/arena/pills";
 import {
   AttachmentPicker,
   type PickedAttachment,
 } from "@/components/emails/attachment-picker";
+import { FIELD_CLASS, initialsFrom, uiText } from "@/components/emails/mail-ui";
+import { RecipientInput } from "@/components/emails/recipient-input";
 import { RichTextEditor } from "@/components/emails/rich-text-editor";
-import { Icon } from "@/components/icon";
-import { htmlToPlainText } from "@/lib/email-html";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -36,9 +43,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RecipientInput } from "@/components/emails/recipient-input";
+import { htmlToPlainText } from "@/lib/email-html";
+import { XP_RULES } from "@/lib/gamification/rules";
+import { cn } from "@/lib/utils";
 
 interface ProspectOption {
   id: string;
@@ -55,7 +63,21 @@ interface ProspectOption {
 
 type Mode = "client" | "freeform";
 
-export function ComposeEmailButton() {
+/** Variables remplacées côté serveur (mail envoyé à un client du CRM). */
+const MAIL_VARIABLES = [
+  "{{prenomContact}}",
+  "{{nomContact}}",
+  "{{raisonSociale}}",
+  "{{ville}}",
+  "{{commerciale}}",
+];
+
+export function ComposeEmailButton({
+  variant = "default",
+}: {
+  /** `hero` : CTA dégradé coral (bandeau navy de la rubrique Emails). */
+  variant?: "default" | "hero";
+} = {}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -141,7 +163,7 @@ export function ComposeEmailButton() {
 
   const handleSelect = (prospect: ProspectOption) => {
     if (!prospect.email) {
-      toast.error("Ce client n'a pas d'email enregistré — ajoute-le sur sa fiche d'abord.");
+      toast.error("Ce client n'a pas d'email enregistré : ajoute-le sur sa fiche d'abord.");
       return;
     }
     setSelected(prospect);
@@ -168,10 +190,10 @@ export function ComposeEmailButton() {
         bcc: bcc.trim(),
       });
       if (!res.ok) {
-        toast.error(res.error ?? "Échec de l'enregistrement.");
+        toast.error(uiText(res.error, "Échec de l'enregistrement."));
         return;
       }
-      toast.success("Brouillon enregistré — retrouve-le dans « Brouillons » ✓");
+      toast.success("Brouillon enregistré : retrouve-le dans « Brouillons ».");
       reset();
       setOpen(false);
       router.refresh();
@@ -211,23 +233,36 @@ export function ComposeEmailButton() {
               bcc: bcc.trim() || undefined,
             });
       if (!res.ok) {
-        toast.error(res.error ?? "Échec de l'envoi.");
+        toast.error(uiText(res.error, "Échec de l'envoi."));
         return;
       }
       const recipientLabel =
         mode === "client" && selected
           ? selected.raisonSociale
           : freeEmail.trim();
-      if (res.dryRun) {
+      if (mode === "client" && selected) {
+        // Mail à un client : activité EMAIL_ENVOYE créée (même en dry-run).
+        xpToast(
+          XP_RULES.email,
+          res.dryRun ? "Email enregistré (dry-run)" : "Mail envoyé !",
+          `à ${recipientLabel}`,
+        );
+      } else if (res.dryRun) {
         toast.success("Email enregistré (mode dry-run, pas d'envoi réel).");
       } else {
-        toast.success(`Email envoyé à ${recipientLabel} ✓`);
+        toast.success(`Email envoyé à ${recipientLabel}.`, {
+          description:
+            "S'il correspond à une de tes entreprises, il est rattaché à sa fiche et rapporte +3 XP.",
+        });
       }
       reset();
       setOpen(false);
       router.refresh();
     });
   };
+
+  const recipientShown =
+    mode === "client" && selected ? (selected.email ?? "") : freeEmail.trim();
 
   return (
     <Dialog
@@ -242,13 +277,18 @@ export function ComposeEmailButton() {
         }
       }}
     >
-      <DialogTrigger className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-        <Icon name="MailPlus" className="h-3.5 w-3.5" />
+      <DialogTrigger
+        className={buttonVariants({
+          variant: variant === "hero" ? "hero" : "default",
+          size: variant === "hero" ? "lg" : "default",
+        })}
+      >
+        <MailPlus aria-hidden="true" />
         Nouveau mail
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="rounded-[20px] p-5 sm:max-w-xl sm:p-6">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="pr-8 font-display text-[22px] leading-tight font-extrabold tracking-[-0.02em]">
             {hasRecipient
               ? mode === "client" && selected
                 ? `Email à ${selected.raisonSociale}`
@@ -257,22 +297,35 @@ export function ComposeEmailButton() {
           </DialogTitle>
           <DialogDescription>
             {hasRecipient ? (
-              <>
-                Destinataire :{" "}
-                <strong>
-                  {mode === "client" && selected ? selected.email : freeEmail.trim()}
-                </strong>{" "}
+              <span className="mt-1 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-muted-foreground">À</span>
+                <span className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-full bg-info-50 py-1 pr-3 pl-1 text-[13px] font-bold text-info-700">
+                  <span
+                    aria-hidden="true"
+                    className="flex size-[26px] shrink-0 items-center justify-center rounded-full bg-card text-[11px] font-extrabold"
+                  >
+                    {initialsFrom(
+                      mode === "client" && selected ? selected.raisonSociale : recipientShown,
+                    )}
+                  </span>
+                  <span className="truncate">{recipientShown}</span>
+                </span>
+                {mode === "client" && selected?.isClient && (
+                  <span className="rounded-full bg-win-50 px-2 py-0.5 text-[11px] font-bold text-win-700">
+                    Client
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={() => {
                     setSelected(null);
                     setFreeEmail("");
                   }}
-                  className="ml-2 text-xs text-primary hover:underline"
+                  className="rounded-[8px] px-1.5 py-1 text-[13px] font-bold text-info-700 underline underline-offset-2 hover:bg-info-50"
                 >
                   changer
                 </button>
-              </>
+              </span>
             ) : (
               "Choisis un client existant ou saisis directement une adresse email."
             )}
@@ -283,29 +336,37 @@ export function ComposeEmailButton() {
         {!hasRecipient && (
           <div className="space-y-3">
             {/* Toggle Client / Adresse libre */}
-            <div className="flex gap-1 rounded-md bg-muted p-1">
+            <div
+              role="group"
+              aria-label="Type de destinataire"
+              className="flex gap-0.5 rounded-[12px] bg-navy-50 p-[3px]"
+            >
               <button
                 type="button"
                 onClick={() => setMode("client")}
-                className={`flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+                aria-pressed={mode === "client"}
+                className={cn(
+                  "inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[10px] px-3 text-[13px] font-bold text-foreground transition-colors",
                   mode === "client"
-                    ? "bg-background shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                    ? "bg-card shadow-[0_1px_3px_rgba(14,25,54,0.14)]"
+                    : "hover:bg-navy-100",
+                )}
               >
-                <Icon name="Users" className="mr-1 inline h-3 w-3" />
+                <Users className="size-4" aria-hidden="true" />
                 Client existant
               </button>
               <button
                 type="button"
                 onClick={() => setMode("freeform")}
-                className={`flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+                aria-pressed={mode === "freeform"}
+                className={cn(
+                  "inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[10px] px-3 text-[13px] font-bold text-foreground transition-colors",
                   mode === "freeform"
-                    ? "bg-background shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                    ? "bg-card shadow-[0_1px_3px_rgba(14,25,54,0.14)]"
+                    : "hover:bg-navy-100",
+                )}
               >
-                <Icon name="Mail" className="mr-1 inline h-3 w-3" />
+                <Mail className="size-4" aria-hidden="true" />
                 Adresse libre
               </button>
             </div>
@@ -313,18 +374,23 @@ export function ComposeEmailButton() {
             {/* Mode client : recherche prospect */}
             {mode === "client" && (
               <div className="space-y-2">
-                <Input
+                <Label htmlFor="compose-search" className="text-xs font-bold text-muted-foreground">
+                  À : rechercher un client (nom, entreprise, email, ville)
+                </Label>
+                <input
+                  id="compose-search"
                   type="search"
                   autoFocus
                   value={query}
                   onChange={(e) => handleSearch(e.target.value)}
-                  placeholder="Raison sociale, nom du contact, email, ville…"
+                  placeholder="Ex. Garage, Perrin, Thorens…"
                   disabled={pending}
+                  className={FIELD_CLASS}
                 />
-                <div className="max-h-72 overflow-y-auto rounded-md border border-border">
+                <div className="max-h-72 overflow-y-auto rounded-[14px] border border-border p-1">
                   {!query && (
                     <p className="p-4 text-center text-xs text-muted-foreground">
-                      Commence à taper pour voir les clients.
+                      Commence à taper pour voir tes clients.
                     </p>
                   )}
                   {searching && (
@@ -338,8 +404,8 @@ export function ComposeEmailButton() {
                     </p>
                   )}
                   {!searching && results.length > 0 && results[0]!.approx && (
-                    <p className="border-b border-border bg-amber-50 px-3 py-1.5 text-[11px] text-amber-800">
-                      Aucun résultat exact — résultats approchants :
+                    <p className="mb-1 rounded-[10px] bg-gold-50 px-3 py-2 text-xs font-bold text-gold-700">
+                      Aucun résultat exact : résultats approchants
                     </p>
                   )}
                   {!searching &&
@@ -349,33 +415,44 @@ export function ComposeEmailButton() {
                         .join(" ")
                         .trim();
                       return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => handleSelect(p)}
-                        className="block w-full border-b border-border px-3 py-2 text-left text-sm hover:bg-muted last:border-b-0"
-                      >
-                        <p className="flex items-center gap-1.5 truncate font-medium">
-                          <span className="truncate">{p.raisonSociale}</span>
-                          {p.isClient && (
-                            <span className="shrink-0 rounded-full bg-emerald-100 px-1.5 text-[10px] font-medium text-emerald-700">
-                              Client
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => handleSelect(p)}
+                          className="flex w-full items-center gap-2.5 rounded-[12px] px-2.5 py-2 text-left text-sm transition-colors hover:bg-navy-50"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              "flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold",
+                              p.isClient ? "bg-win-50 text-win-700" : "bg-info-50 text-info-700",
+                            )}
+                          >
+                            {initialsFrom(p.raisonSociale)}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-1.5 font-bold">
+                              <span className="truncate">{p.raisonSociale}</span>
+                              {p.isClient && (
+                                <span className="shrink-0 rounded-full bg-win-50 px-2 py-0.5 text-[11px] font-bold text-win-700">
+                                  Client
+                                </span>
+                              )}
                             </span>
-                          )}
-                        </p>
-                        {contact && contact.toLowerCase() !== p.raisonSociale.toLowerCase() && (
-                          <p className="truncate text-xs">{contact}</p>
-                        )}
-                        <p className="truncate text-xs text-muted-foreground">
-                          {p.ville && <span>{p.ville}</span>}
-                          {p.ville && p.email && <span> · </span>}
-                          {p.email ? (
-                            <span>{p.email}</span>
-                          ) : (
-                            <span className="text-red-600 italic">pas d&apos;email</span>
-                          )}
-                        </p>
-                      </button>
+                            {contact && contact.toLowerCase() !== p.raisonSociale.toLowerCase() && (
+                              <span className="block truncate text-xs">{contact}</span>
+                            )}
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {p.ville && <span>{p.ville}</span>}
+                              {p.ville && p.email && <span> · </span>}
+                              {p.email ? (
+                                <span>{p.email}</span>
+                              ) : (
+                                <span className="text-alert-700 italic">pas d&apos;email</span>
+                              )}
+                            </span>
+                          </span>
+                        </button>
                       );
                     })}
                 </div>
@@ -385,22 +462,27 @@ export function ComposeEmailButton() {
             {/* Mode adresse libre : saisie email */}
             {mode === "freeform" && (
               <div className="space-y-2">
-                <Label htmlFor="freeform-email">
-                  Email du destinataire{" "}
-                  <span className="text-red-500">*</span>
+                <Label htmlFor="freeform-email" className="text-xs font-bold text-muted-foreground">
+                  À : adresse email{" "}
+                  <span className="text-alert-700" aria-hidden="true">
+                    *
+                  </span>
                 </Label>
-                <Input
+                <input
                   id="freeform-email"
                   type="email"
                   autoFocus
                   value={freeEmail}
                   onChange={(e) => setFreeEmail(e.target.value)}
-                  placeholder="prenom.nom@exemple.com"
+                  placeholder="prenom.nom@entreprise.ch"
                   disabled={pending}
+                  required
+                  className={FIELD_CLASS}
                 />
-                <p className="text-[11px] text-muted-foreground">
-                  Si cette adresse correspond à un client existant, le mail
-                  sera automatiquement rattaché à sa fiche.
+                <p className="text-xs text-muted-foreground">
+                  Rattachement automatique si l&apos;adresse correspond à une de tes
+                  entreprises. Sinon le mail ne comptera pas dans tes stats : pense à
+                  créer le client.
                 </p>
               </div>
             )}
@@ -410,23 +492,37 @@ export function ComposeEmailButton() {
         {/* Étape 2 : rédaction */}
         {hasRecipient && (
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* CC / CCI — repliés par défaut. */}
+            {/* CC / CCI : repliés par défaut. */}
             <div className="space-y-1.5">
               {!showCc ? (
                 <button
                   type="button"
                   onClick={() => setShowCc(true)}
-                  className="text-xs font-medium text-primary hover:underline"
+                  className="inline-flex h-8 items-center rounded-[10px] bg-navy-50 px-2.5 text-xs font-bold text-navy-600 hover:bg-navy-100"
                 >
                   + Cc / Cci
                 </button>
               ) : (
-                <div className="space-y-1.5">
-                  <Label htmlFor="cc">Cc</Label>
-                  <RecipientInput id="cc" value={cc} onChange={setCc} placeholder="copie@exemple.ch, autre@exemple.ch" />
-                  <Label htmlFor="bcc">Cci (copie cachée)</Label>
-                  <RecipientInput id="bcc" value={bcc} onChange={setBcc} placeholder="copie.cachee@exemple.ch" />
-                  <p className="text-[11px] text-muted-foreground">
+                <div className="space-y-2 rounded-[14px] border border-border bg-ground p-3">
+                  <Label htmlFor="compose-cc" className="text-xs font-bold text-muted-foreground">
+                    Cc
+                  </Label>
+                  <RecipientInput
+                    id="compose-cc"
+                    value={cc}
+                    onChange={setCc}
+                    placeholder="copie@exemple.ch, autre@exemple.ch"
+                  />
+                  <Label htmlFor="compose-bcc" className="text-xs font-bold text-muted-foreground">
+                    Cci (copie cachée)
+                  </Label>
+                  <RecipientInput
+                    id="compose-bcc"
+                    value={bcc}
+                    onChange={setBcc}
+                    placeholder="copie.cachee@exemple.ch"
+                  />
+                  <p className="text-xs text-muted-foreground">
                     Plusieurs adresses séparées par une virgule ou un
                     point-virgule.
                   </p>
@@ -435,48 +531,59 @@ export function ComposeEmailButton() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="objet">
-                Sujet <span className="text-red-500">*</span>
+              <Label htmlFor="compose-objet" className="text-xs font-bold text-muted-foreground">
+                Objet{" "}
+                <span className="text-alert-700" aria-hidden="true">
+                  *
+                </span>
               </Label>
-              <Input
-                id="objet"
+              <input
+                id="compose-objet"
                 autoFocus
                 value={objet}
                 onChange={(e) => setObjet(e.target.value)}
-                placeholder="Ex. Présentation Pack Web Complet"
+                placeholder="Ex. Proposition Google Ads pour votre saison d'hiver"
                 required
+                className={FIELD_CLASS}
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label>
-                Contenu <span className="text-red-500">*</span>
-              </Label>
+              <p className="text-xs font-bold text-muted-foreground">
+                Message{" "}
+                <span className="text-alert-700" aria-hidden="true">
+                  *
+                </span>
+              </p>
               <RichTextEditor
                 key={editorKey}
                 onChange={setContenuHtml}
                 disabled={pending}
                 placeholder="Bonjour {{prenomContact}}, …"
+                variables={mode === "client" ? MAIL_VARIABLES : undefined}
+                footer={
+                  sigPreview ? (
+                    <div className="border-t border-dashed border-border bg-ground px-4 py-2.5">
+                      <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                        Signature ajoutée automatiquement à l&apos;envoi
+                      </p>
+                      <div
+                        className="text-xs"
+                        dangerouslySetInnerHTML={{ __html: sigPreview }}
+                      />
+                    </div>
+                  ) : undefined
+                }
               />
               {mode === "client" && (
-                <p className="text-[11px] text-muted-foreground">
-                  Variables disponibles : <code>{`{{prenomContact}}`}</code>,{" "}
-                  <code>{`{{nomContact}}`}</code>, <code>{`{{raisonSociale}}`}</code>,{" "}
-                  <code>{`{{ville}}`}</code>.
+                <p className="text-xs text-muted-foreground">
+                  Les variables sont remplacées automatiquement avec les infos du client.
                 </p>
-              )}
-              {sigPreview && (
-                <div className="mt-2 rounded-md border border-dashed border-border bg-muted/20 p-3">
-                  <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                    Signature (ajoutée automatiquement)
-                  </p>
-                  <div dangerouslySetInnerHTML={{ __html: sigPreview }} />
-                </div>
               )}
             </div>
 
             <div className="space-y-1.5">
-              <Label>Pièces jointes</Label>
+              <p className="text-xs font-bold text-muted-foreground">Pièces jointes</p>
               <AttachmentPicker
                 value={attachments}
                 onChange={setAttachments}
@@ -484,26 +591,32 @@ export function ComposeEmailButton() {
               />
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="-mx-5 -mb-5 flex-row flex-wrap rounded-b-[20px] bg-ground px-5 sm:-mx-6 sm:-mb-6 sm:justify-start sm:px-6">
+              <Button type="submit" variant="hero" disabled={pending}>
+                <Send aria-hidden="true" />
+                {pending ? "Envoi…" : "Envoyer"}
+                {mode === "client" && (
+                  <XpPill xp={XP_RULES.email} variant="solid" className="text-shadow-none" />
+                )}
+              </Button>
               <Button
                 type="button"
                 variant="outline"
+                size="lg"
+                onClick={handleSaveDraft}
+                disabled={pending}
+              >
+                <Save aria-hidden="true" />
+                Enregistrer le brouillon
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
                 onClick={() => setOpen(false)}
                 disabled={pending}
               >
                 Annuler
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleSaveDraft}
-                disabled={pending}
-              >
-                <Icon name="Save" className="mr-1.5 h-3.5 w-3.5" />
-                Enregistrer le brouillon
-              </Button>
-              <Button type="submit" disabled={pending}>
-                {pending ? "Envoi…" : "Envoyer"}
               </Button>
             </DialogFooter>
           </form>

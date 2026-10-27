@@ -7,6 +7,7 @@
  * Permet de réassigner en masse à une autre commerciale (ou de retirer
  * l'assignation) en 2 clics.
  */
+import { Check, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -14,7 +15,6 @@ import {
   bulkDeleteProspects,
   bulkReassignProspects,
 } from "@/app/(app)/prospects/actions";
-import { Icon } from "@/components/icon";
 
 interface BulkReassignBarProps {
   selectedIds: string[];
@@ -53,7 +53,7 @@ export function BulkReassignBar({
       }
       toast.success(
         `${res.deleted} fiche(s) supprimée(s)${
-          res.skipped ? ` — ${res.skipped} ignorée(s) (liées à un contrat)` : ""
+          res.skipped ? ` · ${res.skipped} ignorée(s) (liées à un contrat)` : ""
         }.`,
       );
       onSuccess();
@@ -78,7 +78,7 @@ export function BulkReassignBar({
       const target =
         newAssigneeId === null
           ? "Non assignée"
-          : teamUsers.find((u) => u.id === newAssigneeId)?.name ?? "—";
+          : (teamUsers.find((u) => u.id === newAssigneeId)?.name ?? "la commerciale choisie");
       toast.success(`${res.count} entreprise(s) réassignée(s) à ${target}.`);
       onSuccess();
     });
@@ -87,20 +87,28 @@ export function BulkReassignBar({
   if (selectedIds.length === 0) return null;
 
   return (
-    <div className="sticky top-2 z-20 mb-3 flex flex-wrap items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 shadow-sm backdrop-blur">
-      <span className="text-sm font-medium text-primary">
+    <div
+      role="region"
+      aria-label="Actions sur la sélection"
+      className="sticky top-2 z-20 mb-3 flex flex-wrap items-center gap-3 rounded-[16px] bg-navy-700 px-4 py-3 text-white shadow-arena-lg"
+    >
+      <span className="text-sm font-extrabold">
         {selectedIds.length} entreprise(s) sélectionnée(s)
       </span>
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
+        <label htmlFor="bulk-reassign-target" className="sr-only">
+          Réassigner à
+        </label>
         <select
+          id="bulk-reassign-target"
           value={targetUserId}
           onChange={(e) => setTargetUserId(e.target.value)}
-          className="h-9 rounded-md border border-input bg-background px-2.5 text-sm"
+          className="h-10 rounded-[10px] border border-white/20 bg-navy-600 px-2.5 text-sm font-semibold text-white"
           disabled={pending}
         >
-          <option value="">Réassigner à…</option>
-          <option value="__none__">— Non assignée —</option>
+          <option value="">Réassigner à...</option>
+          <option value="__none__">Non assignée</option>
           {teamUsers.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name}
@@ -112,10 +120,10 @@ export function BulkReassignBar({
           type="button"
           onClick={handleApply}
           disabled={pending || !targetUserId}
-          className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className="inline-flex h-10 items-center gap-1.5 rounded-[10px] bg-white px-3 text-sm font-bold text-navy-700 hover:bg-navy-50 disabled:opacity-50"
         >
-          <Icon name="Check" className="h-4 w-4" />
-          {pending ? "Application…" : "Appliquer"}
+          <Check aria-hidden="true" className="size-4" />
+          {pending ? "Application..." : "Appliquer"}
         </button>
 
         {isAdmin && (
@@ -123,9 +131,9 @@ export function BulkReassignBar({
             type="button"
             onClick={handleDelete}
             disabled={pending}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-red-300 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+            className="inline-flex h-10 items-center gap-1.5 rounded-[10px] bg-alert-50 px-3 text-sm font-bold text-alert-700 hover:brightness-95 disabled:opacity-50"
           >
-            <Icon name="Trash2" className="h-4 w-4" />
+            <Trash2 aria-hidden="true" className="size-4" />
             Supprimer
           </button>
         )}
@@ -134,7 +142,7 @@ export function BulkReassignBar({
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+          className="h-10 rounded-[10px] px-2 text-xs font-bold text-navy-200 underline underline-offset-2 hover:text-white"
         >
           Tout désélectionner
         </button>

@@ -59,7 +59,7 @@ export function Pagination({
             "Aucun résultat"
           ) : (
             <>
-              <strong className="text-foreground">{start}</strong>–
+              <strong className="text-foreground">{start}</strong>-
               <strong className="text-foreground">{end}</strong> sur{" "}
               <strong className="text-foreground">{total}</strong>
             </>

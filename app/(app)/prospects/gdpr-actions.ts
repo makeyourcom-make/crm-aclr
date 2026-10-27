@@ -56,7 +56,7 @@ export async function exportProspectData(id: string) {
     data: {
       _meta: {
         exportePar: admin.name,
-        objet: "Export LPD/RGPD — toutes les données détenues sur cette fiche",
+        objet: "Export LPD/RGPD · toutes les données détenues sur cette fiche",
       },
       fiche: prospect,
     },

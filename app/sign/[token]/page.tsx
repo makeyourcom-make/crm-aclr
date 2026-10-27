@@ -179,7 +179,7 @@ export default async function SignPage({ params }: PageProps) {
             Proposition de contrat
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            N° {sig.contract.numero} — {sig.contract.prospect.raisonSociale}
+            N° {sig.contract.numero} · {sig.contract.prospect.raisonSociale}
           </p>
 
           {/* Récap */}
@@ -289,11 +289,11 @@ export default async function SignPage({ params }: PageProps) {
           {/* CGV intégrales — repliable pour ne pas écraser l'écran tablette */}
           <details className="mt-6 rounded-md border border-border bg-card p-3 text-xs">
             <summary className="cursor-pointer font-medium">
-              📄 {CGV_TITLE} (version {CGV_VERSION})
+              {CGV_TITLE} (version {CGV_VERSION})
             </summary>
             <div className="mt-3 max-h-[420px] space-y-4 overflow-y-auto pr-2 text-muted-foreground">
               <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-900">
-                ⚠ Lis attentivement ces CGV : en signant, tu confirmes les
+                Lis attentivement ces CGV : en signant, tu confirmes les
                 avoir acceptées sans réserve. Elles sont également annexées
                 au PDF du contrat que tu recevras.
               </p>
@@ -331,20 +331,20 @@ export default async function SignPage({ params }: PageProps) {
           <div className="mt-6">
             {isExpired ? (
               <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                ⚠ Ce lien de signature a expiré le{" "}
+                Ce lien de signature a expiré le{" "}
                 {formatDateLong(sig.expireA)}. Contacte ton interlocuteur
                 pour obtenir un nouveau lien.
               </div>
             ) : alreadySigned ? (
               <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-4">
                 <p className="font-medium text-emerald-900">
-                  ✓ Contrat signé
+                  Contrat signé
                 </p>
                 <p className="mt-1 text-sm text-emerald-800">
                   Signé le{" "}
                   {sig.dateSignatureClient
                     ? formatDateLong(sig.dateSignatureClient)
-                    : "—"}
+                    : "-"}
                   {sig.signeParAclr ? " et contre-signé par ACLR." : "."}
                 </p>
                 {/* Retour au CRM — pratique après une signature en direct

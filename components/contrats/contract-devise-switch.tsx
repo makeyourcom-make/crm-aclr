@@ -4,7 +4,7 @@
  * Petit switch CHF/EUR pour changer la devise d'un contrat AVANT signature client.
  * Utilisé dans le panneau de Deal.
  *
- * Comportement : 2 boutons en pill — celui actif est highlight. Au clic, on
+ * Comportement : 2 boutons en pill, celui actif est mis en avant. Au clic, on
  * appelle la server action et on refresh la route.
  */
 import { useTransition } from "react";
@@ -42,18 +42,23 @@ export function ContractDeviseSwitch({
 
   return (
     <div className="space-y-1.5">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-blue-900">
+      <p className="text-[11px] font-bold tracking-[0.08em] text-info-700 uppercase">
         Devise
       </p>
-      <div className="inline-flex overflow-hidden rounded-md border border-blue-300 bg-white">
+      <div
+        role="group"
+        aria-label="Devise du contrat"
+        className="inline-flex overflow-hidden rounded-[10px] border border-info-500/40 bg-card"
+      >
         <button
           type="button"
           onClick={() => handleSwitch("CHF")}
           disabled={locked || pending}
-          className={`px-3 py-1.5 text-xs font-medium transition ${
+          aria-pressed={cur === "CHF"}
+          className={`px-3 py-1.5 text-xs font-bold transition ${
             cur === "CHF"
-              ? "bg-blue-600 text-white"
-              : "text-blue-900 hover:bg-blue-50"
+              ? "bg-info-700 text-white"
+              : "text-info-700 hover:bg-info-50"
           } ${locked || pending ? "cursor-not-allowed opacity-60" : ""}`}
         >
           CHF
@@ -62,18 +67,19 @@ export function ContractDeviseSwitch({
           type="button"
           onClick={() => handleSwitch("EUR")}
           disabled={locked || pending}
-          className={`border-l border-blue-300 px-3 py-1.5 text-xs font-medium transition ${
+          aria-pressed={cur === "EUR"}
+          className={`border-l border-info-500/40 px-3 py-1.5 text-xs font-bold transition ${
             cur === "EUR"
-              ? "bg-blue-600 text-white"
-              : "text-blue-900 hover:bg-blue-50"
+              ? "bg-info-700 text-white"
+              : "text-info-700 hover:bg-info-50"
           } ${locked || pending ? "cursor-not-allowed opacity-60" : ""}`}
         >
           EUR
         </button>
       </div>
       {locked && (
-        <p className="text-[10px] text-blue-700">
-          Contrat signé — devise figée.
+        <p className="text-[11px] font-semibold text-info-700">
+          Contrat signé : devise figée.
         </p>
       )}
     </div>

@@ -6,10 +6,10 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "CRM — Make Your Com",
+    name: "CRM - Make Your Com",
     short_name: "MakeYourCom",
     description:
-      "CRM commercial ACLR Sàrl — prospects, deals, contrats, dossiers et facturation.",
+      "CRM commercial ACLR Sàrl - prospects, deals, contrats, dossiers et facturation.",
     lang: "fr",
     start_url: "/",
     scope: "/",

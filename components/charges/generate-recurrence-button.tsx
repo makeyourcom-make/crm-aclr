@@ -1,12 +1,14 @@
 "use client";
 
+import { Loader2, Repeat } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { generateMonthlyRecurrences } from "@/app/(app)/charges/recurrences/actions";
+import { FIELD_CLASS } from "@/components/common/form-styles";
 import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/icon";
+import { cn } from "@/lib/utils";
 
 export function GenerateRecurrenceButton() {
   const router = useRouter();
@@ -33,18 +35,22 @@ export function GenerateRecurrenceButton() {
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <input
-        type="month"
-        value={month}
-        onChange={(e) => setMonth(e.target.value)}
-        className="h-9 rounded-md border border-input bg-background px-2.5 text-sm"
-      />
-      <Button onClick={handle} disabled={pending}>
-        <Icon
-          name={pending ? "Loader" : "Repeat"}
-          className={`mr-1.5 h-4 w-4 ${pending ? "animate-spin" : ""}`}
+    <div className="flex flex-wrap items-center gap-2">
+      <label className="min-w-0">
+        <span className="sr-only">Mois à générer</span>
+        <input
+          type="month"
+          value={month}
+          onChange={(e) => setMonth(e.target.value)}
+          className={cn(FIELD_CLASS, "w-auto")}
         />
+      </label>
+      <Button size="lg" onClick={handle} disabled={pending}>
+        {pending ? (
+          <Loader2 aria-hidden="true" className="animate-spin" />
+        ) : (
+          <Repeat aria-hidden="true" />
+        )}
         Générer les charges
       </Button>
     </div>

@@ -1,9 +1,14 @@
-import { ContractStatut } from "@prisma/client";
+/**
+ * Pastille de statut d'un contrat (MYC Arena : fond clair + texte foncé de la
+ * teinte, point de couleur). Même API qu'avant (`statut`), utilisée aussi par
+ * la fiche entreprise.
+ */
+import type { ContractStatut } from "@prisma/client";
 
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { StatusPill, type PillSize } from "@/components/arena/pills";
+import type { Tone } from "@/components/arena/tones";
 
-const LABELS: Record<ContractStatut, string> = {
+export const CONTRACT_STATUT_LABEL: Record<ContractStatut, string> = {
   ATTENTE_SIGNATURE_CLIENT: "En attente signature",
   ATTENTE_VALIDATION_ADMIN: "À valider (admin)",
   ACTIF: "Actif",
@@ -12,19 +17,31 @@ const LABELS: Record<ContractStatut, string> = {
   EXPIRE: "Expiré",
 };
 
-const COLORS: Record<ContractStatut, string> = {
-  ATTENTE_SIGNATURE_CLIENT: "bg-blue-100 text-blue-700",
-  ATTENTE_VALIDATION_ADMIN: "bg-purple-100 text-purple-700",
-  ACTIF: "bg-emerald-100 text-emerald-800",
-  SUSPENDU: "bg-amber-100 text-amber-800",
-  RESILIE: "bg-red-100 text-red-700",
-  EXPIRE: "bg-slate-100 text-slate-600",
+export const CONTRACT_STATUT_TONE: Record<ContractStatut, Tone> = {
+  ATTENTE_SIGNATURE_CLIENT: "blue",
+  ATTENTE_VALIDATION_ADMIN: "violet",
+  ACTIF: "green",
+  SUSPENDU: "gold",
+  RESILIE: "red",
+  EXPIRE: "navy",
 };
 
-export function ContractStatutBadge({ statut }: { statut: ContractStatut }) {
+export function ContractStatutBadge({
+  statut,
+  size = "sm",
+  className,
+}: {
+  statut: ContractStatut;
+  size?: PillSize;
+  className?: string;
+}) {
   return (
-    <Badge variant="secondary" className={cn("font-normal", COLORS[statut])}>
-      {LABELS[statut]}
-    </Badge>
+    <StatusPill
+      tone={CONTRACT_STATUT_TONE[statut] ?? "navy"}
+      size={size}
+      className={className}
+    >
+      {CONTRACT_STATUT_LABEL[statut] ?? statut}
+    </StatusPill>
   );
 }

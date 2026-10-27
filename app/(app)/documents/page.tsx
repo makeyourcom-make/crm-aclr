@@ -1,21 +1,66 @@
+import {
+  ClipboardList,
+  Download,
+  File,
+  FileText,
+  GraduationCap,
+  Handshake,
+  ImageIcon,
+  Library,
+  Video,
+  type LucideIcon,
+} from "lucide-react";
+
+import { EmptyState, SectionCard, StatTile, StatusPill } from "@/components/arena";
+import type { Tone } from "@/components/arena/tones";
+import { TONE_CLASSES } from "@/components/arena/tones";
+import { IconPageHeader } from "@/components/common/icon-page-header";
+import { PageShell } from "@/components/common/page-shell";
 import { DeleteDocumentButton } from "@/components/documents/delete-document-button";
 import { DocumentUploadButton } from "@/components/documents/document-upload-button";
-import { Icon } from "@/components/icon";
-import { PageHeader } from "@/components/page-header";
+import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { getSessionUser } from "@/lib/session";
+import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Documents" };
 export const dynamic = "force-dynamic";
 
 type Categorie = "FORMATION" | "VENTE" | "SUIVI";
 
-const SECTIONS: { id: Categorie; label: string; hint: string }[] = [
-  { id: "FORMATION", label: "Formation", hint: "Guides, scripts, onboarding" },
-  { id: "VENTE", label: "Vente", hint: "Méthode de vente, argumentaires, supports" },
-  { id: "SUIVI", label: "Suivi", hint: "Questionnaires de lancement, process, reporting" },
+const SECTIONS: {
+  id: Categorie;
+  label: string;
+  hint: string;
+  icon: LucideIcon;
+  tone: Tone;
+}[] = [
+  {
+    id: "FORMATION",
+    label: "Formation",
+    hint: "Guides, scripts, onboarding",
+    icon: GraduationCap,
+    tone: "violet",
+  },
+  {
+    id: "VENTE",
+    label: "Vente",
+    hint: "Méthode de vente, argumentaires, supports",
+    icon: Handshake,
+    tone: "coral",
+  },
+  {
+    id: "SUIVI",
+    label: "Suivi",
+    hint: "Questionnaires de lancement, process, reporting",
+    icon: ClipboardList,
+    tone: "green",
+  },
 ];
+
+/** Un document ajouté il y a moins de 14 jours est signalé « Nouveau ». */
+const NEW_DAYS = 14;
 
 function humanSize(bytes: number | null): string {
   if (!bytes || bytes <= 0) return "";
@@ -24,12 +69,12 @@ function humanSize(bytes: number | null): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
-function fileIcon(type: string | null): string {
-  if (!type) return "File";
-  if (type.startsWith("video/")) return "Video";
-  if (type === "application/pdf") return "FileText";
-  if (type.startsWith("image/")) return "File";
-  return "FileText";
+function fileMeta(type: string | null): { icon: LucideIcon; tone: Tone; label: string } {
+  if (!type) return { icon: File, tone: "navy", label: "Fichier" };
+  if (type.startsWith("video/")) return { icon: Video, tone: "coral", label: "Vidéo" };
+  if (type === "application/pdf") return { icon: FileText, tone: "red", label: "PDF" };
+  if (type.startsWith("image/")) return { icon: ImageIcon, tone: "violet", label: "Image" };
+  return { icon: FileText, tone: "blue", label: "Document" };
 }
 
 export default async function DocumentsPage() {
@@ -52,94 +97,142 @@ export default async function DocumentsPage() {
   });
 
   const byCat = (cat: Categorie) => docs.filter((d) => d.categorie === cat);
+  const newSince = new Date();
+  newSince.setDate(newSince.getDate() - NEW_DAYS);
+  const nbNouveaux = docs.filter((d) => d.createdAt >= newSince).length;
 
   return (
-    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-      <PageHeader
+    <PageShell>
+      <IconPageHeader
+        icon={Library}
+        tone="blue"
         title="Documents"
-        description={`${docs.length} document(s) partagé(s) avec l'équipe.`}
+        description={`${docs.length} document(s) partagé(s) avec l'équipe${
+          nbNouveaux > 0 ? ` · ${nbNouveaux} nouveau(x) ces ${NEW_DAYS} derniers jours` : ""
+        }.`}
         actions={isAdmin ? <DocumentUploadButton /> : undefined}
       />
 
-      <div className="mt-4 space-y-8">
+      {/* Raccourcis par rubrique */}
+      <div className="mb-6 grid grid-cols-1 gap-3 min-[480px]:grid-cols-3">
+        {SECTIONS.map((s) => (
+          <StatTile
+            key={s.id}
+            label={s.label}
+            value={byCat(s.id).length}
+            sub={s.hint}
+            tone={s.tone}
+            icon={s.icon}
+            href={`#docs-${s.id.toLowerCase()}`}
+          />
+        ))}
+      </div>
+
+      <div className="space-y-6">
         {SECTIONS.map((section) => {
           const items = byCat(section.id);
           return (
-            <section key={section.id}>
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <h2 className="text-base font-semibold text-foreground">
-                    {section.label}
-                    <span className="ml-2 text-sm font-normal text-muted-foreground">
-                      ({items.length})
-                    </span>
-                  </h2>
-                  <p className="text-xs text-muted-foreground">{section.hint}</p>
-                </div>
-                {isAdmin && (
+            <SectionCard
+              key={section.id}
+              id={`docs-${section.id.toLowerCase()}`}
+              className="scroll-mt-20"
+              title={section.label}
+              description={`${section.hint} · ${items.length} document(s)`}
+              icon={section.icon}
+              tone={section.tone}
+              action={
+                isAdmin ? (
                   <DocumentUploadButton
                     defaultCategorie={section.id}
                     triggerLabel="Ajouter"
-                    triggerClassName="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium hover:bg-muted"
+                    triggerClassName={buttonVariants({ variant: "outline" })}
                   />
-                )}
-              </div>
-
+                ) : undefined
+              }
+            >
               {items.length === 0 ? (
-                <p className="mt-3 rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                  Aucun document dans cette rubrique.
-                </p>
+                <EmptyState
+                  icon={section.icon}
+                  tone={section.tone}
+                  title="Aucun document dans cette rubrique"
+                  description={
+                    isAdmin
+                      ? "Ajoute le premier support : il sera visible par toute l'équipe."
+                      : "Les supports arriveront bientôt ici."
+                  }
+                />
               ) : (
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {items.map((d) => (
-                    <div
-                      key={d.id}
-                      className="flex flex-col rounded-lg border border-border bg-card p-3"
-                    >
-                      <div className="flex items-start gap-2.5">
-                        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                          <Icon name={fileIcon(d.fileType)} className="h-4 w-4" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-foreground">
-                            {d.titre}
-                          </p>
-                          {d.description && (
-                            <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                              {d.description}
+                <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {items.map((d) => {
+                    const meta = fileMeta(d.fileType);
+                    const FileIcon = meta.icon;
+                    const t = TONE_CLASSES[meta.tone];
+                    const isNew = d.createdAt >= newSince;
+                    return (
+                      <li
+                        key={d.id}
+                        className="flex min-w-0 flex-col rounded-[14px] border border-border bg-card p-3.5 transition-[border-color,box-shadow] hover:border-border-strong hover:shadow-arena"
+                      >
+                        <div className="flex items-start gap-3">
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              "flex size-10 shrink-0 items-center justify-center rounded-[12px]",
+                              t.bg,
+                              t.text,
+                            )}
+                          >
+                            <FileIcon className="size-[18px]" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="line-clamp-2 text-sm font-bold text-foreground">
+                              {d.titre}
                             </p>
+                            {d.description && (
+                              <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                                {d.description}
+                              </p>
+                            )}
+                          </div>
+                          {isAdmin && (
+                            <DeleteDocumentButton id={d.id} titre={d.titre} />
                           )}
                         </div>
-                        {isAdmin && (
-                          <DeleteDocumentButton id={d.id} titre={d.titre} />
-                        )}
-                      </div>
 
-                      <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                        <span className="truncate">
-                          {humanSize(d.fileSize)}
-                          {d.fileSize ? " · " : ""}
-                          {formatDate(d.createdAt)}
-                        </span>
-                        <a
-                          href={d.fileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          download={d.fileName}
-                          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
-                        >
-                          <Icon name="Download" className="h-3.5 w-3.5" />
-                          Ouvrir
-                        </a>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                        <div className="mt-auto flex items-center justify-between gap-2 pt-3">
+                          <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                            {isNew && <StatusPill tone="gold">Nouveau</StatusPill>}
+                            <span className="truncate">
+                              {meta.label}
+                              {d.fileSize ? ` · ${humanSize(d.fileSize)}` : ""}
+                              {" · "}
+                              {formatDate(d.createdAt)}
+                            </span>
+                          </span>
+                          <a
+                            href={d.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            download={d.fileName}
+                            aria-label={`Ouvrir ${d.titre}`}
+                            className={cn(
+                              buttonVariants({ variant: "outline", size: "sm" }),
+                              "shrink-0",
+                            )}
+                          >
+                            <Download aria-hidden="true" />
+                            Ouvrir
+                          </a>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
-            </section>
+            </SectionCard>
           );
         })}
       </div>
-    </div>
+    </PageShell>
   );
 }

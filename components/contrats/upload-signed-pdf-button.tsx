@@ -12,12 +12,14 @@
  *      ACLR fusionnées en un geste), le deal + prospect basculent en SIGNE, et le
  *      contrat part directement en validation admin (ATTENTE_VALIDATION_ADMIN).
  */
+import { Check, LoaderCircle, ShieldAlert, Upload } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
 
 import { uploadSignedContract } from "@/app/(app)/contrats/actions";
-import { Icon } from "@/components/icon";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -36,13 +38,19 @@ interface UploadSignedPdfButtonProps {
   onSuccess?: () => void;
   /** Libellé du bouton déclencheur (défaut : « Joindre le contrat signé »). */
   triggerLabel?: string;
+  /** Taille du déclencheur (défaut 36 px). */
+  size?: "default" | "lg";
+  className?: string;
 }
 
 export function UploadSignedPdfButton({
   contractId,
   onSuccess,
   triggerLabel = "Joindre le contrat signé",
+  size = "default",
+  className,
 }: UploadSignedPdfButtonProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [nomClient, setNomClient] = useState("");
@@ -125,20 +133,23 @@ export function UploadSignedPdfButton({
       );
       reset();
       setOpen(false);
+      router.refresh();
       onSuccess?.();
     });
   };
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size={size}
         onClick={() => setOpen(true)}
-        className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
+        className={className}
       >
-        <Icon name="Upload" className="h-4 w-4" />
+        <Upload aria-hidden="true" />
         {triggerLabel}
-      </button>
+      </Button>
 
       <Dialog
         open={open}
@@ -149,7 +160,9 @@ export function UploadSignedPdfButton({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Contrat signé reçu</DialogTitle>
+            <DialogTitle className="font-display text-xl font-extrabold">
+              Contrat signé reçu
+            </DialogTitle>
             <DialogDescription>
               Le client a renvoyé le contrat signé ? Joins-le ici. En un geste,
               il est archivé, contre-signé de ta part, et envoyé à l&apos;admin
@@ -160,8 +173,8 @@ export function UploadSignedPdfButton({
           <div className="space-y-4 py-2">
             {/* Drop / Pick zone */}
             <div>
-              <Label htmlFor="pdf" className="text-xs">
-                Contrat signé — PDF ou image (scan / photo)
+              <Label htmlFor={`pdf-${contractId}`} className="text-xs">
+                Contrat signé : PDF ou image (scan / photo)
               </Label>
               <div
                 onClick={() => inputRef.current?.click()}
@@ -173,32 +186,34 @@ export function UploadSignedPdfButton({
                   e.preventDefault();
                   handleFile(e.dataTransfer.files[0]);
                 }}
-                className="mt-1 flex cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-border bg-muted/30 px-4 py-6 text-center hover:bg-muted/50 transition-colors"
+                className="mt-1 flex cursor-pointer flex-col items-center justify-center gap-1 rounded-[16px] border-2 border-dashed border-border-strong bg-ground px-4 py-6 text-center transition-colors hover:bg-navy-50"
               >
-                <Icon
-                  name="Upload"
-                  className="h-6 w-6 text-muted-foreground"
-                />
+                <span
+                  aria-hidden="true"
+                  className="flex size-11 items-center justify-center rounded-[14px] bg-navy-100 text-navy-700"
+                >
+                  <Upload className="size-5" />
+                </span>
                 {fileName ? (
                   <>
-                    <p className="mt-2 text-sm font-medium">{fileName}</p>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="mt-2 text-sm font-bold">{fileName}</p>
+                    <p className="text-xs text-muted-foreground">
                       Clique pour remplacer
                     </p>
                   </>
                 ) : (
                   <>
-                    <p className="mt-2 text-sm">
+                    <p className="mt-2 text-sm font-bold">
                       Glisse le fichier ici ou clique pour parcourir
                     </p>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       PDF ou image (JPG, PNG), max 20 MB
                     </p>
                   </>
                 )}
                 <input
                   ref={inputRef}
-                  id="pdf"
+                  id={`pdf-${contractId}`}
                   type="file"
                   accept="application/pdf,image/jpeg,image/png,image/webp"
                   className="hidden"
@@ -209,49 +224,52 @@ export function UploadSignedPdfButton({
 
             {/* Nom du signataire */}
             <div>
-              <Label htmlFor="nomClient" className="text-xs">
+              <Label htmlFor={`nomClient-${contractId}`} className="text-xs">
                 Nom complet du signataire (côté client)
               </Label>
               <Input
-                id="nomClient"
+                id={`nomClient-${contractId}`}
                 value={nomClient}
                 onChange={(e) => setNomClient(e.target.value)}
                 placeholder="Hans Müller"
                 className="mt-1"
               />
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Tel qu&apos;il apparaît sur le PDF signé. Sera enregistré
                 pour la traçabilité légale.
               </p>
             </div>
 
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              ⚠ En joignant le PDF signé, tu confirmes qu&apos;il s&apos;agit
-              bien d&apos;un document retourné par le client.
+            <div className="flex items-start gap-2 rounded-[14px] border border-gold-500/50 bg-gold-50 p-3 text-xs font-semibold text-gold-700">
+              <ShieldAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+              <span>
+                En joignant le PDF signé, tu confirmes qu&apos;il s&apos;agit
+                bien d&apos;un document retourné par le client.
+              </span>
             </div>
           </div>
 
           <DialogFooter>
             <DialogClose
               render={
-                <button
-                  type="button"
-                  disabled={pending}
-                  className="inline-flex h-9 items-center rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted disabled:opacity-50"
-                >
+                <Button type="button" variant="outline" size="lg" disabled={pending}>
                   Annuler
-                </button>
+                </Button>
               }
             />
-            <button
+            <Button
               type="button"
+              size="lg"
               onClick={handleSubmit}
               disabled={pending || !file || nomClient.trim().length < 2}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              <Icon name="Check" className="h-4 w-4" />
-              {pending ? "Enregistrement…" : "Enregistrer et contre-signer"}
-            </button>
+              {pending ? (
+                <LoaderCircle aria-hidden="true" className="animate-spin" />
+              ) : (
+                <Check aria-hidden="true" />
+              )}
+              {pending ? "Enregistrement..." : "Enregistrer et contre-signer"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

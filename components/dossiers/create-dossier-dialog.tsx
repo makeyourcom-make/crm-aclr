@@ -9,14 +9,13 @@ import {
   AttachmentPicker,
   type PickedAttachment,
 } from "@/components/emails/attachment-picker";
-import { Icon } from "@/components/icon";
+import { Plus } from "lucide-react";
 import { ProspectCombobox } from "@/components/prospects/prospect-combobox";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -32,7 +31,7 @@ interface CreateDossierDialogProps {
 }
 
 const inputCls =
-  "w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20";
+  "w-full rounded-[12px] border border-border-strong bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lvl-500/30";
 
 export function CreateDossierDialog({
   users,
@@ -95,15 +94,17 @@ export function CreateDossierDialog({
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>
-        <Icon name="Plus" className="mr-1.5 h-4 w-4" />
+      <Button size="lg" onClick={() => setOpen(true)}>
+        <Plus aria-hidden="true" strokeWidth={2.4} />
         Nouveau projet
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="gap-4 rounded-[20px] p-5 sm:max-w-lg sm:p-6">
           <DialogHeader>
-            <DialogTitle>Nouveau projet / tâche</DialogTitle>
+            <DialogTitle className="font-display text-[22px] leading-tight font-extrabold tracking-[-0.02em]">
+              Nouveau projet / tâche
+            </DialogTitle>
             <DialogDescription>
               Attribue une tâche de suivi à un collaborateur.
             </DialogDescription>
@@ -128,7 +129,7 @@ export function CreateDossierDialog({
                 className={inputCls}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Ce qu'il faut faire, contexte, points d'attention…"
+                placeholder="Ce qu'il faut faire, contexte, points d'attention..."
               />
             </div>
 
@@ -186,7 +187,7 @@ export function CreateDossierDialog({
                 value={prospectId}
                 onSelect={(id) => setProspectId(id)}
                 allowCreate={false}
-                placeholder="Rechercher une entreprise…"
+                placeholder="Rechercher une entreprise..."
               />
             </div>
 
@@ -202,18 +203,19 @@ export function CreateDossierDialog({
             </div>
           </div>
 
-          <DialogFooter>
+          <div className="flex flex-wrap justify-end gap-2.5 pt-1">
             <Button
               variant="outline"
+              size="lg"
               onClick={() => setOpen(false)}
               disabled={pending}
             >
               Annuler
             </Button>
-            <Button onClick={submit} disabled={pending}>
-              {pending ? "Création…" : "Créer le projet"}
+            <Button size="lg" onClick={submit} disabled={pending}>
+              {pending ? "Création..." : "Créer le projet"}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </>

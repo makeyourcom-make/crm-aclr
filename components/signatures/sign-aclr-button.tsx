@@ -1,18 +1,31 @@
 "use client";
 
+/**
+ * Contre-signature vendeur (admin ou commerciale assignée) depuis le CRM.
+ * Succès : toast, rafraîchissement de la page (statut contrat, coquille XP)
+ * puis `onSuccess` éventuel (confettis du pipeline…).
+ */
+import { LoaderCircle, PenLine } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 
 import { signByAclr } from "@/app/(app)/signatures/actions";
+import { Button } from "@/components/ui/button";
 
 export function SignAclrButton({
   signatureId,
   onSuccess,
+  size = "sm",
+  className,
 }: {
   signatureId: string;
   /** Appelé après contre-signature réussie (ex. confettis + refresh). */
   onSuccess?: () => void;
+  size?: "xs" | "sm" | "default";
+  className?: string;
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const handle = () =>
     startTransition(async () => {
@@ -21,17 +34,24 @@ export function SignAclrButton({
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success("Signée par le commercial ✓ — deal sorti du pipeline.");
+      toast.success("Contre-signé par le commercial · deal sorti du pipeline.");
+      router.refresh();
       onSuccess?.();
     });
   return (
-    <button
+    <Button
       type="button"
+      size={size}
       onClick={handle}
       disabled={pending}
-      className="inline-flex h-7 items-center rounded-md bg-primary px-2 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+      className={className}
     >
-      {pending ? "…" : "Signer (commercial)"}
-    </button>
+      {pending ? (
+        <LoaderCircle aria-hidden="true" className="animate-spin" />
+      ) : (
+        <PenLine aria-hidden="true" />
+      )}
+      {pending ? "Signature..." : "Signer (commercial)"}
+    </Button>
   );
 }

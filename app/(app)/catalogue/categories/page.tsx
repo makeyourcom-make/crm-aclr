@@ -1,7 +1,6 @@
-import Link from "next/link";
-
 import { CategoriesManager } from "@/components/catalogue/categories-manager";
-import { Icon } from "@/components/icon";
+import { BackLink } from "@/components/common/back-link";
+import { PageShell } from "@/components/common/page-shell";
 import { PageHeader } from "@/components/page-header";
 import { getCategories } from "@/lib/categories";
 import { prisma } from "@/lib/db";
@@ -44,22 +43,15 @@ export default async function CategoriesPage() {
   });
 
   return (
-    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+    <PageShell width="medium">
       <PageHeader
+        rubrique="finance"
         title="Catégories produits"
         description="Renomme l'affichage des catégories et réaffecte les produits. Le calcul de commission (catégorie ADS) reste basé sur le type interne, indépendant du nom."
-        breadcrumb={
-          <Link
-            href="/catalogue"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Icon name="ChevronRight" className="h-3 w-3 rotate-180" />
-            Retour au catalogue
-          </Link>
-        }
+        breadcrumb={<BackLink href="/catalogue">Retour au catalogue</BackLink>}
       />
 
       <CategoriesManager categories={categories} />
-    </div>
+    </PageShell>
   );
 }

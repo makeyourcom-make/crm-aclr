@@ -6,6 +6,7 @@
  *   - Pièces jointes complémentaires (attachments)
  *   - Bouton upload pour ajouter une PJ
  */
+import { FileText, ImageIcon, Loader2, Paperclip, Trash2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -14,13 +15,14 @@ import {
   addExpenseAttachment,
   deleteExpenseAttachment,
 } from "@/app/(app)/charges/actions";
+import { SectionCard } from "@/components/arena/section-card";
+import { Callout } from "@/components/common/callout";
 import { DocumentPreviewButton } from "@/components/common/document-preview-button";
+import { SELECT_CLASS } from "@/components/common/form-styles";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Icon } from "@/components/icon";
 
 const KIND_OPTIONS = [
-  { value: "", label: "— Type —" },
+  { value: "", label: "Type de pièce (optionnel)" },
   { value: "FACTURE", label: "Facture" },
   { value: "RECU_CARTE", label: "Reçu carte" },
   { value: "PREUVE_VIREMENT", label: "Preuve virement" },
@@ -96,25 +98,30 @@ export function ExpenseAttachmentsPanel({
     });
   };
 
+  const count = (ticketUrl ? 1 : 0) + attachments.length;
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">
-          Pièces jointes ({(ticketUrl ? 1 : 0) + attachments.length})
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <SectionCard
+      title="Pièces jointes"
+      description={`${count} fichier${count > 1 ? "s" : ""}`}
+      icon={Paperclip}
+      tone="violet"
+    >
+      <div className="space-y-2.5">
         {/* Ticket principal */}
         {ticketUrl ? (
-          <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 p-2">
-            <Icon name="Image" className="h-4 w-4 text-primary" />
-            <div className="flex-1 min-w-0">
-              <p className="truncate text-xs font-medium">
+          <div className="flex items-center gap-2.5 rounded-[14px] border border-lvl-500/25 bg-lvl-50 p-2.5">
+            <span
+              aria-hidden="true"
+              className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-card text-lvl-700"
+            >
+              <ImageIcon className="size-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-bold">
                 {ticketName ?? "Ticket principal"}
               </p>
-              <p className="text-[10px] text-muted-foreground">
-                Ticket principal
-              </p>
+              <p className="text-xs text-muted-foreground">Ticket principal</p>
             </div>
             <DocumentPreviewButton
               url={ticketUrl}
@@ -124,23 +131,28 @@ export function ExpenseAttachmentsPanel({
             />
           </div>
         ) : (
-          <p className="rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+          <Callout tone="gold">
             Aucun ticket principal. Ajoute-en un via le bouton ci-dessous (le
             premier fichier ajouté ici reste juste une PJ ; pour définir le
             ticket principal, supprime la charge et recrée-la avec photo).
-          </p>
+          </Callout>
         )}
 
-        {/* Attachments complémentaires */}
+        {/* Pièces jointes complémentaires */}
         {attachments.map((a) => (
           <div
             key={a.id}
-            className="flex items-center gap-2 rounded-md border border-border bg-muted/30 p-2"
+            className="flex items-center gap-2.5 rounded-[14px] border border-border bg-ground p-2.5"
           >
-            <Icon name="FileText" className="h-4 w-4 text-muted-foreground" />
-            <div className="flex-1 min-w-0">
-              <p className="truncate text-xs font-medium">{a.fileName}</p>
-              <p className="text-[10px] text-muted-foreground">
+            <span
+              aria-hidden="true"
+              className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-card text-muted-foreground"
+            >
+              <FileText className="size-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-bold">{a.fileName}</p>
+              <p className="text-xs text-muted-foreground">
                 {a.kind ?? "PJ"}
                 {a.fileSize ? ` · ${Math.round(a.fileSize / 1024)} KB` : ""}
               </p>
@@ -154,20 +166,22 @@ export function ExpenseAttachmentsPanel({
             <button
               type="button"
               onClick={() => del(a.id)}
-              className="rounded p-1 text-rose-600 hover:bg-rose-50"
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-[10px] text-muted-foreground transition-colors hover:bg-alert-50 hover:text-alert-700"
               title="Supprimer"
+              aria-label={`Supprimer la pièce jointe ${a.fileName}`}
             >
-              <Icon name="Trash" className="h-3 w-3" />
+              <Trash2 aria-hidden="true" className="size-4" />
             </button>
           </div>
         ))}
 
         {/* Upload */}
-        <div className="space-y-2 border-t border-border pt-3">
+        <div className="space-y-2 border-t border-border pt-3.5">
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value)}
-            className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+            aria-label="Type de pièce jointe"
+            className={SELECT_CLASS}
           >
             {KIND_OPTIONS.map((k) => (
               <option key={k.value} value={k.value}>
@@ -188,17 +202,24 @@ export function ExpenseAttachmentsPanel({
           <Button
             type="button"
             variant="outline"
+            size="lg"
             onClick={() => inputRef.current?.click()}
             disabled={pending}
             className="w-full"
           >
-            <Icon name="Upload" className="mr-1.5 h-4 w-4" />
-            {pending && uploadingName
-              ? `Upload ${uploadingName}…`
-              : "Ajouter une pièce jointe"}
+            {pending && uploadingName ? (
+              <Loader2 aria-hidden="true" className="animate-spin" />
+            ) : (
+              <Upload aria-hidden="true" />
+            )}
+            <span className="truncate">
+              {pending && uploadingName
+                ? `Envoi de ${uploadingName}…`
+                : "Ajouter une pièce jointe"}
+            </span>
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </SectionCard>
   );
 }

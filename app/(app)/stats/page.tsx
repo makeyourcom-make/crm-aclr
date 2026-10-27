@@ -1,24 +1,57 @@
+import {
+  CalendarCheck,
+  ChartColumn,
+  CircleCheckBig,
+  Clock,
+  Coins,
+  FileText,
+  Mail,
+  MessageCircle,
+  Phone,
+  RefreshCw,
+  SquareKanban,
+  Trophy,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 
-import { CallTimeChart } from "@/components/stats/call-time-chart";
-import { RankingList } from "@/components/stats/ranking-list";
-import { StatsViewSwitcher } from "@/components/stats/stats-view-switcher";
-import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SectionCard } from "@/components/arena/section-card";
+import { StatTile } from "@/components/arena/stat-tile";
+import { StatusPill } from "@/components/arena/pills";
+import { formatInt } from "@/components/arena/format";
 import { PageHeader } from "@/components/page-header";
+import { CaBars } from "@/components/stats/ca-bars";
+import { ConquestFunnel } from "@/components/stats/conquest-funnel";
+import { DirectionHero } from "@/components/stats/direction-hero";
+import { MrrChart } from "@/components/stats/mrr-chart";
+import { PhoneProductivity } from "@/components/stats/phone-productivity";
+import { PlayerHero } from "@/components/stats/player-hero";
+import { RankingsTabs } from "@/components/stats/rankings-tabs";
+import { RentabiliteTop } from "@/components/stats/rentabilite-top";
+import { StatsViewSwitcher } from "@/components/stats/stats-view-switcher";
+import { TeamActivityBoard } from "@/components/stats/team-activity-board";
+import { Money, SegmentGroup, segmentClass } from "@/components/stats/ui";
 import { prisma } from "@/lib/db";
-import {
-  formatCHF,
-  formatDate,
-  formatDuration,
-  formatPercent,
-} from "@/lib/format";
+import { getPlayerStats } from "@/lib/gamification";
+import { formatCHFCompact, formatPercent } from "@/lib/format";
 import { getProspectSecteurLabel } from "@/lib/labels";
 import {
-  getCallProductivity,
-  getStats,
-  getTopRankings,
-} from "@/lib/queries/stats";
+  STATS_RANGES,
+  getDirectionDashboard,
+  getMonthlyHistory,
+  getPeriodCounters,
+  getPlayerMonth,
+  getTeamBoard,
+  nowLabel,
+  resolveStatsWindow,
+  type PeriodCounters,
+} from "@/lib/queries/pilotage";
+import {
+  RENTABILITE_PERIODES,
+  getRentabilite,
+  resolveRentabilitePeriode,
+} from "@/lib/queries/rentabilite";
+import { getCallProductivity, getStats, getTopRankings } from "@/lib/queries/stats";
 import { requireUser } from "@/lib/session";
 
 import type { ProspectSecteur } from "@prisma/client";
@@ -26,47 +59,84 @@ import type { ProspectSecteur } from "@prisma/client";
 export const metadata = { title: "Statistiques" };
 export const dynamic = "force-dynamic";
 
-const RANGES = [
-  { value: 7, label: "7 jours" },
-  { value: 30, label: "30 jours" },
-  { value: 90, label: "90 jours" },
-  { value: 365, label: "1 an" },
-];
-
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+/**
+ * Les blocs « bonus » (pilotage, équipe, historique, jeu) ne doivent jamais
+ * empêcher l'affichage des statistiques de base : en cas d'échec, on log et
+ * on masque le bloc.
+ */
+async function safe<T>(label: string, p: Promise<T>): Promise<T | null> {
+  try {
+    return await p;
+  } catch (err) {
+    console.error(`[stats] ${label} a échoué :`, err);
+    return null;
+  }
 }
 
 export default async function StatsPage({ searchParams }: PageProps) {
   const user = await requireUser();
   const raw = await searchParams;
-  const rangeJours = Number(raw.range ?? 30) || 30;
   const isAdmin = user.role === "ADMIN";
+  const win = resolveStatsWindow(typeof raw.range === "string" ? raw.range : undefined);
 
-  // Filtre par utilisateur (admin uniquement) — la matrice "Arthur voit Sophie"
-  const viewAsUserId =
-    isAdmin && typeof raw.user === "string" ? raw.user : undefined;
+  // Filtre par utilisateur (admin uniquement) : la matrice « Arthur regarde la commerciale »
+  const viewAsUserId = isAdmin && typeof raw.user === "string" ? raw.user : undefined;
+  // Scope des compteurs de comparaison : identique à getStats (RLS commercial).
+  const scopeUserId = isAdmin ? (viewAsUserId ?? null) : user.id;
+  // Référence du « levier n°1 » : les 12 mois qui précèdent la période.
+  const baselineEnd = new Date(win.start.getTime() - 1);
+  const baselineStart = new Date(win.start.getTime() - 365 * 86_400_000);
+  const now = new Date();
+  // Période du bloc « Top clients par rentabilité » (admin) : ?renta=, YTD par défaut.
+  const renta = resolveRentabilitePeriode(
+    typeof raw.renta === "string" ? raw.renta : undefined,
+    now,
+  );
 
-  const [data, callProd, rankings] = await Promise.all([
-    getStats(user, rangeJours, viewAsUserId),
-    isAdmin ? getCallProductivity(rangeJours, viewAsUserId) : null,
-    getTopRankings(user, rangeJours, viewAsUserId),
+  const [
+    data,
+    prev,
+    baseline,
+    callProd,
+    rankings,
+    teamUsers,
+    direction,
+    team,
+    history,
+    rentaData,
+    player,
+    playerMonth,
+  ] = await Promise.all([
+    getStats(user, win, viewAsUserId),
+    safe("compteurs période précédente", getPeriodCounters(scopeUserId, win.prevStart, win.prevEnd)),
+    safe("compteurs 12 mois", getPeriodCounters(scopeUserId, baselineStart, baselineEnd)),
+    isAdmin ? getCallProductivity(win, viewAsUserId) : Promise.resolve(null),
+    getTopRankings(user, win, viewAsUserId),
+    // Liste des users pour le switcher (admin uniquement)
+    isAdmin
+      ? prisma.user.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([] as { id: string; name: string }[]),
+    isAdmin ? safe("pilotage direction", getDirectionDashboard()) : Promise.resolve(null),
+    isAdmin ? safe("activité équipe", getTeamBoard()) : Promise.resolve(null),
+    isAdmin ? safe("historique 12 mois", getMonthlyHistory(12)) : Promise.resolve(null),
+    isAdmin
+      ? safe("rentabilité", getRentabilite({ from: renta.from, to: renta.to }))
+      : Promise.resolve(null),
+    !isAdmin ? safe("joueur", getPlayerStats(user.id)) : Promise.resolve(null),
+    !isAdmin ? safe("mois joueur", getPlayerMonth(user.id)) : Promise.resolve(null),
   ]);
-
-  // Liste des users pour le switcher (admin uniquement)
-  const teamUsers = isAdmin
-    ? await prisma.user.findMany({
-        where: { isActive: true },
-        select: { id: true, name: true },
-        orderBy: { name: "asc" },
-      })
-    : [];
 
   // Libellé descriptif de la vue active
   const viewedUser =
-    viewAsUserId && viewAsUserId !== user.id
-      ? teamUsers.find((u) => u.id === viewAsUserId)
-      : null;
+    viewAsUserId && viewAsUserId !== user.id ? teamUsers.find((u) => u.id === viewAsUserId) : null;
   const viewLabel = isAdmin
     ? viewAsUserId === user.id
       ? "Mes résultats"
@@ -75,480 +145,280 @@ export default async function StatsPage({ searchParams }: PageProps) {
         : "Toute l'équipe"
     : "Mes résultats";
 
+  const trend = (cur: number, key: keyof PeriodCounters) =>
+    prev ? Math.round(cur - (prev[key] as number)) : undefined;
+  const perDay = (n: number) =>
+    win.workingDays > 0 ? (n / win.workingDays).toFixed(1) : "0.0";
+
+  const rangeHref = (value: string) => {
+    const p = new URLSearchParams();
+    p.set("range", value);
+    if (viewAsUserId) p.set("user", viewAsUserId);
+    if (renta.periode !== "ytd") p.set("renta", renta.periode);
+    return `/stats?${p.toString()}`;
+  };
+  const rentaHref = (value: string) => {
+    const p = new URLSearchParams();
+    if (win.key !== "mois") p.set("range", win.key);
+    if (viewAsUserId) p.set("user", viewAsUserId);
+    if (value !== "ytd") p.set("renta", value);
+    const qs = p.toString();
+    return `${qs ? `/stats?${qs}` : "/stats"}#rentabilite`;
+  };
+
   return (
-    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+    <div className="flex flex-col gap-6 px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
-        title="Statistiques"
-        description={`${viewLabel} · Analyse sur les ${rangeJours} derniers jours.`}
+        rubrique="stats"
+        title={isAdmin ? "Statistiques & pilotage" : "Mes statistiques"}
+        description={
+          isAdmin
+            ? `Le tableau de bord de direction · ${nowLabel(now)}`
+            : `Tes résultats et ta progression · ${nowLabel(now)}`
+        }
       />
 
-      {/* Switcher commerciale (admin uniquement) */}
-      {isAdmin && teamUsers.length > 1 && (
-        <div className="mb-4">
-          <StatsViewSwitcher
-            users={teamUsers}
-            currentUserId={user.id}
-            activeUserId={viewAsUserId}
+      {/* Héros : pilotage de direction (admin) ou saison de la commerciale */}
+      {isAdmin && direction && <DirectionHero data={direction} />}
+      {!isAdmin && player && playerMonth && <PlayerHero player={player} month={playerMonth} />}
+
+      {/* Performance de la période */}
+      <section id="performance" aria-labelledby="perf-titre" className="flex scroll-mt-24 flex-col gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex min-w-0 flex-col gap-1">
+            <h2
+              id="perf-titre"
+              className="font-display text-[22px] font-extrabold tracking-[-0.02em] sm:text-2xl"
+            >
+              Performance de la période
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {viewLabel} · {win.label} ({win.detail}) · tendances {win.prevLabel}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Switcher période */}
+            <SegmentGroup label="Période" visibleLabel="Période :">
+              {STATS_RANGES.map((r) => (
+                <Link
+                  key={r.value}
+                  href={rangeHref(r.value)}
+                  scroll={false}
+                  aria-current={win.key === r.value ? "true" : undefined}
+                  className={segmentClass(win.key === r.value)}
+                >
+                  {r.label}
+                </Link>
+              ))}
+            </SegmentGroup>
+            {/* Switcher commerciale (admin uniquement) */}
+            {isAdmin && teamUsers.length > 1 && (
+              <StatsViewSwitcher users={teamUsers} currentUserId={user.id} activeUserId={viewAsUserId} />
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatTile
+            label="Appels sortants"
+            icon={Phone}
+            tone="coral"
+            value={data.nbAppels}
+            trend={trend(data.nbAppels, "appels")}
+            trendLabel="vs préc."
+            sub={`Cadence ${perDay(data.nbAppels)} / jour ouvré`}
           />
+          <StatTile
+            label="Conversations"
+            icon={MessageCircle}
+            tone="blue"
+            value={data.nbConversations}
+            trend={trend(data.nbConversations, "conversations")}
+            trendLabel="vs préc."
+            sub={`${formatPercent(data.nbAppels > 0 ? data.nbConversations / data.nbAppels : 0, 0)} des appels décrochés`}
+          />
+          <StatTile
+            label="Emails envoyés"
+            icon={Mail}
+            tone="teal"
+            value={data.nbEmails}
+            trend={trend(data.nbEmails, "emails")}
+            trendLabel="vs préc."
+            sub={`Soit ${perDay(data.nbEmails)} par jour ouvré`}
+          />
+          <StatTile
+            label="RDV honorés"
+            icon={CalendarCheck}
+            tone="gold"
+            value={data.nbRdvHonores}
+            trend={trend(data.nbRdvHonores, "rdvEffectues")}
+            trendLabel="vs préc."
+            sub={`${data.nbRdvManques} manqué${data.nbRdvManques > 1 ? "s" : ""} · ${data.nbRdvPris} RDV pris`}
+          />
+          <StatTile
+            label="Propositions envoyées"
+            icon={FileText}
+            tone="navy"
+            value={data.nbPropositions}
+            trend={trend(data.nbPropositions, "propositions")}
+            trendLabel="vs préc."
+            sub={`${formatPercent(data.tauxPropositionSignature, 0)} transformées en signature`}
+          />
+          <StatTile
+            label="Signatures"
+            icon={CircleCheckBig}
+            tone="green"
+            value={data.nbSignatures}
+            trend={trend(data.nbSignatures, "signatures")}
+            trendLabel="vs préc."
+            sub={`${formatCHFCompact(data.caSigne)} signés · valeur an 1`}
+            className="border-2 border-win-500 shadow-[0_8px_24px_rgba(18,161,80,0.12)]"
+          />
+          <StatTile
+            label="Pipeline pondéré"
+            icon={SquareKanban}
+            tone="violet"
+            value={<Money value={data.pipelinePondere} />}
+            sub={`Instantané · brut ${formatCHFCompact(data.pipelineTotal)} · ${formatInt(data.nbDealsOuverts)} deal${data.nbDealsOuverts > 1 ? "s" : ""} ouvert${data.nbDealsOuverts > 1 ? "s" : ""}`}
+            className="col-span-2 sm:col-span-1"
+          />
+          <StatTile
+            label="CA récurrent / mois"
+            icon={RefreshCw}
+            tone="navy"
+            value={<Money value={data.caRecurrentMensuel} />}
+            sub={`Instantané · ${formatCHFCompact(data.caRecurrentMensuel * 12)} / an · contrats actifs`}
+            className="col-span-2 sm:col-span-1"
+          />
+        </div>
+      </section>
+
+      {/* Activité de l'équipe (admin) */}
+      {isAdmin && team && (
+        <SectionCard
+          title="Activité de l'équipe"
+          icon={Users}
+          tone="coral"
+          description="Par collaborateur, classé par XP · aujourd'hui, cette semaine ou ce mois"
+        >
+          <TeamActivityBoard board={team} range={win.key} currentUserId={user.id} />
+        </SectionCard>
+      )}
+
+      {/* Entonnoir + classements */}
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <SectionCard
+          title="Parcours de conquête"
+          icon={ChartColumn}
+          tone="green"
+          description={`Entonnoir de la période · ${viewLabel} · ${win.label}`}
+        >
+          <ConquestFunnel stats={data} baseline={baseline} />
+        </SectionCard>
+
+        {/* Classements produits / secteurs B2B / cantons : visibles pour tous
+            (la commerciale voit ses propres classements). */}
+        <SectionCard
+          title="Classements"
+          icon={Trophy}
+          tone="gold"
+          description={`${formatInt(rankings.totalContrats)} contrat${rankings.totalContrats > 1 ? "s" : ""} signé${rankings.totalContrats > 1 ? "s" : ""} sur la période (${win.detail})`}
+        >
+          <RankingsTabs
+            produits={rankings.produits.map((p) => ({
+              key: p.productId,
+              label: p.nom,
+              sublabel: p.categorie,
+              count: p.nbContrats,
+              ca: p.ca,
+              pct: p.pct,
+            }))}
+            secteurs={rankings.secteurs.map((s) => ({
+              key: s.secteur,
+              label:
+                s.secteur === "INCONNU"
+                  ? "Secteur non renseigné"
+                  : getProspectSecteurLabel(s.secteur as ProspectSecteur),
+              count: s.nbContrats,
+              ca: s.ca,
+              pct: s.pct,
+            }))}
+            cantons={rankings.cantons.map((c) => ({
+              key: c.canton,
+              label: c.canton,
+              count: c.nbContrats,
+              ca: c.ca,
+              pct: c.pct,
+            }))}
+          />
+        </SectionCard>
+      </div>
+
+      {/* Historique société 12 mois (admin) */}
+      {isAdmin && history && history.length > 0 && (
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          <SectionCard
+            title="MRR vs charges · 12 mois"
+            icon={RefreshCw}
+            tone="navy"
+            description="Société · récurrent mensuel des contrats actifs face aux charges du mois"
+          >
+            <MrrChart points={history} />
+          </SectionCard>
+          <SectionCard
+            title="CA signé · 12 mois"
+            icon={ChartColumn}
+            tone="green"
+            description="Société · valeur an 1 des contrats signés"
+          >
+            <CaBars points={history} />
+          </SectionCard>
         </div>
       )}
 
-      {/* Switcher période */}
-      <div className="mb-6 flex flex-wrap gap-2">
-        {RANGES.map((r) => {
-          const href = new URLSearchParams();
-          href.set("range", String(r.value));
-          if (viewAsUserId) href.set("user", viewAsUserId);
-          return (
-            <Link
-              key={r.value}
-              href={`/stats?${href.toString()}`}
-              className={buttonVariants({
-                variant: rangeJours === r.value ? "default" : "outline",
-                size: "sm",
-              })}
-            >
-              {r.label}
-            </Link>
-          );
-        })}
-      </div>
-
-      {/* Activité KPI */}
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Activité
-      </h2>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label="Appels sortants" value={data.nbAppels} />
-        <Kpi label="Emails envoyés" value={data.nbEmails} />
-        <Kpi
-          label="RDV honorés"
-          value={data.nbRdvHonores}
-          subtitle={`${data.nbRdvManques} manqués`}
-        />
-        <Kpi
-          label="Propositions envoyées"
-          value={data.nbPropositions}
-        />
-      </div>
-
-      {/* Performance financière */}
-      <h2 className="mt-8 mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Performance financière
-      </h2>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Kpi
-          label="Signatures"
-          value={data.nbSignatures}
-          subtitle={formatCHF(data.caSigne)}
-          tone="emerald"
-        />
-        <Kpi
-          label="Pipeline pondéré"
-          value={formatCHF(data.pipelinePondere)}
-          subtitle={`Brut : ${formatCHF(data.pipelineTotal)}`}
-        />
-        <Kpi
-          label="CA récurrent / mois"
-          value={formatCHF(data.caRecurrentMensuel)}
-          subtitle={`${formatCHF(data.caRecurrentMensuel * 12)} / an`}
-        />
-      </div>
-
-      {/* Taux de conversion */}
-      <h2 className="mt-8 mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Taux de conversion
-      </h2>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Kpi
-          label="Appel → RDV"
-          value={formatPercent(data.tauxAppelRdv)}
-          subtitle={`${data.nbRdvHonores + data.nbRdvManques} RDV pour ${data.nbAppels} appels`}
-        />
-        <Kpi
-          label="RDV → Signature"
-          value={formatPercent(data.tauxRdvSignature)}
-          subtitle={`${data.nbSignatures} sign. pour ${data.nbRdvHonores} RDV`}
-        />
-        <Kpi
-          label="Proposition → Signature"
-          value={formatPercent(data.tauxPropositionSignature)}
-          subtitle={`${data.nbSignatures} / ${data.nbPropositions}`}
-        />
-      </div>
-
-      {/* ====================================================================
-          Productivité téléphone — ADMIN ONLY
-          Sophie ne voit RIEN de cette section.
-      ==================================================================== */}
-      {isAdmin && callProd && (
-        <section className="mt-12">
-          <div className="mb-4 flex items-center gap-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Productivité téléphone
-            </h2>
-            <span
-              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-              style={{ backgroundColor: "#F4717419", color: "#F47174" }}
-            >
-              Admin only
-            </span>
-          </div>
-
-          {/* KPIs */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Kpi
-              label="Temps total téléphone"
-              value={formatDuration(callProd.totalSeconds)}
-              subtitle={`${callProd.nbAppelsWithDuration} appel(s) chronométrés`}
-              tone="emerald"
-            />
-            <Kpi
-              label="Durée moyenne / appel"
-              value={formatDuration(Math.round(callProd.avgSeconds))}
-            />
-            <Kpi
-              label="Plus long appel"
-              value={formatDuration(callProd.maxSeconds)}
-            />
-            <Kpi
-              label="Cadence"
-              value={
-                callProd.nbAppelsWithDuration > 0
-                  ? `${(callProd.nbAppelsWithDuration / rangeJours).toFixed(1)}/jour`
-                  : "—"
-              }
-              subtitle={`sur ${rangeJours} j`}
-            />
-          </div>
-
-          {/* Graph temps par jour */}
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle className="text-base">
-                Temps téléphone par jour
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CallTimeChart data={callProd.parJour} />
-            </CardContent>
-          </Card>
-
-          {/* Conversion par bucket */}
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle className="text-base">
-                Conversion selon la durée d&apos;appel
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {callProd.parBucket.map((b) => {
-                  const max = Math.max(
-                    ...callProd.parBucket.map((x) => x.tauxConversion),
-                    0.01,
-                  );
-                  const pct = b.tauxConversion;
-                  const widthPct = (pct / max) * 100;
-                  return (
-                    <div key={b.bucket}>
-                      <div className="mb-1 flex items-baseline justify-between text-sm">
-                        <span className="font-medium">{b.label}</span>
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          {b.nbRdvPris}/{b.nbAppels} ={" "}
-                          <span className="font-semibold text-foreground">
-                            {formatPercent(pct)}
-                          </span>
-                        </span>
-                      </div>
-                      <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className={
-                            b.bucket === "long"
-                              ? "h-full bg-emerald-500"
-                              : b.bucket === "moyen"
-                                ? "h-full bg-amber-500"
-                                : "h-full bg-slate-400"
-                          }
-                          style={{ width: `${widthPct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="mt-3 text-[11px] text-muted-foreground">
-                Conversion = appel ayant obtenu un RDV, une proposition, ou un
-                rappel intéressé. Insight clé : si les appels longs convertissent
-                bien mieux, ça vaut la peine d&apos;investir le temps dans le
-                discovery au lieu de pitcher vite.
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Décomposition par commerciale (si plus d'une) */}
-          {callProd.parUser.length > 1 && (
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle className="text-base">Par commerciale</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <table className="w-full text-sm">
-                  <thead className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2">Commerciale</th>
-                      <th className="px-3 py-2 text-right">Nb appels</th>
-                      <th className="px-3 py-2 text-right">Temps total</th>
-                      <th className="px-3 py-2 text-right">ø / appel</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {callProd.parUser.map((u) => (
-                      <tr
-                        key={u.userId}
-                        className="border-b border-border last:border-0"
-                      >
-                        <td className="px-3 py-2 font-medium">{u.name}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {u.nbAppels}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {formatDuration(u.totalSeconds)}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {formatDuration(Math.round(u.avgSeconds))}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Top 5 plus longs appels */}
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle className="text-base">
-                Top 5 plus longs appels
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {callProd.topLongs.length === 0 ? (
-                <p className="px-3 py-4 text-sm text-muted-foreground">
-                  Aucun appel chronométré sur la période.
-                </p>
-              ) : (
-                <ul className="divide-y divide-border">
-                  {callProd.topLongs.map((c) => (
-                    <li
-                      key={c.activityId}
-                      className="flex items-center gap-3 px-3 py-2.5"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <Link
-                          href={`/prospects/${c.prospectId}`}
-                          className="text-sm font-medium hover:underline"
-                        >
-                          {c.prospectName}
-                        </Link>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {c.sujet} · {formatDate(c.date)}
-                        </p>
-                      </div>
-                      <span className="text-sm font-semibold tabular-nums text-primary">
-                        {formatDuration(c.secondes)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </section>
+      {/* Rentabilité clients (admin) */}
+      {isAdmin && rentaData && (
+        <SectionCard
+          id="rentabilite"
+          className="scroll-mt-24"
+          title="Top clients par rentabilité"
+          icon={Coins}
+          tone="navy"
+          description={`CA facturé (envoyé, payé, en retard) moins les charges allouées · ${renta.label}`}
+          action={
+            <StatusPill tone="coral" dot={false}>
+              Réservé admin
+            </StatusPill>
+          }
+        >
+          <RentabiliteTop
+            rows={rentaData.rows}
+            periodes={RENTABILITE_PERIODES.map((p) => ({
+              key: p.v,
+              label: p.l,
+              href: rentaHref(p.v),
+              active: p.v === renta.periode,
+            }))}
+          />
+        </SectionCard>
       )}
 
-      {/* Funnel */}
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle className="text-base">
-            Funnel (cumulatif depuis le début)
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <FunnelStep
-              label="Prospects (total)"
-              value={data.funnel.prospects}
-              max={data.funnel.prospects}
-              color="bg-slate-400"
-            />
-            <FunnelStep
-              label="Contactés"
-              value={data.funnel.contactes}
-              max={data.funnel.prospects}
-              color="bg-blue-400"
-            />
-            <FunnelStep
-              label="RDV pris"
-              value={data.funnel.rdvPris}
-              max={data.funnel.prospects}
-              color="bg-amber-400"
-            />
-            <FunnelStep
-              label="Proposition envoyée"
-              value={data.funnel.propositions}
-              max={data.funnel.prospects}
-              color="bg-orange-400"
-            />
-            <FunnelStep
-              label="Signés"
-              value={data.funnel.signes}
-              max={data.funnel.prospects}
-              color="bg-emerald-500"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ====================================================================
-          CLASSEMENTS — produits / secteurs B2B / cantons
-          Visibles pour tous (Sophie voit ses propres rankings).
-      ==================================================================== */}
-      <h2 className="mt-12 mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Classements — sur la période ({rangeJours} j)
-      </h2>
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Top produits */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              Produits les plus vendus
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RankingList
-              items={rankings.produits.map((p) => ({
-                key: p.productId,
-                label: p.nom,
-                sublabel: p.categorie,
-                count: p.nbContrats,
-                ca: p.ca,
-                pct: p.pct,
-              }))}
-              emptyMessage="Aucun produit vendu sur cette période."
-              hint="% = part des contrats signés contenant ce produit. CA = part de valeur an 1 attribuée."
-            />
-          </CardContent>
-        </Card>
-
-        {/* Top secteurs B2B */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Secteurs B2B</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RankingList
-              items={rankings.secteurs.map((s) => ({
-                key: s.secteur,
-                label:
-                  s.secteur === "INCONNU"
-                    ? "—"
-                    : getProspectSecteurLabel(s.secteur as ProspectSecteur),
-                count: s.nbContrats,
-                ca: s.ca,
-                pct: s.pct,
-              }))}
-              emptyMessage="Aucun contrat signé sur cette période."
-              hint="% = part des signatures dans ce secteur d'activité."
-            />
-          </CardContent>
-        </Card>
-
-        {/* Top cantons */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              Couverture géographique
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RankingList
-              items={rankings.cantons.map((c) => ({
-                key: c.canton,
-                label: c.canton,
-                count: c.nbContrats,
-                ca: c.ca,
-                pct: c.pct,
-              }))}
-              emptyMessage="Aucune signature sur cette période."
-              hint="% = part des signatures dans ce canton (le code postal du prospect)."
-            />
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-function Kpi({
-  label,
-  value,
-  subtitle,
-  tone,
-}: {
-  label: string;
-  value: string | number;
-  subtitle?: string;
-  tone?: "emerald";
-}) {
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">
-          {label}
-        </p>
-        <p
-          className={`mt-1 text-2xl font-semibold tabular-nums ${tone === "emerald" ? "text-emerald-700" : ""}`}
+      {/* Productivité téléphone : ADMIN ONLY. La commerciale ne voit RIEN de cette section. */}
+      {isAdmin && callProd && (
+        <SectionCard
+          title="Productivité téléphone"
+          icon={Clock}
+          tone="coral"
+          description={`${viewLabel} · ${win.label} (${win.detail}) · appels chronométrés`}
+          action={
+            <StatusPill tone="coral" dot={false}>
+              Admin uniquement
+            </StatusPill>
+          }
         >
-          {value}
-        </p>
-        {subtitle && (
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {subtitle}
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function FunnelStep({
-  label,
-  value,
-  max,
-  color,
-}: {
-  label: string;
-  value: number;
-  max: number;
-  color: string;
-}) {
-  const pct = max > 0 ? (value / max) * 100 : 0;
-  return (
-    <div>
-      <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
-        <span>{label}</span>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {value} ({pct.toFixed(1)}%)
-        </span>
-      </div>
-      <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className={`h-full ${color} transition-all`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+          <PhoneProductivity data={callProd} workingDays={win.workingDays} />
+        </SectionCard>
+      )}
     </div>
   );
 }

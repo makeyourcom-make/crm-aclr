@@ -2,11 +2,30 @@
 
 /**
  * Modale pour ajouter une activité (RDV, appel planifié, email à envoyer, …)
- * directement depuis l'agenda — avec sélection du prospect et la date
- * pré-remplie sur le jour cliqué.
+ * directement depuis l'agenda, avec sélection du prospect et la date
+ * pré-remplie sur le jour cliqué. Sert aussi à l'ÉDITION (`editActivity`).
+ *
+ * Fonctions conservées : récurrence (création), client via combobox serveur
+ * (RLS), pré-remplissage du lieu avec l'adresse du client, assignation (admin),
+ * palette de couleurs, durée début / fin.
  */
+import {
+  CalendarPlus,
+  Check,
+  Clock,
+  FileText,
+  MapPin,
+  Palette,
+  Pencil,
+  Plus,
+  Repeat,
+  Tag,
+  Users,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import {
@@ -14,9 +33,8 @@ import {
   createRecurringActivities,
   updateActivity,
 } from "@/app/(app)/activites/actions";
-import { AGENDA_COLORS } from "@/lib/agenda-colors";
 import { ProspectCombobox } from "@/components/prospects/prospect-combobox";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -26,9 +44,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Icon } from "@/components/icon";
 import { Input } from "@/components/ui/input";
+import { XP_RULES } from "@/lib/gamification/rules";
+import { AGENDA_COLORS } from "@/lib/agenda-colors";
 import { ACTIVITY_TYPE_OPTIONS } from "@/lib/labels";
+import { cn } from "@/lib/utils";
+
+import {
+  AGENDA_HEX,
+  RDV_TYPE_KEYS,
+  TYPE_META,
+} from "./agenda-style";
 
 import type { ActivityType } from "@prisma/client";
 
@@ -67,13 +93,13 @@ interface AddActivityDialogProps {
   defaultTime?: string;
   /**
    * Mode du déclencheur :
-   *   - "header" : gros bouton primaire avec icône (utilisé en haut de page)
+   *   - "header" : bouton primaire avec icône (utilisé en haut de page)
    *   - "day"    : petit bouton discret en bas d'une cellule de jour
    */
   triggerMode?: "header" | "day";
   /** Liste des users actifs (admin only). Si fourni → affiche le select Assigné à. */
   users?: UserOption[];
-  /** ID du user courant — preselected dans le select */
+  /** ID du user courant, présélectionné dans le select */
   currentUserId?: string;
   /** Vrai si user courant est admin (peut assigner aux autres) */
   isAdmin?: boolean;
@@ -90,7 +116,7 @@ interface AddActivityDialogProps {
 export interface EditActivityInput {
   id: string;
   prospectId: string;
-  /** Libellé du client (raison sociale) — pré-remplit le combobox en édition. */
+  /** Libellé du client (raison sociale), pré-remplit le combobox en édition. */
   prospectLabel: string;
   userId: string;
   type: ActivityType;
@@ -102,6 +128,11 @@ export interface EditActivityInput {
   contenu: string;
   couleur: string | null;
 }
+
+type Recurrence = "NONE" | "WEEKLY" | "WEEKDAYS" | "MONTHLY" | "YEARLY";
+
+const SELECT_CLASS =
+  "h-11 w-full rounded-[12px] border border-border-strong bg-card px-3 text-sm font-medium text-foreground outline-none focus-visible:border-info-500 focus-visible:ring-3 focus-visible:ring-info-500/25";
 
 export function AddActivityDialog({
   defaultDate,
@@ -116,84 +147,133 @@ export function AddActivityDialog({
   editActivity,
 }: AddActivityDialogProps) {
   const isEdit = !!editActivity;
-  const router = useRouter();
   const [internalOpen, setInternalOpen] = useState(false);
   const open = openProp ?? internalOpen;
   const setOpen = (o: boolean) => {
     setInternalOpen(o);
     onOpenChange?.(o);
   };
+
+  const triggerClass =
+    triggerMode === "header"
+      ? buttonVariants({ variant: "default", size: "lg" })
+      : "mt-2 inline-flex h-8 w-full items-center justify-center gap-1 rounded-[10px] border border-dashed border-border-strong bg-card/60 px-2 text-xs font-bold text-muted-foreground transition-colors hover:border-coral-400 hover:bg-coral-50 hover:text-coral-600";
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      {!hideTrigger && (
+        <DialogTrigger className={triggerClass}>
+          {triggerMode === "header" ? (
+            <>
+              <CalendarPlus aria-hidden="true" />
+              Nouvelle activité
+            </>
+          ) : (
+            <>
+              <Plus aria-hidden="true" className="size-3.5" />
+              Ajouter
+            </>
+          )}
+        </DialogTrigger>
+      )}
+      <DialogContent className="gap-0 rounded-[20px] p-0 sm:max-w-lg">
+        <DialogHeader className="flex-row items-center gap-3 rounded-t-[20px] bg-gold-50 px-5 py-4 pr-12">
+          <span
+            aria-hidden="true"
+            className="flex size-11 shrink-0 items-center justify-center rounded-[14px] bg-card text-gold-700"
+          >
+            {isEdit ? (
+              <Pencil className="size-5" />
+            ) : (
+              <Plus className="size-5" strokeWidth={2.4} />
+            )}
+          </span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold tracking-[0.08em] text-gold-700 uppercase">
+              {isEdit ? "Modifier" : "Nouvelle activité"}
+            </p>
+            <DialogTitle className="font-display text-xl leading-tight font-extrabold tracking-[-0.02em]">
+              {isEdit ? "Mets ton agenda à jour" : "Cale-la dans ton agenda"}
+            </DialogTitle>
+          </div>
+          <DialogDescription className="sr-only">
+            Crée un RDV, un appel, un email ou une note dans l&apos;agenda.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Le formulaire est (re)monté à chaque ouverture : son état initial
+            vient des props (création : jour / heure cliqués ; édition : valeurs
+            de l'activité). Le dialog peut être ouvert en mode CONTRÔLÉ (clic
+            sur un créneau, bouton « Modifier ») : pas besoin d'onOpenChange. */}
+        {open && (
+          <ActivityForm
+            key={editActivity?.id ?? `new-${defaultDate}-${defaultTime}`}
+            defaultDate={defaultDate}
+            defaultTime={defaultTime}
+            users={users}
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
+            editActivity={editActivity}
+            onDone={() => setOpen(false)}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ActivityForm({
+  defaultDate,
+  defaultTime,
+  users,
+  currentUserId,
+  isAdmin,
+  editActivity,
+  onDone,
+}: {
+  defaultDate: string;
+  defaultTime: string;
+  users: UserOption[];
+  currentUserId?: string;
+  isAdmin: boolean;
+  editActivity?: EditActivityInput;
+  onDone: () => void;
+}) {
+  const isEdit = !!editActivity;
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  const [prospectId, setProspectId] = useState("");
-  const [assigneAId, setAssigneAId] = useState(currentUserId ?? "");
-  const [type, setType] = useState<ActivityType>("RDV_PHYSIQUE");
-  const [sujet, setSujet] = useState("");
-  const [date, setDate] = useState(defaultDate);
-  const [heure, setHeure] = useState(defaultTime);
-  const [heureFin, setHeureFin] = useState(() =>
-    addMinutesToTime(defaultTime, 60),
+  const [prospectId, setProspectId] = useState(editActivity?.prospectId ?? "");
+  const [assigneAId, setAssigneAId] = useState(
+    editActivity?.userId || currentUserId || "",
   );
-  const [adresseRdv, setAdresseRdv] = useState("");
+  const [type, setType] = useState<ActivityType>(
+    editActivity?.type ?? "RDV_PHYSIQUE",
+  );
+  const [sujet, setSujet] = useState(editActivity?.sujet ?? "");
+  const [date, setDate] = useState(editActivity?.dateIso ?? defaultDate);
+  const [heure, setHeure] = useState(editActivity?.heure ?? defaultTime);
+  const [heureFin, setHeureFin] = useState(
+    () => editActivity?.heureFin ?? addMinutesToTime(defaultTime, 60),
+  );
+  const [adresseRdv, setAdresseRdv] = useState(editActivity?.adresseRdv ?? "");
   // Mémorise la dernière adresse pré-remplie automatiquement depuis un client,
-  // pour pouvoir la remplacer si on change de client — sans écraser un lieu
+  // pour pouvoir la remplacer si on change de client, sans écraser un lieu
   // saisi à la main.
   const [autoAdresse, setAutoAdresse] = useState<string | null>(null);
-  const [contenu, setContenu] = useState("");
-  const [couleur, setCouleur] = useState<string | null>(null);
+  const [contenu, setContenu] = useState(editActivity?.contenu ?? "");
+  const [couleur, setCouleur] = useState<string | null>(
+    editActivity?.couleur ?? null,
+  );
 
   // Récurrence (création uniquement). NONE = activité unique.
-  const [recurrence, setRecurrence] = useState<
-    "NONE" | "WEEKLY" | "WEEKDAYS" | "MONTHLY" | "YEARLY"
-  >("NONE");
+  const [recurrence, setRecurrence] = useState<Recurrence>("NONE");
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const [recurUntil, setRecurUntil] = useState(() =>
     addMonthsToDateStr(defaultDate, 2),
   );
 
-  // Préremplissage à l'ouverture. IMPORTANT : on le fait dans un useEffect (pas
-  // dans onOpenChange) car le dialog peut être ouvert en mode CONTRÔLÉ via la
-  // prop `open` (bouton « Modifier » de l'agenda) — dans ce cas Radix
-  // n'appelle PAS onOpenChange, donc le préremplissage ne se faisait jamais et
-  // le formulaire repartait à zéro. On clé l'effet sur `editActivity?.id`
-  // (primitif stable) et non sur l'objet, que le parent recrée à chaque rendu —
-  // sinon la saisie en cours serait écrasée à chaque re-render.
-  useEffect(() => {
-    if (!open) return;
-    if (editActivity) {
-      setProspectId(editActivity.prospectId);
-      setAssigneAId(editActivity.userId || currentUserId || "");
-      setType(editActivity.type);
-      setSujet(editActivity.sujet);
-      setDate(editActivity.dateIso);
-      setHeure(editActivity.heure);
-      setHeureFin(editActivity.heureFin);
-      setAdresseRdv(editActivity.adresseRdv);
-      setContenu(editActivity.contenu);
-      setCouleur(editActivity.couleur);
-    } else {
-      setProspectId("");
-      setAssigneAId(currentUserId ?? "");
-      setType("RDV_PHYSIQUE");
-      setSujet("");
-      setAdresseRdv("");
-      setContenu("");
-      setCouleur(null);
-      setDate(defaultDate);
-      setHeure(defaultTime);
-      setHeureFin(addMinutesToTime(defaultTime, 60));
-      setRecurrence("NONE");
-      setWeekdays([]);
-      setRecurUntil(addMonthsToDateStr(defaultDate, 2));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, editActivity?.id]);
-
-  // Quand on rouvre la modale et que la prop defaultDate change, on resync
-  // (par exemple si l'utilisateur clique sur un autre jour)
-  if (!open && date !== defaultDate) {
-    // pas dans useEffect car simple comparaison, c'est OK ici
-  }
+  const isRdv = RDV_TYPE_KEYS.includes(type);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -207,7 +287,7 @@ export function AddActivityDialog({
     const dateTime = new Date(yyyy, mm - 1, dd, hh, mn, 0);
 
     const payload = {
-      // prospectId optionnel — vide = note interne sans client
+      // prospectId optionnel : vide = note interne sans client
       prospectId: prospectId || undefined,
       userId: isAdmin && assigneAId ? assigneAId : undefined,
       type,
@@ -244,7 +324,7 @@ export function AddActivityDialog({
         setContenu("");
         setRecurrence("NONE");
         setWeekdays([]);
-        setOpen(false);
+        onDone();
         router.refresh();
         return;
       }
@@ -258,6 +338,11 @@ export function AddActivityDialog({
       }
       toast.success(
         editActivity ? "Activité modifiée." : "Activité ajoutée à l'agenda.",
+        isRdv && prospectId && !editActivity
+          ? {
+              description: `RDV calé : +${XP_RULES.rdvEffectue} XP à la clé une fois effectué.`,
+            }
+          : undefined,
       );
       if (!editActivity) {
         setProspectId("");
@@ -265,330 +350,369 @@ export function AddActivityDialog({
         setAdresseRdv("");
         setContenu("");
       }
-      setOpen(false);
+      onDone();
       router.refresh();
     });
   };
 
-  const triggerClass =
-    triggerMode === "header"
-      ? "inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-      : "mt-2 inline-flex h-7 w-full items-center justify-center rounded-md border border-dashed border-border bg-background/40 px-2 text-[11px] text-muted-foreground hover:border-primary hover:bg-primary/5 hover:text-primary transition-colors";
-
   return (
-    <Dialog
-      open={open}
-      onOpenChange={setOpen}
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-1 px-5 pt-4 pb-5"
     >
-      {!hideTrigger && (
-        <DialogTrigger className={triggerClass}>
-          {triggerMode === "header" ? (
-            <>
-              <Icon name="Calendar" className="h-4 w-4" />
-              + Nouvelle activité
-            </>
-          ) : (
-            "+ Ajouter"
-          )}
-        </DialogTrigger>
-      )}
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="text-sm font-normal text-muted-foreground">
-            {isEdit ? "Modifier l'activité" : "Nouvelle activité"}
-          </DialogTitle>
-          <DialogDescription className="sr-only">
-            Crée un RDV, un appel, un email ou une note dans l&apos;agenda.
-          </DialogDescription>
-        </DialogHeader>
+      {/* Titre */}
+      <label htmlFor="activite-sujet" className="sr-only">
+        Titre de l&apos;activité
+      </label>
+      <input
+        id="activite-sujet"
+        value={sujet}
+        onChange={(e) => setSujet(e.target.value)}
+        placeholder="Ajouter un titre (ex. RDV découverte)"
+        autoFocus
+        required
+        className="mb-2 w-full border-0 border-b-2 border-border bg-transparent px-1 pb-2 font-display text-xl font-bold text-foreground outline-none placeholder:font-sans placeholder:text-base placeholder:font-medium focus:border-info-500"
+      />
 
-        <form onSubmit={handleSubmit} className="space-y-1">
-          {/* Titre */}
-          <input
-            value={sujet}
-            onChange={(e) => setSujet(e.target.value)}
-            placeholder="Ajouter un titre"
-            autoFocus
-            required
-            className="mb-3 w-full border-0 border-b border-input bg-transparent px-1 pb-2 text-xl font-medium placeholder:text-muted-foreground/50 focus:border-primary focus:outline-none"
-          />
-
-          {/* Horaire : date + début – fin */}
-          <FieldRow icon="Clock">
-            <div className="flex flex-wrap items-center gap-2">
-              <Input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-40"
-                required
-              />
-              <Input
-                type="time"
-                value={heure}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setHeure(v);
-                  if (
-                    v &&
-                    heureFin &&
-                    `${v}` >= `${heureFin}`
-                  ) {
-                    setHeureFin(addMinutesToTime(v, 60));
-                  }
-                }}
-                className="w-28"
-                required
-              />
-              <span className="text-muted-foreground">–</span>
-              <Input
-                type="time"
-                value={heureFin}
-                onChange={(e) => setHeureFin(e.target.value)}
-                className="w-28"
-                required
-              />
-            </div>
-          </FieldRow>
-
-          {/* Récurrence — création uniquement (jour(s) de semaine, hebdo, mensuel, annuel) */}
-          {!isEdit && (
-            <FieldRow icon="Repeat">
-              <div className="space-y-2">
-                <select
-                  value={recurrence}
-                  onChange={(e) =>
-                    setRecurrence(
-                      e.target.value as
-                        | "NONE"
-                        | "WEEKLY"
-                        | "WEEKDAYS"
-                        | "MONTHLY"
-                        | "YEARLY",
-                    )
-                  }
-                  className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-                >
-                  <option value="NONE">Ne se répète pas</option>
-                  <option value="WEEKLY">Chaque semaine</option>
-                  <option value="WEEKDAYS">
-                    Certains jours de la semaine
-                  </option>
-                  <option value="MONTHLY">Chaque mois</option>
-                  <option value="YEARLY">Chaque année</option>
-                </select>
-
-                {recurrence === "WEEKDAYS" && (
-                  <div className="flex flex-wrap gap-1">
-                    {(
-                      [
-                        ["Lu", 1],
-                        ["Ma", 2],
-                        ["Me", 3],
-                        ["Je", 4],
-                        ["Ve", 5],
-                        ["Sa", 6],
-                        ["Di", 0],
-                      ] as [string, number][]
-                    ).map(([lbl, dow]) => {
-                      const on = weekdays.includes(dow);
-                      return (
-                        <button
-                          key={dow}
-                          type="button"
-                          onClick={() =>
-                            setWeekdays((w) =>
-                              on ? w.filter((x) => x !== dow) : [...w, dow],
-                            )
-                          }
-                          className={`h-8 w-9 rounded-md border text-xs font-medium transition-colors ${
-                            on
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-input bg-background hover:bg-muted"
-                          }`}
-                        >
-                          {lbl}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {recurrence !== "NONE" && (
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                    Jusqu&apos;au
-                    <Input
-                      type="date"
-                      value={recurUntil}
-                      min={date}
-                      onChange={(e) => setRecurUntil(e.target.value)}
-                      className="w-40"
-                    />
-                  </label>
-                )}
-              </div>
-            </FieldRow>
-          )}
-
-          {/* Client — recherche au clavier (combobox serveur, scopé RLS) +
-              création à la volée. Remplace l'ancien <select> de milliers de
-              lignes : on tape le nom, ça filtre. Vide = note interne. */}
-          <FieldRow icon="Users">
-            <ProspectCombobox
-              key={`${open}-${editActivity?.id ?? "new"}`}
-              value={prospectId}
-              initialLabel={editActivity?.prospectLabel ?? ""}
-              onSelect={(id, _label, adresse) => {
-                setProspectId(id);
-                // Gain de temps : pré-remplit le lieu du RDV avec l'adresse du
-                // client. On remplit si le champ est vide OU s'il contient encore
-                // l'adresse auto d'un client précédent (changement de client) —
-                // mais jamais si un lieu a été saisi à la main.
-                if (id && adresse) {
-                  const dejaAuto =
-                    !adresseRdv.trim() || adresseRdv === autoAdresse;
-                  if (dejaAuto) {
-                    setAdresseRdv(adresse);
-                    setAutoAdresse(adresse);
-                  }
-                }
-              }}
-              placeholder="Tape le nom du client (vide = note interne)…"
-            />
-          </FieldRow>
-
-          {/* Type (+ assigné à pour admin) */}
-          <FieldRow icon="Tag">
-            <div className="space-y-2">
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as ActivityType)}
-                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-              >
-                {ACTIVITY_TYPE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              {isAdmin && users.length > 1 && (
-                <select
-                  value={assigneAId}
-                  onChange={(e) => setAssigneAId(e.target.value)}
-                  className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-                  aria-label="Assigné à"
-                >
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      Assigné à {u.name} {u.role === "ADMIN" ? "(admin)" : ""}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          </FieldRow>
-
-          {/* Lieu / lien — contextuel selon le type de RDV */}
-          {(type === "RDV_PHYSIQUE" ||
-            type === "RDV_VISIO" ||
-            type === "RDV_TELEPHONIQUE") && (
-            <FieldRow icon="MapPin">
-              <Input
-                value={adresseRdv}
-                onChange={(e) => setAdresseRdv(e.target.value)}
-                placeholder={
-                  type === "RDV_VISIO"
-                    ? "Lien visio (Meet, Zoom, Teams…)"
-                    : type === "RDV_TELEPHONIQUE"
-                      ? "Numéro / pont conférence"
-                      : "Ajouter un lieu"
-                }
-              />
-            </FieldRow>
-          )}
-
-          {/* Description */}
-          <FieldRow icon="FileText">
-            <textarea
-              value={contenu}
-              onChange={(e) => setContenu(e.target.value)}
-              rows={2}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              placeholder="Ajouter une description"
-            />
-          </FieldRow>
-
-          {/* Couleur / classement — palette pour repérer la tâche dans l'agenda */}
-          <FieldRow icon="Tag">
-            <div className="flex flex-wrap items-center gap-1.5 py-1">
-              {AGENDA_COLORS.map((c) => {
-                const selected = couleur === c.value;
-                return (
-                  <button
-                    key={c.value}
-                    type="button"
-                    title={c.label}
-                    aria-label={c.label}
-                    aria-pressed={selected}
-                    onClick={() => setCouleur(selected ? null : c.value)}
-                    className={`h-6 w-6 rounded-full border transition-transform hover:scale-110 ${
-                      selected
-                        ? "ring-2 ring-offset-1 ring-slate-400"
-                        : "border-black/10"
-                    }`}
-                    style={{ backgroundColor: c.value }}
-                  >
-                    {selected && (
-                      <Icon
-                        name="Check"
-                        className="mx-auto h-3.5 w-3.5 text-white drop-shadow"
-                      />
-                    )}
-                  </button>
-                );
-              })}
-              {couleur && (
+      {/* Type : raccourcis RDV + liste complète */}
+      <FieldRow icon={Tag} label="Type">
+        <div className="flex flex-col gap-2">
+          <div
+            role="group"
+            aria-label="Type de RDV"
+            className="grid grid-cols-3 gap-1.5"
+          >
+            {RDV_TYPE_KEYS.map((k) => {
+              const meta = TYPE_META[k];
+              const hex = AGENDA_HEX[meta.tone];
+              const on = type === k;
+              const TIcon = meta.icon;
+              return (
                 <button
+                  key={k}
                   type="button"
-                  onClick={() => setCouleur(null)}
-                  className="ml-1 text-[11px] text-muted-foreground underline hover:text-foreground"
+                  aria-pressed={on}
+                  onClick={() => setType(k)}
+                  className="inline-flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-[12px] border-[1.5px] px-2 text-[13px] font-bold transition-colors"
+                  style={{
+                    borderColor: on ? hex.solid : "#D5DAE6",
+                    background: on ? hex.soft : "#FFFFFF",
+                    color: on ? hex.text : "#5B6478",
+                  }}
                 >
-                  Aucune
+                  <TIcon aria-hidden="true" className="size-4 shrink-0" />
+                  <span className="truncate">{meta.short}</span>
                 </button>
-              )}
-            </div>
-          </FieldRow>
-
-          <DialogFooter className="mt-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={pending}
+              );
+            })}
+          </div>
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value as ActivityType)}
+            className={SELECT_CLASS}
+            aria-label="Type d'activité"
+          >
+            {ACTIVITY_TYPE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          {isAdmin && users.length > 1 && (
+            <select
+              value={assigneAId}
+              onChange={(e) => setAssigneAId(e.target.value)}
+              className={SELECT_CLASS}
+              aria-label="Assigné à"
             >
-              Annuler
-            </Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? "Enregistrement…" : "Enregistrer"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  Assigné à {u.name} {u.role === "ADMIN" ? "(admin)" : ""}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      </FieldRow>
+
+      {/* Horaire : date + début / fin */}
+      <FieldRow icon={Clock} label="Horaire">
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="h-11 w-[11rem] rounded-[12px]"
+            aria-label="Date"
+            required
+          />
+          <Input
+            type="time"
+            value={heure}
+            onChange={(e) => {
+              const v = e.target.value;
+              setHeure(v);
+              if (v && heureFin && `${v}` >= `${heureFin}`) {
+                setHeureFin(addMinutesToTime(v, 60));
+              }
+            }}
+            className="h-11 w-[7.5rem] rounded-[12px]"
+            aria-label="Heure de début"
+            required
+          />
+          <span
+            aria-hidden="true"
+            className="text-sm font-bold text-muted-foreground"
+          >
+            à
+          </span>
+          <Input
+            type="time"
+            value={heureFin}
+            onChange={(e) => setHeureFin(e.target.value)}
+            className="h-11 w-[7.5rem] rounded-[12px]"
+            aria-label="Heure de fin"
+            required
+          />
+        </div>
+      </FieldRow>
+
+      {/* Récurrence : création uniquement (jour(s) de semaine, hebdo, mensuel, annuel) */}
+      {!isEdit && (
+        <FieldRow icon={Repeat} label="Récurrence">
+          <div className="flex flex-col gap-2">
+            <select
+              value={recurrence}
+              onChange={(e) => setRecurrence(e.target.value as Recurrence)}
+              className={SELECT_CLASS}
+              aria-label="Récurrence"
+            >
+              <option value="NONE">Ne se répète pas</option>
+              <option value="WEEKLY">Chaque semaine</option>
+              <option value="WEEKDAYS">Certains jours de la semaine</option>
+              <option value="MONTHLY">Chaque mois</option>
+              <option value="YEARLY">Chaque année</option>
+            </select>
+
+            {recurrence === "WEEKDAYS" && (
+              <div
+                role="group"
+                aria-label="Jours de la semaine"
+                className="flex flex-wrap gap-1.5"
+              >
+                {(
+                  [
+                    ["Lu", 1, "Lundi"],
+                    ["Ma", 2, "Mardi"],
+                    ["Me", 3, "Mercredi"],
+                    ["Je", 4, "Jeudi"],
+                    ["Ve", 5, "Vendredi"],
+                    ["Sa", 6, "Samedi"],
+                    ["Di", 0, "Dimanche"],
+                  ] as [string, number, string][]
+                ).map(([lbl, dow, full]) => {
+                  const on = weekdays.includes(dow);
+                  return (
+                    <button
+                      key={dow}
+                      type="button"
+                      aria-pressed={on}
+                      aria-label={full}
+                      onClick={() =>
+                        setWeekdays((w) =>
+                          on ? w.filter((x) => x !== dow) : [...w, dow],
+                        )
+                      }
+                      className={cn(
+                        "h-10 w-11 rounded-[10px] border text-xs font-bold transition-colors",
+                        on
+                          ? "border-navy-700 bg-navy-700 text-white"
+                          : "border-border-strong bg-card text-foreground hover:bg-navy-50",
+                      )}
+                    >
+                      {lbl}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {recurrence !== "NONE" && (
+              <label className="flex flex-wrap items-center gap-2 text-xs font-bold text-muted-foreground">
+                Jusqu&apos;au
+                <Input
+                  type="date"
+                  value={recurUntil}
+                  min={date}
+                  onChange={(e) => setRecurUntil(e.target.value)}
+                  className="h-10 w-[11rem] rounded-[12px]"
+                />
+              </label>
+            )}
+          </div>
+        </FieldRow>
+      )}
+
+      {/* Client : recherche au clavier (combobox serveur, scopé RLS) +
+              création à la volée. Vide = note interne. */}
+      <FieldRow icon={Users} label="Entreprise">
+        <ProspectCombobox
+          value={prospectId}
+          initialLabel={editActivity?.prospectLabel ?? ""}
+          onSelect={(id, _label, adresse) => {
+            setProspectId(id);
+            // Gain de temps : pré-remplit le lieu du RDV avec l'adresse du
+            // client, si le champ est vide OU contient encore l'adresse
+            // auto d'un client précédent, jamais si un lieu a été saisi.
+            if (id && adresse) {
+              const dejaAuto = !adresseRdv.trim() || adresseRdv === autoAdresse;
+              if (dejaAuto) {
+                setAdresseRdv(adresse);
+                setAutoAdresse(adresse);
+              }
+            }
+          }}
+          placeholder="Tape le nom du client (vide = note interne)"
+        />
+        {isRdv && (
+          <p
+            className={cn(
+              "mt-1.5 flex items-center gap-1.5 text-xs font-bold",
+              prospectId ? "text-gold-700" : "text-muted-foreground",
+            )}
+          >
+            <Zap
+              aria-hidden="true"
+              className="size-3.5 shrink-0 fill-gold-500 text-gold-500"
+            />
+            {prospectId
+              ? `+${XP_RULES.rdvEffectue} XP une fois le RDV effectué et validé.`
+              : "Rattache un client pour que ce RDV compte dans tes XP."}
+          </p>
+        )}
+      </FieldRow>
+
+      {/* Lieu / lien : contextuel selon le type de RDV */}
+      {isRdv && (
+        <FieldRow icon={MapPin} label="Lieu">
+          <Input
+            value={adresseRdv}
+            onChange={(e) => setAdresseRdv(e.target.value)}
+            className="h-11 rounded-[12px]"
+            aria-label={
+              type === "RDV_VISIO"
+                ? "Lien visio"
+                : type === "RDV_TELEPHONIQUE"
+                  ? "Numéro à appeler"
+                  : "Adresse du RDV"
+            }
+            placeholder={
+              type === "RDV_VISIO"
+                ? "Lien visio (Meet, Zoom, Teams)"
+                : type === "RDV_TELEPHONIQUE"
+                  ? "Numéro ou pont de conférence"
+                  : "Adresse ou localité"
+            }
+          />
+        </FieldRow>
+      )}
+
+      {/* Description */}
+      <FieldRow icon={FileText} label="Description">
+        <textarea
+          value={contenu}
+          onChange={(e) => setContenu(e.target.value)}
+          rows={2}
+          aria-label="Description"
+          className="w-full rounded-[12px] border border-border-strong bg-card px-3 py-2.5 text-sm text-foreground outline-none focus-visible:border-info-500 focus-visible:ring-3 focus-visible:ring-info-500/25"
+          placeholder="Notes de préparation, contexte du RDV"
+        />
+      </FieldRow>
+
+      {/* Couleur / classement : palette pour repérer la tâche dans l'agenda */}
+      <FieldRow icon={Palette} label="Couleur">
+        <div
+          role="group"
+          aria-label="Couleur dans l'agenda"
+          className="flex flex-wrap items-center gap-2 py-1"
+        >
+          {AGENDA_COLORS.map((c) => {
+            const selected = couleur === c.value;
+            return (
+              <button
+                key={c.value}
+                type="button"
+                title={c.label}
+                aria-label={c.label}
+                aria-pressed={selected}
+                onClick={() => setCouleur(selected ? null : c.value)}
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-full border transition-transform hover:scale-110",
+                  selected
+                    ? "ring-2 ring-navy-700 ring-offset-2"
+                    : "border-black/10",
+                )}
+                style={{ backgroundColor: c.value }}
+              >
+                {selected && (
+                  <Check
+                    aria-hidden="true"
+                    className="size-4 text-white drop-shadow"
+                    strokeWidth={3}
+                  />
+                )}
+              </button>
+            );
+          })}
+          {couleur && (
+            <button
+              type="button"
+              onClick={() => setCouleur(null)}
+              className="ml-1 h-8 rounded-[10px] px-2 text-xs font-bold text-info-700 underline-offset-2 hover:underline"
+            >
+              Aucune
+            </button>
+          )}
+        </div>
+      </FieldRow>
+
+      <DialogFooter className="-mx-5 mt-4 -mb-5 rounded-b-[20px] border-border bg-ground px-5 py-4">
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          onClick={() => onDone()}
+          disabled={pending}
+        >
+          Annuler
+        </Button>
+        <Button type="submit" size="lg" disabled={pending}>
+          {pending ? "Enregistrement..." : "Enregistrer"}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 
-/** Ligne de champ à la Google Agenda : icône à gauche + contenu à droite. */
+/** Ligne de champ : icône à gauche + contenu à droite. */
 function FieldRow({
-  icon,
+  icon: FIcon,
+  label,
   children,
 }: {
-  icon: string;
+  icon: LucideIcon;
+  label: string;
   children: ReactNode;
 }) {
   return (
     <div className="flex items-start gap-3 py-1.5">
-      <Icon name={icon} className="mt-2 h-5 w-5 shrink-0 text-muted-foreground" />
+      <span
+        aria-hidden="true"
+        title={label}
+        className="mt-1.5 flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-ground text-muted-foreground"
+      >
+        <FIcon className="size-4" />
+      </span>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );

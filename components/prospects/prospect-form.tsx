@@ -26,6 +26,8 @@ import {
 import { ProspectCreateSchema } from "@/lib/schemas/prospect";
 import { cn } from "@/lib/utils";
 
+const INPUT = "h-11 rounded-[12px] border-border-strong bg-card";
+
 // Le type INPUT du schéma : c'est ce que l'utilisateur tape, AVANT que les
 // defaults Zod (pays="Suisse", statut="NOUVEAU"…) et transforms soient
 // appliqués. C'est ce que react-hook-form manipule en mémoire.
@@ -54,7 +56,7 @@ interface ProspectFormProps {
 export function ProspectForm({
   initialValues,
   action,
-  submitLabel = "Créer le prospect",
+  submitLabel = "Créer l'entreprise",
   onSuccess,
   teamUsers = [],
   isAdmin = false,
@@ -101,7 +103,7 @@ export function ProspectForm({
       toast.error(res.error ?? "Échec de l'enregistrement.");
       return;
     }
-    toast.success("Prospect enregistré.");
+    toast.success("Entreprise enregistrée.");
     if (res.prospectId && onSuccess) {
       onSuccess(res.prospectId);
     } else if (res.prospectId) {
@@ -117,7 +119,7 @@ export function ProspectForm({
       {/* Identité */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Identité</CardTitle>
+          <CardTitle className="font-display text-lg font-extrabold tracking-[-0.01em]">Identité</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field
@@ -127,17 +129,18 @@ export function ProspectForm({
             className="md:col-span-2"
           >
             <Input
+              className={INPUT}
               {...register("raisonSociale")}
               placeholder="ex. Boulangerie du Léman SA"
             />
           </Field>
 
           <Field label="Prénom contact" error={errors.contactPrenom?.message}>
-            <Input {...register("contactPrenom")} placeholder="Hans" />
+            <Input className={INPUT} {...register("contactPrenom")} placeholder="Hans" />
           </Field>
 
           <Field label="Nom contact" error={errors.contactNom?.message}>
-            <Input {...register("contactNom")} placeholder="Müller" />
+            <Input className={INPUT} {...register("contactNom")} placeholder="Müller" />
           </Field>
 
           <Field
@@ -146,6 +149,7 @@ export function ProspectForm({
             className="md:col-span-2"
           >
             <Input
+              className={INPUT}
               {...register("contactFonction")}
               placeholder="Patron, Directrice marketing, …"
             />
@@ -156,11 +160,12 @@ export function ProspectForm({
       {/* Contact */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Contact</CardTitle>
+          <CardTitle className="font-display text-lg font-extrabold tracking-[-0.01em]">Contact</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="Email" error={errors.email?.message}>
             <Input
+              className={INPUT}
               {...register("email")}
               type="email"
               placeholder="contact@entreprise.ch"
@@ -173,6 +178,7 @@ export function ProspectForm({
             hint="Par défaut, identique à l'email de l'entreprise. Renseigne une adresse dédiée seulement si les factures doivent partir ailleurs (ex. boîte compta/Odoo du client)."
           >
             <Input
+              className={INPUT}
               {...register("emailFacturation")}
               type="email"
               placeholder={
@@ -185,6 +191,7 @@ export function ProspectForm({
 
           <Field label="Téléphone fixe" error={errors.telephone?.message}>
             <Input
+              className={INPUT}
               {...register("telephone")}
               type="tel"
               placeholder="+41 21 000 00 00"
@@ -193,6 +200,7 @@ export function ProspectForm({
 
           <Field label="Téléphone mobile" error={errors.telephoneMobile?.message}>
             <Input
+              className={INPUT}
               {...register("telephoneMobile")}
               type="tel"
               placeholder="+41 79 000 00 00"
@@ -201,6 +209,7 @@ export function ProspectForm({
 
           <Field label="Site web" error={errors.siteWeb?.message}>
             <Input
+              className={INPUT}
               {...register("siteWeb")}
               type="url"
               placeholder="https://exemple.ch"
@@ -209,6 +218,7 @@ export function ProspectForm({
 
           <Field label="LinkedIn" error={errors.linkedIn?.message}>
             <Input
+              className={INPUT}
               {...register("linkedIn")}
               type="url"
               placeholder="https://linkedin.com/in/…"
@@ -220,7 +230,7 @@ export function ProspectForm({
       {/* Localisation */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Localisation</CardTitle>
+          <CardTitle className="font-display text-lg font-extrabold tracking-[-0.01em]">Localisation</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field
@@ -229,22 +239,23 @@ export function ProspectForm({
             className="md:col-span-2"
           >
             <Input
+              className={INPUT}
               {...register("adresse")}
               placeholder="Route Cantonale 12"
             />
           </Field>
 
           <Field label="Code postal" error={errors.codePostal?.message}>
-            <Input {...register("codePostal")} placeholder="1024" />
+            <Input className={INPUT} {...register("codePostal")} placeholder="1024" />
           </Field>
 
           <Field label="Ville" error={errors.ville?.message}>
-            <Input {...register("ville")} placeholder="Ecublens" />
+            <Input className={INPUT} {...register("ville")} placeholder="Ecublens" />
           </Field>
 
           <Field label="Canton" error={errors.canton?.message}>
             <NativeSelect {...register("canton")}>
-              <option value="">— Sélectionner —</option>
+              <option value="">Sélectionner</option>
               {CANTONS_SUISSES.map((c) => (
                 <option key={c.value} value={c.value}>
                   {c.label}
@@ -254,11 +265,12 @@ export function ProspectForm({
           </Field>
 
           <Field label="Pays" error={errors.pays?.message}>
-            <Input {...register("pays")} placeholder="Suisse" />
+            <Input className={INPUT} {...register("pays")} placeholder="Suisse" />
           </Field>
 
           <Field label="N° IDE / SIRET" error={errors.numeroIDE?.message}>
             <Input
+              className={INPUT}
               {...register("numeroIDE")}
               placeholder="CHE-XXX.XXX.XXX (Suisse) ou SIRET (FR)"
             />
@@ -266,6 +278,7 @@ export function ProspectForm({
 
           <Field label="N° TVA" error={errors.numeroTVA?.message}>
             <Input
+              className={INPUT}
               {...register("numeroTVA")}
               placeholder="CHE-XXX.XXX.XXX TVA ou FR-XX-XXXXXXXXX"
             />
@@ -276,12 +289,12 @@ export function ProspectForm({
       {/* Qualification */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Qualification</CardTitle>
+          <CardTitle className="font-display text-lg font-extrabold tracking-[-0.01em]">Qualification</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="Secteur" error={errors.secteur?.message}>
             <NativeSelect {...register("secteur")}>
-              <option value="">— Sélectionner —</option>
+              <option value="">Sélectionner</option>
               {PROSPECT_SECTEUR_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
@@ -292,6 +305,7 @@ export function ProspectForm({
 
           <Field label="Effectif" error={errors.effectif?.message}>
             <Input
+              className={INPUT}
               {...register("effectif")}
               type="number"
               min={0}
@@ -301,7 +315,7 @@ export function ProspectForm({
 
           <Field label="Source" error={errors.source?.message}>
             <NativeSelect {...register("source")}>
-              <option value="">— Sélectionner —</option>
+              <option value="">Sélectionner</option>
               {PROSPECT_SOURCE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
@@ -326,7 +340,7 @@ export function ProspectForm({
               error={errors.assigneAId?.message}
             >
               <NativeSelect {...register("assigneAId")}>
-                <option value="">— Non assignée —</option>
+                <option value="">Non assignée</option>
                 {teamUsers.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.name}
@@ -344,7 +358,7 @@ export function ProspectForm({
             <textarea
               {...register("notesGenerales")}
               rows={4}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+              className="w-full rounded-[12px] border border-border-strong bg-card px-3 py-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               placeholder="Contexte, opportunités, mots-clés…"
             />
           </Field>
@@ -353,23 +367,24 @@ export function ProspectForm({
 
       {/* Erreur globale */}
       {serverError && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div role="alert" className="rounded-[14px] bg-alert-50 px-4 py-3 text-sm font-semibold text-alert-700">
           {serverError}
         </div>
       )}
 
       {/* Actions */}
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Button
           type="button"
+          size="lg"
           variant="outline"
           onClick={() => router.back()}
           disabled={isSubmitting}
         >
           Annuler
         </Button>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Enregistrement…" : submitLabel}
+        <Button type="submit" size="lg" disabled={isSubmitting}>
+          {isSubmitting ? "Enregistrement..." : submitLabel}
         </Button>
       </div>
     </form>
@@ -399,15 +414,15 @@ function Field({
 }: FieldProps) {
   return (
     <div className={cn("space-y-1.5", className)}>
-      <Label className="text-sm">
+      <Label className="text-[13px] font-bold">
         {label}
-        {required && <span className="ml-1 text-red-500">*</span>}
+        {required && <span aria-hidden="true" className="ml-1 text-coral-600">*</span>}
       </Label>
       {children}
       {hint && !error && (
         <p className="text-[11px] text-muted-foreground">{hint}</p>
       )}
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs font-semibold text-alert-700">{error}</p>}
     </div>
   );
 }
@@ -420,7 +435,7 @@ const NativeSelect = ({
   <select
     {...props}
     className={cn(
-      "h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none",
+      "h-11 w-full rounded-[12px] border border-border-strong bg-card px-3 text-sm font-medium outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
       className,
     )}
   >

@@ -1,7 +1,7 @@
 /**
  * Requêtes pour le module RH.
  *
- * Toutes les fonctions exigent un user ADMIN — la vérification est faite
+ * Toutes les fonctions exigent un user ADMIN : la vérification est faite
  * côté page via requireAdmin(). On ne re-vérifie pas ici pour éviter le
  * bruit, mais aucune fonction n'est exposée hors d'une page protégée.
  */

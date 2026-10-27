@@ -78,14 +78,12 @@ export function ProspectCombobox({
     };
   }, [open]);
 
-  // Recherche debounced
+  // Recherche debounced (un champ vide vide la liste dans handleInput : pas
+  // de setState synchrone dans l'effet).
   useEffect(() => {
     if (!open) return;
     const term = query.trim();
-    if (term.length < 1) {
-      setResults([]);
-      return;
-    }
+    if (term.length < 1) return;
     const t = setTimeout(() => {
       startTransition(async () => {
         setResults(await searchProspects(term));
@@ -106,6 +104,9 @@ export function ProspectCombobox({
       }
       setOpen(false);
       setQuery(committed);
+      // Requête remise à vide : on vide aussi la liste (sinon d'anciens
+      // résultats réapparaîtraient à la réouverture).
+      if (committed.trim().length < 1) setResults([]);
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
@@ -114,6 +115,7 @@ export function ProspectCombobox({
   const handleInput = (text: string) => {
     setQuery(text);
     setOpen(true);
+    if (text.trim().length < 1) setResults([]);
     if (text !== committed && value) onSelect("", "");
   };
 

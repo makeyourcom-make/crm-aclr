@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * Formulaire Deal — création OU édition.
+ * Formulaire Deal - création OU édition.
  *
  * Si `dealId` est fourni, mode édition : on appelle updateDeal.
  * Sinon mode création : createDeal.
  *
- * Inclut un picker produits multi-select avec prix affichés — essentiel
+ * Inclut un picker produits multi-select avec prix affichés - essentiel
  * car la liste des produits du deal alimente directement la création du
  * contrat (cf. signDealInPerson).
  */
@@ -220,7 +220,7 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
       if (thenContract && !isEdit && res.dealId) {
         // Enchaîne directement sur le wizard de contrat (devise, modalités,
         // lignes, prix) pré-rempli avec ce deal.
-        toast.success("Deal créé — passons au contrat.");
+        toast.success("Deal créé · passons au contrat.");
         router.push(`/contrats/nouveau?dealId=${res.dealId}`);
         router.refresh();
         return;
@@ -262,7 +262,7 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="prospectId">
-              Prospect <span className="text-red-500">*</span>
+              Prospect <span className="text-alert-700">*</span>
             </Label>
             {isEdit ? (
               <input
@@ -288,13 +288,13 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
 
           <div className="space-y-1.5">
             <Label htmlFor="titre">
-              Titre du deal <span className="text-red-500">*</span>
+              Titre du deal <span className="text-alert-700">*</span>
             </Label>
             <Input
               id="titre"
               value={titre}
               onChange={(e) => setTitre(e.target.value)}
-              placeholder="Ex. Pack Web Complet — démo prévue"
+              placeholder="Ex. Pack Web Complet - démo prévue"
               required
             />
           </div>
@@ -347,12 +347,12 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
 
           {/* Récap montant calculé en direct */}
           {productIds.length > 0 && (
-            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+            <div className="rounded-[14px] border border-lvl-500/30 bg-lvl-50 p-3">
               <div className="flex items-baseline justify-between gap-2">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">
                   Montant prévu (valeur 1 an)
                 </p>
-                <p className="text-2xl font-semibold tabular-nums text-primary">
+                <p className="score-number text-[28px] text-foreground">
                   {formatCHF(montantPrevu)}
                 </p>
               </div>
@@ -399,10 +399,10 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
                         <label
                           key={p.id}
                           className={cn(
-                            "flex cursor-pointer items-start gap-3 rounded-md border p-2.5 transition-colors",
+                            "flex cursor-pointer items-start gap-3 rounded-[12px] border p-2.5 transition-colors",
                             isChecked
-                              ? "border-primary bg-primary/5"
-                              : "border-border bg-background hover:bg-muted/50",
+                              ? "border-lvl-500 bg-lvl-50"
+                              : "border-border bg-card hover:bg-navy-50",
                           )}
                         >
                           <input
@@ -415,16 +415,17 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
                             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                               <p className="text-sm font-medium">{p.nom}</p>
                               {p.engagementMois ? (
-                                <span className="inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0 text-[10px] font-medium text-blue-800">
+                                <span className="inline-flex items-center rounded-full bg-info-50 px-1.5 py-0 text-[10px] font-bold text-info-700">
                                   Engagement {p.engagementMois} mois
                                 </span>
                               ) : null}
                               {p.prixVariable ? (
                                 <span
-                                  className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0 text-[10px] font-medium text-amber-800"
-                                  title="Prix de base — peut être ajusté lors de la signature du contrat selon le périmètre exact."
+                                  className="inline-flex items-center gap-1 rounded-full bg-gold-50 px-1.5 py-0 text-[10px] font-bold text-gold-700"
+                                  title="Prix de base : peut être ajusté lors de la signature du contrat selon le périmètre exact."
                                 >
-                                  ✏️ Prix sur-mesure
+                                  <Icon name="Pencil" className="size-2.5" />
+                                  Prix sur-mesure
                                 </span>
                               ) : null}
                             </div>
@@ -497,12 +498,13 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
                 <button
                   key={s}
                   type="button"
+                  aria-pressed={stage === s}
                   onClick={() => handleStageChange(s)}
                   className={cn(
-                    "rounded-md border px-2 py-1.5 text-xs",
+                    "h-9 rounded-[10px] border px-2 text-xs font-bold transition-colors",
                     stage === s
-                      ? "border-primary bg-primary/10 text-primary font-medium"
-                      : "border-border bg-background hover:bg-muted",
+                      ? "border-navy-700 bg-navy-700 text-white"
+                      : "border-border-strong bg-card hover:bg-navy-50",
                   )}
                 >
                   {STAGE_LABELS[s]}
@@ -542,8 +544,8 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
           <div className="rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
             <span className="font-medium text-foreground">Montant du deal :</span>{" "}
             {productIds.length === 0 ? (
-              <span className="text-amber-700">
-                — sélectionne au moins un produit ci-dessus
+              <span className="font-semibold text-gold-700">
+                sélectionne au moins un produit ci-dessus
               </span>
             ) : (
               <span className="font-semibold text-primary tabular-nums">
@@ -597,7 +599,7 @@ const STAGE_LABELS: Record<DealStage, string> = {
 };
 
 // ===========================================================================
-// CustomProductButton — modal pour créer un produit sur-mesure à la volée
+// CustomProductButton - modal pour créer un produit sur-mesure à la volée
 // ===========================================================================
 
 interface CustomProductButtonProps {
@@ -647,7 +649,7 @@ function CustomProductButton({ onCreated }: CustomProductButtonProps) {
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success(`"${nom.trim()}" ajouté au deal ✓`);
+      toast.success(`« ${nom.trim()} » ajouté au deal`);
       // Construit l'objet ProductOption pour insertion locale
       onCreated({
         id: res.productId,
@@ -692,7 +694,7 @@ function CustomProductButton({ onCreated }: CustomProductButtonProps) {
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="cp-nom">
-              Nom <span className="text-red-500">*</span>
+              Nom <span className="text-alert-700">*</span>
             </Label>
             <Input
               id="cp-nom"

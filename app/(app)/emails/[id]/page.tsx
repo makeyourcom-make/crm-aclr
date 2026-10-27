@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 
 import { EmailDetailView } from "@/components/emails/email-detail-view";
-import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
@@ -15,7 +15,7 @@ interface PageProps {
 }
 
 /**
- * Vue d'un mail isolé — accessible depuis la timeline d'activités d'un prospect.
+ * Vue d'un mail isolé : accessible depuis la timeline d'activités d'un prospect.
  * Affiche le contenu complet même si le mail est archivé.
  *
  * RLS : le propriétaire du mail (email.userId === user.id) peut le lire ; l'admin
@@ -45,27 +45,28 @@ export default async function EmailDetailPage({ params }: PageProps) {
   if (!email) notFound();
 
   // Mailbox privée : le propriétaire lit ses propres mails. L'admin a une vue
-  // complète (ex. mails d'un collaborateur parti — cf. Sophie). Cohérent avec la
+  // complète (ex. mails d'un collaborateur parti, cf. Sophie). Cohérent avec la
   // route de téléchargement des pièces jointes.
   if (email.userId !== user.id && user.role !== "ADMIN") {
     notFound();
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+    <div className="mx-auto max-w-3xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
+        rubrique="emails"
         title={email.objet}
         description={
           email.direction === "ENTRANT"
-            ? `De ${email.expediteurNom ?? email.expediteurEmail}`
+            ? `De ${email.expediteurNom || email.expediteurEmail}`
             : `Envoyé à ${email.destinataireEmail}`
         }
         breadcrumb={
           <Link
             href={email.prospect ? `/prospects/${email.prospect.id}` : "/emails"}
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            className="inline-flex h-8 items-center gap-1.5 rounded-[10px] px-2 text-[13px] font-bold text-muted-foreground transition-colors hover:bg-navy-50 hover:text-foreground"
           >
-            <Icon name="ChevronRight" className="h-3 w-3 rotate-180" />
+            <ArrowLeft className="size-4" aria-hidden="true" />
             {email.prospect
               ? `Retour à ${email.prospect.raisonSociale}`
               : "Retour à la boîte"}
@@ -74,9 +75,10 @@ export default async function EmailDetailPage({ params }: PageProps) {
       />
 
       {email.archive && (
-        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          📥 Cet email est <strong>archivé</strong> (retiré de la boîte de
-          réception). Il reste consultable depuis la fiche client.
+        <div className="mb-4 rounded-[14px] bg-gold-50 px-4 py-3 text-[13px] font-semibold text-gold-700">
+          Cet email est <strong className="font-extrabold">archivé</strong> (retiré de
+          la boîte de réception). Il reste consultable depuis la fiche client et le
+          dossier Archivés.
         </div>
       )}
 

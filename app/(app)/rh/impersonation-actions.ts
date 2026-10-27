@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * « Voir en tant que » — un ADMIN peut endosser un collaborateur pour voir son
+ * « Voir en tant que » : un ADMIN peut endosser un collaborateur pour voir son
  * écran (support). Implémenté via un cookie `imp_uid` respecté par
  * getSessionUser (uniquement si l'utilisateur réel est admin). Le bandeau en
  * haut de l'app permet de quitter à tout moment.

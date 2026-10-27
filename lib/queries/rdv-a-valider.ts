@@ -7,6 +7,8 @@
  * restent affichés tant qu'ils ne sont pas validés (14 derniers jours).
  */
 import { prisma } from "@/lib/db";
+import { getActivityTypeLabel } from "@/lib/labels";
+import { cleanText, lieuRdv } from "@/lib/queries/dashboard";
 
 export const HEURE_RAPPEL_RDV = 17;
 const JOURS_RETRO = 14;
@@ -16,8 +18,12 @@ export interface RdvAValider {
   date: string;
   sujet: string;
   type: string;
+  /** « RDV physique », « RDV visio »… */
+  typeLabel: string;
   prospectId: string | null;
   raisonSociale: string | null;
+  /** Adresse du RDV, sinon ville du client (null si inconnue). */
+  lieu: string | null;
 }
 
 function zurichParts(d: Date) {
@@ -54,8 +60,9 @@ export async function getRdvAValider(userId: string): Promise<{
       date: true,
       sujet: true,
       type: true,
+      adresseRdv: true,
       prospectId: true,
-      prospect: { select: { raisonSociale: true } },
+      prospect: { select: { raisonSociale: true, ville: true } },
     },
     orderBy: { date: "asc" },
   });
@@ -66,10 +73,12 @@ export async function getRdvAValider(userId: string): Promise<{
     .map((r) => ({
       id: r.id,
       date: r.date.toISOString(),
-      sujet: r.sujet,
+      sujet: cleanText(r.sujet),
       type: r.type,
+      typeLabel: getActivityTypeLabel(r.type),
       prospectId: r.prospectId,
       raisonSociale: r.prospect?.raisonSociale ?? null,
+      lieu: lieuRdv(r.type, r.adresseRdv, r.prospect?.ville),
     }));
   return { rdvs, finDeJournee };
 }

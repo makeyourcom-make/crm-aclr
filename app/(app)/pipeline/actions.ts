@@ -40,7 +40,7 @@ export async function createDeal(input: unknown): Promise<DealActionResult> {
 
   try {
     const { productIds, productNotes, ...rest } = parsed.data;
-    // Recompute serveur-side du montantPrevu — JAMAIS faire confiance au
+    // Recompute serveur-side du montantPrevu - JAMAIS faire confiance au
     // client. Évite désync si l'état React est stale ou si quelqu'un trafique
     // la requête. Formule : Σ(prixOneShot) + Σ(prixMensuel) × 12.
     const montantPrevuRecompute = await recomputeMontantPrevu(productIds);
@@ -122,9 +122,15 @@ export async function moveDealStage(
   const parsed = DealMoveStageSchema.safeParse(input);
   if (!parsed.success) return zodErrorToResult(parsed.error);
 
-  await assertCanEditDeal(user, parsed.data.dealId);
+  // Raison de la perte (MYC Arena, « Leçons du mois ») : champ optionnel,
+  // lu à part pour ne pas toucher au schéma partagé. Enregistrée uniquement
+  // lors d'un passage en PERDU.
+  const raisonPerte = readRaisonPerte(input);
 
   try {
+    // Dans le try : un deal d'un autre commercial renvoie un message clair
+    // (ForbiddenError → { ok: false }) au lieu de faire planter l'action.
+    await assertCanEditDeal(user, parsed.data.dealId);
     // Calcule la probabilité par défaut associée au nouveau stage
     const probaDefaut: Record<string, number> = {
       DECOUVERTE: 10,
@@ -145,6 +151,9 @@ export async function moveDealStage(
           parsed.data.newStage === "SIGNE" || parsed.data.newStage === "PERDU"
             ? new Date()
             : undefined,
+        ...(parsed.data.newStage === "PERDU" && raisonPerte
+          ? { raisonPerte }
+          : {}),
       },
     });
     revalidatePath("/pipeline");
@@ -205,6 +214,17 @@ async function recomputeMontantPrevu(
     if (p.prixMensuel) mens += Number(p.prixMensuel);
   }
   return one + mens * 12;
+}
+
+/** Raison de perte facultative passée avec le changement d'étape (≤ 1000 car.). */
+function readRaisonPerte(input: unknown): string | undefined {
+  if (!input || typeof input !== "object" || !("raisonPerte" in input)) {
+    return undefined;
+  }
+  const v = (input as { raisonPerte?: unknown }).raisonPerte;
+  if (typeof v !== "string") return undefined;
+  const t = v.trim().slice(0, 1000);
+  return t === "" ? undefined : t;
 }
 
 async function assertCanEditDeal(

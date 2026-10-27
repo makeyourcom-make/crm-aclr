@@ -1,43 +1,62 @@
+import {
+  CalendarDays,
+  CircleCheck,
+  Download,
+  Hourglass,
+  Lightbulb,
+  ListOrdered,
+  Pencil,
+  Plus,
+  ReceiptText,
+  Repeat,
+  Sparkles,
+  Tag,
+  Users,
+  Wallet,
+} from "lucide-react";
 import Link from "next/link";
 
+import { EmptyState, SectionCard, StatTile } from "@/components/arena";
 import { ExpenseFilters } from "@/components/charges/expense-filters";
+import {
+  CategoryChip,
+  ExpenseStatutPill,
+  RecurringChip,
+} from "@/components/charges/expense-statut-pill";
+import { CATEGORIE_LABEL } from "@/components/charges/labels";
 import { MarkPaidButton } from "@/components/charges/mark-paid-button";
+import {
+  TABLE_CLASS,
+  THEAD_CLASS,
+  TR_CLASS,
+  TableEmptyRow,
+  TableScroll,
+  Td,
+  Th,
+} from "@/components/common/arena-table";
+import { Callout } from "@/components/common/callout";
+import { ChfValue } from "@/components/common/chf-value";
 import { DocumentPreviewButton } from "@/components/common/document-preview-button";
+import { PageShell } from "@/components/common/page-shell";
 import { SortableHeader } from "@/components/common/sortable-header";
-import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
+import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/db";
 import { formatCHF, formatDate } from "@/lib/format";
 import { requireAdmin } from "@/lib/session";
+import { cn } from "@/lib/utils";
 
 import type { Prisma } from "@prisma/client";
 
 export const metadata = { title: "Charges" };
 export const dynamic = "force-dynamic";
 
-const CATEGORIE_LABEL: Record<string, string> = {
-  LOYER: "Loyer",
-  SOFTWARE_SAAS: "Software",
-  MARKETING: "Marketing",
-  PUBLICITE: "Publicité",
-  DEPLACEMENTS: "Déplacements",
-  RESTAURATION: "Restauration",
-  MATERIEL_BUREAU: "Matériel",
-  ASSURANCES: "Assurances",
-  TELECOM: "Télécom",
-  FORMATION: "Formation",
-  HONORAIRES: "Honoraires",
-  IMPOTS: "Impôts",
-  BANQUE_FRAIS: "Frais bancaires",
-  AUTRE: "Autre",
-};
-
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
+
+const ROW_ACTION =
+  "inline-flex h-9 items-center gap-1 rounded-[10px] border border-border-strong bg-card px-2.5 text-xs font-bold text-foreground transition-colors hover:bg-navy-50";
 
 export default async function ChargesPage({ searchParams }: PageProps) {
   await requireAdmin();
@@ -188,129 +207,142 @@ export default async function ChargesPage({ searchParams }: PageProps) {
     .slice(0, 12);
   const postesMax = postes[0]?.total ?? 0;
 
+  const hasFilters = !!(q || filterCat || filterPeriode || filterStatut);
+
   return (
-    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+    <PageShell>
       <PageHeader
+        rubrique="finance"
         title="Charges"
         description="Suivi des charges de l'entreprise (tickets, factures fournisseurs)."
         actions={
-          <div className="flex items-center gap-2">
+          <>
             <Link
               href="/charges/recurrences"
-              className={buttonVariants({ variant: "outline" })}
+              className={buttonVariants({ variant: "outline", size: "lg" })}
             >
-              <Icon name="Repeat" className="mr-1.5 h-4 w-4" />
+              <Repeat aria-hidden="true" />
               Modèles récurrents
             </Link>
             <Link
               href={buildExportUrl(raw)}
-              className={buttonVariants({ variant: "outline" })}
+              className={buttonVariants({ variant: "outline", size: "lg" })}
             >
-              <Icon name="Upload" className="mr-1.5 h-4 w-4 rotate-180" />
+              <Download aria-hidden="true" />
               Exporter CSV
             </Link>
             <Link
               href="/charges/nouveau"
-              className={buttonVariants({ variant: "default" })}
+              className={buttonVariants({ variant: "default", size: "lg" })}
             >
-              <Icon name="Plus" className="mr-1.5 h-4 w-4" />
+              <Plus aria-hidden="true" />
               Nouvelle charge
             </Link>
-          </div>
+          </>
         }
       />
 
       {/* KPIs */}
-      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
           label="Charges ce mois"
-          value={formatCHF(Number(statsMonth._sum.montantTTC ?? 0))}
-          subtitle={`${statsMonth._count} ticket(s)`}
+          value={<ChfValue amount={Number(statsMonth._sum.montantTTC ?? 0)} />}
+          sub={`${statsMonth._count} ticket(s)`}
+          tone="navy"
+          icon={CalendarDays}
+          href="/charges?periode=month"
         />
-        <Kpi
+        <StatTile
           label="Charges YTD"
-          value={formatCHF(ttcYear)}
-          subtitle={`${statsYear._count} ticket(s) cumulés`}
-          tone="primary"
+          value={<ChfValue amount={ttcYear} />}
+          sub={`${statsYear._count} ticket(s) cumulés`}
+          tone="red"
+          icon={Wallet}
+          href="/charges?periode=ytd"
         />
-        <Kpi
+        <StatTile
           label="À réconcilier"
-          value={`${enAttente._count}`}
-          subtitle={
+          value={enAttente._count}
+          sub={
             enAttente._count > 0
               ? `${formatCHF(Number(enAttente._sum.montantTTC ?? 0))} en attente de débit`
-              : "Tout est à jour ✓"
+              : "Tout est à jour"
           }
-          tone={enAttente._count > 0 ? "amber" : "emerald"}
+          tone={enAttente._count > 0 ? "gold" : "green"}
+          icon={enAttente._count > 0 ? Hourglass : CircleCheck}
+          href={enAttente._count > 0 ? "/charges?statut=EN_ATTENTE" : undefined}
         />
-        <Kpi
+        <StatTile
           label="Top catégorie YTD"
           value={
-            byCategorie[0]
-              ? CATEGORIE_LABEL[byCategorie[0].categorie] ??
-                byCategorie[0].categorie
-              : "—"
+            byCategorie[0] ? (
+              <span className="text-[26px] sm:text-[30px]">
+                {CATEGORIE_LABEL[byCategorie[0].categorie] ??
+                  byCategorie[0].categorie}
+              </span>
+            ) : (
+              <span className="text-[26px] text-muted-foreground">Aucune</span>
+            )
           }
-          subtitle={
+          sub={
             byCategorie[0]
               ? formatCHF(Number(byCategorie[0]._sum.montantTTC ?? 0))
               : "Aucune charge"
           }
+          tone="violet"
+          icon={Tag}
         />
       </div>
 
       {/* Vue d'ensemble : plus gros postes cumulés sur l'année */}
       {postes.length > 0 && (
-        <Card className="mb-6">
-          <CardContent className="py-4">
-            <div className="mb-3 flex items-baseline justify-between">
-              <p className="text-sm font-semibold">
-                Plus gros postes — année {now.getFullYear()}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                cumul (récurrences comprises) · {formatCHF(ttcYear)} au total
-              </p>
-            </div>
-            <ul className="space-y-1.5">
-              {postes.map((p) => {
-                const pct = ttcYear > 0 ? (p.total / ttcYear) * 100 : 0;
-                const barPct =
-                  postesMax > 0 ? (p.total / postesMax) * 100 : 0;
-                return (
-                  <li
-                    key={p.fournisseur ?? "—"}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-medium">
-                          {p.fournisseur ?? "Sans fournisseur"}
-                        </span>
-                        <span className="shrink-0 text-[11px] text-muted-foreground">
-                          {p.count} charge(s) · {pct.toFixed(0)}%
-                        </span>
-                      </div>
-                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full bg-primary/70"
-                          style={{ width: `${barPct}%` }}
-                        />
-                      </div>
-                    </div>
-                    <span className="text-right text-sm font-semibold tabular-nums">
+        <SectionCard
+          className="mb-6"
+          title={`Plus gros postes · année ${now.getFullYear()}`}
+          description={`Cumul (récurrences comprises) · ${formatCHF(ttcYear)} au total`}
+          icon={ListOrdered}
+          tone="navy"
+        >
+          <ul className="grid gap-x-8 gap-y-3 lg:grid-cols-2">
+            {postes.map((p) => {
+              const pct = ttcYear > 0 ? (p.total / ttcYear) * 100 : 0;
+              const barPct = postesMax > 0 ? (p.total / postesMax) * 100 : 0;
+              return (
+                <li key={p.fournisseur ?? "sans-fournisseur"} className="min-w-0">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 truncate text-sm font-bold">
+                      {p.fournisseur ?? "Sans fournisseur"}
+                    </span>
+                    <span className="shrink-0 text-sm font-extrabold tabular-nums">
                       {formatCHF(p.total)}
                     </span>
-                  </li>
-                );
-              })}
-            </ul>
-            <p className="mt-3 text-[11px] text-muted-foreground">
-              💡 Chaque charge récurrente (ex. Google Ads mensuel) est comptée
-              une seule fois par mois — le total ci-dessus est bien le cumul
-              réel, sans double comptage.
-            </p>
-          </CardContent>
-        </Card>
+                  </div>
+                  <div
+                    role="progressbar"
+                    aria-label={`${p.fournisseur ?? "Sans fournisseur"} : ${pct.toFixed(0)} % des charges de l'année`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(pct)}
+                    className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-navy-50"
+                  >
+                    <div
+                      className="h-full rounded-full bg-navy-500 transition-[width] duration-700 motion-safe:animate-meter-fill"
+                      style={{ width: `${barPct}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs font-medium text-muted-foreground">
+                    {p.count} charge(s) · {pct.toFixed(0)} % du total
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+          <Callout tone="blue" icon={Lightbulb} className="mt-5">
+            Chaque charge récurrente (ex. Google Ads mensuel) est comptée une
+            seule fois par mois : le total ci-dessus est bien le cumul réel,
+            sans double comptage.
+          </Callout>
+        </SectionCard>
       )}
 
       {/* Filtres */}
@@ -319,95 +351,95 @@ export default async function ChargesPage({ searchParams }: PageProps) {
       </div>
 
       {/* Liste */}
-      <Card>
-        <CardContent className="p-0">
-          {/* Vue CARTES sur mobile */}
-          <div className="divide-y divide-border md:hidden">
-            {expenses.length === 0 ? (
-              <p className="px-4 py-12 text-center text-muted-foreground">
-                Aucune charge enregistrée.
-              </p>
-            ) : (
-              expenses.map((e) => (
-                <div key={e.id} className="p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="flex items-center gap-1.5 text-sm font-medium">
-                        <span className="truncate">{e.fournisseur ?? "—"}</span>
-                        {e.recurrenceId && (
-                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-primary">
-                            <Icon name="Repeat" className="h-2.5 w-2.5" />
-                            récur.
-                          </span>
-                        )}
-                      </p>
-                      {e.description && (
-                        <p className="truncate text-[11px] text-muted-foreground">
-                          {e.description}
-                        </p>
-                      )}
-                    </div>
-                    <p className="shrink-0 font-semibold tabular-nums">
-                      {formatCHF(Number(e.montantTTC))}
+      <SectionCard
+        className="overflow-hidden"
+        title="Liste des charges"
+        description={
+          expenses.length >= 100
+            ? "Les 100 premières selon le tri choisi"
+            : `${expenses.length} charge(s)${hasFilters ? " pour ces filtres" : ""}`
+        }
+        icon={ReceiptText}
+        tone="navy"
+        contentClassName="-mx-5 -mb-5 sm:-mx-6 sm:-mb-6"
+      >
+        {/* Vue CARTES sur mobile */}
+        <div className="divide-y divide-border border-t border-border md:hidden">
+          {expenses.length === 0 ? (
+            <div className="p-4">
+              <EmptyCharges hasFilters={hasFilters} />
+            </div>
+          ) : (
+            expenses.map((e) => (
+              <div key={e.id} className="px-4 py-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="flex min-w-0 items-center gap-1.5 text-sm font-bold">
+                      <span className="truncate">{e.fournisseur ?? "Sans fournisseur"}</span>
+                      {e.recurrenceId && <RecurringChip short />}
                     </p>
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
-                    <StatutBadge statut={e.statutPaiement} />
-                    <Badge variant="secondary" className="font-normal">
-                      {CATEGORIE_LABEL[e.categorie] ?? e.categorie}
-                    </Badge>
-                    <span className="tabular-nums text-muted-foreground">
-                      {formatDate(e.date)}
-                    </span>
-                    {e.prospect ? (
-                      <Link
-                        href={`/prospects/${e.prospect.id}`}
-                        className="text-primary hover:underline"
-                      >
-                        {e.prospect.raisonSociale}
-                      </Link>
-                    ) : e.allocations.length > 0 ? (
-                      <span className="text-primary">
-                        {e.allocations.length} client(s)
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">interne</span>
+                    {e.description && (
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        {e.description}
+                      </p>
                     )}
                   </div>
-                  <div className="mt-2 flex items-center gap-1.5">
-                    {e.ticketUrl && (
-                      <DocumentPreviewButton
-                        url={e.ticketUrl}
-                        filename={e.ticketName ?? undefined}
-                        label="Ticket"
-                        icon="Eye"
-                      />
-                    )}
-                    {e.statutPaiement === "EN_ATTENTE" && (
-                      <MarkPaidButton
-                        expenseId={e.id}
-                        defaultDate={e.date.toISOString().slice(0, 10)}
-                      />
-                    )}
-                    <Link
-                      href={`/charges/${e.id}`}
-                      className="inline-flex h-6 items-center gap-0.5 rounded border border-border bg-background px-2 text-[11px] hover:bg-muted"
-                    >
-                      <Icon name="Pencil" className="h-3 w-3" />
-                      Détail
-                    </Link>
-                  </div>
+                  <p className="shrink-0 text-[15px] font-extrabold tabular-nums">
+                    {formatCHF(Number(e.montantTTC))}
+                  </p>
                 </div>
-              ))
-            )}
-          </div>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                  <ExpenseStatutPill statut={e.statutPaiement} />
+                  <CategoryChip categorie={e.categorie} />
+                  <span className="font-medium text-muted-foreground tabular-nums">
+                    {formatDate(e.date)}
+                  </span>
+                  {e.prospect ? (
+                    <Link
+                      href={`/prospects/${e.prospect.id}`}
+                      className="font-bold text-info-700 hover:underline"
+                    >
+                      {e.prospect.raisonSociale}
+                    </Link>
+                  ) : e.allocations.length > 0 ? (
+                    <span className="font-bold text-info-700">
+                      {e.allocations.length} client(s)
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">interne</span>
+                  )}
+                </div>
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                  {e.ticketUrl && (
+                    <DocumentPreviewButton
+                      url={e.ticketUrl}
+                      filename={e.ticketName ?? undefined}
+                      label="Ticket"
+                      icon="Eye"
+                    />
+                  )}
+                  {e.statutPaiement === "EN_ATTENTE" && (
+                    <MarkPaidButton
+                      expenseId={e.id}
+                      defaultDate={e.date.toISOString().slice(0, 10)}
+                    />
+                  )}
+                  <Link href={`/charges/${e.id}`} className={ROW_ACTION}>
+                    <Pencil aria-hidden="true" className="size-3.5" />
+                    Détail
+                  </Link>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
 
-          {/* Vue TABLEAU sur desktop */}
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full text-sm">
-            <thead className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+        {/* Vue TABLEAU sur desktop */}
+        <TableScroll label="Liste des charges" className="hidden md:block">
+          <table className={TABLE_CLASS}>
+            <thead className={THEAD_CLASS}>
               <tr>
-                <Th>
+                <Th className="pl-5 sm:pl-6">
                   <SortableHeader
                     label="Date"
                     field="date"
@@ -415,8 +447,8 @@ export default async function ChargesPage({ searchParams }: PageProps) {
                     defaultDir="desc"
                   />
                 </Th>
-                <Th className="hidden md:table-cell">Statut</Th>
-                <Th className="hidden sm:table-cell">
+                <Th>Statut</Th>
+                <Th>
                   <SortableHeader
                     label="Catégorie"
                     field="categorie"
@@ -431,7 +463,7 @@ export default async function ChargesPage({ searchParams }: PageProps) {
                   />
                 </Th>
                 <Th className="hidden lg:table-cell">Client</Th>
-                <Th className="hidden text-right md:table-cell">
+                <Th className="text-right">
                   <SortableHeader
                     label="HT"
                     field="montantHT"
@@ -447,72 +479,56 @@ export default async function ChargesPage({ searchParams }: PageProps) {
                     defaultDir="desc"
                   />
                 </Th>
-                <Th className="hidden sm:table-cell">Ticket</Th>
-                <Th className="text-right">Actions</Th>
+                <Th>Ticket</Th>
+                <Th className="pr-5 text-right sm:pr-6">Actions</Th>
               </tr>
             </thead>
             <tbody>
               {expenses.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={9}
-                    className="px-3 py-12 text-center text-muted-foreground"
-                  >
-                    Aucune charge enregistrée.
-                  </td>
-                </tr>
+                <TableEmptyRow colSpan={9}>
+                  <EmptyCharges hasFilters={hasFilters} />
+                </TableEmptyRow>
               ) : (
                 expenses.map((e) => (
-                  <tr
-                    key={e.id}
-                    className="border-b border-border last:border-0 hover:bg-muted/30"
-                  >
-                    <td className="px-3 py-2 text-xs tabular-nums">
-                      {formatDate(e.date)}
+                  <tr key={e.id} className={TR_CLASS}>
+                    <Td className="pl-5 text-xs whitespace-nowrap tabular-nums sm:pl-6">
+                      <span className="font-semibold">{formatDate(e.date)}</span>
                       {e.dateReglement && (
-                        <div className="text-[10px] text-muted-foreground">
+                        <div className="text-[11px] text-muted-foreground">
                           réglé {formatDate(e.dateReglement)}
                         </div>
                       )}
-                    </td>
-                    <td className="hidden px-3 py-2 md:table-cell">
-                      <StatutBadge statut={e.statutPaiement} />
-                    </td>
-                    <td className="hidden px-3 py-2 sm:table-cell">
-                      <Badge variant="secondary" className="font-normal">
-                        {CATEGORIE_LABEL[e.categorie] ?? e.categorie}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-2">
-                      <p className="flex items-center gap-1.5 text-sm font-medium">
-                        {e.fournisseur ?? "—"}
-                        {e.recurrenceId && (
-                          <span
-                            className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary"
-                            title="Charge générée par un modèle récurrent — à rapprocher du débit réel, pas à dupliquer."
-                          >
-                            <Icon name="Repeat" className="h-2.5 w-2.5" />
-                            récurrent
-                          </span>
-                        )}
+                    </Td>
+                    <Td>
+                      <ExpenseStatutPill statut={e.statutPaiement} />
+                    </Td>
+                    <Td>
+                      <CategoryChip categorie={e.categorie} />
+                    </Td>
+                    <Td className="max-w-[280px]">
+                      <p className="flex min-w-0 items-center gap-1.5 text-[13px] font-bold">
+                        <span className="truncate">
+                          {e.fournisseur ?? "Sans fournisseur"}
+                        </span>
+                        {e.recurrenceId && <RecurringChip />}
                       </p>
                       {e.description && (
-                        <p className="truncate text-[11px] text-muted-foreground">
+                        <p className="truncate text-xs text-muted-foreground">
                           {e.description}
                         </p>
                       )}
-                    </td>
-                    <td className="hidden px-3 py-2 lg:table-cell">
+                    </Td>
+                    <Td className="hidden lg:table-cell">
                       {e.prospect ? (
                         <Link
                           href={`/prospects/${e.prospect.id}`}
-                          className="text-xs font-medium hover:text-primary"
+                          className="text-xs font-bold text-info-700 hover:underline"
                         >
                           {e.prospect.raisonSociale}
                         </Link>
                       ) : e.allocations.length > 0 ? (
                         <span
-                          className="inline-flex items-center gap-1 text-[10px] text-primary"
+                          className="inline-flex items-center gap-1 text-xs font-bold text-info-700"
                           title={e.allocations
                             .map(
                               (a) =>
@@ -520,24 +536,22 @@ export default async function ChargesPage({ searchParams }: PageProps) {
                             )
                             .join("\n")}
                         >
-                          <Icon name="Users" className="h-3 w-3" />
+                          <Users aria-hidden="true" className="size-3.5" />
                           {e.allocations.length} client(s)
                         </span>
                       ) : (
-                        <span className="text-[10px] text-muted-foreground">
-                          interne
-                        </span>
+                        <span className="text-xs text-muted-foreground">interne</span>
                       )}
-                    </td>
-                    <td className="hidden px-3 py-2 text-right tabular-nums text-xs md:table-cell">
+                    </Td>
+                    <Td className="text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums">
                       {formatCHF(Number(e.montantHT))}
-                    </td>
-                    <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                    </Td>
+                    <Td className="text-right font-extrabold whitespace-nowrap tabular-nums">
                       {formatCHF(Number(e.montantTTC))}
-                    </td>
-                    <td className="hidden px-3 py-2 sm:table-cell">
+                    </Td>
+                    <Td>
                       {e.ticketUrl ? (
-                        <div className="inline-flex items-center gap-1">
+                        <div className="inline-flex items-center gap-1.5">
                           <DocumentPreviewButton
                             url={e.ticketUrl}
                             filename={e.ticketName ?? undefined}
@@ -545,29 +559,28 @@ export default async function ChargesPage({ searchParams }: PageProps) {
                             icon="Eye"
                           />
                           {e.ocrUtilise && (
-                            <Icon
-                              name="Sparkles"
-                              className="h-3 w-3 text-primary"
-                              aria-label="OCR pré-rempli"
+                            <Sparkles
+                              className="size-3.5 text-lvl-700"
+                              aria-label="Pré-rempli par l'IA"
+                              role="img"
                             />
                           )}
                           {e.attachments.length > 0 && (
                             <span
-                              className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary"
+                              className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-navy-100 px-1.5 text-[11px] font-extrabold text-navy-700"
                               title={`${e.attachments.length} pièce(s) jointe(s) complémentaire(s)`}
                             >
                               +{e.attachments.length}
+                              <span className="sr-only"> pièce(s) jointe(s)</span>
                             </span>
                           )}
                         </div>
                       ) : (
-                        <span className="text-[11px] text-muted-foreground">
-                          —
-                        </span>
+                        <span className="text-xs text-muted-foreground">Aucun</span>
                       )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center justify-end gap-1">
+                    </Td>
+                    <Td className="pr-5 sm:pr-6">
+                      <div className="flex items-center justify-end gap-1.5">
                         {e.statutPaiement === "EN_ATTENTE" && (
                           <MarkPaidButton
                             expenseId={e.id}
@@ -576,117 +589,56 @@ export default async function ChargesPage({ searchParams }: PageProps) {
                         )}
                         <Link
                           href={`/charges/${e.id}`}
-                          className="inline-flex h-6 items-center gap-0.5 rounded border border-border bg-background px-1.5 text-[10px] hover:bg-muted"
+                          className={cn(ROW_ACTION, "w-9 justify-center px-0")}
                           title="Détail"
+                          aria-label={`Détail de la charge ${e.fournisseur ?? ""}`.trim()}
                         >
-                          <Icon name="Pencil" className="h-3 w-3" />
+                          <Pencil aria-hidden="true" className="size-3.5" />
                         </Link>
                       </div>
-                    </td>
+                    </Td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
-          </div>
-        </CardContent>
-      </Card>
+        </TableScroll>
+      </SectionCard>
 
-      <p className="mt-4 text-xs text-muted-foreground">
-        💡 Pour ajouter une charge : prends le ticket en photo, clique{" "}
+      <Callout tone="violet" icon={Sparkles} className="mt-4">
+        Pour ajouter une charge : prends le ticket en photo, clique{" "}
         <strong>« Nouvelle charge »</strong>, charge la photo et utilise{" "}
         <strong>« Analyser le ticket (IA) »</strong> pour pré-remplir
         automatiquement les champs.
-      </p>
-    </div>
+      </Callout>
+    </PageShell>
   );
 }
 
-function Kpi({
-  label,
-  value,
-  subtitle,
-  tone,
-}: {
-  label: string;
-  value: string;
-  subtitle?: string;
-  tone?: "emerald" | "primary" | "amber";
-}) {
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">
-          {label}
-        </p>
-        <p
-          className={`mt-1 text-2xl font-semibold tabular-nums ${
-            tone === "emerald"
-              ? "text-emerald-700"
-              : tone === "amber"
-                ? "text-amber-700"
-                : tone === "primary"
-                  ? "text-primary"
-                  : ""
-          }`}
+function EmptyCharges({ hasFilters }: { hasFilters: boolean }) {
+  return hasFilters ? (
+    <EmptyState
+      icon={ReceiptText}
+      tone="navy"
+      title="Aucune charge pour ces filtres"
+      description="Élargis la période ou réinitialise les filtres pour tout revoir."
+    />
+  ) : (
+    <EmptyState
+      icon={ReceiptText}
+      tone="navy"
+      title="Aucune charge enregistrée"
+      description="Ajoute ton premier ticket : l'IA pré-remplit les champs depuis la photo."
+      action={
+        <Link
+          href="/charges/nouveau"
+          className={buttonVariants({ variant: "default", size: "lg" })}
         >
-          {value}
-        </p>
-        {subtitle && (
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {subtitle}
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function Th({
-  children,
-  className,
-}: {
-  children?: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <th
-      className={`px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground ${className ?? ""}`}
-    >
-      {children}
-    </th>
-  );
-}
-
-function StatutBadge({ statut }: { statut: string }) {
-  const config: Record<
-    string,
-    { label: string; cls: string }
-  > = {
-    EN_ATTENTE: {
-      label: "En attente",
-      cls: "bg-amber-100 text-amber-800 border-amber-200",
-    },
-    PAYE: {
-      label: "Payé",
-      cls: "bg-emerald-100 text-emerald-800 border-emerald-200",
-    },
-    LITIGE: {
-      label: "Litige",
-      cls: "bg-rose-100 text-rose-800 border-rose-200",
-    },
-    REMBOURSE: {
-      label: "Remboursé",
-      cls: "bg-blue-100 text-blue-800 border-blue-200",
-    },
-  };
-  const c = config[statut] ?? config.EN_ATTENTE;
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${c.cls}`}
-    >
-      {c.label}
-    </span>
+          <Plus aria-hidden="true" />
+          Nouvelle charge
+        </Link>
+      }
+    />
   );
 }
 

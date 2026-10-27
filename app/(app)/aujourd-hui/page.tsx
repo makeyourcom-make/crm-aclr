@@ -1,118 +1,151 @@
+import { Gauge } from "lucide-react";
 import { redirect } from "next/navigation";
 
-import { DailyGoalsBanner } from "@/components/today/daily-goals-banner";
+import { PageHeader } from "@/components/page-header";
+import { CallQueue } from "@/components/today/call-queue";
+import { DayCountersCard, type DayTargets } from "@/components/today/day-counters";
+import { MissionCelebration } from "@/components/today/mission-celebration";
+import { RdvReminder } from "@/components/today/rdv-reminder";
+import { RdvValidation } from "@/components/today/rdv-validation";
+import { RelancesCard } from "@/components/today/relances-card";
+import { ShortcutsHelp } from "@/components/today/shortcuts-help";
+import { TodayHero } from "@/components/today/today-hero";
 import { TodayList } from "@/components/today/today-list";
 import { TodayShortcuts } from "@/components/today/today-shortcuts";
-import { WeekSidebar } from "@/components/today/week-sidebar";
+import { TomorrowPreview } from "@/components/today/tomorrow-preview";
+import { WeekSidebar, type WeeklyGoals } from "@/components/today/week-sidebar";
 import { DEFAULT_DAILY_GOALS, DEFAULT_WEEKLY_GOALS } from "@/lib/constants";
-import { prisma } from "@/lib/db";
+import { getPlayerStats } from "@/lib/gamification";
+import { DEFAULT_DAILY_TARGETS, type PlayerStats } from "@/lib/gamification/rules";
 import { getTodayCockpit } from "@/lib/queries/today";
 import { requireUser } from "@/lib/session";
 
-export const metadata = { title: "Aujourd'hui" };
+export const metadata = { title: "Ma journée" };
 export const dynamic = "force-dynamic";
+
+/** Le moteur de jeu ne doit jamais casser la feuille de route. */
+async function loadStats(userId: string): Promise<PlayerStats | null> {
+  try {
+    return await getPlayerStats(userId);
+  } catch (err) {
+    console.error("[aujourd-hui] getPlayerStats a échoué :", err);
+    return null;
+  }
+}
+
+const positive = (v: number | null | undefined): v is number => v != null && v > 0;
 
 export default async function AujourdhuiPage() {
   const user = await requireUser();
-  // Page strictement terrain : Arthur n'a pas à voir les tâches de Sophie
+  // Page strictement terrain : Arthur n'a pas à voir les tâches de l'équipe
   // ni des objectifs personnels. Redirige vers son dashboard.
   if (user.role === "ADMIN") {
     redirect("/");
   }
-  const cockpit = await getTodayCockpit(user);
 
-  // Objectif QUOTIDIEN actif du collaborateur → cibles du jour (sinon défauts).
-  const now = new Date();
-  const objQuotidien = await prisma.objective.findFirst({
-    where: {
-      userId: user.id,
-      periode: "QUOTIDIEN",
-      isActif: true,
-      dateDebut: { lte: now },
-      dateFin: { gte: now },
-    },
-    orderBy: { dateFin: "desc" },
-  });
-  const dailyGoals = {
-    appels: objQuotidien?.nbAppelsObjectif ?? DEFAULT_DAILY_GOALS.appels,
-    emails: objQuotidien?.nbEmailsObjectif ?? DEFAULT_DAILY_GOALS.emails,
-    rdv: objQuotidien?.nbRdvObjectif ?? DEFAULT_DAILY_GOALS.rdv,
-    propositions:
-      objQuotidien?.nbPropositionsObjectif ?? DEFAULT_DAILY_GOALS.propositions,
+  const [cockpit, stats] = await Promise.all([getTodayCockpit(user), loadStats(user.id)]);
+  const { sections, now } = cockpit;
+
+  // Cibles du jour : missions du moteur (objectif QUOTIDIEN actif, sinon
+  // 40 appels / 3 RDV / 1 proposition), emails depuis l'objectif quotidien.
+  const missionTarget = (key: "appels" | "rdvPris" | "propositions") =>
+    stats?.missions.find((m) => m.key === key)?.target ?? DEFAULT_DAILY_TARGETS[key];
+  const objEmails = cockpit.objectif?.emails;
+  const objSignatures = cockpit.objectif?.signatures;
+  const emailsTarget = positive(objEmails) ? objEmails : DEFAULT_DAILY_GOALS.emails;
+  const dayTargets: DayTargets = {
+    appels: missionTarget("appels"),
+    rdvPris: missionTarget("rdvPris"),
+    rdvEffectues: missionTarget("rdvPris"),
+    propositions: missionTarget("propositions"),
+    emails: emailsTarget,
   };
-  // Hebdo = objectif quotidien × 5 jours ouvrés (sinon défauts hebdo).
-  const weeklyGoals = objQuotidien
-    ? {
-        appels: dailyGoals.appels * 5,
-        emails: dailyGoals.emails * 5,
-        rdv: dailyGoals.rdv * 5,
-        signatures:
-          (objQuotidien.nbSignaturesObjectif ?? 0) > 0
-            ? objQuotidien.nbSignaturesObjectif! * 5
-            : DEFAULT_WEEKLY_GOALS.signatures,
-      }
-    : DEFAULT_WEEKLY_GOALS;
 
-  const todayLabel = new Date().toLocaleDateString("fr-CH", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  // Hebdo = objectif quotidien × jours ouvrés de la semaine.
+  const jours = Math.max(1, cockpit.semaine.joursOuvres);
+  const weeklyGoals: WeeklyGoals = {
+    appels: dayTargets.appels * jours,
+    emails: emailsTarget * jours,
+    rdv: dayTargets.rdvPris * jours,
+    signatures: positive(objSignatures)
+      ? objSignatures * jours
+      : DEFAULT_WEEKLY_GOALS.signatures,
+  };
+
+  const retards = sections.enRetard.length;
+  const rappels = [
+    ...sections.enRetard,
+    ...sections.maintenant,
+    ...sections.ceMatin,
+    ...sections.cetApresMidi,
+    ...sections.ceSoir,
+  ].filter((t) => t.kind === "call").length;
+  const rdvAValiderAujourdhui = cockpit.rdvAValider.filter((r) => r.isToday).length;
+
+  const firstName = stats?.firstName || user.name.split(" ")[0];
 
   return (
-    <>
+    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <TodayShortcuts />
+      {stats && (
+        <MissionCelebration missions={stats.missions} todayKey={now.todayKey} firstName={firstName} />
+      )}
 
-      <DailyGoalsBanner counters={cockpit.jour} goals={dailyGoals} />
+      <PageHeader
+        title="Ma journée"
+        description={`Bonjour ${firstName} · ${now.jour} ${now.date} · ta feuille de route, triée par urgence`}
+      />
 
-      <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Bonjour {user.name.split(" ")[0]}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground capitalize">
-            {todayLabel}
-          </p>
-        </div>
+      <div className="flex flex-col gap-6">
+        {stats ? (
+          <TodayHero
+            stats={stats}
+            now={now}
+            retards={retards}
+            rappels={rappels}
+            premierAppelMs={cockpit.premierAppelMs}
+          />
+        ) : (
+          <div
+            role="status"
+            className="flex items-center gap-3 rounded-[16px] border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-arena"
+          >
+            <Gauge aria-hidden="true" className="size-5 shrink-0 text-subtle" />
+            Scores et missions momentanément indisponibles : ta feuille de route reste à jour.
+          </div>
+        )}
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
-          {/* Colonne principale — la liste d'actions */}
-          <div>
-            <TodayList
-              sections={cockpit.sections}
-              counters={cockpit.jour}
-              goals={dailyGoals}
-            />
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="flex min-w-0 flex-col gap-6">
+            <TodayList sections={sections} missions={stats?.missions ?? null} today={stats?.today ?? null} />
+            <CallQueue sections={sections} />
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(320px,100%),1fr))] items-start gap-6">
+              <RdvValidation items={cockpit.rdvAValider} />
+              <RelancesCard items={cockpit.relances.items} total={cockpit.relances.total} />
+            </div>
           </div>
 
-          {/* Sidebar droite — compteurs hebdo */}
-          <aside className="space-y-4">
-            <WeekSidebar counters={cockpit.semaine} goals={weeklyGoals} />
-
-            {/* Aide raccourcis clavier */}
-            <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
-              <p className="mb-2 font-medium text-foreground">
-                Raccourcis clavier
-              </p>
-              <ul className="space-y-1">
-                <li>
-                  <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px]">
-                    c
-                  </kbd>{" "}
-                  appeler le prochain prospect
-                </li>
-                <li>
-                  <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px]">
-                    Espace
-                  </kbd>{" "}
-                  marquer la prochaine tâche faite
-                </li>
-              </ul>
-            </div>
+          <aside aria-label="Compteurs et semaine" className="flex min-w-0 flex-col gap-6">
+            {stats && (
+              <DayCountersCard
+                today={stats.today}
+                targets={dayTargets}
+                veille={cockpit.veille}
+                rdvAValider={rdvAValiderAujourdhui}
+              />
+            )}
+            <RdvReminder items={cockpit.rdvAValider} />
+            <WeekSidebar
+              semaine={cockpit.semaine}
+              goals={weeklyGoals}
+              jour={now.jour}
+              isWorkingDay={now.isWorkingDay}
+            />
+            <TomorrowPreview items={sections.demain} />
+            <ShortcutsHelp />
           </aside>
         </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -1,19 +1,19 @@
 "use client";
 
 /**
- * Dialog "Signer le contrat" — 3 chemins possibles.
+ * Dialog "Signer le contrat" - 3 chemins possibles.
  *
  * Sophie est face client (ou au bureau, peu importe). Elle remplit les
  * paramètres du contrat puis choisit :
  *
- *   📱  Signer par QR code → ouvre la page du contrat avec les QR codes
+ *   Signer par QR code → ouvre la page du contrat avec les QR codes
  *                            (client + commercial) à scanner au téléphone ;
  *                            le lien de signature sur écran reste dispo dessous
  *
- *   📧  Envoyer par email → envoie au prospect le lien de signature +
+ *   Envoyer par email → envoie au prospect le lien de signature +
  *                           le PDF complet, le client signe quand il veut
  *
- *   💾  Télécharger le PDF → récupère un PDF prêt à imprimer pour
+ *   Télécharger le PDF → récupère un PDF prêt à imprimer pour
  *                            faire signer à la main / scanner / archiver
  *
  * Dans les 3 cas, le contrat est créé immédiatement et la cascade
@@ -27,6 +27,7 @@ import {
   sendSignatureByEmail,
   signDealInPerson,
 } from "@/app/(app)/contrats/actions";
+import { xpToast } from "@/components/arena";
 import { Icon } from "@/components/icon";
 import {
   Dialog,
@@ -37,12 +38,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { XP_RULES } from "@/lib/gamification/rules";
 
 interface SignDealInPersonButtonProps {
   dealId: string;
   hasExistingContract?: boolean;
+  /**
+   * La personne connectée est la commerciale du deal : la création du
+   * contrat (proposition) lui rapporte des XP → toast XP.
+   */
+  rewardXp?: boolean;
 }
 
 const MODALITES = [
@@ -56,6 +64,7 @@ type Action = "sign-now" | "email" | "download" | null;
 export function SignDealInPersonButton({
   dealId,
   hasExistingContract,
+  rewardXp = false,
 }: SignDealInPersonButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -96,11 +105,16 @@ export function SignDealInPersonButton({
       }
       toast.success(
         res.numero
-          ? `Contrat ${res.numero} créé — QR codes de signature prêts.`
+          ? `Contrat ${res.numero} créé · QR codes de signature prêts.`
           : "QR codes de signature prêts.",
       );
+      if (rewardXp) {
+        xpToast(XP_RULES.proposition, "Proposition envoyée !", res.numero ?? undefined);
+      }
       setOpen(false);
       router.push(`/contrats/${res.contractId}`);
+      // Coquille (pilules XP / série) à jour après la création du contrat.
+      router.refresh();
     });
   };
 
@@ -119,7 +133,15 @@ export function SignDealInPersonButton({
           ? `[Dry-run] Mail simulé vers ${res.emailDest}.`
           : `Mail envoyé à ${res.emailDest}.`,
       );
+      if (rewardXp) {
+        xpToast(
+          XP_RULES.proposition + XP_RULES.email,
+          "Proposition envoyée !",
+          res.emailDest ? `Par email à ${res.emailDest}` : undefined,
+        );
+      }
       setOpen(false);
+      router.refresh();
     });
   };
 
@@ -135,7 +157,7 @@ export function SignDealInPersonButton({
       }
       toast.success(
         res.numero
-          ? `Contrat ${res.numero} prêt — téléchargement en cours.`
+          ? `Contrat ${res.numero} prêt · téléchargement en cours.`
           : "PDF en cours de téléchargement.",
       );
       // Ouvre le PDF dans un nouvel onglet (le navigateur déclenche le DL)
@@ -144,7 +166,11 @@ export function SignDealInPersonButton({
         "_blank",
         "noopener",
       );
+      if (rewardXp) {
+        xpToast(XP_RULES.proposition, "Proposition prête !", res.numero ?? undefined);
+      }
       setOpen(false);
+      router.refresh();
     });
   };
 
@@ -152,16 +178,18 @@ export function SignDealInPersonButton({
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="hero"
+        size="lg"
         onClick={() => setOpen(true)}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
+        className="w-full"
       >
-        <Icon name="PenTool" className="h-4 w-4" />
+        <Icon name="PenTool" className="size-5" />
         {hasExistingContract
           ? "Rouvrir la signature"
           : "Signer le contrat"}
-      </button>
+      </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-lg">
@@ -186,7 +214,7 @@ export function SignDealInPersonButton({
                     e.target.value as (typeof MODALITES)[number]["value"],
                   )
                 }
-                className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs"
+                className="mt-1 flex h-9 w-full rounded-[12px] border border-input bg-card px-3 text-sm shadow-xs"
               >
                 {MODALITES.map((m) => (
                   <option key={m.value} value={m.value}>
@@ -227,14 +255,17 @@ export function SignDealInPersonButton({
               </div>
             </div>
 
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              ⚠ Une fois le contrat créé, la cascade s&apos;exécute (commission,
-              factures). Arthur sera notifié.
+            <div className="flex items-start gap-2 rounded-[12px] border border-gold-500/40 bg-gold-50 p-3 text-xs font-semibold text-gold-700">
+              <Icon name="AlertTriangle" className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                Une fois le contrat créé, la cascade s&apos;exécute (commission,
+                factures). Arthur sera notifié.
+              </span>
             </div>
 
-            {/* Mode de signature — 3 actions */}
+            {/* Mode de signature - 3 actions */}
             <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <p className="mb-2 text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
                 Comment veux-tu faire signer ?
               </p>
               <div className="grid gap-2 sm:grid-cols-3">
@@ -275,7 +306,7 @@ export function SignDealInPersonButton({
                 <button
                   type="button"
                   disabled={pending}
-                  className="inline-flex h-9 items-center rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted disabled:opacity-50"
+                  className={buttonVariants({ variant: "outline" })}
                 >
                   Annuler
                 </button>
@@ -313,21 +344,21 @@ function ActionCard({
       onClick={onClick}
       disabled={disabled}
       className={[
-        "flex flex-col items-start gap-1.5 rounded-md border p-3 text-left transition-colors disabled:opacity-50",
+        "flex flex-col items-start gap-1.5 rounded-[14px] border p-3 text-left transition-colors disabled:opacity-50",
         variant === "primary"
-          ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
-          : "border-border bg-background text-foreground hover:bg-muted",
+          ? "border-navy-700 bg-navy-700 text-white hover:bg-navy-600"
+          : "border-border-strong bg-card text-foreground hover:bg-navy-50",
       ].join(" ")}
     >
       <Icon
         name={loading ? "Loader" : icon}
         className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
       />
-      <p className="text-sm font-medium leading-tight">{title}</p>
+      <p className="text-sm leading-tight font-bold">{title}</p>
       <p
         className={`text-[11px] leading-tight ${
           variant === "primary"
-            ? "text-primary-foreground/80"
+            ? "text-navy-200"
             : "text-muted-foreground"
         }`}
       >

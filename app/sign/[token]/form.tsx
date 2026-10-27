@@ -58,7 +58,7 @@ export function SignForm({
     return (
       <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-4 text-center">
         <p className="font-medium text-emerald-900">
-          ✓ Merci, contrat signé !
+          Merci, contrat signé !
         </p>
         <p className="mt-1 text-sm text-emerald-800">
           Tu vas recevoir une copie par email dès qu&apos;ACLR aura

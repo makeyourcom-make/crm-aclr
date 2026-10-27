@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2, PenLine, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -10,7 +11,10 @@ import {
   setDefaultSignature,
   updateSignature,
 } from "@/app/(app)/parametres/signature-actions";
-import { Icon } from "@/components/icon";
+import { EmptyState } from "@/components/arena/empty-state";
+import { StatusPill } from "@/components/arena/pills";
+import { FormField } from "@/components/common/form-field";
+import { CHECKBOX_CLASS, FIELD_CLASS } from "@/components/common/form-styles";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,7 +23,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { buildSignatureHtml } from "@/lib/email-signature";
 
 export interface SignatureItem {
@@ -138,7 +141,8 @@ export function SignaturesManager({
     });
   };
 
-  const remove = (s: SignatureItem) =>
+  const remove = (s: SignatureItem) => {
+    if (!confirm(`Supprimer la signature « ${s.nom} » ?`)) return;
     startTransition(async () => {
       const res = await deleteSignature(s.id);
       if (!res.ok) {
@@ -148,6 +152,7 @@ export function SignaturesManager({
       toast.success("Signature supprimée.");
       router.refresh();
     });
+  };
 
   const makeDefault = (s: SignatureItem) =>
     startTransition(async () => {
@@ -162,59 +167,68 @@ export function SignaturesManager({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-medium text-muted-foreground">
           {signatures.length} signature(s). La signature par défaut est
           pré-sélectionnée à l&apos;envoi d&apos;un email.
         </p>
-        <Button type="button" onClick={openNew}>
-          <Icon name="Plus" className="mr-1 h-4 w-4" />
+        <Button type="button" size="lg" onClick={openNew}>
+          <Plus aria-hidden="true" />
           Nouvelle signature
         </Button>
       </div>
 
       {signatures.length === 0 ? (
-        <div className="rounded-md border border-dashed border-border bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-          Aucune signature pour l&apos;instant. Crée ta première signature
-          personnalisée.
-        </div>
+        <EmptyState
+          icon={PenLine}
+          tone="teal"
+          title="Aucune signature pour l'instant"
+          description="Crée ta première signature personnalisée : elle sera ajoutée à tes emails."
+          action={
+            <Button type="button" size="lg" onClick={openNew}>
+              <Plus aria-hidden="true" />
+              Créer ma signature
+            </Button>
+          }
+        />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid gap-3 sm:grid-cols-2">
           {signatures.map((s) => (
-            <div
+            <li
               key={s.id}
-              className="rounded-lg border border-border bg-card p-3"
+              className="flex min-w-0 flex-col rounded-[20px] border border-border bg-card p-4 shadow-arena"
             >
-              <div className="mb-2 flex items-center gap-2">
-                <span className="font-semibold">{s.nom}</span>
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span className="min-w-0 truncate font-display text-base font-extrabold">
+                  {s.nom}
+                </span>
                 {s.isDefault && (
-                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                  <StatusPill tone="green" icon={Star}>
                     Par défaut
-                  </span>
+                  </StatusPill>
                 )}
               </div>
               <div
-                className="rounded border border-border bg-white p-3"
+                className="overflow-x-auto rounded-[12px] border border-border bg-white p-3"
                 dangerouslySetInnerHTML={{ __html: s.html }}
               />
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
                   onClick={() => openEdit(s)}
                 >
-                  <Icon name="Pencil" className="mr-1 h-3.5 w-3.5" />
+                  <Pencil aria-hidden="true" />
                   Modifier
                 </Button>
                 {!s.isDefault && (
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
                     onClick={() => makeDefault(s)}
                     disabled={pending}
                   >
+                    <Star aria-hidden="true" />
                     Définir par défaut
                   </Button>
                 )}
@@ -222,137 +236,136 @@ export function SignaturesManager({
                   type="button"
                   onClick={() => remove(s)}
                   disabled={pending}
-                  className="ml-auto inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-[12px] px-3 text-xs font-bold text-alert-700 transition-colors hover:bg-alert-50 disabled:opacity-50"
+                  aria-label={`Supprimer la signature ${s.nom}`}
                 >
-                  <Icon name="Trash2" className="h-3.5 w-3.5" />
+                  <Trash2 aria-hidden="true" className="size-4" />
                   Supprimer
                 </button>
               </div>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
       {/* Formulaire création / édition */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
               {editId ? "Modifier la signature" : "Nouvelle signature"}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-5 md:grid-cols-2">
             {/* Champs guidés */}
             <div className="space-y-3">
-              <Field label="Nom de la signature *">
+              <FormField label="Nom de la signature" required>
                 <Input
                   value={form.nom}
                   onChange={(e) => set("nom", e.target.value)}
                   placeholder="Ex. Pro, Court, Promo…"
+                  className={FIELD_CLASS}
                 />
-              </Field>
-              <Field label="Nom affiché *">
+              </FormField>
+              <FormField label="Nom affiché" required>
                 <Input
                   value={form.displayName}
                   onChange={(e) => set("displayName", e.target.value)}
                   placeholder="Arthur Chazelle"
+                  className={FIELD_CLASS}
                 />
-              </Field>
-              <Field label="Fonction">
+              </FormField>
+              <FormField label="Fonction">
                 <Input
                   value={form.fonction}
                   onChange={(e) => set("fonction", e.target.value)}
                   placeholder="Directeur"
+                  className={FIELD_CLASS}
                 />
-              </Field>
-              <Field label="Entreprise">
+              </FormField>
+              <FormField label="Entreprise">
                 <Input
                   value={form.entreprise}
                   onChange={(e) => set("entreprise", e.target.value)}
+                  className={FIELD_CLASS}
                 />
-              </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Téléphone">
+              </FormField>
+              <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
+                <FormField label="Téléphone">
                   <Input
                     value={form.telephone}
                     onChange={(e) => set("telephone", e.target.value)}
                     placeholder="+41 …"
+                    type="tel"
+                    className={FIELD_CLASS}
                   />
-                </Field>
-                <Field label="Email">
+                </FormField>
+                <FormField label="Email">
                   <Input
                     value={form.email}
                     onChange={(e) => set("email", e.target.value)}
+                    type="email"
+                    className={FIELD_CLASS}
                   />
-                </Field>
+                </FormField>
               </div>
-              <Field label="Site web">
+              <FormField label="Site web">
                 <Input
                   value={form.siteWeb}
                   onChange={(e) => set("siteWeb", e.target.value)}
                   placeholder="makeyourcom.ch"
+                  className={FIELD_CLASS}
                 />
-              </Field>
-              <Field label="Logo (URL image, optionnel)">
+              </FormField>
+              <FormField label="Logo (URL image, optionnel)">
                 <Input
                   value={form.logoUrl}
                   onChange={(e) => set("logoUrl", e.target.value)}
                   placeholder="https://…/logo.png"
+                  className={FIELD_CLASS}
                 />
-              </Field>
-              <label className="flex items-center gap-2 text-sm">
+              </FormField>
+              <label className="flex cursor-pointer items-center gap-2.5 text-sm font-semibold">
                 <input
                   type="checkbox"
                   checked={form.isDefault}
                   onChange={(e) => set("isDefault", e.target.checked)}
+                  className={CHECKBOX_CLASS}
                 />
                 Définir comme signature par défaut
               </label>
             </div>
 
             {/* Aperçu en direct */}
-            <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <div className="min-w-0">
+              <p className="mb-2 text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
                 Aperçu
               </p>
               <div
-                className="rounded-md border border-border bg-white p-4"
+                className="overflow-x-auto rounded-[14px] border border-border bg-white p-4"
                 dangerouslySetInnerHTML={{ __html: previewHtml }}
               />
             </div>
           </div>
 
-          <div className="mt-2 flex justify-end gap-2">
+          <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button
               type="button"
               variant="outline"
+              size="lg"
               onClick={() => setOpen(false)}
               disabled={pending}
             >
               Annuler
             </Button>
-            <Button type="button" onClick={submit} disabled={pending}>
+            <Button type="button" size="lg" onClick={submit} disabled={pending}>
+              {pending && <Loader2 aria-hidden="true" className="animate-spin" />}
               {pending ? "Enregistrement…" : "Enregistrer"}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label className="text-xs">{label}</Label>
-      {children}
     </div>
   );
 }

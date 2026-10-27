@@ -1,15 +1,21 @@
 /**
- * Liste classée avec barre de progression visuelle + pourcentage.
+ * Liste classée MYC Arena : médaille de rang + barre de progression + part.
  *
  * Utilisée pour les tops : produits, secteurs B2B, cantons.
- * Le pourcentage est relatif au LEADER de la liste (barre 100 % = top 1)
- * pour que la comparaison visuelle entre items soit lisible.
+ * La longueur de barre est relative au LEADER de la liste (barre 100 % =
+ * top 1) pour que la comparaison visuelle entre items soit lisible.
+ * Le pourcentage affiché est le « vrai » pourcentage (part des signatures).
  *
- * Le pct affiché en revanche est le "vrai" pourcentage (part du marché).
+ * Server-safe (importable depuis un composant client).
  */
-import { formatCHF, formatPercent } from "@/lib/format";
+import { formatCHFCompact, formatPercent } from "@/lib/format";
+import { TONE_HEX, type Tone } from "@/components/arena/tones";
+import { EmptyState } from "@/components/arena/empty-state";
+import { Trophy } from "lucide-react";
 
-interface RankingItem {
+import { RankBadge, cleanText } from "./ui";
+
+export interface RankingItem {
   key: string;
   label: string;
   sublabel?: string;
@@ -21,75 +27,73 @@ interface RankingItem {
 interface RankingListProps {
   items: RankingItem[];
   emptyMessage?: string;
-  /** Tooltip en bas du composant. */
+  /** Explication en bas du composant. */
   hint?: string;
+  /** Teinte des barres (défaut violet). */
+  tone?: Tone;
 }
 
 export function RankingList({
   items,
   emptyMessage = "Aucune donnée sur cette période.",
   hint,
+  tone = "violet",
 }: RankingListProps) {
   if (items.length === 0) {
     return (
-      <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-        {emptyMessage}
-      </p>
+      <EmptyState
+        icon={Trophy}
+        tone="gold"
+        title="Podium vide pour l'instant"
+        description={emptyMessage}
+      />
     );
   }
 
   const maxCount = items.reduce((m, it) => Math.max(m, it.count), 0);
+  const color = TONE_HEX[tone]?.solid ?? TONE_HEX.violet.solid;
 
   return (
-    <div className="space-y-2.5">
-      {items.map((it, idx) => {
-        const widthPct = maxCount > 0 ? (it.count / maxCount) * 100 : 0;
-        const isLeader = idx === 0;
-        return (
-          <div key={it.key}>
-            <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
-              <span className="flex min-w-0 items-baseline gap-2">
-                <span
-                  className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${
-                    isLeader
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-slate-100 text-slate-600"
-                  }`}
-                >
-                  {idx + 1}
-                </span>
-                <span className="truncate font-medium">{it.label}</span>
-                {it.sublabel && (
-                  <span className="truncate text-[11px] text-muted-foreground">
-                    {it.sublabel}
+    <div className="flex flex-col gap-4">
+      <ol className="flex flex-col gap-3.5">
+        {items.map((it, idx) => {
+          const widthPct = maxCount > 0 ? Math.max(3, (it.count / maxCount) * 100) : 0;
+          return (
+            <li key={it.key} className="flex items-center gap-3">
+              <RankBadge rank={idx + 1} size={30} />
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="min-w-0 truncate text-sm font-bold text-foreground">
+                    {cleanText(it.label)}
+                    {it.sublabel && (
+                      <span className="ml-1.5 text-xs font-medium text-muted-foreground">
+                        {cleanText(it.sublabel)}
+                      </span>
+                    )}
                   </span>
-                )}
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                {it.count} ·{" "}
-                <span className="font-semibold text-foreground">
-                  {formatPercent(it.pct)}
+                  <span className="shrink-0 text-[13px] font-extrabold whitespace-nowrap tabular-nums">
+                    {formatCHFCompact(it.ca)}
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-ground">
+                  <div
+                    className="h-full rounded-full transition-[width] duration-700 ease-out"
+                    style={{ width: `${widthPct}%`, backgroundColor: color }}
+                  />
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {it.count} contrat{it.count > 1 ? "s" : ""} · {formatPercent(it.pct, 0)} des
+                  signatures
                 </span>
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className={`h-full transition-all ${
-                    isLeader ? "bg-primary" : "bg-slate-400"
-                  }`}
-                  style={{ width: `${widthPct}%` }}
-                />
               </div>
-              <span className="w-20 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">
-                {formatCHF(it.ca)}
-              </span>
-            </div>
-          </div>
-        );
-      })}
+            </li>
+          );
+        })}
+      </ol>
       {hint && (
-        <p className="mt-2 text-[11px] text-muted-foreground">{hint}</p>
+        <p className="rounded-[14px] bg-ground px-3.5 py-3 text-xs font-semibold text-muted-foreground">
+          {hint}
+        </p>
       )}
     </div>
   );

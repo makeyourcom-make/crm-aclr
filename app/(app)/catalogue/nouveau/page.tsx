@@ -1,8 +1,7 @@
-import Link from "next/link";
-
-import { Icon } from "@/components/icon";
-import { PageHeader } from "@/components/page-header";
 import { ProductForm } from "@/components/catalogue/product-form";
+import { BackLink } from "@/components/common/back-link";
+import { PageShell } from "@/components/common/page-shell";
+import { PageHeader } from "@/components/page-header";
 import { getCategories } from "@/lib/categories";
 import { getProducts } from "@/lib/queries/products";
 import { requireAdmin } from "@/lib/session";
@@ -23,23 +22,16 @@ export default async function NewProductPage({ searchParams }: PageProps) {
   const isPack = type === "PACK";
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-6 lg:px-8">
+    <PageShell width="narrow">
       <PageHeader
+        rubrique="finance"
         title={isPack ? "Nouveau pack" : "Nouveau produit"}
         description={
           isPack
             ? "Assemble plusieurs produits unitaires en une offre groupée."
             : "Ajoute un produit unitaire ou un pack au catalogue."
         }
-        breadcrumb={
-          <Link
-            href="/catalogue"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Icon name="ChevronRight" className="h-3 w-3 rotate-180" />
-            Retour au catalogue
-          </Link>
-        }
+        breadcrumb={<BackLink href="/catalogue">Retour au catalogue</BackLink>}
       />
       <ProductForm
         unitaires={unitaires.map((u) => ({
@@ -51,6 +43,6 @@ export default async function NewProductPage({ searchParams }: PageProps) {
         categories={categories.map((c) => ({ code: c.code, label: c.label }))}
         defaultType={isPack ? "PACK" : undefined}
       />
-    </div>
+    </PageShell>
   );
 }

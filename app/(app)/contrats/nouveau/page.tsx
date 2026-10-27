@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { ContractWizard } from "@/components/contrats/contract-wizard";
-import { Icon } from "@/components/icon";
+import { ChevronLeft } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
 import { requireUser, scopedWhere } from "@/lib/session";
@@ -57,15 +57,17 @@ export default async function NewContractPage() {
   ]);
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-6 lg:px-8">
+    <div className="mx-auto max-w-4xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
+        rubrique="finance"
         title="Nouveau contrat"
+        description="Prospect, lignes, modalités, récap : la proposition rapporte +60 XP dès sa création."
         breadcrumb={
           <Link
             href="/contrats"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1 text-[13px] font-bold text-muted-foreground hover:text-foreground"
           >
-            <Icon name="ChevronRight" className="h-3 w-3 rotate-180" />
+            <ChevronLeft aria-hidden="true" className="size-4" />
             Retour aux contrats
           </Link>
         }

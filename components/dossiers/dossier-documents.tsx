@@ -1,18 +1,19 @@
 "use client";
 
 /**
- * Documents d'un projet — dépôt, liste, suppression.
+ * Documents d'un projet : dépôt, liste, suppression (MYC Arena).
  *
  * Le fichier part DIRECTEMENT du navigateur vers Vercel Blob (même route signée
  * que les pièces jointes email) : il ne traverse jamais une fonction serverless,
  * ce qui évite la limite dure de 4.5 MB sur le corps des requêtes. Seule la
  * référence est ensuite persistée via `addDossierAttachment`.
  *
- * Contrairement aux PJ email — gardées en mémoire jusqu'à l'envoi — un document
+ * Contrairement aux PJ email (gardées en mémoire jusqu'à l'envoi), un document
  * de projet est enregistré IMMÉDIATEMENT : il n'y a pas d'action « envoyer » qui
  * viendrait le valider plus tard.
  */
 import { upload } from "@vercel/blob/client";
+import { Trash2, Upload } from "lucide-react";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -22,6 +23,7 @@ import {
 } from "@/app/(app)/dossiers/actions";
 import { uploadEmailAttachment } from "@/app/(app)/emails/attachments-actions";
 import { Icon } from "@/components/icon";
+import { cn } from "@/lib/utils";
 import { formatFileSize } from "@/lib/format";
 
 export interface DossierDocument {
@@ -104,7 +106,7 @@ export function DossierDocuments({
         ok++;
       }
       if (ok > 0) {
-        toast.success(`${ok} document(s) ajouté(s) ✓`);
+        toast.success(ok > 1 ? `${ok} documents ajoutés.` : "Document ajouté.");
         onChanged();
       }
     });
@@ -125,7 +127,7 @@ export function DossierDocuments({
 
   return (
     <div>
-      <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+      <p className="mb-1.5 text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
         Documents ({documents.length})
       </p>
 
@@ -141,7 +143,9 @@ export function DossierDocuments({
         }}
       />
 
-      <div
+      <button
+        type="button"
+        disabled={pending}
         onDragOver={(e) => {
           e.preventDefault();
           setDragOver(true);
@@ -153,54 +157,52 @@ export function DossierDocuments({
           if (e.dataTransfer.files) handleFiles(e.dataTransfer.files);
         }}
         onClick={() => inputRef.current?.click()}
-        role="presentation"
-        className={`cursor-pointer rounded-md border border-dashed px-3 py-4 text-center text-xs transition-colors ${
+        className={cn(
+          "flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-[12px] border border-dashed px-3 py-4 text-center text-xs font-semibold transition-colors disabled:cursor-wait",
           dragOver
-            ? "border-primary bg-primary/5 text-primary"
-            : "border-border bg-background/50 text-muted-foreground hover:bg-muted"
-        }`}
+            ? "border-lvl-500 bg-lvl-50 text-lvl-700"
+            : "border-border-strong bg-ground text-muted-foreground hover:bg-navy-50",
+        )}
       >
         {pending ? (
-          "Envoi en cours…"
+          "Envoi en cours..."
         ) : (
           <>
-            <Icon name="Download" className="mr-1.5 inline h-3.5 w-3.5" />
+            <Upload aria-hidden="true" className="size-4" />
             Glisse un fichier ici ou clique pour parcourir ({MAX_MB} MB max)
           </>
         )}
-      </div>
+      </button>
 
       {documents.length > 0 && (
         <ul className="mt-2 space-y-1.5">
           {documents.map((doc) => (
             <li
               key={doc.id}
-              className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5"
+              className="flex items-center gap-2 rounded-[12px] border border-border bg-card px-2.5 py-1.5"
             >
-              <Icon
-                name={iconFor(doc.mimeType)}
-                className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-              />
+              <Icon name={iconFor(doc.mimeType)} className="size-4 shrink-0 text-muted-foreground" />
               <a
                 href={doc.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="min-w-0 flex-1 truncate text-xs hover:underline"
+                className="min-w-0 flex-1 truncate text-xs font-semibold hover:underline"
                 title={doc.nom}
               >
                 {doc.nom}
               </a>
-              <span className="shrink-0 text-[10px] text-muted-foreground">
+              <span className="shrink-0 text-[11px] text-muted-foreground">
                 {formatFileSize(doc.taille)} · {doc.ajoutePar.name.split(" ")[0]}
               </span>
               <button
                 type="button"
                 onClick={() => remove(doc)}
                 disabled={pending}
+                aria-label={`Retirer « ${doc.nom} » du projet`}
                 title="Retirer du projet"
-                className="shrink-0 rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                className="flex size-8 shrink-0 items-center justify-center rounded-[8px] text-muted-foreground hover:bg-alert-50 hover:text-alert-700 disabled:opacity-50"
               >
-                <Icon name="Trash2" className="h-3 w-3" />
+                <Trash2 aria-hidden="true" className="size-3.5" />
               </button>
             </li>
           ))}

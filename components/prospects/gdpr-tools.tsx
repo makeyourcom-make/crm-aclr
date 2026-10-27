@@ -1,5 +1,6 @@
 "use client";
 
+import { Download, ShieldCheck, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -8,7 +9,6 @@ import {
   eraseProspectData,
   exportProspectData,
 } from "@/app/(app)/prospects/gdpr-actions";
-import { Icon } from "@/components/icon";
 
 export function GdprTools({
   prospectId,
@@ -39,7 +39,7 @@ export function GdprTools({
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      toast.success("Export RGPD téléchargé ✓");
+      toast.success("Export RGPD téléchargé.");
     });
 
   const handleErase = () =>
@@ -62,36 +62,45 @@ export function GdprTools({
     });
 
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Icon name="Eye" className="h-4 w-4 text-amber-600" />
-        <span className="text-sm font-medium text-amber-800">
-          Données personnelles (LPD/RGPD)
+    <section
+      aria-labelledby="rgpd-titre"
+      className="rounded-[20px] border border-gold-500/40 bg-gold-50/60 p-4 sm:p-5"
+    >
+      <div className="flex flex-wrap items-center gap-2.5">
+        <span
+          aria-hidden="true"
+          className="flex size-9 shrink-0 items-center justify-center rounded-[12px] bg-gold-50 text-gold-700"
+        >
+          <ShieldCheck className="size-[18px]" />
         </span>
-        <div className="ml-auto flex gap-2">
+        <h2 id="rgpd-titre" className="min-w-0 flex-1 text-sm font-extrabold text-gold-700">
+          Données personnelles (LPD/RGPD)
+        </h2>
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={handleExport}
             disabled={pending}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs hover:bg-muted disabled:opacity-50"
+            className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-border-strong bg-card px-3 text-xs font-bold text-foreground hover:bg-navy-50 disabled:opacity-50"
           >
-            <Icon name="Download" className="h-3.5 w-3.5" />
+            <Download aria-hidden="true" className="size-3.5" />
             Exporter les données
           </button>
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
             disabled={pending}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-red-200 bg-background px-2.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+            aria-expanded={open}
+            className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-alert-500/40 bg-card px-3 text-xs font-bold text-alert-700 hover:bg-alert-50 disabled:opacity-50"
           >
-            <Icon name="Trash2" className="h-3.5 w-3.5" />
+            <Trash2 aria-hidden="true" className="size-3.5" />
             Droit à l&apos;effacement
           </button>
         </div>
       </div>
 
       {open && (
-        <div className="mt-3 space-y-2 border-t border-amber-200 pt-3 text-xs text-amber-900">
+        <div className="mt-3 space-y-2.5 border-t border-gold-500/30 pt-3 text-xs leading-relaxed text-gold-700">
           <p>
             Efface les <strong>données personnelles</strong> du contact (nom,
             email, téléphone, réseaux, notes) et le contenu des échanges. Si la
@@ -100,26 +109,26 @@ export function GdprTools({
             (anonymisation) ; sinon la fiche est <strong>supprimée</strong>.
             Action irréversible.
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={handleErase}
               disabled={pending}
-              className="rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              className="h-9 rounded-[10px] bg-alert-700 px-3 text-xs font-bold text-white hover:brightness-110 disabled:opacity-50"
             >
-              {pending ? "…" : "Confirmer l'effacement"}
+              {pending ? "Effacement..." : "Confirmer l'effacement"}
             </button>
             <button
               type="button"
               onClick={() => setOpen(false)}
               disabled={pending}
-              className="rounded-md px-3 py-1 text-xs text-muted-foreground hover:underline"
+              className="h-9 rounded-[10px] px-3 text-xs font-bold text-muted-foreground hover:underline"
             >
               Annuler
             </button>
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }

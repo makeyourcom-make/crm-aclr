@@ -10,6 +10,7 @@
  *   4. Bouton "Synchroniser maintenant" pour le 1er sync (pull + push)
  *   5. Hooks dans create/update/delete activity poussent automatiquement
  */
+import { CircleCheck, Loader2, PlugZap, RefreshCw, Save, Unplug } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -20,10 +21,14 @@ import {
   syncNow,
   testCaldavConnection,
 } from "@/app/(app)/settings/calendar/caldav-actions";
-import { Icon } from "@/components/icon";
+import {
+  FIELD_CLASS,
+  HINT_CLASS,
+  LABEL_CLASS,
+  SELECT_CLASS,
+} from "@/components/common/form-styles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 interface CaldavManagerProps {
   initial: {
@@ -38,6 +43,9 @@ interface CalendarOption {
   url: string;
   displayName: string;
 }
+
+const APP_PASSWORDS_URL =
+  "https://manager.infomaniak.com/v3/security/devices/app-passwords";
 
 export function CaldavManager({ initial }: CaldavManagerProps) {
   const router = useRouter();
@@ -137,16 +145,16 @@ export function CaldavManager({ initial }: CaldavManagerProps) {
   };
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
+    <div>
       {/* État actuel */}
       {isConfigured && (
-        <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-xs">
-          <p className="font-medium text-emerald-900">
-            <Icon name="Check" className="mr-1 inline h-3 w-3" />
-            CalDAV connecté : {initial.username}
+        <div className="mb-5 rounded-[14px] bg-win-50 px-4 py-3.5">
+          <p className="flex items-center gap-2 text-sm font-extrabold text-win-700">
+            <CircleCheck aria-hidden="true" className="size-4 shrink-0" />
+            <span className="min-w-0 truncate">CalDAV connecté : {initial.username}</span>
           </p>
           {initial.lastSyncAt && (
-            <p className="mt-1 text-emerald-700">
+            <p className="mt-1 text-xs font-medium text-foreground">
               Dernière sync :{" "}
               {new Date(initial.lastSyncAt).toLocaleString("fr-CH", {
                 day: "2-digit",
@@ -160,60 +168,72 @@ export function CaldavManager({ initial }: CaldavManagerProps) {
           <div className="mt-3 flex flex-wrap gap-2">
             <Button
               type="button"
-              size="sm"
               onClick={handleSync}
               disabled={pending}
             >
-              <Icon name="Repeat" className="mr-1 h-3.5 w-3.5" />
+              {pending ? (
+                <Loader2 aria-hidden="true" className="animate-spin" />
+              ) : (
+                <RefreshCw aria-hidden="true" />
+              )}
               {pending ? "Sync…" : "Synchroniser maintenant"}
             </Button>
-            <button
+            <Button
               type="button"
+              variant="destructive"
               onClick={handleDisconnect}
               disabled={pending}
-              className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background px-3 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
             >
-              <Icon name="Trash2" className="h-3 w-3" />
+              <Unplug aria-hidden="true" />
               Déconnecter
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {/* Formulaire (re)config */}
-      <div className="space-y-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="caldav-server">URL du serveur CalDAV</Label>
+      <div className="space-y-4">
+        <div>
+          <label htmlFor="caldav-server" className={LABEL_CLASS}>
+            URL du serveur CalDAV
+          </label>
           <Input
             id="caldav-server"
             value={serverUrl}
             onChange={(e) => setServerUrl(e.target.value)}
             placeholder="https://sync.infomaniak.com"
             disabled={pending}
+            className={FIELD_CLASS}
           />
-          <p className="text-[11px] text-muted-foreground">
-            Infomaniak : <code>https://sync.infomaniak.com</code> (sans path —
-            la découverte est automatique) · Google :{" "}
-            <code>https://apidata.googleusercontent.com/caldav/v2/</code> ·
-            iCloud : <code>https://caldav.icloud.com</code>
+          <p className={HINT_CLASS}>
+            Infomaniak : <code className="font-mono">https://sync.infomaniak.com</code>{" "}
+            (sans path : la découverte est automatique) · Google :{" "}
+            <code className="break-all font-mono">
+              https://apidata.googleusercontent.com/caldav/v2/
+            </code>{" "}
+            · iCloud : <code className="font-mono">https://caldav.icloud.com</code>
           </p>
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="caldav-username">Identifiant</Label>
+        <div>
+          <label htmlFor="caldav-username" className={LABEL_CLASS}>
+            Identifiant
+          </label>
           <Input
             id="caldav-username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="ex. sophie@makeyourcom.ch"
+            placeholder="ex. prenom@makeyourcom.ch"
             disabled={pending}
+            autoComplete="username"
+            className={FIELD_CLASS}
           />
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="caldav-password">
+        <div>
+          <label htmlFor="caldav-password" className={LABEL_CLASS}>
             Mot de passe d&apos;application
-          </Label>
+          </label>
           <Input
             id="caldav-password"
             type="password"
@@ -224,14 +244,16 @@ export function CaldavManager({ initial }: CaldavManagerProps) {
             }
             disabled={pending}
             autoComplete="new-password"
+            className={FIELD_CLASS}
           />
-          <p className="text-[11px] text-muted-foreground">
-            ⚠️ <strong>Pas</strong> ton mot de passe principal — utilise un{" "}
+          <p className={HINT_CLASS}>
+            <strong className="text-foreground">Pas</strong> ton mot de passe
+            principal : utilise un{" "}
             <a
-              href="https://manager.infomaniak.com/v3/security/devices/app-passwords"
+              href={APP_PASSWORDS_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary hover:underline"
+              className="font-bold text-info-700 hover:underline"
             >
               mot de passe d&apos;application Infomaniak
             </a>{" "}
@@ -241,16 +263,18 @@ export function CaldavManager({ initial }: CaldavManagerProps) {
 
         {/* Calendriers trouvés (après test) */}
         {calendars.length > 0 && (
-          <div className="space-y-1.5">
-            <Label htmlFor="caldav-calendar">Calendrier à synchroniser</Label>
+          <div>
+            <label htmlFor="caldav-calendar" className={LABEL_CLASS}>
+              Calendrier à synchroniser
+            </label>
             <select
               id="caldav-calendar"
               value={selectedCalendar}
               onChange={(e) => setSelectedCalendar(e.target.value)}
-              className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+              className={SELECT_CLASS}
               disabled={pending}
             >
-              <option value="">— Choisir —</option>
+              <option value="">Choisir</option>
               {calendars.map((c) => (
                 <option key={c.url} value={c.url}>
                   {c.displayName}
@@ -260,21 +284,29 @@ export function CaldavManager({ initial }: CaldavManagerProps) {
           </div>
         )}
 
-        <div className="flex flex-wrap gap-2 pt-2">
+        <div className="flex flex-wrap gap-2 pt-1">
           <Button
             type="button"
             variant="outline"
+            size="lg"
             onClick={handleTest}
             disabled={pending || !serverUrl || !username || !password}
           >
+            {pending ? (
+              <Loader2 aria-hidden="true" className="animate-spin" />
+            ) : (
+              <PlugZap aria-hidden="true" />
+            )}
             {pending ? "Test…" : "Tester la connexion"}
           </Button>
           {calendars.length > 0 && (
             <Button
               type="button"
+              size="lg"
               onClick={handleSave}
               disabled={pending || !selectedCalendar}
             >
+              <Save aria-hidden="true" />
               {isConfigured ? "Mettre à jour" : "Enregistrer la connexion"}
             </Button>
           )}
@@ -282,20 +314,20 @@ export function CaldavManager({ initial }: CaldavManagerProps) {
       </div>
 
       {/* Aide configuration */}
-      <details className="mt-4 rounded-md bg-muted/30 p-3 text-xs">
-        <summary className="cursor-pointer font-medium">
+      <details className="mt-5 rounded-[14px] bg-ground p-3.5 text-[13px]">
+        <summary className="cursor-pointer font-bold">
           Comment générer un mot de passe d&apos;application Infomaniak ?
         </summary>
-        <ol className="ml-4 mt-2 list-decimal space-y-1 text-muted-foreground">
+        <ol className="mt-2 ml-4 list-decimal space-y-1 text-muted-foreground">
           <li>
             Va sur{" "}
             <a
-              href="https://manager.infomaniak.com/v3/security/devices/app-passwords"
+              href={APP_PASSWORDS_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary hover:underline"
+              className="font-bold text-info-700 hover:underline"
             >
-              manager.infomaniak.com → Sécurité → Mots de passe d&apos;application
+              manager.infomaniak.com · Sécurité · Mots de passe d&apos;application
             </a>
           </li>
           <li>Clique &quot;Créer un mot de passe d&apos;application&quot;</li>

@@ -47,6 +47,50 @@ export interface RentabiliteResult {
   periode: { from: Date; to: Date };
 }
 
+// ---------------------------------------------------------------------------
+// PÉRIODES (partagées par /rentabilite et le bloc « Top clients » de /stats)
+// ---------------------------------------------------------------------------
+
+export type RentabilitePeriode = "month" | "quarter" | "ytd" | "12m";
+
+export const RENTABILITE_PERIODES: { v: RentabilitePeriode; l: string }[] = [
+  { v: "month", l: "Mois en cours" },
+  { v: "quarter", l: "Trimestre" },
+  { v: "ytd", l: "Année (YTD)" },
+  { v: "12m", l: "12 derniers mois" },
+];
+
+/**
+ * Bornes [from, to[ d'une période de rentabilité. Valeur inconnue = année en
+ * cours (YTD), comme le défaut historique de /rentabilite.
+ */
+export function resolveRentabilitePeriode(
+  raw: string | undefined,
+  now = new Date(),
+): { periode: RentabilitePeriode; from: Date; to: Date; label: string } {
+  const periode: RentabilitePeriode = RENTABILITE_PERIODES.some((p) => p.v === raw)
+    ? (raw as RentabilitePeriode)
+    : "ytd";
+  let from = new Date(now.getFullYear(), 0, 1);
+  let to = new Date(now.getFullYear() + 1, 0, 1);
+  let label = `${from.getFullYear()} (YTD)`;
+  if (periode === "month") {
+    from = new Date(now.getFullYear(), now.getMonth(), 1);
+    to = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    label = "mois en cours";
+  } else if (periode === "quarter") {
+    const q = Math.floor(now.getMonth() / 3) * 3;
+    from = new Date(now.getFullYear(), q, 1);
+    to = new Date(now.getFullYear(), q + 3, 1);
+    label = "trimestre en cours";
+  } else if (periode === "12m") {
+    from = new Date(now.getFullYear(), now.getMonth() - 12, 1);
+    to = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    label = "12 derniers mois";
+  }
+  return { periode, from, to, label };
+}
+
 export async function getRentabilite(opts?: {
   from?: Date;
   to?: Date;
@@ -89,7 +133,7 @@ export async function getRentabilite(opts?: {
     _count: true,
   });
 
-  // 4. Charges internes (sans prospect + sans allocations) — frais généraux
+  // 4. Charges internes (sans prospect + sans allocations) : frais généraux
   const chargesInternesAgg = await prisma.expense.aggregate({
     where: {
       prospectId: null,

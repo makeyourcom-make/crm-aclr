@@ -1,8 +1,36 @@
 /**
- * Requêtes pour le module Statistiques (étape 21).
+ * Requêtes pour le module Statistiques (étape 21, version MYC Arena).
+ *
+ * Fenêtres de période en fuseau Europe/Zurich (cf. lib/queries/pilotage.ts).
+ * Les compteurs d'activité reprennent les définitions du moteur de jeu
+ * (`getPeriodCounters`) : les chiffres de /stats et les XP restent cohérents.
  */
 import { prisma } from "@/lib/db";
+import {
+  getPeriodCounters,
+  zurichDayKey,
+  zurichStartOfDay,
+} from "@/lib/queries/pilotage";
 import { type SessionUser } from "@/lib/session";
+
+/**
+ * Période d'analyse : un nombre de jours (fenêtre glissante se terminant
+ * aujourd'hui, comme avant) ou une fenêtre explicite (`resolveStatsWindow`).
+ */
+export type StatsRange = number | { start: Date; end: Date };
+
+/** Fenêtre [start, end] en fuseau Europe/Zurich. */
+function resolveRange(range: StatsRange): { start: Date; end: Date } {
+  if (typeof range !== "number") return { start: range.start, end: range.end };
+  const todayKey = zurichDayKey(new Date());
+  const today = Date.parse(`${todayKey}T00:00:00Z`);
+  const startKey = new Date(today - range * 86_400_000).toISOString().slice(0, 10);
+  const tomorrowKey = new Date(today + 86_400_000).toISOString().slice(0, 10);
+  return {
+    start: zurichStartOfDay(startKey),
+    end: new Date(zurichStartOfDay(tomorrowKey).getTime() - 1),
+  };
+}
 
 export interface StatsCockpit {
   // Période courante
@@ -10,7 +38,11 @@ export interface StatsCockpit {
 
   // Activité
   nbAppels: number;
+  /** Appels décrochés (résultat hors combox / ne décroche pas / invalide). */
+  nbConversations: number;
   nbEmails: number;
+  /** RDV pris au téléphone (résultat RDV_PRIS). */
+  nbRdvPris: number;
   nbRdvHonores: number;
   nbRdvManques: number;
   nbPropositions: number;
@@ -34,16 +66,18 @@ export interface StatsCockpit {
   // Pipeline
   pipelineTotal: number;
   pipelinePondere: number;
+  /** Nombre de deals ouverts (Découverte, Proposition, Négociation). */
+  nbDealsOuverts: number;
 
   // Revenu récurrent
   caRecurrentMensuel: number;
 }
 
 /**
- * Bloc "Productivité téléphone" — admin uniquement.
+ * Bloc "Productivité téléphone" : admin uniquement.
  *
  * Calculé sur les appels avec durée réelle capturée (duree2, secondes),
- * fallback sur duree déclarée (minutes × 60) si duree2 absente.
+ * fallback sur duree déclarée (minutes x 60) si duree2 absente.
  */
 export interface CallProductivity {
   /** Temps total au téléphone sur la période (secondes). */
@@ -54,7 +88,7 @@ export interface CallProductivity {
   avgSeconds: number;
   /** Plus long appel (secondes). */
   maxSeconds: number;
-  /** Décomposition jour par jour (date locale jj/mm + total secondes). */
+  /** Décomposition jour par jour (date locale jj.mm + total secondes). */
   parJour: Array<{ label: string; secondes: number; nbAppels: number }>;
   /** Top 5 plus longs appels avec leur prospect. */
   topLongs: Array<{
@@ -65,6 +99,7 @@ export interface CallProductivity {
     secondes: number;
     sujet: string;
     resultat: string | null;
+    userName: string;
   }>;
   /** Conversion par bucket de durée : court / moyen / long. */
   parBucket: Array<{
@@ -91,15 +126,11 @@ function durationOf(a: { duree: number | null; duree2: number | null }): number 
 }
 
 export async function getCallProductivity(
-  rangeJours: number,
+  range: StatsRange,
   /** Filtre par utilisateur spécifique (admin uniquement). */
   viewAsUserId?: string,
 ): Promise<CallProductivity> {
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-  const start = new Date();
-  start.setDate(start.getDate() - rangeJours);
-  start.setHours(0, 0, 0, 0);
+  const { start, end } = resolveRange(range);
 
   // Charge tous les appels FAIT sur la période avec leur durée + prospect + user
   const calls = await prisma.activity.findMany({
@@ -136,37 +167,38 @@ export async function getCallProductivity(
     0,
   );
 
-  // Par jour
+  // Par jour (jours Europe/Zurich, du premier au dernier jour de la fenêtre,
+  // aujourd'hui compris)
   const dayMap = new Map<string, { secondes: number; nbAppels: number }>();
-  for (let i = 0; i < rangeJours; i++) {
-    const d = new Date(start);
-    d.setDate(d.getDate() + i);
-    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  const firstKey = zurichDayKey(start);
+  const lastKey = zurichDayKey(end);
+  const dayKeys: string[] = [];
+  for (
+    let t = Date.parse(`${firstKey}T00:00:00Z`);
+    t <= Date.parse(`${lastKey}T00:00:00Z`);
+    t += 86_400_000
+  ) {
+    const key = new Date(t).toISOString().slice(0, 10);
+    dayKeys.push(key);
     dayMap.set(key, { secondes: 0, nbAppels: 0 });
   }
   for (const c of withDur) {
-    const d = new Date(c.date);
-    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    const slot = dayMap.get(key);
+    const slot = dayMap.get(zurichDayKey(c.date));
     if (slot) {
       slot.secondes += c.secondes;
       slot.nbAppels += 1;
     }
   }
-  const parJour: CallProductivity["parJour"] = [];
-  for (let i = 0; i < rangeJours; i++) {
-    const d = new Date(start);
-    d.setDate(d.getDate() + i);
-    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  const parJour: CallProductivity["parJour"] = dayKeys.map((key) => {
     const slot = dayMap.get(key)!;
-    parJour.push({
-      label: `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`,
+    return {
+      label: `${key.slice(8, 10)}.${key.slice(5, 7)}`,
       secondes: slot.secondes,
       nbAppels: slot.nbAppels,
-    });
-  }
+    };
+  });
 
-  // Top 5 plus longs appels — exclut les notes internes (sans prospect)
+  // Top 5 plus longs appels : exclut les notes internes (sans prospect)
   const topLongs = [...withDur]
     .filter((c) => c.prospect !== null)
     .sort((a, b) => b.secondes - a.secondes)
@@ -179,15 +211,14 @@ export async function getCallProductivity(
       secondes: c.secondes,
       sujet: c.sujet,
       resultat: c.resultat,
+      userName: c.user?.name ?? "Inconnu",
     }));
 
-  // Conversion par bucket : un appel "convertit" s'il a un résultat
-  // RDV_OBTENU / INTERESSE_PROPOSITION / INTERESSE_RAPPEL.
-  // (cf. enum ActivityResultat — on prend large pour montrer l'intuition)
-  const isConvert = (resultat: string | null) =>
-    resultat === "RDV_OBTENU" ||
-    resultat === "INTERESSE_PROPOSITION" ||
-    resultat === "INTERESSE_RAPPEL";
+  // Conversion par bucket : un appel "convertit" s'il a décroché un RDV
+  // (résultat RDV_PRIS). Les anciennes valeurs testées (RDV_OBTENU,
+  // INTERESSE_PROPOSITION, INTERESSE_RAPPEL) n'existent pas dans l'enum
+  // ActivityResultat : la conversion affichait toujours 0 %.
+  const isConvert = (resultat: string | null) => resultat === "RDV_PRIS";
 
   const bucketise = (s: number): "court" | "moyen" | "long" =>
     s < 120 ? "court" : s < 300 ? "moyen" : "long";
@@ -213,7 +244,7 @@ export async function getCallProductivity(
       b === "court"
         ? "Court (<2 min)"
         : b === "moyen"
-          ? "Moyen (2–5 min)"
+          ? "Moyen (2-5 min)"
           : "Long (>5 min)",
     nbAppels: bucketStats[b].nbAppels,
     nbRdvPris: bucketStats[b].nbRdvPris,
@@ -230,7 +261,7 @@ export async function getCallProductivity(
   >();
   for (const c of withDur) {
     const userId = c.userId;
-    const name = c.user?.name ?? "—";
+    const name = c.user?.name ?? "Inconnu";
     const slot =
       userMap.get(userId) ?? { name, nbAppels: 0, totalSeconds: 0 };
     slot.nbAppels += 1;
@@ -260,7 +291,7 @@ export async function getCallProductivity(
 }
 
 // ===========================================================================
-// ACTIVITÉ DE L'ÉQUIPE — tableau par collaborateur sur une période (admin)
+// ACTIVITÉ DE L'ÉQUIPE : tableau par collaborateur sur une période (admin)
 // ===========================================================================
 //
 // Une ligne par commercial·e actif·ve, avec l'activité brute de la période :
@@ -410,26 +441,21 @@ export async function getTeamActivityOverview(
 
 export async function getStats(
   user: SessionUser,
-  rangeJours: number,
+  range: StatsRange,
   /**
    * Admin uniquement : voir les stats d'une commerciale spécifique
-   * (= matrice "Arthur regarde Sophie"). Ignoré côté commercial.
+   * (= matrice "Arthur regarde Lucille"). Ignoré côté commercial.
    */
   viewAsUserId?: string,
 ): Promise<StatsCockpit> {
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-  const start = new Date();
-  start.setDate(start.getDate() - rangeJours);
-  start.setHours(0, 0, 0, 0);
+  const { start, end } = resolveRange(range);
 
   // Calcul du scope effectif :
-  //  - Commercial → toujours ses propres données (RLS dur)
-  //  - Admin → toute l'équipe par défaut, ou un user spécifique si viewAs
+  //  - Commercial : toujours ses propres données (RLS dur)
+  //  - Admin : toute l'équipe par défaut, ou un user spécifique si viewAs
   const effectiveUserId =
     user.role !== "ADMIN" ? user.id : viewAsUserId;
 
-  const userScope = effectiveUserId ? { userId: effectiveUserId } : {};
   const contractScope = effectiveUserId
     ? { assigneAId: effectiveUserId }
     : {};
@@ -439,79 +465,26 @@ export async function getStats(
     : {};
 
   const [
-    appels,
-    emails,
-    rdvHonores,
-    rdvManques,
-    propositionsEnvoyees,
-    signaturesContracts,
+    counters,
     funnelProspects,
     funnelContactes,
     funnelRdvPris,
     funnelPropositions,
     funnelSignes,
-    pipelineAgg,
+    dealsOuverts,
     caRecurrent,
   ] = await Promise.all([
-    prisma.activity.count({
-      where: {
-        ...userScope,
-        type: "APPEL_SORTANT",
-        date: { gte: start, lte: end },
-        statut: { in: ["FAIT", "EN_COURS"] },
-      },
-    }),
-    prisma.activity.count({
-      where: {
-        ...userScope,
-        type: "EMAIL_ENVOYE",
-        date: { gte: start, lte: end },
-      },
-    }),
-    prisma.activity.count({
-      where: {
-        ...userScope,
-        type: { in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"] },
-        // Un vrai RDV honoré est rattaché à un client : exclut le phoning et les
-        // points internes (ex. « RDV Arthur ») enregistrés avec le type RDV.
-        prospectId: { not: null },
-        date: { gte: start, lte: new Date(Math.min(end.getTime(), Date.now())) },
-        statut: "FAIT",
-      },
-    }),
-    prisma.activity.count({
-      where: {
-        ...userScope,
-        type: { in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"] },
-        prospectId: { not: null },
-        date: { gte: start, lte: end },
-        statut: "MANQUE",
-      },
-    }),
-    // Propositions ENVOYÉES sur la période = contrats (devis) créés dans la
-    // fenêtre, quel que soit leur sort ensuite. On ne peut PAS compter les
-    // prospects encore au statut PROPOSITION_ENVOYEE : dès qu'un client signe,
-    // son statut passe à SIGNE et la proposition « disparaît » du compte, ce qui
-    // donnait 0 proposition alors qu'il y a des signatures (taux 9/0 aberrant).
-    prisma.contract.count({
-      where: {
-        ...contractScope,
-        createdAt: { gte: start, lte: end },
-      },
-    }),
-    prisma.contract.aggregate({
-      // Signatures = contrats RÉELLEMENT signés (on exclut les propositions en
-      // attente de signature, sinon le nombre et le CA sont gonflés).
-      where: {
-        ...contractScope,
-        statut: {
-          notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"],
-        },
-        dateSignature: { gte: start, lte: end },
-      },
-      _count: true,
-      _sum: { valeurAn1: true },
-    }),
+    // Activité de la période, mêmes définitions que le moteur de jeu :
+    //  - appels FAIT / EN_COURS ; emails envoyés FAIT ;
+    //  - RDV honorés = RDV rattachés à un client, FAIT, déjà passés (exclut
+    //    le phoning et les points internes enregistrés avec un type RDV) ;
+    //  - propositions ENVOYÉES = contrats (devis) créés dans la fenêtre, quel
+    //    que soit leur sort ensuite, hors contrats importés a posteriori.
+    //    (Compter les prospects au statut PROPOSITION_ENVOYEE ne marche pas :
+    //    dès qu'un client signe, la proposition « disparaît » du compte.)
+    //  - signatures = contrats RÉELLEMENT signés (hors propositions en
+    //    attente de signature / de validation).
+    getPeriodCounters(effectiveUserId ?? null, start, end),
     // Funnel cumulatif (depuis le début)
     prisma.prospect.count({ where: prospectScope }),
     prisma.prospect.count({
@@ -543,12 +516,13 @@ export async function getStats(
     prisma.prospect.count({
       where: { ...prospectScope, statut: "SIGNE" },
     }),
-    prisma.deal.aggregate({
+    // Pipeline (brut + pondéré) : deals ouverts avec leur proba
+    prisma.deal.findMany({
       where: {
         ...dealScope,
         stage: { in: ["DECOUVERTE", "PROPOSITION", "NEGOCIATION"] },
       },
-      _sum: { montantPrevu: true },
+      select: { montantPrevu: true, probabilite: true },
     }),
     prisma.contract.aggregate({
       where: { ...contractScope, statut: "ACTIF" },
@@ -556,28 +530,31 @@ export async function getStats(
     }),
   ]);
 
-  // Pipeline pondéré : besoin des deals avec leur proba
-  const dealsForPondere = await prisma.deal.findMany({
-    where: {
-      ...dealScope,
-      stage: { in: ["DECOUVERTE", "PROPOSITION", "NEGOCIATION"] },
-    },
-    select: { montantPrevu: true, probabilite: true },
-  });
-  const pipelinePondere = dealsForPondere.reduce(
+  const pipelineTotal = dealsOuverts.reduce(
+    (s, d) => s + Number(d.montantPrevu),
+    0,
+  );
+  const pipelinePondere = dealsOuverts.reduce(
     (s, d) => s + (Number(d.montantPrevu) * d.probabilite) / 100,
     0,
   );
 
+  const days = Math.max(
+    1,
+    Math.round((end.getTime() - start.getTime()) / 86_400_000),
+  );
+
   return {
-    periode: { label: `${rangeJours} derniers jours`, start, end },
-    nbAppels: appels,
-    nbEmails: emails,
-    nbRdvHonores: rdvHonores,
-    nbRdvManques: rdvManques,
-    nbPropositions: propositionsEnvoyees,
-    nbSignatures: signaturesContracts._count,
-    caSigne: Number(signaturesContracts._sum.valeurAn1 ?? 0),
+    periode: { label: `${days} derniers jours`, start, end },
+    nbAppels: counters.appels,
+    nbConversations: counters.conversations,
+    nbEmails: counters.emails,
+    nbRdvPris: counters.rdvPris,
+    nbRdvHonores: counters.rdvEffectues,
+    nbRdvManques: counters.rdvManques,
+    nbPropositions: counters.propositions,
+    nbSignatures: counters.signatures,
+    caSigne: counters.caSigne,
     funnel: {
       prospects: funnelProspects,
       contactes: funnelContactes,
@@ -585,21 +562,20 @@ export async function getStats(
       propositions: funnelPropositions,
       signes: funnelSignes,
     },
-    tauxAppelRdv: appels > 0 ? (rdvHonores + rdvManques) / appels : 0,
+    tauxAppelRdv: counters.appels > 0 ? counters.rdvPris / counters.appels : 0,
     tauxRdvSignature:
-      rdvHonores > 0 ? signaturesContracts._count / rdvHonores : 0,
+      counters.rdvEffectues > 0 ? counters.signatures / counters.rdvEffectues : 0,
     tauxPropositionSignature:
-      propositionsEnvoyees > 0
-        ? signaturesContracts._count / propositionsEnvoyees
-        : 0,
-    pipelineTotal: Number(pipelineAgg._sum.montantPrevu ?? 0),
+      counters.propositions > 0 ? counters.signatures / counters.propositions : 0,
+    pipelineTotal,
     pipelinePondere,
+    nbDealsOuverts: dealsOuverts.length,
     caRecurrentMensuel: Number(caRecurrent._sum.montantMensuel ?? 0),
   };
 }
 
 // ===========================================================================
-// CLASSEMENTS — produits / secteurs B2B / cantons
+// CLASSEMENTS : produits / secteurs B2B / cantons
 // ===========================================================================
 //
 // Trois "tops" pour piloter ton offre commerciale :
@@ -608,9 +584,11 @@ export async function getStats(
 //   3. Cantons qui achètent       → couverture géographique
 //
 // Tous sont calculés sur la PÉRIODE choisie et respectent le viewAsUserId
-// (matrice Arthur ↔ Sophie).
+// (matrice Arthur / commerciale).
 
 export interface TopRankings {
+  /** Nombre de contrats signés sur la période (base des pourcentages). */
+  totalContrats: number;
   produits: Array<{
     productId: string;
     nom: string;
@@ -636,14 +614,10 @@ export interface TopRankings {
 
 export async function getTopRankings(
   user: SessionUser,
-  rangeJours: number,
+  range: StatsRange,
   viewAsUserId?: string,
 ): Promise<TopRankings> {
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-  const start = new Date();
-  start.setDate(start.getDate() - rangeJours);
-  start.setHours(0, 0, 0, 0);
+  const { start, end } = resolveRange(range);
 
   const effectiveUserId =
     user.role !== "ADMIN" ? user.id : viewAsUserId;
@@ -731,7 +705,7 @@ export async function getTopRankings(
   // ---- 3. Top cantons ----------------------------------------------------
   const cantonMap = new Map<string, { nbContrats: number; ca: number }>();
   for (const c of contracts) {
-    const canton = c.prospect.canton ?? "—";
+    const canton = c.prospect.canton ?? "Non renseigné";
     const slot = cantonMap.get(canton) ?? { nbContrats: 0, ca: 0 };
     slot.nbContrats += 1;
     slot.ca += Number(c.valeurAn1);
@@ -747,5 +721,5 @@ export async function getTopRankings(
     .sort((a, b) => b.nbContrats - a.nbContrats || b.ca - a.ca)
     .slice(0, 8);
 
-  return { produits, secteurs, cantons };
+  return { totalContrats, produits, secteurs, cantons };
 }

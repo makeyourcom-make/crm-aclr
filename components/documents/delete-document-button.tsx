@@ -1,11 +1,11 @@
 "use client";
 
+import { Loader2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 
 import { deleteDocument } from "@/app/(app)/documents/actions";
-import { Icon } from "@/components/icon";
 
 export function DeleteDocumentButton({
   id,
@@ -35,10 +35,15 @@ export function DeleteDocumentButton({
       type="button"
       onClick={onClick}
       disabled={pending}
-      aria-label="Supprimer le document"
-      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+      aria-label={`Supprimer le document ${titre}`}
+      title="Supprimer le document"
+      className="inline-flex size-9 shrink-0 items-center justify-center rounded-[10px] text-muted-foreground transition-colors hover:bg-alert-50 hover:text-alert-700 disabled:opacity-50"
     >
-      <Icon name="Trash2" className="h-4 w-4" />
+      {pending ? (
+        <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+      ) : (
+        <Trash2 aria-hidden="true" className="size-4" />
+      )}
     </button>
   );
 }

@@ -74,7 +74,7 @@ export async function recomputeOverdueEtalements(): Promise<RecomputeResult> {
 
 /**
  * Vérifie l'intégrité des commissions (somme versements ≈ montant total).
- * Admin only — sert d'audit comptable.
+ * Admin only : sert d'audit comptable.
  */
 export async function runCommissionAudit() {
   await requireAdmin();

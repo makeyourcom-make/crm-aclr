@@ -1,13 +1,23 @@
 "use client";
 
+import {
+  Building2,
+  Landmark,
+  Loader2,
+  MapPin,
+  Percent,
+  Receipt,
+  Save,
+} from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { updateSettings } from "@/app/(app)/parametres/actions";
+import { SectionCard } from "@/components/arena/section-card";
+import { FormField } from "@/components/common/form-field";
+import { CHECKBOX_CLASS, FIELD_CLASS } from "@/components/common/form-styles";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 import type { Setting } from "@prisma/client";
 
@@ -56,231 +66,226 @@ export function SettingsForm({ setting }: { setting: Setting | null }) {
     setState((p) => ({ ...p, [k]: v }));
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Identité ACLR</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="Raison sociale" required>
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <SectionCard title="Identité ACLR" icon={Building2} tone="navy">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Raison sociale" required>
             <Input
               value={state.raisonSociale}
               onChange={(e) => set("raisonSociale", e.target.value)}
               required
+              className={FIELD_CLASS}
             />
-          </Field>
-          <Field label="Marque commerciale">
+          </FormField>
+          <FormField label="Marque commerciale">
             <Input
               value={state.marque}
               onChange={(e) => set("marque", e.target.value)}
+              className={FIELD_CLASS}
             />
-          </Field>
-        </CardContent>
-      </Card>
+          </FormField>
+        </div>
+      </SectionCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Coordonnées</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="Adresse" className="sm:col-span-2">
+      <SectionCard title="Coordonnées" icon={MapPin} tone="blue">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Adresse" className="sm:col-span-2">
             <Input
               value={state.adresse}
               onChange={(e) => set("adresse", e.target.value)}
+              className={FIELD_CLASS}
             />
-          </Field>
-          <Field label="Code postal">
+          </FormField>
+          <FormField label="Code postal">
             <Input
               value={state.codePostal}
               onChange={(e) => set("codePostal", e.target.value)}
+              className={FIELD_CLASS}
             />
-          </Field>
-          <Field label="Ville">
+          </FormField>
+          <FormField label="Ville">
             <Input
               value={state.ville}
               onChange={(e) => set("ville", e.target.value)}
+              className={FIELD_CLASS}
             />
-          </Field>
-          <Field label="Pays">
+          </FormField>
+          <FormField label="Pays">
             <Input
               value={state.pays}
               onChange={(e) => set("pays", e.target.value)}
+              className={FIELD_CLASS}
             />
-          </Field>
-          <Field label="Email contact">
+          </FormField>
+          <FormField label="Email contact">
             <Input
               type="email"
               value={state.emailContact}
               onChange={(e) => set("emailContact", e.target.value)}
+              className={FIELD_CLASS}
             />
-          </Field>
-          <Field label="Téléphone">
+          </FormField>
+          <FormField label="Téléphone">
             <Input
               value={state.telephone}
               onChange={(e) => set("telephone", e.target.value)}
+              className={FIELD_CLASS}
             />
-          </Field>
-          <Field label="Site web">
+          </FormField>
+          <FormField label="Site web">
             <Input
               value={state.siteWeb}
               onChange={(e) => set("siteWeb", e.target.value)}
+              className={FIELD_CLASS}
             />
-          </Field>
-        </CardContent>
-      </Card>
+          </FormField>
+        </div>
+      </SectionCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Identifiants & banque</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="N° IDE">
+      <SectionCard title="Identifiants et banque" icon={Landmark} tone="violet">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="N° IDE">
             <Input
               value={state.numeroIDE}
               onChange={(e) => set("numeroIDE", e.target.value)}
               placeholder="CHE-XXX.XXX.XXX"
+              className={FIELD_CLASS}
             />
-          </Field>
-          <Field label="N° TVA">
+          </FormField>
+          <FormField label="N° TVA">
             <Input
               value={state.numeroTVA}
               onChange={(e) => set("numeroTVA", e.target.value)}
               placeholder="CHE-XXX.XXX.XXX TVA"
+              className={FIELD_CLASS}
             />
-          </Field>
-          <Field label="IBAN">
+          </FormField>
+          <FormField label="IBAN">
             <Input
               value={state.iban}
               onChange={(e) => set("iban", e.target.value)}
               placeholder="CH00 0000 0000 0000 0000 0"
+              className={`${FIELD_CLASS} font-mono`}
             />
-          </Field>
-          <Field label="BIC / SWIFT">
+          </FormField>
+          <FormField label="BIC / SWIFT">
             <Input
               value={state.bicSwift}
               onChange={(e) => set("bicSwift", e.target.value)}
+              className={`${FIELD_CLASS} font-mono`}
             />
-          </Field>
-          <Field label="Nom banque">
+          </FormField>
+          <FormField label="Nom banque">
             <Input
               value={state.nomBanque}
               onChange={(e) => set("nomBanque", e.target.value)}
+              className={FIELD_CLASS}
             />
-          </Field>
-        </CardContent>
-      </Card>
+          </FormField>
+        </div>
+      </SectionCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            Paramètres financiers par défaut
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="Taux commission signature (0.25 = 25%)">
+      <SectionCard
+        title="Paramètres financiers par défaut"
+        description="Appliqués aux nouvelles commerciales et aux nouveaux contrats"
+        icon={Percent}
+        tone="green"
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Taux commission signature (0.25 = 25 %)">
             <Input
               type="number"
               step="0.01"
               min={0}
               max={1}
+              inputMode="decimal"
               value={state.tauxCommissionSignatureDefault}
               onChange={(e) =>
                 set("tauxCommissionSignatureDefault", e.target.value)
               }
+              className={`${FIELD_CLASS} tabular-nums`}
             />
-          </Field>
-          <Field label="Taux commission renouvellement (0.10 = 10%)">
+          </FormField>
+          <FormField label="Taux commission renouvellement (0.10 = 10 %)">
             <Input
               type="number"
               step="0.01"
               min={0}
               max={1}
+              inputMode="decimal"
               value={state.tauxCommissionRenouvellementDefault}
               onChange={(e) =>
                 set("tauxCommissionRenouvellementDefault", e.target.value)
               }
+              className={`${FIELD_CLASS} tabular-nums`}
             />
-          </Field>
-          <Field label="Garantie mensuelle (CHF)">
+          </FormField>
+          <FormField label="Garantie mensuelle (CHF)">
             <Input
               type="number"
               step="0.01"
               min={0}
+              inputMode="decimal"
               value={state.garantieMensuelleDefault}
               onChange={(e) =>
                 set("garantieMensuelleDefault", e.target.value)
               }
+              className={`${FIELD_CLASS} tabular-nums`}
             />
-          </Field>
-          <Field label="Forfait frais mensuel (CHF)">
+          </FormField>
+          <FormField label="Forfait frais mensuel (CHF)">
             <Input
               type="number"
               step="0.01"
               min={0}
+              inputMode="decimal"
               value={state.forfaitFraisDefault}
               onChange={(e) => set("forfaitFraisDefault", e.target.value)}
+              className={`${FIELD_CLASS} tabular-nums`}
             />
-          </Field>
-        </CardContent>
-      </Card>
+          </FormField>
+        </div>
+      </SectionCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">TVA</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <label className="flex items-center gap-2">
+      <SectionCard title="TVA" icon={Receipt} tone="gold">
+        <div className="space-y-4">
+          <label className="flex cursor-pointer items-start gap-2.5">
             <input
               type="checkbox"
               checked={state.tvaActive}
               onChange={(e) => set("tvaActive", e.target.checked)}
-              className="h-4 w-4"
+              className={`${CHECKBOX_CLASS} mt-0.5`}
             />
-            <span className="text-sm">
+            <span className="text-sm font-semibold">
               ACLR est assujetti à la TVA (active la TVA sur toutes les factures)
             </span>
           </label>
-          <Field label="Taux TVA (0.081 = 8.1%)">
+          <FormField label="Taux TVA (0.081 = 8.1 %)" className="sm:max-w-xs">
             <Input
               type="number"
               step="0.001"
               min={0}
               max={1}
+              inputMode="decimal"
               value={state.tauxTVA}
               onChange={(e) => set("tauxTVA", e.target.value)}
               disabled={!state.tvaActive}
+              className={`${FIELD_CLASS} tabular-nums`}
             />
-          </Field>
-        </CardContent>
-      </Card>
+          </FormField>
+        </div>
+      </SectionCard>
 
       <div className="flex justify-end">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" size="lg" disabled={pending}>
+          {pending ? (
+            <Loader2 aria-hidden="true" className="animate-spin" />
+          ) : (
+            <Save aria-hidden="true" />
+          )}
           {pending ? "Enregistrement…" : "Enregistrer les paramètres ACLR"}
         </Button>
       </div>
     </form>
-  );
-}
-
-function Field({
-  label,
-  required,
-  children,
-  className,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`space-y-1.5 ${className ?? ""}`}>
-      <Label>
-        {label}
-        {required && <span className="ml-1 text-red-500">*</span>}
-      </Label>
-      {children}
-    </div>
   );
 }

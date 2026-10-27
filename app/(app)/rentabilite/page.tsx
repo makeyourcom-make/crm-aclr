@@ -1,12 +1,32 @@
+import { Building2, Coins, Info, Landmark, Receipt, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Icon } from "@/components/icon";
+import { EmptyState } from "@/components/arena/empty-state";
+import { StatusPill } from "@/components/arena/pills";
+import { SectionCard } from "@/components/arena/section-card";
+import { StatTile } from "@/components/arena/stat-tile";
+import type { Tone } from "@/components/arena/tones";
 import { PageHeader } from "@/components/page-header";
-import { formatCHF, formatPercent } from "@/lib/format";
-import { getRentabilite } from "@/lib/queries/rentabilite";
+import {
+  Money,
+  RankBadge,
+  SegmentGroup,
+  cleanText,
+  marginTone,
+  segmentClass,
+} from "@/components/stats/ui";
+import { formatCHFCompact, formatPercent } from "@/lib/format";
+import { getProspectStatutLabel } from "@/lib/labels";
+import {
+  RENTABILITE_PERIODES,
+  getRentabilite,
+  resolveRentabilitePeriode,
+  type RentabiliteRow,
+} from "@/lib/queries/rentabilite";
 import { requireAdmin } from "@/lib/session";
+import { cn } from "@/lib/utils";
+
+import type { ProspectStatut } from "@prisma/client";
 
 export const metadata = { title: "Rentabilité clients" };
 export const dynamic = "force-dynamic";
@@ -15,277 +35,293 @@ interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
+type Tri = "ca" | "marge" | "pct" | "charges";
+
+const TRIS: { v: Tri; l: string }[] = [
+  { v: "ca", l: "CA facturé" },
+  { v: "marge", l: "Marge brute" },
+  { v: "pct", l: "Marge %" },
+  { v: "charges", l: "Charges" },
+];
+
+const STATUT_TONE: Partial<Record<ProspectStatut, Tone>> = {
+  SIGNE: "green",
+  PROPOSITION_ENVOYEE: "gold",
+  RDV_PRIS: "coral",
+  CONTACTE: "blue",
+  QUALIFIE: "teal",
+  PERDU: "red",
+  NE_PAS_RAPPELER: "red",
+};
+
+function sortRows(rows: RentabiliteRow[], tri: Tri): RentabiliteRow[] {
+  const copy = [...rows];
+  if (tri === "marge") copy.sort((a, b) => b.margeBrute - a.margeBrute);
+  else if (tri === "pct") copy.sort((a, b) => (b.margePct ?? -Infinity) - (a.margePct ?? -Infinity));
+  else if (tri === "charges") copy.sort((a, b) => b.chargesTotal - a.chargesTotal);
+  else copy.sort((a, b) => b.caFacture - a.caFacture); // CA décroissant (ordre historique)
+  return copy;
+}
+
 export default async function RentabilitePage({ searchParams }: PageProps) {
   await requireAdmin();
   const raw = await searchParams;
 
-  // Période : YTD par défaut, ou période custom via ?from=&to=
-  const now = new Date();
-  const periodeParam = typeof raw.periode === "string" ? raw.periode : "ytd";
-
-  let from = new Date(now.getFullYear(), 0, 1);
-  let to = new Date(now.getFullYear() + 1, 0, 1);
-
-  if (periodeParam === "month") {
-    from = new Date(now.getFullYear(), now.getMonth(), 1);
-    to = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  } else if (periodeParam === "quarter") {
-    const q = Math.floor(now.getMonth() / 3) * 3;
-    from = new Date(now.getFullYear(), q, 1);
-    to = new Date(now.getFullYear(), q + 3, 1);
-  } else if (periodeParam === "12m") {
-    from = new Date(now.getFullYear(), now.getMonth() - 12, 1);
-    to = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  }
+  // Période : YTD par défaut, ou mois / trimestre / 12 derniers mois
+  const {
+    periode: periodeParam,
+    from,
+    to,
+    label: periodeLabel,
+  } = resolveRentabilitePeriode(typeof raw.periode === "string" ? raw.periode : undefined);
+  const tri: Tri = TRIS.some((t) => t.v === raw.tri) ? (raw.tri as Tri) : "ca";
 
   const data = await getRentabilite({ from, to });
+  const rows = sortRows(data.rows, tri);
+  const topIds = new Set(
+    [...data.rows]
+      .filter((r) => r.margeBrute > 0)
+      .sort((a, b) => b.margeBrute - a.margeBrute)
+      .slice(0, 3)
+      .map((r) => r.prospectId),
+  );
+  const nbRedresser = data.rows.filter((r) => r.margeBrute < 0).length;
+
+  const href = (periode: string, t: Tri) => {
+    const p = new URLSearchParams();
+    p.set("periode", periode);
+    if (t !== "ca") p.set("tri", t);
+    return `/rentabilite?${p.toString()}`;
+  };
 
   return (
-    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+    <div className="flex flex-col gap-6 px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
+        rubrique="finance"
         title="Rentabilité clients"
-        description={`Marge brute par client = CA facturé - charges directes/allouées. Période : ${formatPeriodeLabel(periodeParam, from, to)}.`}
+        description={`Marge brute par client = CA facturé - charges directes et allouées. Période : ${periodeLabel}.`}
+        actions={
+          <StatusPill tone="coral" dot={false}>
+            Réservé admin
+          </StatusPill>
+        }
       />
 
-      {/* Filtres période */}
-      <div className="mb-6 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Période :
-        </span>
-        {[
-          { v: "month", l: "Mois en cours" },
-          { v: "quarter", l: "Trimestre" },
-          { v: "ytd", l: "Année (YTD)" },
-          { v: "12m", l: "12 derniers mois" },
-        ].map((opt) => (
-          <Link
-            key={opt.v}
-            href={`/rentabilite?periode=${opt.v}`}
-            className={`inline-flex h-7 items-center rounded-md border px-3 text-xs ${
-              periodeParam === opt.v
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-background hover:bg-muted"
-            }`}
-          >
-            {opt.l}
-          </Link>
-        ))}
+      {/* Filtres période + tri */}
+      <div className="flex flex-wrap items-center gap-3">
+        <SegmentGroup label="Période" visibleLabel="Période :">
+          {RENTABILITE_PERIODES.map((opt) => (
+            <Link
+              key={opt.v}
+              href={href(opt.v, tri)}
+              scroll={false}
+              aria-current={periodeParam === opt.v ? "true" : undefined}
+              className={segmentClass(periodeParam === opt.v)}
+            >
+              {opt.l}
+            </Link>
+          ))}
+        </SegmentGroup>
+        <SegmentGroup label="Trier le tableau" visibleLabel="Trier par :">
+          {TRIS.map((t) => (
+            <Link
+              key={t.v}
+              href={href(periodeParam, t.v)}
+              scroll={false}
+              aria-current={tri === t.v ? "true" : undefined}
+              className={segmentClass(tri === t.v)}
+            >
+              {t.l}
+            </Link>
+          ))}
+        </SegmentGroup>
       </div>
 
       {/* KPIs globaux */}
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
           label="CA facturé"
-          value={formatCHF(data.totals.caFacture)}
-          subtitle={`${data.rows.length} client(s) actif(s)`}
-          tone="primary"
+          icon={Receipt}
+          tone="navy"
+          value={<Money value={data.totals.caFacture} />}
+          sub={`${data.rows.length} client${data.rows.length > 1 ? "s" : ""} · ${formatCHFCompact(data.totals.caEncaisse)} encaissés`}
         />
-        <Kpi
+        <StatTile
           label="Charges allouées clients"
-          value={formatCHF(data.totals.chargesTotal)}
-          subtitle="Directes + ventilées"
-          tone="amber"
+          icon={Coins}
+          tone="gold"
+          value={<Money value={data.totals.chargesTotal} />}
+          sub="Directes + ventilées"
         />
-        <Kpi
+        <StatTile
           label="Marge brute"
-          value={formatCHF(data.totals.margeBrute)}
-          subtitle={
+          icon={TrendingUp}
+          tone={data.totals.margeBrute >= 0 ? "green" : "red"}
+          value={<Money value={data.totals.margeBrute} />}
+          sub={
             data.totals.margePct !== null
-              ? formatPercent(data.totals.margePct * 100) + " de marge"
-              : "—"
+              ? `${formatPercent(data.totals.margePct)} de marge${nbRedresser > 0 ? ` · ${nbRedresser} client${nbRedresser > 1 ? "s" : ""} à redresser` : ""}`
+              : "Pas de CA facturé sur la période"
           }
-          tone={data.totals.margeBrute >= 0 ? "emerald" : "rose"}
+          className={data.totals.margeBrute >= 0 ? "border-2 border-win-500" : "border-2 border-alert-500"}
         />
-        <Kpi
+        <StatTile
           label="Frais généraux"
-          value={formatCHF(data.chargesInternes.total)}
-          subtitle={`${data.chargesInternes.count} charges internes (hors client)`}
-          tone="muted"
+          icon={Landmark}
+          tone="navy"
+          value={<Money value={data.chargesInternes.total} />}
+          sub={`${data.chargesInternes.count} charge${data.chargesInternes.count > 1 ? "s" : ""} interne${data.chargesInternes.count > 1 ? "s" : ""} (hors client)`}
         />
       </div>
 
       {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-              <tr>
-                <Th>Client</Th>
-                <Th className="text-right">Factures</Th>
-                <Th className="text-right">CA facturé</Th>
-                <Th className="text-right">CA encaissé</Th>
-                <Th className="text-right">Charges directes</Th>
-                <Th className="text-right">Allocations</Th>
-                <Th className="text-right">Marge brute</Th>
-                <Th className="text-right">Marge %</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.rows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="px-3 py-12 text-center text-muted-foreground"
-                  >
-                    Aucune donnée pour cette période.
-                  </td>
+      <SectionCard
+        title="Détail par client"
+        icon={Building2}
+        tone="navy"
+        description={`${rows.length} client${rows.length > 1 ? "s" : ""} · tri : ${TRIS.find((t) => t.v === tri)?.l ?? "CA facturé"}`}
+      >
+        {rows.length === 0 ? (
+          <EmptyState
+            icon={Coins}
+            tone="gold"
+            title="Aucune donnée pour cette période"
+            description="Pas de facture client ni de charge rattachée sur la période choisie."
+          />
+        ) : (
+          <div className="overflow-x-auto rounded-[14px] border border-border">
+            <table className="w-full min-w-[980px] border-collapse text-[13px]">
+              <caption className="sr-only">Rentabilité par client</caption>
+              <thead>
+                <tr className="bg-ground text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
+                  <Th className="text-left">Client</Th>
+                  <Th>Factures</Th>
+                  <Th>CA facturé</Th>
+                  <Th>CA encaissé</Th>
+                  <Th>Charges directes</Th>
+                  <Th>Allocations</Th>
+                  <Th>Marge brute</Th>
+                  <Th className="pr-3.5">Marge %</Th>
                 </tr>
-              ) : (
-                data.rows.map((r) => {
-                  const sign = r.margeBrute >= 0 ? "+" : "";
+              </thead>
+              <tbody>
+                {rows.map((r, i) => {
+                  const tone = marginTone(r.margePct);
+                  const w =
+                    r.margePct === null ? 0 : Math.max(3, Math.min(100, Math.round(r.margePct * 100)));
+                  const statut = r.statut as ProspectStatut;
                   return (
-                    <tr
-                      key={r.prospectId}
-                      className="border-b border-border last:border-0 hover:bg-muted/30"
-                    >
-                      <td className="px-3 py-2">
-                        <Link
-                          href={`/prospects/${r.prospectId}`}
-                          className="font-medium hover:text-primary"
-                        >
-                          {r.raisonSociale}
-                        </Link>
-                        <div className="mt-0.5">
-                          <Badge variant="outline" className="font-normal text-[10px]">
-                            {r.statut}
-                          </Badge>
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-xs">
-                        {r.nbFactures || "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right font-semibold tabular-nums">
-                        {r.caFacture > 0 ? formatCHF(r.caFacture) : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-xs text-emerald-700">
-                        {r.caEncaisse > 0 ? formatCHF(r.caEncaisse) : "—"}
-                        {r.caEnAttente > 0.01 && (
-                          <div className="text-[10px] text-amber-700">
-                            +{formatCHF(r.caEnAttente)} en attente
+                    <tr key={r.prospectId} className="border-t border-border transition-colors hover:bg-ground/60">
+                      <th scope="row" className="px-3.5 py-3 text-left font-semibold">
+                        <div className="flex items-center gap-2.5">
+                          <RankBadge rank={i + 1} size={26} />
+                          <div className="flex min-w-0 flex-col gap-1">
+                            <span className="flex flex-wrap items-center gap-1.5">
+                              <Link
+                                href={`/prospects/${r.prospectId}`}
+                                className="text-sm font-bold text-foreground hover:text-info-700 hover:underline"
+                              >
+                                {cleanText(r.raisonSociale)}
+                              </Link>
+                              {r.margeBrute < 0 && (
+                                <span className="rounded-full bg-alert-50 px-2 py-0.5 text-[11px] font-bold text-alert-700">
+                                  À redresser
+                                </span>
+                              )}
+                              {topIds.has(r.prospectId) && (
+                                <span className="rounded-full bg-gold-50 px-2 py-0.5 text-[11px] font-bold text-gold-700">
+                                  Top rentable
+                                </span>
+                              )}
+                            </span>
+                            <span>
+                              <StatusPill tone={STATUT_TONE[statut] ?? "navy"}>
+                                {getProspectStatutLabel(statut) ?? r.statut}
+                              </StatusPill>
+                            </span>
                           </div>
+                        </div>
+                      </th>
+                      <td className="px-2.5 py-3 text-right tabular-nums">{r.nbFactures || "-"}</td>
+                      <td className="px-2.5 py-3 text-right text-sm font-bold whitespace-nowrap tabular-nums">
+                        {r.caFacture > 0 ? formatCHFCompact(r.caFacture) : "-"}
+                      </td>
+                      <td className="px-2.5 py-3 text-right whitespace-nowrap tabular-nums">
+                        <span className="font-semibold text-win-700">
+                          {r.caEncaisse > 0 ? formatCHFCompact(r.caEncaisse) : "-"}
+                        </span>
+                        {r.caEnAttente > 0.01 && (
+                          <span className="block text-[11px] font-bold text-gold-700">
+                            +{formatCHFCompact(r.caEnAttente)} en attente
+                          </span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-xs text-rose-700">
-                        {r.chargesDirectes > 0
-                          ? `-${formatCHF(r.chargesDirectes)}`
-                          : "—"}
+                      <td className="px-2.5 py-3 text-right whitespace-nowrap text-alert-700 tabular-nums">
+                        {r.chargesDirectes > 0 ? `-${formatCHFCompact(r.chargesDirectes)}` : "-"}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-xs text-rose-700">
-                        {r.chargesAllouees > 0
-                          ? `-${formatCHF(r.chargesAllouees)}`
-                          : "—"}
+                      <td className="px-2.5 py-3 text-right whitespace-nowrap text-alert-700 tabular-nums">
+                        {r.chargesAllouees > 0 ? `-${formatCHFCompact(r.chargesAllouees)}` : "-"}
                       </td>
                       <td
-                        className={`px-3 py-2 text-right font-semibold tabular-nums ${
-                          r.margeBrute >= 0 ? "text-emerald-700" : "text-rose-700"
-                        }`}
+                        className={cn(
+                          "px-2.5 py-3 text-right text-sm font-extrabold whitespace-nowrap tabular-nums",
+                          r.margeBrute >= 0 ? "text-win-700" : "text-alert-700",
+                        )}
                       >
-                        {sign}
-                        {formatCHF(r.margeBrute)}
+                        {r.margeBrute >= 0 ? "+" : ""}
+                        {formatCHFCompact(r.margeBrute)}
                       </td>
-                      <td
-                        className={`px-3 py-2 text-right tabular-nums text-xs ${
-                          (r.margePct ?? 0) >= 0
-                            ? "text-emerald-700"
-                            : "text-rose-700"
-                        }`}
-                      >
-                        {r.margePct !== null
-                          ? formatPercent(r.margePct * 100)
-                          : "—"}
+                      <td className="px-3.5 py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="h-2 w-16 overflow-hidden rounded-full bg-ground">
+                            <div className={cn("h-full rounded-full", tone.bar)} style={{ width: `${w}%` }} />
+                          </div>
+                          <span className={cn("w-14 shrink-0 text-right font-extrabold tabular-nums", tone.text)}>
+                            {r.margePct !== null ? formatPercent(r.margePct) : "-"}
+                          </span>
+                        </div>
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionCard>
 
       {/* Légende */}
-      <div className="mt-4 space-y-1 text-xs text-muted-foreground">
+      <div className="flex flex-col gap-2 rounded-[16px] border border-dashed border-border-strong bg-card/60 p-4 text-xs text-muted-foreground">
         <p>
-          <strong>Charges directes</strong> = charges 100% attribuables au client
+          <strong className="text-foreground">Charges directes</strong> = charges 100 % attribuables au client
           (ex. nom de domaine, hébergement, sous-traitance dédiée).
         </p>
         <p>
-          <strong>Allocations</strong> = part de charges multi-clients ventilée
-          sur le client (ex. Lucas Community Manager, Google Ads).
+          <strong className="text-foreground">Allocations</strong> = part de charges multi-clients ventilée sur
+          le client (ex. community manager, Google Ads).
         </p>
         <p>
-          <strong>Frais généraux</strong> = charges sans rattachement client
-          (loyer, software interne, frais bancaires, etc.).
+          <strong className="text-foreground">Frais généraux</strong> = charges sans rattachement client (loyer,
+          software interne, frais bancaires, etc.).
         </p>
-        <p className="pt-2">
-          💡 Pour rattacher une charge à un client, ouvre la charge dans{" "}
-          <Link href="/charges" className="text-primary hover:underline">
-            /charges
-          </Link>{" "}
-          et sélectionne le client. Pour une charge multi-clients, utilise le
-          panneau d'allocations.
+        <p className="flex items-start gap-2 pt-1">
+          <Info aria-hidden="true" className="mt-px size-4 shrink-0 text-info-700" />
+          <span>
+            Pour rattacher une charge à un client, ouvre la charge dans{" "}
+            <Link href="/charges" className="font-bold text-info-700 hover:underline">
+              Charges
+            </Link>{" "}
+            et sélectionne le client. Pour une charge multi-clients, utilise le panneau d&apos;allocations.
+          </span>
         </p>
       </div>
     </div>
   );
 }
 
-function formatPeriodeLabel(p: string, from: Date, to: Date): string {
-  if (p === "month") return "mois en cours";
-  if (p === "quarter") return "trimestre en cours";
-  if (p === "12m") return "12 derniers mois";
-  return `${from.getFullYear()} (YTD)`;
-}
-
-function Kpi({
-  label,
-  value,
-  subtitle,
-  tone,
-}: {
-  label: string;
-  value: string;
-  subtitle?: string;
-  tone?: "primary" | "emerald" | "rose" | "amber" | "muted";
-}) {
-  const colorClass =
-    tone === "emerald"
-      ? "text-emerald-700"
-      : tone === "rose"
-        ? "text-rose-700"
-        : tone === "amber"
-          ? "text-amber-700"
-          : tone === "primary"
-            ? "text-primary"
-            : "text-muted-foreground";
+function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">
-          {label}
-        </p>
-        <p className={`mt-1 text-2xl font-semibold tabular-nums ${colorClass}`}>
-          {value}
-        </p>
-        {subtitle && (
-          <p className="mt-0.5 text-[11px] text-muted-foreground">{subtitle}</p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function Th({
-  children,
-  className,
-}: {
-  children?: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <th
-      className={`px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground ${className ?? ""}`}
-    >
+    <th scope="col" className={cn("px-2.5 py-3 text-right first:pl-3.5", className)}>
       {children}
     </th>
   );

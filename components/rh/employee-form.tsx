@@ -1,13 +1,22 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import {
+  Briefcase,
+  Coins,
+  Power,
+  Siren,
+  StickyNote,
+  UserRound,
+} from "lucide-react";
+import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { updateEmployee } from "@/app/(app)/rh/actions";
+import { SectionCard } from "@/components/arena/section-card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 interface EmployeeFormProps {
   initial: {
@@ -40,8 +49,12 @@ interface EmployeeFormProps {
 const dateToIso = (d: Date | null) =>
   d ? new Date(d).toISOString().slice(0, 10) : "";
 
+const FIELD = "h-11 rounded-[12px] border-border bg-card px-3 text-[15px] md:text-sm";
+
 export function EmployeeForm({ initial }: EmployeeFormProps) {
   const [pending, startTransition] = useTransition();
+  const uid = useId();
+  const fid = (k: string) => `${uid}-${k}`;
 
   const [name, setName] = useState(initial.name);
   const [email, setEmail] = useState(initial.email);
@@ -126,238 +139,253 @@ export function EmployeeForm({ initial }: EmployeeFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       {/* Identité */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Identité</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="Nom complet *">
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </Field>
-          <Field label="Email *">
-            <Input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </Field>
-          <Field label="Email de récupération (externe)">
-            <Input
-              type="email"
-              value={emailRecuperation}
-              onChange={(e) => setEmailRecuperation(e.target.value)}
-              placeholder="ex. prenom@gmail.com"
-            />
-          </Field>
-          <Field label="Téléphone">
-            <Input
-              value={telephone}
-              onChange={(e) => setTelephone(e.target.value)}
-            />
-          </Field>
-          <Field label="Date de naissance">
-            <Input
-              type="date"
-              value={dateNaissance}
-              onChange={(e) => setDateNaissance(e.target.value)}
-            />
-          </Field>
-          <Field label="Adresse postale" full>
-            <Input
-              value={adresse}
-              onChange={(e) => setAdresse(e.target.value)}
-              placeholder="Rue, NPA, ville"
-            />
-          </Field>
-          <Field label="N° AVS">
-            <Input
-              value={numeroAVS}
-              onChange={(e) => setNumeroAVS(e.target.value)}
-              placeholder="756.XXXX.XXXX.XX"
-            />
-          </Field>
-          <Field label="IBAN">
-            <Input
-              value={iban}
-              onChange={(e) => setIban(e.target.value)}
-              placeholder="CH..."
-            />
-          </Field>
-        </CardContent>
-      </Card>
+      <SectionCard title="Identité" icon={UserRound} tone="blue" contentClassName="grid gap-4 sm:grid-cols-2">
+        <Field id={fid("name")} label="Nom complet *">
+          <Input id={fid("name")} value={name} onChange={(e) => setName(e.target.value)} className={FIELD} />
+        </Field>
+        <Field id={fid("email")} label="Email *">
+          <Input
+            id={fid("email")}
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={FIELD}
+          />
+        </Field>
+        <Field id={fid("recup")} label="Email de récupération (externe)">
+          <Input
+            id={fid("recup")}
+            type="email"
+            value={emailRecuperation}
+            onChange={(e) => setEmailRecuperation(e.target.value)}
+            placeholder="ex. prenom@gmail.com"
+            className={FIELD}
+          />
+        </Field>
+        <Field id={fid("tel")} label="Téléphone">
+          <Input
+            id={fid("tel")}
+            type="tel"
+            value={telephone}
+            onChange={(e) => setTelephone(e.target.value)}
+            className={FIELD}
+          />
+        </Field>
+        <Field id={fid("naissance")} label="Date de naissance">
+          <Input
+            id={fid("naissance")}
+            type="date"
+            value={dateNaissance}
+            onChange={(e) => setDateNaissance(e.target.value)}
+            className={FIELD}
+          />
+        </Field>
+        <Field id={fid("adresse")} label="Adresse postale" full>
+          <Input
+            id={fid("adresse")}
+            value={adresse}
+            onChange={(e) => setAdresse(e.target.value)}
+            placeholder="Rue, NPA, ville"
+            className={FIELD}
+          />
+        </Field>
+        <Field id={fid("avs")} label="N° AVS">
+          <Input
+            id={fid("avs")}
+            value={numeroAVS}
+            onChange={(e) => setNumeroAVS(e.target.value)}
+            placeholder="756.XXXX.XXXX.XX"
+            className={FIELD}
+          />
+        </Field>
+        <Field id={fid("iban")} label="IBAN">
+          <Input
+            id={fid("iban")}
+            value={iban}
+            onChange={(e) => setIban(e.target.value)}
+            placeholder="CH..."
+            className={FIELD}
+          />
+        </Field>
+      </SectionCard>
 
       {/* Contrat */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Contrat de travail</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="Type de contrat">
-            <select
-              value={typeContrat}
-              onChange={(e) => setTypeContrat(e.target.value)}
-              className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-            >
-              <option value="">—</option>
-              <option value="CDI">CDI</option>
-              <option value="CDD">CDD</option>
-              <option value="MANDAT">Mandat</option>
-              <option value="STAGE">Stage</option>
-              <option value="ESSAI">Période d&apos;essai</option>
-            </select>
-          </Field>
-          <Field label="% d'activité">
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              step={5}
-              value={pourcentageActivite}
-              onChange={(e) =>
-                setPourcentageActivite(Number(e.target.value) || 0)
-              }
-            />
-          </Field>
-          <Field label="Date d'entrée">
-            <Input
-              type="date"
-              value={dateEntree}
-              onChange={(e) => setDateEntree(e.target.value)}
-            />
-          </Field>
-          <Field label="Date de sortie">
-            <Input
-              type="date"
-              value={dateSortie}
-              onChange={(e) => setDateSortie(e.target.value)}
-            />
-          </Field>
-          <Field label="Salaire de base (CHF / mois)" full>
-            <Input
-              type="number"
-              min={0}
-              step="100"
-              value={salaireBase}
-              onChange={(e) => setSalaireBase(Number(e.target.value) || 0)}
-            />
-          </Field>
-        </CardContent>
-      </Card>
+      <SectionCard title="Contrat de travail" icon={Briefcase} tone="navy" contentClassName="grid gap-4 sm:grid-cols-2">
+        <Field id={fid("contrat")} label="Type de contrat">
+          <select
+            id={fid("contrat")}
+            value={typeContrat}
+            onChange={(e) => setTypeContrat(e.target.value)}
+            className="h-11 w-full rounded-[12px] border border-input bg-card px-3 text-[15px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
+          >
+            <option value="">Non renseigné</option>
+            <option value="CDI">CDI</option>
+            <option value="CDD">CDD</option>
+            <option value="MANDAT">Mandat</option>
+            <option value="STAGE">Stage</option>
+            <option value="ESSAI">Période d&apos;essai</option>
+          </select>
+        </Field>
+        <Field id={fid("activite")} label="% d'activité">
+          <Input
+            id={fid("activite")}
+            type="number"
+            min={0}
+            max={100}
+            step={5}
+            value={pourcentageActivite}
+            onChange={(e) =>
+              setPourcentageActivite(Number(e.target.value) || 0)
+            }
+            className={FIELD}
+          />
+        </Field>
+        <Field id={fid("entree")} label="Date d'entrée">
+          <Input
+            id={fid("entree")}
+            type="date"
+            value={dateEntree}
+            onChange={(e) => setDateEntree(e.target.value)}
+            className={FIELD}
+          />
+        </Field>
+        <Field id={fid("sortie")} label="Date de sortie">
+          <Input
+            id={fid("sortie")}
+            type="date"
+            value={dateSortie}
+            onChange={(e) => setDateSortie(e.target.value)}
+            className={FIELD}
+          />
+        </Field>
+        <Field id={fid("salaire")} label="Salaire de base (CHF / mois)" full>
+          <Input
+            id={fid("salaire")}
+            type="number"
+            min={0}
+            step="100"
+            value={salaireBase}
+            onChange={(e) => setSalaireBase(Number(e.target.value) || 0)}
+            className={FIELD}
+          />
+        </Field>
+      </SectionCard>
 
       {/* Rémunération commerciale */}
       {isCommercial && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              Rémunération commerciale
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Field label="Garantie mensuelle (CHF)">
-              <Input
-                type="number"
-                step="50"
-                value={Number(garantieMensuelle)}
-                onChange={(e) =>
-                  setGarantieMensuelle(Number(e.target.value) || 0)
-                }
-              />
-            </Field>
-            <Field label="Forfait frais (CHF)">
-              <Input
-                type="number"
-                step="10"
-                value={Number(forfaitFrais)}
-                onChange={(e) => setForfaitFrais(Number(e.target.value) || 0)}
-              />
-            </Field>
-            <Field label="Taux commission signature (0–1)">
-              <Input
-                type="number"
-                step="0.01"
-                min={0}
-                max={1}
-                value={Number(tauxCommissionSignature)}
-                onChange={(e) =>
-                  setTauxCommissionSignature(Number(e.target.value) || 0)
-                }
-              />
-            </Field>
-            <Field label="Taux commission renouvellement (0–1)">
-              <Input
-                type="number"
-                step="0.01"
-                min={0}
-                max={1}
-                value={Number(tauxCommissionRenouvellement)}
-                onChange={(e) =>
-                  setTauxCommissionRenouvellement(Number(e.target.value) || 0)
-                }
-              />
-            </Field>
-          </CardContent>
-        </Card>
+        <SectionCard
+          title="Rémunération commerciale"
+          icon={Coins}
+          tone="gold"
+          description="Ces taux alimentent les commissions et le simulateur de gains de la commerciale."
+          contentClassName="grid gap-4 sm:grid-cols-2"
+        >
+          <Field id={fid("garantie")} label="Garantie mensuelle (CHF)">
+            <Input
+              id={fid("garantie")}
+              type="number"
+              step="50"
+              value={Number(garantieMensuelle)}
+              onChange={(e) =>
+                setGarantieMensuelle(Number(e.target.value) || 0)
+              }
+              className={FIELD}
+            />
+          </Field>
+          <Field id={fid("frais")} label="Forfait frais (CHF)">
+            <Input
+              id={fid("frais")}
+              type="number"
+              step="10"
+              value={Number(forfaitFrais)}
+              onChange={(e) => setForfaitFrais(Number(e.target.value) || 0)}
+              className={FIELD}
+            />
+          </Field>
+          <Field id={fid("taux-sig")} label="Taux commission signature (0 à 1, ex. 0.25)">
+            <Input
+              id={fid("taux-sig")}
+              type="number"
+              step="0.01"
+              min={0}
+              max={1}
+              value={Number(tauxCommissionSignature)}
+              onChange={(e) =>
+                setTauxCommissionSignature(Number(e.target.value) || 0)
+              }
+              className={FIELD}
+            />
+          </Field>
+          <Field id={fid("taux-ren")} label="Taux commission renouvellement (0 à 1, ex. 0.10)">
+            <Input
+              id={fid("taux-ren")}
+              type="number"
+              step="0.01"
+              min={0}
+              max={1}
+              value={Number(tauxCommissionRenouvellement)}
+              onChange={(e) =>
+                setTauxCommissionRenouvellement(Number(e.target.value) || 0)
+              }
+              className={FIELD}
+            />
+          </Field>
+        </SectionCard>
       )}
 
       {/* Contact d'urgence */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Contact d&apos;urgence</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="Nom complet">
-            <Input
-              value={contactUrgenceNom}
-              onChange={(e) => setContactUrgenceNom(e.target.value)}
-            />
-          </Field>
-          <Field label="Téléphone">
-            <Input
-              value={contactUrgenceTel}
-              onChange={(e) => setContactUrgenceTel(e.target.value)}
-            />
-          </Field>
-        </CardContent>
-      </Card>
+      <SectionCard title="Contact d'urgence" icon={Siren} tone="red" contentClassName="grid gap-4 sm:grid-cols-2">
+        <Field id={fid("urg-nom")} label="Nom complet">
+          <Input
+            id={fid("urg-nom")}
+            value={contactUrgenceNom}
+            onChange={(e) => setContactUrgenceNom(e.target.value)}
+            className={FIELD}
+          />
+        </Field>
+        <Field id={fid("urg-tel")} label="Téléphone">
+          <Input
+            id={fid("urg-tel")}
+            type="tel"
+            value={contactUrgenceTel}
+            onChange={(e) => setContactUrgenceTel(e.target.value)}
+            className={FIELD}
+          />
+        </Field>
+      </SectionCard>
 
       {/* Notes */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Notes internes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <textarea
-            value={notesRH}
-            onChange={(e) => setNotesRH(e.target.value)}
-            rows={4}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            placeholder="Évaluations, points discutés en entretien, etc."
-          />
-        </CardContent>
-      </Card>
+      <SectionCard title="Notes internes" icon={StickyNote} tone="violet">
+        <Label htmlFor={fid("notes")} className="sr-only">
+          Notes internes
+        </Label>
+        <textarea
+          id={fid("notes")}
+          value={notesRH}
+          onChange={(e) => setNotesRH(e.target.value)}
+          rows={4}
+          className="w-full rounded-[12px] border border-input bg-card px-3 py-2.5 text-[15px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
+          placeholder="Évaluations, points discutés en entretien, etc."
+        />
+      </SectionCard>
 
       {/* Statut */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Statut</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-              className="h-4 w-4"
-            />
-            Compte actif (peut se connecter)
-          </label>
-        </CardContent>
-      </Card>
+      <SectionCard title="Statut" icon={Power} tone={isActive ? "green" : "red"}>
+        <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-semibold">
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+            className="size-5 accent-navy-700"
+          />
+          Compte actif (peut se connecter)
+        </label>
+      </SectionCard>
 
       <div className="flex justify-end gap-2">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" size="lg" disabled={pending}>
           {pending ? "Enregistrement…" : "Enregistrer"}
         </Button>
       </div>
@@ -366,17 +394,21 @@ export function EmployeeForm({ initial }: EmployeeFormProps) {
 }
 
 function Field({
+  id,
   label,
   children,
   full,
 }: {
+  id: string;
   label: string;
   children: React.ReactNode;
   full?: boolean;
 }) {
   return (
-    <div className={full ? "sm:col-span-2" : ""}>
-      <Label className="mb-1 block text-xs">{label}</Label>
+    <div className={cn("flex flex-col gap-1.5", full && "sm:col-span-2")}>
+      <Label htmlFor={id} className="text-[13px]">
+        {label}
+      </Label>
       {children}
     </div>
   );

@@ -1,11 +1,33 @@
+import {
+  AlertTriangle,
+  BookOpen,
+  CircleCheck,
+  Lightbulb,
+  Table2,
+  ThumbsUp,
+  TrendingDown,
+  Trophy,
+} from "lucide-react";
 import Link from "next/link";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Icon } from "@/components/icon";
+import { EmptyState, SectionCard, StatTile, StatusPill } from "@/components/arena";
+import type { Tone } from "@/components/arena/tones";
+import {
+  TABLE_CLASS,
+  THEAD_CLASS,
+  TR_CLASS,
+  TableScroll,
+  Td,
+  Th,
+} from "@/components/common/arena-table";
+import { BackLink } from "@/components/common/back-link";
+import { Callout } from "@/components/common/callout";
+import { PageShell } from "@/components/common/page-shell";
 import { PageHeader } from "@/components/page-header";
 import { formatCHF, formatCHFCompact, formatPercent } from "@/lib/format";
 import { getProjectMargins } from "@/lib/queries/project-profitability";
 import { requireAdmin } from "@/lib/session";
+import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Rentabilité par projet" };
 export const dynamic = "force-dynamic";
@@ -24,91 +46,100 @@ export default async function ProjectsProfitabilityPage() {
   );
   const excellentes = data.projects.filter((p) => p.rentabilite >= 0.35);
 
+  const sumMarge = (list: typeof data.projects) =>
+    list.reduce((s, p) => s + p.margeBrute, 0);
+
+  const tauxGlobal =
+    data.totals.revenu > 0 ? data.totals.margeBrute / data.totals.revenu : 0;
+
   return (
-    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+    <PageShell>
       <PageHeader
+        rubrique="finance"
         title="Rentabilité par projet"
-        description={`${data.projects.length} contrat(s) actif(s) — chacun analysé sur sa durée réelle.`}
-        breadcrumb={
-          <Link
-            href="/comptabilite"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Icon name="ChevronRight" className="h-3 w-3 rotate-180" />
-            Retour à la comptabilité
-          </Link>
-        }
+        description={`${data.projects.length} contrat(s) actif(s), chacun analysé sur sa durée réelle.`}
+        breadcrumb={<BackLink href="/comptabilite">Retour à la comptabilité</BackLink>}
       />
 
       {/* KPIs de répartition */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi
+      <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-4">
+        <StatTile
           label="Excellents (≥ 35 %)"
-          value={`${excellentes.length}`}
-          subtitle={
+          value={excellentes.length}
+          sub={
             excellentes.length > 0
-              ? formatCHFCompact(
-                  excellentes.reduce((s, p) => s + p.margeBrute, 0),
-                ) + " de marge"
+              ? `${formatCHFCompact(sumMarge(excellentes))} de marge`
               : "Aucun projet"
           }
-          tone="emerald"
+          tone="green"
+          icon={Trophy}
         />
-        <Kpi
-          label="Bons (15–35 %)"
-          value={`${bonnes.length}`}
-          subtitle={
+        <StatTile
+          label="Bons (15 à 35 %)"
+          value={bonnes.length}
+          sub={
             bonnes.length > 0
-              ? formatCHFCompact(
-                  bonnes.reduce((s, p) => s + p.margeBrute, 0),
-                ) + " de marge"
+              ? `${formatCHFCompact(sumMarge(bonnes))} de marge`
               : "Aucun projet"
           }
-          tone="primary"
+          tone="blue"
+          icon={ThumbsUp}
         />
-        <Kpi
+        <StatTile
           label="Faibles (< 15 %)"
-          value={`${faibles.length}`}
-          subtitle={
+          value={faibles.length}
+          sub={
             faibles.length > 0
-              ? formatCHFCompact(
-                  faibles.reduce((s, p) => s + p.margeBrute, 0),
-                ) + " de marge"
+              ? `${formatCHFCompact(sumMarge(faibles))} de marge`
               : "Aucun projet"
           }
-          tone="amber"
+          tone="gold"
+          icon={AlertTriangle}
         />
-        <Kpi
+        <StatTile
           label="Déficitaires"
-          value={`${deficitaires.length}`}
-          subtitle={
+          value={deficitaires.length}
+          sub={
             deficitaires.length > 0
-              ? formatCHFCompact(
-                  deficitaires.reduce((s, p) => s + p.margeBrute, 0),
-                ) + " de perte"
-              : "Aucun ✓"
+              ? `${formatCHFCompact(sumMarge(deficitaires))} de perte`
+              : "Aucun, bravo"
           }
-          tone={deficitaires.length > 0 ? "red" : "emerald"}
+          tone={deficitaires.length > 0 ? "red" : "green"}
+          icon={deficitaires.length > 0 ? TrendingDown : CircleCheck}
         />
       </div>
 
       {/* Tableau détaillé */}
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="text-base">
-            Détail par projet — classés du moins rentable au plus rentable
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto p-0">
-          {data.projects.length === 0 ? (
-            <p className="px-3 py-12 text-center text-sm text-muted-foreground">
-              Aucun contrat actif à analyser.
-            </p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+      <SectionCard
+        className="mt-6 overflow-hidden"
+        title="Détail par projet"
+        description="Classés du moins rentable au plus rentable"
+        icon={Table2}
+        tone="navy"
+        action={
+          data.projects.length > 0 ? (
+            <StatusPill tone={rentaTone(tauxGlobal)} size="md">
+              Portefeuille · {formatPercent(tauxGlobal)}
+            </StatusPill>
+          ) : undefined
+        }
+        contentClassName={
+          data.projects.length > 0 ? "-mx-5 -mb-5 sm:-mx-6 sm:-mb-6" : undefined
+        }
+      >
+        {data.projects.length === 0 ? (
+          <EmptyState
+            icon={Table2}
+            tone="navy"
+            title="Aucun contrat actif à analyser"
+            description="Dès qu'un contrat est actif, sa rentabilité apparaît ici."
+          />
+        ) : (
+          <TableScroll label="Rentabilité détaillée par projet">
+            <table className={TABLE_CLASS}>
+              <thead className={THEAD_CLASS}>
                 <tr>
-                  <Th>Contrat</Th>
+                  <Th className="pl-5 sm:pl-6">Contrat</Th>
                   <Th>Client</Th>
                   <Th>Commerciale</Th>
                   <Th className="text-right">Revenu</Th>
@@ -117,228 +148,166 @@ export default async function ProjectsProfitabilityPage() {
                   <Th className="text-right">Frais alloués</Th>
                   <Th className="text-right">Charges réelles</Th>
                   <Th className="text-right">Marge brute</Th>
-                  <Th className="text-right">%</Th>
+                  <Th className="pr-5 text-right sm:pr-6">%</Th>
                 </tr>
               </thead>
               <tbody>
                 {data.projects.map((p) => (
-                  <tr
-                    key={p.contractId}
-                    className="border-b border-border last:border-0 hover:bg-muted/30"
-                  >
-                    <td className="px-3 py-2">
+                  <tr key={p.contractId} className={TR_CLASS}>
+                    <Td className="pl-5 sm:pl-6">
                       <Link
                         href={`/contrats/${p.contractId}`}
-                        className="font-mono text-xs text-primary hover:underline"
+                        className="font-mono text-xs font-bold whitespace-nowrap text-info-700 hover:underline"
                       >
                         {p.numero}
                       </Link>
-                    </td>
-                    <td className="px-3 py-2 text-sm font-medium">
-                      {p.raisonSociale}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">
+                    </Td>
+                    <Td className="min-w-[160px] font-bold">{p.raisonSociale}</Td>
+                    <Td className="text-xs whitespace-nowrap text-muted-foreground">
                       {p.commercialeName}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
+                    </Td>
+                    <Td className="text-right tabular-nums whitespace-nowrap">
                       {formatCHFCompact(p.revenu)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-red-700">
+                    </Td>
+                    <Td className="text-right text-alert-700 tabular-nums whitespace-nowrap">
                       -{formatCHFCompact(p.coutsDirects)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-red-700">
+                    </Td>
+                    <Td className="text-right text-alert-700 tabular-nums whitespace-nowrap">
                       -{formatCHFCompact(p.commission)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-red-700">
+                    </Td>
+                    <Td className="text-right text-alert-700 tabular-nums whitespace-nowrap">
                       -{formatCHFCompact(p.quotePartFrais)}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-red-700">
-                      {p.chargesReelles > 0
-                        ? `-${formatCHFCompact(p.chargesReelles)}`
-                        : "—"}
-                    </td>
-                    <td
-                      className={`px-3 py-2 text-right font-semibold tabular-nums ${
-                        p.margeBrute >= 0
-                          ? "text-emerald-700"
-                          : "text-red-700"
-                      }`}
+                    </Td>
+                    <Td className="text-right text-alert-700 tabular-nums whitespace-nowrap">
+                      {p.chargesReelles > 0 ? (
+                        `-${formatCHFCompact(p.chargesReelles)}`
+                      ) : (
+                        <span className="text-muted-foreground">
+                          <span aria-hidden="true">·</span>
+                          <span className="sr-only">Aucune</span>
+                        </span>
+                      )}
+                    </Td>
+                    <Td
+                      className={cn(
+                        "text-right font-extrabold tabular-nums whitespace-nowrap",
+                        p.margeBrute >= 0 ? "text-win-700" : "text-alert-700",
+                      )}
                     >
                       {formatCHFCompact(p.margeBrute)}
-                    </td>
-                    <td className="px-3 py-2 text-right">
+                    </Td>
+                    <Td className="pr-5 text-right sm:pr-6">
                       <RentabiliteBadge value={p.rentabilite} />
-                    </td>
+                    </Td>
                   </tr>
                 ))}
                 {/* Ligne totaux */}
-                <tr className="border-t-2 border-border bg-muted/50 font-semibold">
-                  <td className="px-3 py-2" colSpan={3}>
-                    TOTAL portefeuille
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                <tr className="border-t-2 border-border-strong bg-ground font-extrabold">
+                  <Td className="pl-5 text-[11px] tracking-[0.08em] uppercase sm:pl-6" colSpan={3}>
+                    Total portefeuille
+                  </Td>
+                  <Td className="text-right tabular-nums whitespace-nowrap">
                     {formatCHFCompact(data.totals.revenu)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-red-700">
+                  </Td>
+                  <Td className="text-right text-alert-700 tabular-nums whitespace-nowrap">
                     -{formatCHFCompact(data.totals.coutsDirects)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-red-700">
+                  </Td>
+                  <Td className="text-right text-alert-700 tabular-nums whitespace-nowrap">
                     -{formatCHFCompact(data.totals.commissions)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-red-700">
+                  </Td>
+                  <Td className="text-right text-alert-700 tabular-nums whitespace-nowrap">
                     -{formatCHFCompact(data.totals.quotePartFrais)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-red-700">
+                  </Td>
+                  <Td className="text-right text-alert-700 tabular-nums whitespace-nowrap">
                     -{formatCHFCompact(data.totals.chargesReelles)}
-                  </td>
-                  <td
-                    className={`px-3 py-2 text-right font-semibold tabular-nums ${
-                      data.totals.margeBrute >= 0
-                        ? "text-emerald-700"
-                        : "text-red-700"
-                    }`}
+                  </Td>
+                  <Td
+                    className={cn(
+                      "text-right tabular-nums whitespace-nowrap",
+                      data.totals.margeBrute >= 0 ? "text-win-700" : "text-alert-700",
+                    )}
                   >
                     {formatCHFCompact(data.totals.margeBrute)}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <RentabiliteBadge
-                      value={
-                        data.totals.revenu > 0
-                          ? data.totals.margeBrute / data.totals.revenu
-                          : 0
-                      }
-                    />
-                  </td>
+                  </Td>
+                  <Td className="pr-5 text-right sm:pr-6">
+                    <RentabiliteBadge value={tauxGlobal} />
+                  </Td>
                 </tr>
               </tbody>
             </table>
-          )}
-        </CardContent>
-      </Card>
+          </TableScroll>
+        )}
+      </SectionCard>
 
       {/* Méthodologie */}
-      <Card className="mt-6 border-amber-200 bg-amber-50/30">
-        <CardHeader>
-          <CardTitle className="text-base">Méthodologie</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <p>
-            <strong>Revenu</strong> = valeur du contrat sur SA DURÉE réelle
-            (oneShot + mensuel × durée en mois). Un contrat de 6 mois n'est donc
-            plus compté comme un contrat de 12 mois — les coûts produits et la
-            quote-part de frais généraux suivent la même durée.
-          </p>
-          <p>
-            <strong>Coûts directs</strong> = somme des coûts internes des
-            produits du contrat. Renseigne ces coûts dans{" "}
-            <Link
-              href="/catalogue"
-              className="text-primary underline-offset-2 hover:underline"
-            >
-              Catalogue produits
-            </Link>{" "}
-            (hébergement, licences, ad spend, etc.).
-          </p>
-          <p>
-            <strong>Commission</strong> = taux signature de la commerciale ×
-            assiette réellement versée (an 1 hors ADS, durée réelle pour les
-            lignes ADS). Volontairement PAS mise au prorata de la durée : c'est
-            ce qui sort vraiment de la caisse, l'afficher plus bas embellirait
-            la marge à tort.
-          </p>
-          <p>
-            <strong>Frais alloués</strong> = quote-part annuelle des frais
-            généraux (loyer, SaaS partagés, salaires non-commerciaux) répartie
-            équitablement sur les {data.projects.length} contrat(s) actif(s).
-            Quote-part actuelle :{" "}
-            <span className="font-semibold">
-              {formatCHF(data.quotePartParContrat)} / contrat / an
-            </span>
-            .
-          </p>
-          <p className="text-xs text-muted-foreground pt-2 border-t">
-            💡 <strong>Plus tu signes de contrats</strong>, plus la quote-part
-            par projet baisse → tu améliores la rentabilité unitaire sans rien
-            faire d&apos;autre que vendre.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+      <SectionCard
+        className="mt-6"
+        title="Méthodologie"
+        description="Comment chaque colonne est calculée"
+        icon={BookOpen}
+        tone="gold"
+      >
+        <dl className="space-y-3 text-sm leading-relaxed">
+          <div>
+            <dt className="font-extrabold">Revenu</dt>
+            <dd className="text-muted-foreground">
+              Valeur du contrat sur SA DURÉE réelle (oneShot + mensuel × durée en
+              mois). Un contrat de 6 mois n&apos;est donc plus compté comme un
+              contrat de 12 mois : les coûts produits et la quote-part de frais
+              généraux suivent la même durée.
+            </dd>
+          </div>
+          <div>
+            <dt className="font-extrabold">Coûts directs</dt>
+            <dd className="text-muted-foreground">
+              Somme des coûts internes des produits du contrat. Renseigne ces
+              coûts dans le{" "}
+              <Link href="/catalogue" className="font-bold text-info-700 hover:underline">
+                Catalogue produits
+              </Link>{" "}
+              (hébergement, licences, ad spend, etc.).
+            </dd>
+          </div>
+          <div>
+            <dt className="font-extrabold">Commission</dt>
+            <dd className="text-muted-foreground">
+              Taux signature de la commerciale × assiette réellement versée (an 1
+              hors ADS, durée réelle pour les lignes ADS). Volontairement PAS mise
+              au prorata de la durée : c&apos;est ce qui sort vraiment de la
+              caisse, l&apos;afficher plus bas embellirait la marge à tort.
+            </dd>
+          </div>
+          <div>
+            <dt className="font-extrabold">Frais alloués</dt>
+            <dd className="text-muted-foreground">
+              Quote-part annuelle des frais généraux (loyer, SaaS partagés,
+              salaires non commerciaux) répartie équitablement sur les{" "}
+              {data.projects.length} contrat(s) actif(s). Quote-part actuelle :{" "}
+              <span className="font-bold text-foreground tabular-nums">
+                {formatCHF(data.quotePartParContrat)} / contrat / an
+              </span>
+              .
+            </dd>
+          </div>
+        </dl>
+        <Callout tone="green" icon={Lightbulb} className="mt-4">
+          <strong>Plus tu signes de contrats</strong>, plus la quote-part par
+          projet baisse : tu améliores la rentabilité unitaire sans rien faire
+          d&apos;autre que vendre.
+        </Callout>
+      </SectionCard>
+    </PageShell>
   );
 }
 
-function Kpi({
-  label,
-  value,
-  subtitle,
-  tone,
-}: {
-  label: string;
-  value: string;
-  subtitle?: string;
-  tone?: "emerald" | "primary" | "amber" | "red";
-}) {
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">
-          {label}
-        </p>
-        <p
-          className={`mt-1 text-2xl font-semibold tabular-nums ${
-            tone === "emerald"
-              ? "text-emerald-700"
-              : tone === "primary"
-                ? "text-primary"
-                : tone === "amber"
-                  ? "text-amber-700"
-                  : tone === "red"
-                    ? "text-red-700"
-                    : ""
-          }`}
-        >
-          {value}
-        </p>
-        {subtitle && (
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {subtitle}
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  );
+function rentaTone(value: number): Tone {
+  return value >= 0.35 ? "green" : value >= 0.15 ? "blue" : value >= 0 ? "gold" : "red";
 }
 
 function RentabiliteBadge({ value }: { value: number }) {
-  const tone =
-    value >= 0.35
-      ? "bg-emerald-100 text-emerald-800"
-      : value >= 0.15
-        ? "bg-blue-100 text-blue-700"
-        : value >= 0
-          ? "bg-amber-100 text-amber-800"
-          : "bg-red-100 text-red-700";
   return (
-    <span
-      className={`inline-flex h-6 items-center rounded-full px-2 text-xs font-semibold tabular-nums ${tone}`}
-    >
+    <StatusPill tone={rentaTone(value)} className="tabular-nums">
       {formatPercent(value)}
-    </span>
-  );
-}
-
-function Th({
-  children,
-  className,
-}: {
-  children?: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <th
-      className={`px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap ${className ?? ""}`}
-    >
-      {children}
-    </th>
+    </StatusPill>
   );
 }

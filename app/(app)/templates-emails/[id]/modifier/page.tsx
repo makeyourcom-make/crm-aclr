@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 
 import { TemplateForm } from "@/components/templates/template-form";
-import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
@@ -14,26 +14,35 @@ interface PageProps {
 export const metadata = { title: "Modifier template" };
 
 export default async function EditTemplatePage({ params }: PageProps) {
-  await requireAdmin();
+  const user = await requireAdmin();
   const { id } = await params;
-  const template = await prisma.emailTemplate.findUnique({ where: { id } });
+  const [template, uses] = await Promise.all([
+    prisma.emailTemplate.findUnique({ where: { id } }),
+    prisma.email.count({ where: { templateUtiliseId: id } }),
+  ]);
   if (!template) notFound();
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-6 lg:px-8">
+    <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
+        rubrique="emails"
         title={`Modifier · ${template.nom}`}
+        description={
+          uses > 0
+            ? `Utilisé pour ${uses} mail${uses > 1 ? "s" : ""} envoyé${uses > 1 ? "s" : ""}.`
+            : "Pas encore utilisé pour un envoi."
+        }
         breadcrumb={
           <Link
             href="/templates-emails"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            className="inline-flex h-8 items-center gap-1.5 rounded-[10px] px-2 text-[13px] font-bold text-muted-foreground transition-colors hover:bg-navy-50 hover:text-foreground"
           >
-            <Icon name="ChevronRight" className="h-3 w-3 rotate-180" />
+            <ArrowLeft className="size-4" aria-hidden="true" />
             Retour aux templates
           </Link>
         }
       />
-      <TemplateForm initial={template} />
+      <TemplateForm initial={template} sampleCommerciale={user.name} usageCount={uses} />
     </div>
   );
 }

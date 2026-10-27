@@ -1,11 +1,13 @@
+import { Boxes, FolderTree, Layers, Lightbulb, Package, PackagePlus, Plus, Power } from "lucide-react";
 import Link from "next/link";
 
+import { EmptyState, SectionCard, StatTile } from "@/components/arena";
 import { CatalogueExplorer } from "@/components/catalogue/catalogue-explorer";
 import { ProductsTable } from "@/components/catalogue/products-table";
-import { Card, CardContent } from "@/components/ui/card";
-import { buttonVariants } from "@/components/ui/button";
-import { Icon } from "@/components/icon";
+import { Callout } from "@/components/common/callout";
+import { PageShell } from "@/components/common/page-shell";
 import { PageHeader } from "@/components/page-header";
+import { buttonVariants } from "@/components/ui/button";
 import { getCategories, getCategorieLabels } from "@/lib/categories";
 import { getProducts } from "@/lib/queries/products";
 import { requireAdmin } from "@/lib/session";
@@ -40,66 +42,124 @@ export default async function CataloguePage() {
     systeme: c.systeme,
   }));
 
+  const actifs = unitaires.filter((p) => p.isActive).length;
+  const packsActifs = packs.filter((p) => p.isActive).length;
+
   return (
-    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+    <PageShell>
       <PageHeader
+        rubrique="finance"
         title="Catalogue produits"
         description={`${unitaires.length} produit(s) unitaire(s) + ${packs.length} pack(s).`}
         actions={
           <>
             <Link
-              href="/catalogue/nouveau?type=PACK"
-              className={buttonVariants({ variant: "outline" })}
+              href="/catalogue/categories"
+              className={buttonVariants({ variant: "ghost", size: "lg" })}
             >
-              <Icon name="Package" className="mr-1.5 h-4 w-4" />
+              <FolderTree aria-hidden="true" />
+              Gérer les catégories
+            </Link>
+            <Link
+              href="/catalogue/nouveau?type=PACK"
+              className={buttonVariants({ variant: "outline", size: "lg" })}
+            >
+              <PackagePlus aria-hidden="true" />
               Nouveau pack
             </Link>
             <Link
               href="/catalogue/nouveau"
-              className={buttonVariants({ variant: "default" })}
+              className={buttonVariants({ variant: "default", size: "lg" })}
             >
-              <Icon name="Package" className="mr-1.5 h-4 w-4" />
+              <Plus aria-hidden="true" />
               Nouveau produit
             </Link>
           </>
         }
       />
 
-      {/* Produits unitaires — accordéon par catégorie */}
-      <section className="mb-8">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Produits par catégorie
-          </h2>
-        </div>
+      {/* KPIs */}
+      <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <StatTile
+          label="Produits en ligne"
+          value={actifs}
+          sub={`sur ${unitaires.length} unitaires`}
+          tone="green"
+          icon={Power}
+        />
+        <StatTile
+          label="Produits hors ligne"
+          value={unitaires.length - actifs}
+          sub="Masqués des offres"
+          tone="navy"
+          icon={Package}
+        />
+        <StatTile
+          label="Packs"
+          value={packs.length}
+          sub={`${packsActifs} en ligne`}
+          tone="violet"
+          icon={Layers}
+        />
+        <StatTile
+          label="Catégories"
+          value={categories.length}
+          sub="Système + ajoutées"
+          tone="blue"
+          icon={FolderTree}
+          href="/catalogue/categories"
+        />
+      </div>
+
+      {/* Produits unitaires : accordéon par catégorie */}
+      <SectionCard
+        className="mb-6"
+        title="Produits par catégorie"
+        description="Clique une catégorie pour déplier ses produits"
+        icon={Boxes}
+        tone="navy"
+      >
         <CatalogueExplorer
           categories={explorerCategories}
           products={explorerProducts}
         />
-        <p className="mt-2 text-xs text-muted-foreground">
-          💡 Clique sur une catégorie pour déplier ses produits. Renomme-la via le
-          crayon, ou ajoute-en une nouvelle en haut. Sur un produit : clique un prix
-          pour le modifier, le toggle l&apos;active/désactive (les inactifs passent
-          en bas), la corbeille le supprime.
-        </p>
-      </section>
+        <Callout tone="blue" icon={Lightbulb} className="mt-4">
+          Clique sur une catégorie pour déplier ses produits. Renomme-la via le
+          crayon, ou ajoute-en une nouvelle en haut. Sur un produit : clique un
+          prix pour le modifier, l&apos;interrupteur l&apos;active ou le
+          désactive (les inactifs passent en bas), la corbeille le supprime.
+        </Callout>
+      </SectionCard>
 
       {/* Packs */}
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Packs
-        </h2>
-
+      <SectionCard
+        className="overflow-hidden"
+        title="Packs"
+        description={`${packs.length} offre(s) groupée(s)`}
+        icon={Layers}
+        tone="violet"
+        contentClassName={packs.length > 0 ? "-mx-5 -mb-5 sm:-mx-6 sm:-mb-6" : undefined}
+      >
         {packs.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center text-sm text-muted-foreground">
-              Aucun pack défini.
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={Layers}
+            tone="violet"
+            title="Aucun pack défini"
+            description="Assemble plusieurs produits unitaires en une offre groupée."
+            action={
+              <Link
+                href="/catalogue/nouveau?type=PACK"
+                className={buttonVariants({ variant: "outline", size: "lg" })}
+              >
+                <PackagePlus aria-hidden="true" />
+                Nouveau pack
+              </Link>
+            }
+          />
         ) : (
           <ProductsTable products={packs} categorieLabels={categorieLabels} />
         )}
-      </section>
-    </div>
+      </SectionCard>
+    </PageShell>
   );
 }

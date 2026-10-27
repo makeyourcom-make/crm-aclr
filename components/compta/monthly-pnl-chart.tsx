@@ -1,9 +1,11 @@
 "use client";
 
 /**
- * Graphique mensuel P&L : barres CA + lignes marges.
+ * Graphique mensuel P&L : barres CA + lignes marges (couleurs MYC Arena).
  *
- * Mois passés en plein, mois futurs en pointillé (séparation visuelle).
+ * CA encaissé = vert succès · CA facturé = navy clair · marge réelle = trait
+ * navy plein · marge projetée = pointillé coral. Une ligne verticale
+ * « Aujourd'hui » sépare le passé de la projection.
  */
 import {
   Bar,
@@ -33,38 +35,49 @@ interface MonthlyPnLChartProps {
 }
 
 const COLORS = {
-  caEncaisse: "#10b981", // emerald-500
-  caFacture: "#0E1936", // navy
+  caEncaisse: "#12A150", // win-500
+  caFacture: "#0E1936", // navy-700
   margeReelle: "#0E1936",
-  margeProjetee: "#F47174", // coral
+  margeProjetee: "#E95256", // coral-500
+  grid: "#E5E8F0",
+  axis: "#D5DAE6",
+  tick: "#5B6478",
 };
 
 export function MonthlyPnLChart({ data }: MonthlyPnLChartProps) {
-  // Index du dernier mois passé pour la ligne de référence
+  // Index du premier mois futur pour la ligne de référence
   const firstFutureIdx = data.findIndex((d) => d.phase === "future");
 
   return (
-    <div className="h-80 w-full">
+    <div
+      className="h-72 w-full sm:h-80"
+      role="img"
+      aria-label="Graphique du P&L mensuel : CA encaissé et facturé en barres, marges réelle et projetée en lignes. Le détail chiffré figure dans le tableau ci-dessous."
+    >
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={data}
-          margin={{ top: 12, right: 12, left: 0, bottom: 0 }}
+          margin={{ top: 16, right: 8, left: -4, bottom: 0 }}
         >
-          <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+          <CartesianGrid stroke={COLORS.grid} strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey="label"
-            tick={{ fontSize: 11, fill: "#64748b" }}
-            stroke="#cbd5e1"
+            tick={{ fontSize: 11, fill: COLORS.tick, fontWeight: 600 }}
+            stroke={COLORS.axis}
+            tickLine={false}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: "#64748b" }}
-            stroke="#cbd5e1"
+            tick={{ fontSize: 11, fill: COLORS.tick, fontWeight: 600 }}
+            stroke={COLORS.axis}
+            tickLine={false}
+            axisLine={false}
             tickFormatter={(v) =>
-              formatCHFCompact(Number(v)).replace("CHF ", "")
+              formatCHFCompact(Number(v)).replace("CHF ", "").replace("CHF", "")
             }
-            width={64}
+            width={60}
           />
           <Tooltip
+            cursor={{ fill: "#EEF0F6" }}
             formatter={(value, name) => {
               const label =
                 name === "caEncaisse"
@@ -88,22 +101,27 @@ export function MonthlyPnLChart({ data }: MonthlyPnLChartProps) {
             }}
             contentStyle={{
               fontSize: 12,
-              borderRadius: 6,
-              border: "1px solid #e2e8f0",
+              fontWeight: 600,
+              borderRadius: 12,
+              border: "1px solid #E5E8F0",
+              boxShadow: "0 12px 32px rgba(14,25,54,0.14)",
+              color: "#0E1936",
             }}
+            labelStyle={{ fontWeight: 800, color: "#0E1936", marginBottom: 4 }}
           />
 
           {/* Ligne verticale entre passé et futur */}
           {firstFutureIdx > 0 && (
             <ReferenceLine
               x={data[firstFutureIdx - 1]?.label}
-              stroke="#94a3b8"
+              stroke="#8A93A6"
               strokeDasharray="4 4"
               label={{
                 value: "Aujourd'hui",
                 position: "top",
-                fill: "#64748b",
-                fontSize: 10,
+                fill: COLORS.tick,
+                fontSize: 11,
+                fontWeight: 700,
               }}
             />
           )}
@@ -112,31 +130,35 @@ export function MonthlyPnLChart({ data }: MonthlyPnLChartProps) {
             dataKey="caEncaisse"
             fill={COLORS.caEncaisse}
             name="caEncaisse"
-            radius={[3, 3, 0, 0]}
-            fillOpacity={0.85}
+            radius={[6, 6, 0, 0]}
+            fillOpacity={0.9}
+            maxBarSize={28}
           />
           <Bar
             dataKey="caFacture"
             fill={COLORS.caFacture}
             name="caFacture"
-            radius={[3, 3, 0, 0]}
-            fillOpacity={0.25}
+            radius={[6, 6, 0, 0]}
+            fillOpacity={0.18}
+            maxBarSize={28}
           />
           <Line
             type="monotone"
             dataKey="margeReelle"
             stroke={COLORS.margeReelle}
             strokeWidth={2.5}
-            dot={{ r: 3 }}
+            dot={{ r: 3, fill: COLORS.margeReelle }}
+            activeDot={{ r: 5 }}
             name="margeReelle"
           />
           <Line
             type="monotone"
             dataKey="margeProjetee"
             stroke={COLORS.margeProjetee}
-            strokeWidth={2}
-            strokeDasharray="5 5"
-            dot={{ r: 2 }}
+            strokeWidth={2.25}
+            strokeDasharray="6 5"
+            dot={{ r: 2.5, fill: COLORS.margeProjetee }}
+            activeDot={{ r: 5 }}
             name="margeProjetee"
           />
         </ComposedChart>

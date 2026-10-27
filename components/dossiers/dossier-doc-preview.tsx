@@ -1,41 +1,42 @@
 "use client";
 
 /**
- * Aperçu du Google Doc de suivi + bouton « Actualiser ».
+ * Aperçu du Google Doc de suivi + bouton « Actualiser » (MYC Arena).
  *
  * L'iframe /preview affiche la dernière version enregistrée AU MOMENT DU
  * CHARGEMENT ; Google ne pousse pas les modifications en direct dans une
  * fenêtre intégrée. Le bouton recharge uniquement l'iframe (nouvelle clé React)
  * pour re-chercher la version courante sans recharger toute la page.
  */
+import { Eye, RotateCcw } from "lucide-react";
 import { useState } from "react";
 
-import { Icon } from "@/components/icon";
+import { Button } from "@/components/ui/button";
 
 export function DossierDocPreview({ previewUrl }: { previewUrl: string }) {
   const [key, setKey] = useState(0);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-1.5">
-        <span className="text-xs text-muted-foreground">
-          Aperçu (lecture seule) — dernière version au chargement.
+    <section
+      aria-label="Aperçu du document de suivi"
+      className="overflow-hidden rounded-[20px] border border-border bg-card shadow-arena"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-ground px-4 py-2.5">
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <Eye aria-hidden="true" className="size-4" />
+          Aperçu (lecture seule) · dernière version au chargement.
         </span>
-        <button
-          type="button"
-          onClick={() => setKey((k) => k + 1)}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted"
-        >
-          <Icon name="RotateCcw" className="h-3.5 w-3.5" />
+        <Button variant="outline" size="sm" onClick={() => setKey((k) => k + 1)}>
+          <RotateCcw aria-hidden="true" />
           Actualiser l&apos;aperçu
-        </button>
+        </Button>
       </div>
       <iframe
         key={key}
         src={previewUrl}
         title="Document de suivi des projets"
-        className="h-[calc(100vh-22rem)] min-h-[30rem] w-full"
+        className="h-[calc(100dvh-22rem)] min-h-[30rem] w-full"
       />
-    </div>
+    </section>
   );
 }

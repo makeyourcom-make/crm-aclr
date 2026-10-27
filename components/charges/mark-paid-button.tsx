@@ -1,19 +1,19 @@
 "use client";
 
 /**
- * Bouton inline « Marquer payée » sur la liste /charges.
+ * Bouton inline « Payer » sur la liste /charges.
  *
- * UX : un clic → popover avec date picker pré-remplie à aujourd'hui →
+ * UX : un clic → popover avec date picker pré-remplie (date du ticket) →
  * validation → la charge passe à PAYE + dateReglement = date choisie.
  */
+import { Check, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { markExpensePaid } from "@/app/(app)/charges/actions";
+import { FIELD_SM_CLASS, LABEL_CLASS } from "@/components/common/form-styles";
 import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/icon";
-import { Input } from "@/components/ui/input";
 
 export function MarkPaidButton({
   expenseId,
@@ -28,15 +28,23 @@ export function MarkPaidButton({
   const [date, setDate] = useState(defaultDate);
   const [pending, start] = useTransition();
   const popRef = useRef<HTMLDivElement>(null);
+  const dateId = useId();
 
-  // Fermeture au clic extérieur
+  // Fermeture au clic extérieur et avec Échap
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
       if (!popRef.current?.contains(e.target as Node)) setOpen(false);
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
   const confirm = (e: React.FormEvent) => {
@@ -60,46 +68,53 @@ export function MarkPaidButton({
   return (
     <div className="relative inline-block">
       <button
+        type="button"
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
           setOpen(true);
         }}
         title="Marquer comme payée"
-        className="inline-flex h-6 items-center gap-0.5 rounded border border-emerald-200 bg-emerald-50 px-1.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-100"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        className="inline-flex h-9 items-center gap-1 rounded-[10px] border border-win-500/30 bg-win-50 px-2.5 text-xs font-bold text-win-700 transition-colors hover:border-win-500/60"
       >
-        <Icon name="Check" className="h-3 w-3" />
+        <Check aria-hidden="true" className="size-3.5" />
         Payer
       </button>
       {open && (
         <div
           ref={popRef}
-          className="absolute right-0 top-full z-30 mt-1 w-64 rounded-md border border-border bg-popover p-3 shadow-md"
+          role="dialog"
+          aria-label="Marquer la charge comme payée"
+          className="absolute top-full left-0 z-30 mt-1.5 w-[min(16rem,80vw)] md:right-0 md:left-auto rounded-[14px] border border-border bg-popover p-3.5 text-left shadow-arena-lg"
           onClick={(e) => e.stopPropagation()}
         >
           <form onSubmit={confirm}>
-            <label className="mb-1 block text-[11px] font-medium text-foreground">
+            <label htmlFor={dateId} className={LABEL_CLASS}>
               Date de règlement (débit)
             </label>
-            <Input
+            <input
+              id={dateId}
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
               required
-              className="h-8 text-xs"
+              className={FIELD_SM_CLASS}
               autoFocus
             />
-            <div className="mt-2 flex items-center justify-end gap-1">
+            <div className="mt-3 flex items-center justify-end gap-1.5">
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
+                size="sm"
                 onClick={() => setOpen(false)}
-                className="h-7 text-xs"
               >
                 Annuler
               </Button>
-              <Button type="submit" disabled={pending} className="h-7 text-xs">
-                {pending ? "..." : "Confirmer"}
+              <Button type="submit" size="sm" disabled={pending}>
+                {pending && <Loader2 aria-hidden="true" className="animate-spin" />}
+                Confirmer
               </Button>
             </div>
           </form>

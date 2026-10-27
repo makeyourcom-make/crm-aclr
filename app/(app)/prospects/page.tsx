@@ -1,17 +1,5 @@
-import Link from "next/link";
-
-import { buttonVariants } from "@/components/ui/button";
-import { Icon } from "@/components/icon";
-import { PageHeader } from "@/components/page-header";
-import { Pagination } from "@/components/pagination";
-import { ProspectFilters } from "@/components/prospects/prospect-filters";
-import { ProspectsTable } from "@/components/prospects/prospects-table";
-import { prisma } from "@/lib/db";
-import {
-  getProspects,
-  getProspectStats,
-} from "@/lib/queries/prospects";
-import { ProspectListParamsSchema } from "@/lib/schemas/prospect";
+import { ProspectsListView } from "@/components/prospects/prospects-list-view";
+import { loadProspectsPage } from "@/lib/queries/prospects-pages";
 import { requireUser } from "@/lib/session";
 
 export const metadata = { title: "Entreprises" };
@@ -21,136 +9,13 @@ interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
+/**
+ * Liste des entreprises (MYC Arena). Données : loadProspectsPage (RLS par
+ * rôle dans chaque requête) ; présentation : ProspectsListView.
+ */
 export default async function ProspectsPage({ searchParams }: PageProps) {
   const user = await requireUser();
   const raw = await searchParams;
-
-  // Parse + valeurs par défaut. Ignore les params inconnus / mal formés.
-  const params = ProspectListParamsSchema.parse(raw);
-
-  const isAdmin = user.role === "ADMIN";
-
-  // OPTIM : 4 queries en parallèle (prospects, stats, users admin, tags)
-  const [
-    { items, total, page, pageSize, totalPages },
-    stats,
-    teamUsers,
-    tags,
-    products,
-  ] = await Promise.all([
-    getProspects(user, params),
-    getProspectStats(user, isAdmin ? params.assigneAId : undefined),
-    isAdmin
-      ? prisma.user.findMany({
-          where: { isActive: true },
-          select: { id: true, name: true },
-          orderBy: { name: "asc" },
-        })
-      : Promise.resolve([] as Array<{ id: string; name: string }>),
-    prisma.prospectTag.findMany({
-      select: { id: true, nom: true },
-      orderBy: { nom: "asc" },
-    }),
-    // Produits réellement présents dans au moins un contrat (inutile de proposer
-    // un produit que personne n'a). Sert au filtre « Produit » = clients signés.
-    prisma.product.findMany({
-      where: { contracts: { some: {} } },
-      select: { id: true, nom: true },
-      orderBy: { nom: "asc" },
-    }),
-  ]);
-
-  // Si l'admin a sélectionné une commerciale dans le filtre, le bandeau décrit
-  // SON portefeuille (nombre d'entreprises attribuées) plutôt que le total global.
-  const selectedCommercial =
-    isAdmin && params.assigneAId
-      ? teamUsers.find((u) => u.id === params.assigneAId)
-      : undefined;
-
-  const headerDescription = selectedCommercial
-    ? `${stats.total} entreprise(s) attribuée(s) à ${selectedCommercial.name} - ${stats.nbSignes} client(s) signé(s) · ${stats.nbActifs} en cours de prospection.`
-    : stats.nbSignes > 0
-      ? `${stats.total} entreprise(s) au total - ${stats.nbSignes} client(s) signé(s) · ${stats.nbActifs} en cours de prospection.`
-      : `${stats.total} entreprise(s) - ${stats.nbActifs} en cours de prospection.`;
-
-  return (
-    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-      <PageHeader
-        title="Entreprises"
-        description={headerDescription}
-        actions={
-          <>
-            {user.role === "ADMIN" && (
-              <>
-                <Link
-                  href="/prospects/tags"
-                  className={buttonVariants({ variant: "outline" })}
-                >
-                  <Icon name="Sparkles" className="mr-1.5 h-4 w-4" />
-                  Gérer les tags
-                </Link>
-                <a
-                  href={`/api/prospects/export?${new URLSearchParams(
-                    Object.entries(params)
-                      .filter(([, v]) => v !== undefined && v !== "" && v !== null)
-                      .map(([k, v]) => [k, String(v)]),
-                  ).toString()}`}
-                  download
-                  className={buttonVariants({ variant: "outline" })}
-                >
-                  <Icon name="FileSpreadsheet" className="mr-1.5 h-4 w-4" />
-                  Export CSV
-                </a>
-                <Link
-                  href="/prospects/import"
-                  className={buttonVariants({ variant: "outline" })}
-                >
-                  <Icon name="FileSpreadsheet" className="mr-1.5 h-4 w-4" />
-                  Importer CSV
-                </Link>
-              </>
-            )}
-            <Link
-              href="/prospects/nouveau"
-              className={buttonVariants({ variant: "default" })}
-            >
-              <Icon name="Users" className="mr-1.5 h-4 w-4" />
-              Nouvelle entreprise
-            </Link>
-          </>
-        }
-      />
-
-      <div className="mb-4">
-        <ProspectFilters
-          params={params}
-          users={teamUsers}
-          currentUserId={user.id}
-          tags={tags}
-          products={products}
-        />
-      </div>
-
-      <ProspectsTable
-        rows={items}
-        teamUsers={teamUsers}
-        showBulkActions={isAdmin}
-      />
-
-      <div className="mt-4">
-        <Pagination
-          current={page}
-          totalPages={totalPages}
-          total={total}
-          pageSize={pageSize}
-        />
-      </div>
-
-      <p className="mt-4 text-center text-[11px] text-muted-foreground">
-        💡 Cette liste inclut tous les statuts (prospects + clients signés).
-        Utilise le filtre <strong>Statut</strong> pour cibler une étape précise
-        du funnel.
-      </p>
-    </div>
-  );
+  const data = await loadProspectsPage(user, raw);
+  return <ProspectsListView data={data} />;
 }

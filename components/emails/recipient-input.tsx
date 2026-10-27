@@ -5,7 +5,7 @@
  * un nom de contact ou un début d'email, on choisit dans la liste et l'adresse
  * est insérée. Plusieurs adresses séparées par « , » ou « ; » (mode multiple).
  */
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 
 import { searchProspectsForAttach } from "@/app/(app)/emails/actions";
 import type { ProspectSearchHit } from "@/lib/prospect-search";
@@ -42,6 +42,7 @@ export function RecipientInput({
   const [active, setActive] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seq = useRef(0);
+  const listId = useId();
 
   const search = (raw: string) => {
     if (timer.current) clearTimeout(timer.current);
@@ -109,17 +110,25 @@ export function RecipientInput({
           }
         }}
         onBlur={() => setOpen(false)}
+        role="combobox"
+        aria-controls={listId}
+        aria-expanded={open && hits.length > 0}
+        aria-autocomplete="list"
         className={cn(
-          "w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20",
+          "h-10 w-full min-w-0 rounded-[12px] border border-border-strong bg-card px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-info-500 focus-visible:ring-3 focus-visible:ring-info-500/25 disabled:opacity-60",
           className,
         )}
       />
       {open && hits.length > 0 && (
-        <ul className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-md border border-border bg-popover py-1 shadow-lg">
+        <ul
+          id={listId}
+          role="listbox"
+          className="absolute left-0 right-0 top-full z-50 mt-1.5 max-h-64 overflow-y-auto rounded-[14px] border border-border bg-popover p-1 shadow-arena-lg"
+        >
           {hits.map((h, i) => {
             const contact = [h.contactPrenom, h.contactNom].filter(Boolean).join(" ");
             return (
-              <li key={h.id}>
+              <li key={h.id} role="option" aria-selected={i === active}>
                 <button
                   type="button"
                   // mousedown + preventDefault : le choix passe avant le blur du champ.
@@ -129,13 +138,33 @@ export function RecipientInput({
                   }}
                   onMouseEnter={() => setActive(i)}
                   className={cn(
-                    "block w-full px-3 py-1.5 text-left text-sm",
-                    i === active ? "bg-muted" : "hover:bg-muted",
+                    "flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left text-sm transition-colors",
+                    i === active ? "bg-navy-50" : "hover:bg-navy-50",
                   )}
                 >
-                  <span className="font-medium">{h.raisonSociale}</span>
-                  {contact && <span className="text-muted-foreground"> · {contact}</span>}
-                  <span className="block text-xs text-muted-foreground">{h.email}</span>
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-extrabold",
+                      h.isClient ? "bg-win-50 text-win-700" : "bg-info-50 text-info-700",
+                    )}
+                  >
+                    {(h.raisonSociale || "?").slice(0, 2).toUpperCase()}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate font-bold">{h.raisonSociale}</span>
+                      {h.isClient && (
+                        <span className="shrink-0 rounded-full bg-win-50 px-2 py-0.5 text-[11px] font-bold text-win-700">
+                          Client
+                        </span>
+                      )}
+                    </span>
+                    {contact && (
+                      <span className="block truncate text-xs text-foreground">{contact}</span>
+                    )}
+                    <span className="block truncate text-xs text-muted-foreground">{h.email}</span>
+                  </span>
                 </button>
               </li>
             );

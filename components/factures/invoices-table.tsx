@@ -1,5 +1,16 @@
+import { ChevronRight, ReceiptText } from "lucide-react";
 import Link from "next/link";
 
+import { EmptyState } from "@/components/arena/empty-state";
+import {
+  TABLE_CLASS,
+  THEAD_CLASS,
+  TR_CLASS,
+  TableEmptyRow,
+  TableScroll,
+  Td,
+  Th,
+} from "@/components/common/arena-table";
 import { InvoiceStatutBadge } from "@/components/factures/invoice-statut-badge";
 import { formatCHF } from "@/lib/format";
 
@@ -16,42 +27,57 @@ function monthLabel(d: Date): string {
     .replace(/^(.)/, (m) => m.toUpperCase());
 }
 
+function Empty() {
+  return (
+    <EmptyState
+      icon={ReceiptText}
+      tone="navy"
+      title="Aucune fiche de salaire"
+      description="Aucune facture mensuelle pour l'instant. Lance la génération depuis le bouton en haut."
+    />
+  );
+}
+
 export function InvoicesTable({ rows, showCommerciale }: InvoicesTableProps) {
   return (
-    <>
+    <div className="overflow-hidden rounded-[20px] border border-border bg-card shadow-arena">
       {/* Vue CARTES sur mobile */}
-      <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card md:hidden">
+      <div className="divide-y divide-border md:hidden">
         {rows.length === 0 ? (
-          <p className="px-4 py-12 text-center text-sm text-muted-foreground">
-            Aucune facture mensuelle. Lance la génération depuis le bouton en haut.
-          </p>
+          <div className="p-4">
+            <Empty />
+          </div>
         ) : (
           rows.map((inv) => (
-            <div key={inv.id} className="p-3">
-              <div className="flex items-start justify-between gap-2">
+            <Link
+              key={inv.id}
+              href={`/factures/${inv.id}`}
+              className="block px-4 py-3.5 transition-colors hover:bg-navy-50/70"
+            >
+              <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <Link
-                    href={`/factures/${inv.id}`}
-                    className="block truncate text-sm font-medium capitalize hover:underline"
-                  >
+                  <p className="truncate text-sm font-bold capitalize">
                     {monthLabel(inv.mois)}
-                  </Link>
-                  <p className="font-mono text-[10px] text-muted-foreground">
+                  </p>
+                  <p className="font-mono text-[11px] text-muted-foreground">
                     {inv.referenceFacture}
                     {showCommerciale ? ` · ${inv.user.name}` : ""}
                   </p>
                 </div>
-                <p className="shrink-0 font-semibold tabular-nums">
-                  {formatCHF(Number(inv.montantTotal))}
-                </p>
+                <div className="flex shrink-0 items-center gap-1">
+                  <p className="text-[15px] font-extrabold tabular-nums">
+                    {formatCHF(Number(inv.montantTotal))}
+                  </p>
+                  <ChevronRight aria-hidden="true" className="size-4 text-subtle" />
+                </div>
               </div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+              <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
                 <InvoiceStatutBadge statut={inv.statut} />
                 <span className="text-muted-foreground">
                   Comm. {formatCHF(Number(inv.montantCommissions))}
                 </span>
                 {Number(inv.montantGarantieAbsorbee) > 0 && (
-                  <span className="text-amber-700">
+                  <span className="font-semibold text-gold-700">
                     Gar. +{formatCHF(Number(inv.montantGarantieAbsorbee))}
                   </span>
                 )}
@@ -59,96 +85,76 @@ export function InvoicesTable({ rows, showCommerciale }: InvoicesTableProps) {
                   Frais +{formatCHF(Number(inv.montantFrais))}
                 </span>
               </div>
-            </div>
+            </Link>
           ))
         )}
       </div>
 
       {/* Vue TABLEAU sur desktop */}
-      <div className="hidden overflow-x-auto rounded-lg border border-border bg-card md:block">
-        <table className="w-full text-sm">
-        <thead className="border-b border-border bg-muted/50">
-          <tr>
-            <Th>N°</Th>
-            <Th>Mois facturé</Th>
-            {showCommerciale && <Th>Commerciale</Th>}
-            <Th className="text-right">Commissions</Th>
-            <Th className="text-right">Garantie</Th>
-            <Th className="text-right">Frais</Th>
-            <Th className="text-right">Total</Th>
-            <Th>Statut</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
+      <TableScroll label="Fiches de salaire" className="hidden md:block">
+        <table className={TABLE_CLASS}>
+          <thead className={THEAD_CLASS}>
             <tr>
-              <td
-                colSpan={showCommerciale ? 8 : 7}
-                className="px-3 py-12 text-center text-muted-foreground"
-              >
-                Aucune facture mensuelle. Lance la génération depuis le bouton
-                en haut.
-              </td>
+              <Th className="pl-5">N°</Th>
+              <Th>Mois facturé</Th>
+              {showCommerciale && <Th>Commerciale</Th>}
+              <Th className="text-right">Commissions</Th>
+              <Th className="text-right">Garantie</Th>
+              <Th className="text-right">Frais</Th>
+              <Th className="text-right">Total</Th>
+              <Th className="pr-5">Statut</Th>
             </tr>
-          ) : (
-            rows.map((inv) => (
-              <tr
-                key={inv.id}
-                className="border-b border-border last:border-0 hover:bg-muted/30"
-              >
-                <td className="px-3 py-2 font-mono text-xs">
-                  <Link
-                    href={`/factures/${inv.id}`}
-                    className="font-medium hover:underline"
-                  >
-                    {inv.referenceFacture}
-                  </Link>
-                </td>
-                <td className="px-3 py-2 text-sm capitalize">
-                  {monthLabel(inv.mois)}
-                </td>
-                {showCommerciale && (
-                  <td className="px-3 py-2 text-xs">{inv.user.name}</td>
-                )}
-                <td className="px-3 py-2 text-right tabular-nums">
-                  {formatCHF(Number(inv.montantCommissions))}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums text-amber-700">
-                  {Number(inv.montantGarantieAbsorbee) > 0
-                    ? `+ ${formatCHF(Number(inv.montantGarantieAbsorbee))}`
-                    : "—"}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                  + {formatCHF(Number(inv.montantFrais))}
-                </td>
-                <td className="px-3 py-2 text-right font-semibold tabular-nums">
-                  {formatCHF(Number(inv.montantTotal))}
-                </td>
-                <td className="px-3 py-2">
-                  <InvoiceStatutBadge statut={inv.statut} />
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-      </div>
-    </>
-  );
-}
-
-function Th({
-  children,
-  className,
-}: {
-  children?: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <th
-      className={`px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground ${className ?? ""}`}
-    >
-      {children}
-    </th>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <TableEmptyRow colSpan={showCommerciale ? 8 : 7}>
+                <Empty />
+              </TableEmptyRow>
+            ) : (
+              rows.map((inv) => (
+                <tr key={inv.id} className={TR_CLASS}>
+                  <Td className="pl-5 font-mono text-xs whitespace-nowrap">
+                    <Link
+                      href={`/factures/${inv.id}`}
+                      className="font-bold text-info-700 hover:underline"
+                    >
+                      {inv.referenceFacture}
+                    </Link>
+                  </Td>
+                  <Td className="font-semibold whitespace-nowrap capitalize">
+                    {monthLabel(inv.mois)}
+                  </Td>
+                  {showCommerciale && (
+                    <Td className="text-xs whitespace-nowrap">{inv.user.name}</Td>
+                  )}
+                  <Td className="text-right tabular-nums whitespace-nowrap">
+                    {formatCHF(Number(inv.montantCommissions))}
+                  </Td>
+                  <Td className="text-right font-semibold text-gold-700 tabular-nums whitespace-nowrap">
+                    {Number(inv.montantGarantieAbsorbee) > 0 ? (
+                      `+ ${formatCHF(Number(inv.montantGarantieAbsorbee))}`
+                    ) : (
+                      <span className="font-normal text-muted-foreground">
+                        <span aria-hidden="true">·</span>
+                        <span className="sr-only">Aucune</span>
+                      </span>
+                    )}
+                  </Td>
+                  <Td className="text-right text-muted-foreground tabular-nums whitespace-nowrap">
+                    + {formatCHF(Number(inv.montantFrais))}
+                  </Td>
+                  <Td className="text-right font-extrabold tabular-nums whitespace-nowrap">
+                    {formatCHF(Number(inv.montantTotal))}
+                  </Td>
+                  <Td className="pr-5">
+                    <InvoiceStatutBadge statut={inv.statut} />
+                  </Td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </TableScroll>
+    </div>
   );
 }

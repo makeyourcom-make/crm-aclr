@@ -1,29 +1,56 @@
-import { PageHeader } from "@/components/page-header";
+import { ChevronLeft, ChevronRight, Filter, RotateCcw, ScrollText } from "lucide-react";
+
+import { EmptyState, SectionCard, StatusPill } from "@/components/arena";
+import type { Tone } from "@/components/arena/tones";
+import {
+  TABLE_CLASS,
+  THEAD_CLASS,
+  TR_CLASS,
+  TableEmptyRow,
+  TableScroll,
+  Td,
+  Th,
+} from "@/components/common/arena-table";
+import { LABEL_CLASS, SELECT_CLASS } from "@/components/common/form-styles";
+import { IconPageHeader } from "@/components/common/icon-page-header";
+import { PageShell } from "@/components/common/page-shell";
+import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
+import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Journal d'audit" };
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 100;
 
-/** Libellé + couleur lisibles par type d'action. */
-const ACTION_META: Record<string, { label: string; cls: string }> = {
-  "login.success": { label: "Connexion réussie", cls: "bg-emerald-100 text-emerald-700" },
-  "login.fail": { label: "Échec de connexion", cls: "bg-amber-100 text-amber-700" },
-  "login.locked": { label: "Compte verrouillé", cls: "bg-red-100 text-red-700" },
-  "login.2fa_required": { label: "2FA requise", cls: "bg-slate-100 text-slate-600" },
-  "login.2fa_fail": { label: "Échec 2FA", cls: "bg-red-100 text-red-700" },
-  "login.2fa_recovery_used": { label: "Code de secours utilisé", cls: "bg-amber-100 text-amber-700" },
-  "2fa.enabled": { label: "2FA activée", cls: "bg-emerald-100 text-emerald-700" },
-  "2fa.disabled": { label: "2FA désactivée", cls: "bg-amber-100 text-amber-700" },
-  "prospect.delete": { label: "Suppression entreprise", cls: "bg-red-100 text-red-700" },
-  "prospects.bulk_reassign": { label: "Réattribution en masse", cls: "bg-blue-100 text-blue-700" },
-  "charges.export": { label: "Export des charges", cls: "bg-purple-100 text-purple-700" },
+/** Libellé + teinte lisibles par type d'action. */
+const ACTION_META: Record<string, { label: string; tone: Tone }> = {
+  "login.success": { label: "Connexion réussie", tone: "green" },
+  "login.fail": { label: "Échec de connexion", tone: "gold" },
+  "login.locked": { label: "Compte verrouillé", tone: "red" },
+  "login.2fa_required": { label: "2FA requise", tone: "navy" },
+  "login.2fa_fail": { label: "Échec 2FA", tone: "red" },
+  "login.2fa_recovery_used": { label: "Code de secours utilisé", tone: "gold" },
+  "2fa.enabled": { label: "2FA activée", tone: "green" },
+  "2fa.disabled": { label: "2FA désactivée", tone: "gold" },
+  "prospect.delete": { label: "Suppression entreprise", tone: "red" },
+  "prospects.bulk_reassign": { label: "Réattribution en masse", tone: "blue" },
+  "charges.export": { label: "Export des charges", tone: "violet" },
 };
 
 function actionMeta(a: string) {
-  return ACTION_META[a] ?? { label: a, cls: "bg-slate-100 text-slate-600" };
+  return ACTION_META[a] ?? { label: a, tone: "navy" as Tone };
+}
+
+/** Cellule vide : petit point discret, annoncé « non renseigné ». */
+function Empty() {
+  return (
+    <span className="text-muted-foreground">
+      <span aria-hidden="true">·</span>
+      <span className="sr-only">Non renseigné</span>
+    </span>
+  );
 }
 
 interface PageProps {
@@ -66,20 +93,30 @@ export default async function AuditPage({ searchParams }: PageProps) {
   };
 
   return (
-    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-      <PageHeader
+    <PageShell>
+      <IconPageHeader
+        icon={ScrollText}
+        tone="navy"
         title="Journal d'audit"
-        description={`${total} événement(s) tracé(s) — connexions, suppressions, exports, 2FA…`}
+        description={`${total} événement(s) tracé(s) : connexions, suppressions, exports, 2FA…`}
       />
 
       {/* Filtres (GET form) */}
-      <form method="GET" className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Action</label>
+      <form
+        method="GET"
+        role="search"
+        aria-label="Filtrer le journal"
+        className="mb-4 flex flex-wrap items-end gap-3"
+      >
+        <div className="min-w-[160px] flex-1 sm:flex-none">
+          <label htmlFor="audit-action" className={LABEL_CLASS}>
+            Action
+          </label>
           <select
+            id="audit-action"
             name="action"
             defaultValue={action ?? ""}
-            className="h-9 rounded-md border border-input bg-background px-2.5 text-sm"
+            className={cn(SELECT_CLASS, "sm:w-56")}
           >
             <option value="">Toutes</option>
             {actions.map((a) => (
@@ -89,12 +126,15 @@ export default async function AuditPage({ searchParams }: PageProps) {
             ))}
           </select>
         </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Utilisateur</label>
+        <div className="min-w-[160px] flex-1 sm:flex-none">
+          <label htmlFor="audit-user" className={LABEL_CLASS}>
+            Utilisateur
+          </label>
           <select
+            id="audit-user"
             name="userId"
             defaultValue={userId ?? ""}
-            className="h-9 rounded-md border border-input bg-background px-2.5 text-sm"
+            className={cn(SELECT_CLASS, "sm:w-56")}
           >
             <option value="">Tous</option>
             {users.map((u) => (
@@ -106,94 +146,126 @@ export default async function AuditPage({ searchParams }: PageProps) {
         </div>
         <button
           type="submit"
-          className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          className={buttonVariants({ variant: "default", size: "lg" })}
         >
+          <Filter aria-hidden="true" />
           Filtrer
         </button>
         {(action || userId) && (
-          <a href="/audit" className="h-9 px-2 text-sm text-muted-foreground hover:underline">
+          <a
+            href="/audit"
+            className={buttonVariants({ variant: "ghost", size: "lg" })}
+          >
+            <RotateCcw aria-hidden="true" />
             Réinitialiser
           </a>
         )}
       </form>
 
-      <div className="overflow-x-auto rounded-lg border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead className="border-b border-border bg-muted/50">
-            <tr>
-              <Th>Date / heure</Th>
-              <Th>Utilisateur</Th>
-              <Th>Action</Th>
-              <Th>Cible</Th>
-              <Th>IP</Th>
-              <Th>Détails</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.length === 0 ? (
+      <SectionCard
+        className="overflow-hidden"
+        title="Événements"
+        description={
+          pages > 1
+            ? `Page ${pageNum} / ${pages} · ${PAGE_SIZE} par page`
+            : `${total} événement(s)`
+        }
+        icon={ScrollText}
+        tone="navy"
+        contentClassName="-mx-5 -mb-5 sm:-mx-6 sm:-mb-6"
+      >
+        <TableScroll label="Journal d'audit">
+          <table className={TABLE_CLASS}>
+            <thead className={THEAD_CLASS}>
               <tr>
-                <td colSpan={6} className="px-3 py-10 text-center text-muted-foreground">
-                  Aucun événement.
-                </td>
+                <Th className="pl-5 sm:pl-6">Date / heure</Th>
+                <Th>Utilisateur</Th>
+                <Th>Action</Th>
+                <Th>Cible</Th>
+                <Th>IP</Th>
+                <Th className="pr-5 sm:pr-6">Détails</Th>
               </tr>
-            ) : (
-              logs.map((l) => {
-                const m = actionMeta(l.action);
-                return (
-                  <tr key={l.id} className="border-b border-border last:border-0 hover:bg-muted/30">
-                    <td className="whitespace-nowrap px-3 py-2 tabular-nums text-xs text-muted-foreground">
-                      {l.createdAt.toLocaleString("fr-CH")}
-                    </td>
-                    <td className="px-3 py-2">{l.user?.name ?? "—"}</td>
-                    <td className="px-3 py-2">
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${m.cls}`}>
-                        {m.label}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {l.entity ? `${l.entity}${l.entityId ? ` · ${l.entityId.slice(0, 8)}` : ""}` : "—"}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
-                      {l.ip ?? "—"}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {l.metadata ? JSON.stringify(l.metadata) : "—"}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {logs.length === 0 ? (
+                <TableEmptyRow colSpan={6}>
+                  <EmptyState
+                    icon={ScrollText}
+                    tone="navy"
+                    title="Aucun événement"
+                    description={
+                      action || userId
+                        ? "Rien ne correspond à ces filtres."
+                        : "Le journal se remplira à la prochaine connexion."
+                    }
+                  />
+                </TableEmptyRow>
+              ) : (
+                logs.map((l) => {
+                  const m = actionMeta(l.action);
+                  return (
+                    <tr key={l.id} className={TR_CLASS}>
+                      <Td className="pl-5 text-xs whitespace-nowrap text-muted-foreground tabular-nums sm:pl-6">
+                        {l.createdAt.toLocaleString("fr-CH")}
+                      </Td>
+                      <Td className="font-semibold whitespace-nowrap">
+                        {l.user?.name ?? <Empty />}
+                      </Td>
+                      <Td>
+                        <StatusPill tone={m.tone}>{m.label}</StatusPill>
+                      </Td>
+                      <Td className="text-xs whitespace-nowrap text-muted-foreground">
+                        {l.entity ? (
+                          `${l.entity}${l.entityId ? ` · ${l.entityId.slice(0, 8)}` : ""}`
+                        ) : (
+                          <Empty />
+                        )}
+                      </Td>
+                      <Td className="font-mono text-xs text-muted-foreground">
+                        {l.ip ?? <Empty />}
+                      </Td>
+                      <Td className="max-w-[360px] pr-5 font-mono text-[11px] break-all text-muted-foreground sm:pr-6">
+                        {l.metadata ? JSON.stringify(l.metadata) : <Empty />}
+                      </Td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </TableScroll>
+      </SectionCard>
 
       {pages > 1 && (
-        <div className="mt-3 flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">
+        <nav
+          aria-label="Pagination du journal"
+          className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm"
+        >
+          <span className="font-semibold text-muted-foreground">
             Page {pageNum} / {pages}
           </span>
           <div className="flex gap-2">
             {pageNum > 1 && (
-              <a href={qs({ page: String(pageNum - 1) })} className="rounded-md border border-border px-3 py-1 hover:bg-muted">
-                ← Précédent
+              <a
+                href={qs({ page: String(pageNum - 1) })}
+                className={buttonVariants({ variant: "outline", size: "lg" })}
+              >
+                <ChevronLeft aria-hidden="true" />
+                Précédent
               </a>
             )}
             {pageNum < pages && (
-              <a href={qs({ page: String(pageNum + 1) })} className="rounded-md border border-border px-3 py-1 hover:bg-muted">
-                Suivant →
+              <a
+                href={qs({ page: String(pageNum + 1) })}
+                className={buttonVariants({ variant: "outline", size: "lg" })}
+              >
+                Suivant
+                <ChevronRight aria-hidden="true" />
               </a>
             )}
           </div>
-        </div>
+        </nav>
       )}
-    </div>
-  );
-}
-
-function Th({ children }: { children: React.ReactNode }) {
-  return (
-    <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-      {children}
-    </th>
+    </PageShell>
   );
 }

@@ -10,6 +10,7 @@
  * - Les produits inactifs sont automatiquement renvoyés en bas de liste
  * - Produits triés par ordre alphabétique (actifs puis inactifs)
  */
+import { ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
@@ -22,9 +23,18 @@ import {
   renameCategorieLabel,
   toggleProductActive,
 } from "@/app/(app)/catalogue/actions";
+import { StatusPill } from "@/components/arena/pills";
+import { ActiveToggle } from "@/components/catalogue/active-toggle";
 import { InlinePriceCell } from "@/components/catalogue/inline-price-cell";
-import { Icon } from "@/components/icon";
-import { Badge } from "@/components/ui/badge";
+import {
+  TABLE_CLASS,
+  THEAD_CLASS,
+  TR_CLASS,
+  TableScroll,
+  Td,
+  Th,
+} from "@/components/common/arena-table";
+import { FIELD_CLASS, FIELD_SM_CLASS } from "@/components/common/form-styles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getProductTypeLabel } from "@/lib/labels";
@@ -51,6 +61,9 @@ export interface ExplorerCategory {
 
 const byFr = (a: string, b: string) =>
   a.localeCompare(b, "fr", { sensitivity: "base" });
+
+const ICON_BTN =
+  "inline-flex size-9 shrink-0 items-center justify-center rounded-[10px] text-muted-foreground transition-colors disabled:opacity-50";
 
 export function CatalogueExplorer({
   categories,
@@ -100,7 +113,7 @@ export function CatalogueExplorer({
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success(`Catégorie « ${newLabel.trim()} » créée ✓`);
+      toast.success(`Catégorie « ${newLabel.trim()} » créée.`);
       setNewLabel("");
       router.refresh();
     });
@@ -109,18 +122,26 @@ export function CatalogueExplorer({
   return (
     <div className="space-y-3">
       {/* Ajouter une catégorie */}
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3">
-        <Icon name="Plus" className="h-4 w-4 text-primary" />
-        <Input
-          value={newLabel}
-          onChange={(e) => setNewLabel(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleCreate();
-          }}
-          placeholder="Nom d'une nouvelle catégorie…"
-          className="h-9 max-w-xs"
-        />
-        <Button type="button" size="sm" onClick={handleCreate} disabled={pending}>
+      <div className="flex flex-wrap items-center gap-2 rounded-[16px] border border-dashed border-border-strong bg-ground p-3">
+        <span
+          aria-hidden="true"
+          className="hidden size-9 shrink-0 items-center justify-center rounded-[12px] bg-card text-navy-700 shadow-arena sm:flex"
+        >
+          <Plus className="size-4" />
+        </span>
+        <label className="min-w-0 flex-1 sm:max-w-xs">
+          <span className="sr-only">Nom de la nouvelle catégorie</span>
+          <Input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleCreate();
+            }}
+            placeholder="Nom d'une nouvelle catégorie…"
+            className={FIELD_CLASS}
+          />
+        </label>
+        <Button type="button" size="lg" onClick={handleCreate} disabled={pending}>
           Ajouter la catégorie
         </Button>
       </div>
@@ -151,6 +172,7 @@ function CategorySection({
 
   const activeCount = products.filter((p) => p.isActive).length;
   const inactiveCount = products.length - activeCount;
+  const panelId = `cat-${cat.code}`;
 
   const handleRename = () => {
     const trimmed = label.trim();
@@ -165,7 +187,7 @@ function CategorySection({
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success("Catégorie renommée ✓");
+      toast.success("Catégorie renommée.");
       setRenaming(false);
       router.refresh();
     });
@@ -179,34 +201,22 @@ function CategorySection({
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success("Catégorie supprimée ✓");
+      toast.success("Catégorie supprimée.");
       router.refresh();
     });
   };
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
+    <div className="overflow-hidden rounded-[16px] border border-border bg-card shadow-[0_1px_2px_rgba(14,25,54,0.04)]">
       {/* En-tête de catégorie */}
-      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-          disabled={products.length === 0}
-        >
-          <Icon
-            name={expanded ? "ChevronDown" : "ChevronRight"}
-            className={cn(
-              "h-4 w-4 shrink-0 text-muted-foreground",
-              products.length === 0 && "opacity-30",
-            )}
-          />
-          {renaming ? (
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 sm:px-4">
+        {renaming ? (
+          <label className="min-w-0 flex-1">
+            <span className="sr-only">Nouveau nom de la catégorie {cat.label}</span>
             <Input
               value={label}
               autoFocus
               onChange={(e) => setLabel(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleRename();
                 if (e.key === "Escape") {
@@ -215,19 +225,36 @@ function CategorySection({
                 }
               }}
               onBlur={handleRename}
-              className="h-8 max-w-xs"
+              className={cn(FIELD_SM_CLASS, "max-w-xs")}
             />
-          ) : (
-            <span className="truncate text-sm font-semibold">{cat.label}</span>
-          )}
-          {cat.systeme && (
-            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] font-medium uppercase text-blue-700">
-              système
-            </span>
-          )}
-        </button>
+          </label>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="flex min-h-10 min-w-0 flex-1 items-center gap-2.5 rounded-[10px] text-left disabled:cursor-default"
+            disabled={products.length === 0}
+            aria-expanded={products.length > 0 ? expanded : undefined}
+            aria-controls={products.length > 0 ? panelId : undefined}
+          >
+            <ChevronRight
+              aria-hidden="true"
+              className={cn(
+                "size-4 shrink-0 text-muted-foreground transition-transform",
+                expanded && "rotate-90",
+                products.length === 0 && "opacity-30",
+              )}
+            />
+            <span className="truncate text-sm font-extrabold">{cat.label}</span>
+            {cat.systeme && (
+              <StatusPill tone="blue" dot={false} className="h-5 px-2 text-[11px]">
+                Système
+              </StatusPill>
+            )}
+          </button>
+        )}
 
-        <span className="text-xs text-muted-foreground tabular-nums">
+        <span className="text-xs font-semibold text-muted-foreground tabular-nums">
           {activeCount} actif{activeCount > 1 ? "s" : ""}
           {inactiveCount > 0 && ` · ${inactiveCount} inactif${inactiveCount > 1 ? "s" : ""}`}
         </span>
@@ -237,10 +264,11 @@ function CategorySection({
             type="button"
             onClick={() => setRenaming(true)}
             disabled={pending}
-            className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className={cn(ICON_BTN, "hover:bg-navy-50 hover:text-foreground")}
             title="Renommer la catégorie"
+            aria-label={`Renommer la catégorie ${cat.label}`}
           >
-            <Icon name="Pencil" className="h-3.5 w-3.5" />
+            <Pencil aria-hidden="true" className="size-4" />
           </button>
         )}
 
@@ -249,35 +277,40 @@ function CategorySection({
             type="button"
             onClick={handleDeleteCat}
             disabled={pending}
-            className="rounded p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+            className={cn(ICON_BTN, "hover:bg-alert-50 hover:text-alert-700")}
             title="Supprimer cette catégorie (vide)"
+            aria-label={`Supprimer la catégorie ${cat.label}`}
           >
-            <Icon name="Trash2" className="h-3.5 w-3.5" />
+            <Trash2 aria-hidden="true" className="size-4" />
           </button>
         )}
       </div>
 
       {/* Liste de produits dépliée */}
       {expanded && products.length > 0 && (
-        <div className="border-t border-border">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border bg-muted/40">
-              <tr>
-                <Th className="text-left">Produit</Th>
-                <Th className="text-left">Type</Th>
-                <Th className="text-right">One-shot</Th>
-                <Th className="text-right">Mensuel</Th>
-                <Th className="text-right">Annuel</Th>
-                <Th className="text-center">Actif</Th>
-                <Th />
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((p) => (
-                <ProductRow key={p.id} product={p} />
-              ))}
-            </tbody>
-          </table>
+        <div id={panelId} className="border-t border-border">
+          <TableScroll label={`Produits de la catégorie ${cat.label}`}>
+            <table className={TABLE_CLASS}>
+              <thead className={THEAD_CLASS}>
+                <tr>
+                  <Th className="pl-4">Produit</Th>
+                  <Th>Type</Th>
+                  <Th className="text-right">One-shot</Th>
+                  <Th className="text-right">Mensuel</Th>
+                  <Th className="text-right">Annuel</Th>
+                  <Th className="text-center">Actif</Th>
+                  <Th className="pr-4">
+                    <span className="sr-only">Actions</span>
+                  </Th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.map((p) => (
+                  <ProductRow key={p.id} product={p} />
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         </div>
       )}
     </div>
@@ -329,117 +362,89 @@ function ProductRow({ product: p }: { product: ExplorerProduct }) {
   if (priceBadges.length === 0) priceBadges.push(getProductTypeLabel(p.type as never));
 
   return (
-    <tr
-      className={cn(
-        "border-b border-border last:border-0 transition-colors hover:bg-muted/30",
-        !p.isActive && "bg-muted/20 opacity-60",
-      )}
-    >
-      <td className="px-3 py-2">
+    <tr className={cn(TR_CLASS, !p.isActive && "bg-ground/70 text-muted-foreground")}>
+      <Td className="min-w-[180px] pl-4">
         <Link
           href={`/catalogue/${p.id}/modifier`}
-          className="font-medium hover:underline"
+          className={cn(
+            "font-bold hover:underline",
+            p.isActive ? "text-foreground" : "text-muted-foreground",
+          )}
         >
           {p.nom}
         </Link>
         {p.description && (
-          <p className="text-xs text-muted-foreground line-clamp-1">
+          <p className="line-clamp-1 text-xs text-muted-foreground">
             {p.description}
           </p>
         )}
-      </td>
-      <td className="px-3 py-2">
+      </Td>
+      <Td>
         <div className="flex flex-wrap gap-1">
           {priceBadges.map((b) => (
-            <Badge key={b} variant="secondary" className="font-normal">
+            <span
+              key={b}
+              className="inline-flex h-6 items-center rounded-full bg-navy-50 px-2.5 text-xs font-semibold whitespace-nowrap text-foreground"
+            >
               {b}
-            </Badge>
+            </span>
           ))}
         </div>
-      </td>
-      <td className="px-3 py-2 text-right">
+      </Td>
+      <Td className="text-right">
         <InlinePriceCell
           productId={p.id}
           field="prixOneShot"
           value={oneShot}
           inactive={!hasOneShot}
         />
-      </td>
-      <td className="px-3 py-2 text-right">
+      </Td>
+      <Td className="text-right">
         <InlinePriceCell
           productId={p.id}
           field="prixMensuel"
           value={mensuel}
           inactive={!hasMensuel}
         />
-      </td>
-      <td className="px-3 py-2 text-right">
+      </Td>
+      <Td className="text-right">
         <InlinePriceCell
           productId={p.id}
           field="prixAnnuel"
           value={annuel}
           inactive={!hasAnnuel}
         />
-      </td>
-      <td className="px-3 py-2 text-center">
-        <button
-          type="button"
-          onClick={handleToggle}
+      </Td>
+      <Td className="text-center">
+        <ActiveToggle
+          active={p.isActive}
+          onToggle={handleToggle}
           disabled={pending}
-          className={cn(
-            "inline-flex h-6 w-11 items-center rounded-full p-0.5 transition-colors",
-            p.isActive ? "bg-emerald-500" : "bg-slate-300",
-          )}
-          aria-label={p.isActive ? "Désactiver" : "Activer"}
-          aria-pressed={p.isActive}
-        >
-          <span
-            className={cn(
-              "block h-5 w-5 rounded-full bg-white shadow transition-transform",
-              p.isActive && "translate-x-5",
-            )}
-          />
-        </button>
-      </td>
-      <td className="px-3 py-2 text-right">
+          productName={p.nom}
+        />
+      </Td>
+      <Td className="pr-4 text-right">
         <div className="flex items-center justify-end gap-1">
           <Link
             href={`/catalogue/${p.id}/modifier`}
-            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className={cn(ICON_BTN, "hover:bg-navy-50 hover:text-foreground")}
             title="Modifier"
+            aria-label={`Modifier ${p.nom}`}
           >
-            <Icon name="Pencil" className="h-3.5 w-3.5" />
+            <Pencil aria-hidden="true" className="size-4" />
           </Link>
           <button
             type="button"
             onClick={handleDelete}
             disabled={pending}
-            className="rounded p-1 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600"
+            className={cn(ICON_BTN, "hover:bg-alert-50 hover:text-alert-700")}
             title="Supprimer (impossible si lié à un deal/contrat)"
+            aria-label={`Supprimer ${p.nom}`}
           >
-            <Icon name="Trash2" className="h-3.5 w-3.5" />
+            <Trash2 aria-hidden="true" className="size-4" />
           </button>
         </div>
-      </td>
+      </Td>
     </tr>
-  );
-}
-
-function Th({
-  children,
-  className,
-}: {
-  children?: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <th
-      className={cn(
-        "px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground",
-        className,
-      )}
-    >
-      {children}
-    </th>
   );
 }

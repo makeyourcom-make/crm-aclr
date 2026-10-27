@@ -8,12 +8,14 @@
  * Étape 3 : modalité paiement + dates
  * Étape 4 : récap commission + bouton Créer
  */
+import { Gift } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 import { createCustomProduct } from "@/app/(app)/catalogue/actions";
+import { celebrate, xpToast } from "@/components/arena/celebrate";
 import {
   createContractFromDeal,
   prepareContractEmail,
@@ -37,8 +39,8 @@ import { Icon } from "@/components/icon";
 import { ProspectCombobox } from "@/components/prospects/prospect-combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { fireConfetti } from "@/lib/confetti";
 import { formatMoney } from "@/lib/format";
+import { XP_RULES } from "@/lib/gamification/rules";
 import { cn } from "@/lib/utils";
 
 import type { ModalitePaiement } from "@prisma/client";
@@ -282,8 +284,9 @@ export function ContractWizard({
   // une autre 12 mois, le contrat doit courir au moins 24 mois (sinon on
   // viole l'engagement du produit le plus long). L'utilisateur peut
   // toujours modifier — `dureeMoisManuallyEdited` désactive la suggestion.
-  useEffect(() => {
-    if (dureeMoisManuallyEdited) return;
+  // (Pattern « ajuster l'état pendant le rendu » : pas d'effet qui appelle
+  // setState, cf. règle du compilateur React.)
+  const suggestedDuree = useMemo(() => {
     let maxEngagement = 0;
     for (const l of lines) {
       const prod = allProducts.find((p) => p.id === l.productId);
@@ -291,21 +294,29 @@ export function ContractWizard({
         maxEngagement = prod.engagementMois;
       }
     }
-    if (maxEngagement > 0) {
-      setDureeMois(String(maxEngagement));
-    }
-  }, [lines, allProducts, dureeMoisManuallyEdited]);
+    return maxEngagement;
+  }, [lines, allProducts]);
+  const [appliedDuree, setAppliedDuree] = useState(0);
+  if (
+    !dureeMoisManuallyEdited &&
+    suggestedDuree > 0 &&
+    suggestedDuree !== appliedDuree
+  ) {
+    setAppliedDuree(suggestedDuree);
+    setDureeMois(String(suggestedDuree));
+  }
 
-  // Si on change le deal, on synchronise le prospect
-  useEffect(() => {
+  // Si on change le deal, on synchronise le prospect (aussi au 1er rendu).
+  const [syncedDealId, setSyncedDealId] = useState<string | null>(null);
+  if (dealId !== syncedDealId) {
+    setSyncedDealId(dealId);
     if (dealId) {
       const d = deals.find((dd) => dd.id === dealId);
       if (d && d.prospectId !== prospectId) {
         setProspectId(d.prospectId);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dealId]);
+  }
 
   // ---- Calculs live (étape 4 récap) ----
   const calc = useMemo(() => {
@@ -390,12 +401,14 @@ export function ContractWizard({
   // (one-shot) ET du mensuel, on bascule sur « one-shot + mensuel » → le setup
   // est facturé UNE FOIS (jamais amorti), puis les mensualités, renouvelables
   // mois par mois. Respecte un choix manuel (modaliteManuallyEdited).
-  useEffect(() => {
-    if (modaliteManuallyEdited) return;
-    if (calc.oneShot > 0 && calc.mensuel > 0) {
-      setModalitePaiement("ONESHOT_PUIS_MENSUEL");
-    }
-  }, [calc.oneShot, calc.mensuel, modaliteManuallyEdited]);
+  if (
+    !modaliteManuallyEdited &&
+    calc.oneShot > 0 &&
+    calc.mensuel > 0 &&
+    modalitePaiement !== "ONESHOT_PUIS_MENSUEL"
+  ) {
+    setModalitePaiement("ONESHOT_PUIS_MENSUEL");
+  }
 
   // ---- Mutations ----
   const addLine = () => {
@@ -460,6 +473,15 @@ export function ContractWizard({
         return;
       }
 
+      // Nouveau contrat = proposition envoyée par la commerciale : +60 XP.
+      if (!initial) {
+        xpToast(
+          XP_RULES.proposition,
+          "Proposition créée !",
+          res.numero ? `Contrat ${res.numero}` : undefined,
+        );
+      }
+
       // Signer : on crée la demande de signature et on ouvre la PAGE DU CONTRAT
       // où s'affichent les QR codes (client + commercial) à scanner au
       // téléphone. Le lien de signature sur écran reste accessible sous chaque
@@ -467,8 +489,10 @@ export function ContractWizard({
       if (mode === "sign" && res.contractId) {
         const sig = await createSignatureRequest(res.contractId);
         if (sig.ok && sig.lienSignature) {
-          toast.success("Contrat prêt — QR codes de signature prêts ✍️");
+          toast.success("Contrat prêt · QR codes de signature prêts.");
           router.push(`/contrats/${res.contractId}`);
+          // Rafraîchit aussi la coquille (pilules XP / série de la topbar).
+          router.refresh();
           return;
         }
         toast.error(
@@ -492,9 +516,7 @@ export function ContractWizard({
         return;
       }
 
-      toast.success(
-        initial ? `Contrat ${res.numero} mis à jour !` : `Contrat ${res.numero} créé !`,
-      );
+      if (initial) toast.success(`Contrat ${res.numero} mis à jour !`);
       router.push(`/contrats/${res.contractId}`);
       router.refresh();
     });
@@ -803,8 +825,8 @@ export function ContractWizard({
         </CardContent>
       </Card>
 
-      {/* ÉTAPE 4 — Récap */}
-      <Card className="border-primary/30 bg-primary/5">
+      {/* ÉTAPE 4 : récap */}
+      <Card className="border-navy-100 bg-navy-50/60">
         <CardHeader>
           <CardTitle className="text-base">
             <StepBadge n={4} done={canSubmit} /> Récap
@@ -850,7 +872,7 @@ export function ContractWizard({
 
               {calc.hasAdsLine && (
                 <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-                  <strong>Règle ADS appliquée</strong> — les lignes Google Ads /
+                  <strong>Règle ADS appliquée</strong> : les lignes Google Ads /
                   Meta Ads commissionnent sur le revenu réel ACLR pendant la
                   durée du contrat ({calc.dureeMoisNum} mois), sans
                   extrapolation sur 12 mois.
@@ -902,15 +924,19 @@ export function ContractWizard({
 
           <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
             {/* Contrat déjà signé sur papier ? On le joint et on finalise ici
-                même (upload + contre-signature fusionnés, confettis 🎉).
+                même (upload + contre-signature fusionnés, confettis).
                 Uniquement en édition : il faut un contrat déjà enregistré. */}
             {isEdit && initial && (
               <div className="mr-auto">
                 <UploadSignedPdfButton
                   contractId={initial.contractId}
-                  triggerLabel="Contrat signé reçu — joindre & finaliser 🎉"
+                  triggerLabel="Contrat signé reçu : joindre et finaliser"
                   onSuccess={() => {
-                    void fireConfetti();
+                    celebrate({
+                      title: "Contrat signé reçu !",
+                      subtitle: "Archivé, contre-signé et envoyé en validation admin",
+                      eyebrow: "Bien joué",
+                    });
                     router.push(`/contrats/${initial.contractId}`);
                   }}
                 />
@@ -918,7 +944,8 @@ export function ContractWizard({
             )}
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
+              size="lg"
               onClick={() => router.back()}
               disabled={pending}
             >
@@ -928,30 +955,34 @@ export function ContractWizard({
             <Button
               type="button"
               variant="outline"
+              size="lg"
               onClick={() => handleSubmit("save")}
               disabled={!canSubmit || pending}
             >
-              <Icon name="Save" className="mr-1.5 h-4 w-4" />
-              {pending ? "…" : "Enregistrer"}
+              <Icon name="Save" className="h-4 w-4" />
+              {pending ? "..." : "Enregistrer"}
             </Button>
             {/* Envoyer par mail : envoie au client le lien de signature + PDF. */}
             <Button
               type="button"
               variant="outline"
+              size="lg"
               onClick={() => handleSubmit("email")}
               disabled={!canSubmit || pending}
             >
-              <Icon name="Mail" className="mr-1.5 h-4 w-4" />
-              {pending ? "…" : "Envoyer par mail"}
+              <Icon name="Mail" className="h-4 w-4" />
+              {pending ? "..." : "Envoyer par mail"}
             </Button>
             {/* Signer en direct : ouvre la page de signature (tablette / RDV). */}
             <Button
               type="button"
+              variant="hero"
+              size="lg"
               onClick={() => handleSubmit("sign")}
               disabled={!canSubmit || pending}
             >
-              <Icon name="PenLine" className="mr-1.5 h-4 w-4" />
-              {pending ? "…" : "Signer en direct"}
+              <Icon name="PenLine" className="h-5 w-5" />
+              {pending ? "..." : "Signer en direct"}
             </Button>
           </div>
         </CardContent>
@@ -962,7 +993,11 @@ export function ContractWizard({
         <ContractEmailComposer
           open={!!emailComposer}
           onOpenChange={(o) => {
-            if (!o) setEmailComposer(null);
+            if (!o) {
+              setEmailComposer(null);
+              // Contrat déjà créé (+XP) même si l'email n'est pas envoyé.
+              router.refresh();
+            }
           }}
           contractId={emailComposer.contractId}
           to={emailComposer.to}
@@ -988,13 +1023,11 @@ function StepBadge({ n, done }: { n: number; done: boolean }) {
   return (
     <span
       className={cn(
-        "mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold",
-        done
-          ? "bg-emerald-500 text-white"
-          : "bg-slate-200 text-slate-600",
+        "mr-2 inline-flex size-6 items-center justify-center rounded-full align-middle text-xs font-extrabold",
+        done ? "bg-win-500 text-white" : "bg-navy-100 text-navy-700",
       )}
     >
-      {done ? "✓" : n}
+      {done ? <Icon name="Check" className="h-3.5 w-3.5" /> : n}
     </span>
   );
 }
@@ -1026,11 +1059,12 @@ function ProductCombobox({
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Re-sync le champ si la valeur change depuis le parent.
-  useEffect(() => {
+  // Re-sync le champ si la valeur change depuis le parent (pendant le rendu).
+  const [syncedValue, setSyncedValue] = useState(value);
+  if (value !== syncedValue) {
+    setSyncedValue(value);
     setQuery(products.find((p) => p.id === value)?.nom ?? "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }
 
   const updateRect = () => {
     const el = inputRef.current;
@@ -1229,9 +1263,10 @@ function LineRow({
             {prod.prixVariable ? (
               <span
                 className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0 font-medium text-amber-800"
-                title="Prix de base éditable — ajuste-le à droite selon le périmètre négocié."
+                title="Prix de base éditable : ajuste-le à droite selon le périmètre négocié."
               >
-                ✏️ Prix sur-mesure
+                <Icon name="Pencil" className="mr-1 h-3 w-3" />
+                Prix sur-mesure
               </span>
             ) : null}
             {prod.description && (
@@ -1315,7 +1350,8 @@ function LineRow({
               line.offert && "font-medium text-emerald-700",
             )}
           >
-            🎁 Offert
+            <Gift aria-hidden="true" className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
+            Offert
           </span>
         </label>
 
@@ -1470,7 +1506,7 @@ function CustomProductButtonContract({
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success(`"${nom.trim()}" ajouté au contrat ✓`);
+      toast.success(`"${nom.trim()}" ajouté au contrat.`);
       onCreated({
         id: res.productId,
         nom: nom.trim(),

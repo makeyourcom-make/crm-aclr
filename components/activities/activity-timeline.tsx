@@ -1,22 +1,24 @@
+/**
+ * Timeline des activités d'un prospect (fiche prospect), MYC Arena.
+ * Sections « À venir » (planifié dans le futur) puis « Historique ».
+ * Server-safe (aucun hook) : rendu depuis la fiche prospect.
+ */
+import { CornerDownRight, ExternalLink, History } from "lucide-react";
 import Link from "next/link";
 
-import { ActivityIcon } from "@/components/activities/activity-icon";
+import { ActivityIcon, ACTIVITY_TYPE_TONE } from "@/components/activities/activity-icon";
+import { ACTIVITY_STATUT_TONE } from "@/components/activities/activity-tones";
 import { AdresseRdvLink } from "@/components/activities/adresse-rdv-link";
-import { Icon } from "@/components/icon";
-import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/arena/pills";
+import { TONE_HEX } from "@/components/arena/tones";
+import { RESULT_META } from "@/components/call/call-results";
+import { zDate, zDuration, zTime } from "@/components/call/zurich";
+import { formatRelative } from "@/lib/format";
 import {
   getActivityResultatLabel,
   getActivityStatutLabel,
   getActivityTypeLabel,
-  ACTIVITY_RESULTAT_COLORS,
 } from "@/lib/labels";
-import {
-  formatDateLong,
-  formatDuration,
-  formatRelative,
-  formatTime,
-} from "@/lib/format";
-import { cn } from "@/lib/utils";
 
 import type { Activity, ActivityResultat, User } from "@prisma/client";
 
@@ -39,30 +41,29 @@ export function ActivityTimeline({
 }: ActivityTimelineProps) {
   if (activities.length === 0) {
     return (
-      <p className="py-8 text-center text-sm text-muted-foreground">
-        {emptyMessage}
-      </p>
+      <div className="flex flex-col items-center gap-2 rounded-[16px] border border-dashed border-border-strong px-6 py-8 text-center">
+        <History aria-hidden="true" className="size-6 text-subtle" />
+        <p className="text-sm font-medium text-muted-foreground">{emptyMessage}</p>
+      </div>
     );
   }
 
-  // Groupe par section : à venir (planifié dans le futur), aujourd'hui, passé
+  // Groupe par section : à venir (planifié dans le futur), puis le reste.
   const now = new Date();
   const upcoming = activities.filter(
-    (a) =>
-      a.date > now &&
-      (a.statut === "PLANIFIE" || a.statut === "EN_COURS"),
+    (a) => a.date > now && (a.statut === "PLANIFIE" || a.statut === "EN_COURS"),
   );
   const past = activities.filter((a) => !upcoming.includes(a));
 
   return (
     <div className="space-y-6">
       {upcoming.length > 0 && (
-        <Section title="À venir">
+        <Section title="À venir" count={upcoming.length}>
           <Timeline items={upcoming} showUser={showUser} />
         </Section>
       )}
       {past.length > 0 && (
-        <Section title={upcoming.length > 0 ? "Historique" : undefined}>
+        <Section title={upcoming.length > 0 ? "Historique" : undefined} count={past.length}>
           <Timeline items={past} showUser={showUser} />
         </Section>
       )}
@@ -72,16 +73,21 @@ export function ActivityTimeline({
 
 function Section({
   title,
+  count,
   children,
 }: {
   title?: string;
+  count: number;
   children: React.ReactNode;
 }) {
   return (
     <div>
       {title && (
-        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <h3 className="mb-3 flex items-center gap-2 text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
           {title}
+          <span className="rounded-full bg-navy-50 px-2 py-0.5 text-[11px] font-extrabold text-foreground tabular-nums">
+            {count}
+          </span>
         </h3>
       )}
       {children}
@@ -97,121 +103,85 @@ function Timeline({
   showUser: boolean;
 }) {
   return (
-    <ol className="relative space-y-4 border-l border-border pl-6">
-      {items.map((a) => (
-        <li key={a.id} className="relative">
-          {/* puce ronde sur la timeline */}
-          <div className="absolute -left-[35px] top-0">
-            <ActivityIcon type={a.type} size={28} />
-          </div>
+    <ol className="relative space-y-4 border-l-2 border-border pl-6">
+      {items.map((a) => {
+        const resultTone = a.resultat ? RESULT_META[a.resultat as ActivityResultat].tone : null;
+        return (
+          <li key={a.id} className="relative">
+            {/* pastille sur la timeline */}
+            <div className="absolute top-0 -left-[41px] rounded-[12px] bg-card p-0.5">
+              <ActivityIcon type={a.type} size={30} />
+            </div>
 
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-baseline gap-x-2">
-              <span className="text-sm font-medium">
-                {getActivityTypeLabel(a.type)}
-              </span>
-              <StatutPill statut={a.statut} />
-              {a.resultat && <ResultatPill resultat={a.resultat} />}
-              {a.rappelLeDe && (
-                <span className="text-[11px] italic text-muted-foreground">
-                  ↳ rappel auto suite à {getActivityTypeLabel(a.rappelLeDe.type)}{" "}
-                  du {formatDateLong(a.rappelLeDe.date)}
+            <div
+              className="space-y-1.5 rounded-[14px] border border-border border-l-[3px] bg-card px-3.5 py-3"
+              style={{ borderLeftColor: TONE_HEX[ACTIVITY_TYPE_TONE[a.type]].solid }}
+            >
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="text-sm font-bold text-foreground">
+                  {getActivityTypeLabel(a.type)}
                 </span>
+                <StatusPill tone={ACTIVITY_STATUT_TONE[a.statut] ?? "navy"}>
+                  {getActivityStatutLabel(a.statut)}
+                </StatusPill>
+                {a.resultat && resultTone && (
+                  <StatusPill tone={resultTone} dot={false}>
+                    {getActivityResultatLabel(a.resultat as ActivityResultat)}
+                  </StatusPill>
+                )}
+              </div>
+
+              {a.rappelLeDe && (
+                <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground italic">
+                  <CornerDownRight aria-hidden="true" className="size-3.5 shrink-0" />
+                  Rappel auto suite à {getActivityTypeLabel(a.rappelLeDe.type).toLowerCase()} du{" "}
+                  {zDate(a.rappelLeDe.date)}
+                </p>
               )}
+
+              {a.emailId ? (
+                <Link
+                  href={`/emails/${a.emailId}`}
+                  className="group inline-flex items-baseline gap-1 text-sm font-semibold text-info-700 underline-offset-2 hover:underline"
+                >
+                  {a.sujet}
+                  <ExternalLink
+                    aria-hidden="true"
+                    className="size-3 opacity-60 group-hover:opacity-100"
+                  />
+                </Link>
+              ) : (
+                <p className="text-sm break-words text-foreground">{a.sujet}</p>
+              )}
+
+              {a.adresseRdv && <AdresseRdvLink adresse={a.adresseRdv} size="md" />}
+
+              {a.notesResultat && (
+                <p className="rounded-[10px] bg-ground px-3 py-2 text-xs leading-relaxed text-muted-foreground italic">
+                  « {a.notesResultat} »
+                </p>
+              )}
+
+              {a.contenu && !a.notesResultat && (
+                <p className="line-clamp-2 text-xs text-muted-foreground">{a.contenu}</p>
+              )}
+
+              <div className="flex flex-wrap gap-x-2 text-xs font-medium text-muted-foreground">
+                <span className="font-semibold text-foreground tabular-nums">
+                  {zDate(a.date)} · {zTime(a.date)}
+                </span>
+                <span>({formatRelative(a.date)})</span>
+                {a.duree2 ? (
+                  <span>· durée {zDuration(a.duree2)}</span>
+                ) : a.duree ? (
+                  <span>· {a.duree} min</span>
+                ) : null}
+                {showUser && a.user && <span>· {a.user.name}</span>}
+              </div>
             </div>
-
-            {a.emailId ? (
-              <Link
-                href={`/emails/${a.emailId}`}
-                className="group inline-flex items-baseline gap-1 text-sm font-medium text-primary hover:underline"
-              >
-                {a.sujet}
-                <Icon
-                  name="ExternalLink"
-                  className="h-3 w-3 opacity-60 group-hover:opacity-100"
-                />
-              </Link>
-            ) : (
-              <p className="text-sm">{a.sujet}</p>
-            )}
-
-            {a.adresseRdv && (
-              <AdresseRdvLink adresse={a.adresseRdv} size="md" />
-            )}
-
-            {a.notesResultat && (
-              <p className="rounded-md bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground italic">
-                « {a.notesResultat} »
-              </p>
-            )}
-
-            {a.contenu && !a.notesResultat && (
-              <p className="text-xs text-muted-foreground line-clamp-2">
-                {a.contenu}
-              </p>
-            )}
-
-            <div className="flex flex-wrap gap-x-2 text-[11px] text-muted-foreground">
-              <span>
-                {formatDateLong(a.date)} · {formatTime(a.date)}
-              </span>
-              <span>({formatRelative(a.date)})</span>
-              {a.duree2 ? (
-                <span>· durée {formatDuration(a.duree2)}</span>
-              ) : a.duree ? (
-                <span>· {a.duree} min</span>
-              ) : null}
-              {showUser && a.user && <span>· {a.user.name}</span>}
-            </div>
-          </div>
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ol>
-  );
-}
-
-const STATUT_BADGE_CLASSES: Record<string, string> = {
-  PLANIFIE: "bg-blue-100 text-blue-700",
-  EN_COURS: "bg-amber-100 text-amber-700",
-  FAIT: "bg-emerald-100 text-emerald-700",
-  MANQUE: "bg-red-100 text-red-700",
-  REPLANIFIE: "bg-slate-200 text-slate-700",
-  ANNULE: "bg-slate-100 text-slate-500",
-};
-
-function StatutPill({ statut }: { statut: string }) {
-  return (
-    <Badge
-      variant="secondary"
-      className={cn(
-        "font-normal",
-        STATUT_BADGE_CLASSES[statut] ?? "bg-slate-100 text-slate-600",
-      )}
-    >
-      {getActivityStatutLabel(statut as never)}
-    </Badge>
-  );
-}
-
-const RESULTAT_BADGE_TONE: Record<string, string> = {
-  emerald: "bg-emerald-100 text-emerald-700",
-  amber: "bg-amber-100 text-amber-700",
-  red: "bg-red-100 text-red-700",
-  blue: "bg-blue-100 text-blue-700",
-  slate: "bg-slate-100 text-slate-700",
-};
-
-function ResultatPill({ resultat }: { resultat: ActivityResultat }) {
-  const tone = ACTIVITY_RESULTAT_COLORS[resultat];
-  return (
-    <Badge
-      variant="secondary"
-      className={cn(
-        "font-normal",
-        RESULTAT_BADGE_TONE[tone] ?? "bg-slate-100 text-slate-600",
-      )}
-    >
-      {getActivityResultatLabel(resultat)}
-    </Badge>
   );
 }

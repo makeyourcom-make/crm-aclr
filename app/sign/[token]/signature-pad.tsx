@@ -181,7 +181,7 @@ export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(
           />
           {!hasInk && (
             <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-slate-400">
-              ✍ Signe ici avec ton doigt, le stylet ou la souris
+              Signe ici avec ton doigt, le stylet ou la souris
             </p>
           )}
         </div>

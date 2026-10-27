@@ -8,8 +8,8 @@ export type ActivityCategory = "rdv" | "mail" | "appel" | "autre";
 
 export const ACTIVITY_CATEGORIES: { key: ActivityCategory; label: string }[] = [
   { key: "rdv", label: "RDV" },
-  { key: "mail", label: "Mails" },
   { key: "appel", label: "Appels" },
+  { key: "mail", label: "Emails" },
   { key: "autre", label: "Autres" },
 ];
 
@@ -36,6 +36,11 @@ export function activityCategory(type: ActivityType): ActivityCategory {
     default:
       return "autre"; // SMS, LINKEDIN, NOTE
   }
+}
+
+/** Vrai pour les trois types de rendez-vous (physique, visio, téléphonique). */
+export function isRdvType(type: ActivityType): boolean {
+  return activityCategory(type) === "rdv";
 }
 
 /**

@@ -1,5 +1,6 @@
 "use client";
 
+import { Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useTransition } from "react";
 import { toast } from "sonner";
@@ -8,9 +9,17 @@ import {
   deleteProduct,
   toggleProductActive,
 } from "@/app/(app)/catalogue/actions";
-import { Badge } from "@/components/ui/badge";
+import { ActiveToggle } from "@/components/catalogue/active-toggle";
 import { InlinePriceCell } from "@/components/catalogue/inline-price-cell";
-import { Icon } from "@/components/icon";
+import {
+  TABLE_CLASS,
+  THEAD_CLASS,
+  TR_CLASS,
+  TableEmptyRow,
+  TableScroll,
+  Td,
+  Th,
+} from "@/components/common/arena-table";
 import {
   getProductCategorieLabel,
   getProductTypeLabel,
@@ -29,30 +38,29 @@ interface ProductsTableProps {
 
 export function ProductsTable({ products, categorieLabels }: ProductsTableProps) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-card">
-      <table className="w-full text-sm">
-        <thead className="border-b border-border bg-muted/50">
+    <TableScroll label="Liste des packs">
+      <table className={TABLE_CLASS}>
+        <thead className={THEAD_CLASS}>
           <tr>
-            <Th className="text-left">Nom</Th>
-            <Th className="text-left">Catégorie</Th>
-            <Th className="text-left">Type</Th>
+            <Th className="pl-5 sm:pl-6">Nom</Th>
+            <Th>Catégorie</Th>
+            <Th>Type</Th>
             <Th className="text-right">One-shot</Th>
             <Th className="text-right">Mensuel</Th>
             <Th className="text-right">Annuel</Th>
             <Th className="text-center">Actif</Th>
-            <Th />
+            <Th className="pr-5 sm:pr-6">
+              <span className="sr-only">Actions</span>
+            </Th>
           </tr>
         </thead>
         <tbody>
           {products.length === 0 ? (
-            <tr>
-              <td
-                colSpan={8}
-                className="px-3 py-12 text-center text-muted-foreground"
-              >
+            <TableEmptyRow colSpan={8}>
+              <p className="py-6 text-center text-sm text-muted-foreground">
                 Aucun produit.
-              </td>
-            </tr>
+              </p>
+            </TableEmptyRow>
           ) : (
             products.map((p) => (
               <ProductRow
@@ -64,7 +72,7 @@ export function ProductsTable({ products, categorieLabels }: ProductsTableProps)
           )}
         </tbody>
       </table>
-    </div>
+    </TableScroll>
   );
 }
 
@@ -100,7 +108,7 @@ function ProductRow({
       toast.success("Produit supprimé.");
     });
 
-  // Détermine les prix attendus selon le type — inactive le grise
+  // Détermine les prix attendus selon le type : inactive le grise
   const expectsOneShot =
     p.type === "ONE_SHOT" || p.type === "PACK";
   const expectsMensuel =
@@ -108,109 +116,76 @@ function ProductRow({
   const expectsAnnuel = p.type === "RECURRENT_ANNUEL";
 
   return (
-    <tr
-      className={cn(
-        "border-b border-border last:border-0 transition-colors hover:bg-muted/30",
-        !p.isActive && "opacity-50",
-      )}
-    >
-      <td className="px-3 py-2">
+    <tr className={cn(TR_CLASS, !p.isActive && "bg-ground/70 text-muted-foreground")}>
+      <Td className="min-w-[180px] pl-5 sm:pl-6">
         <Link
           href={`/catalogue/${p.id}/modifier`}
-          className="font-medium hover:underline"
+          className={cn(
+            "font-bold hover:underline",
+            p.isActive ? "text-foreground" : "text-muted-foreground",
+          )}
         >
           {p.nom}
         </Link>
         {p.description && (
-          <p className="text-xs text-muted-foreground line-clamp-1">
+          <p className="line-clamp-1 text-xs text-muted-foreground">
             {p.description}
           </p>
         )}
-      </td>
-      <td className="px-3 py-2 text-xs text-muted-foreground">
+      </Td>
+      <Td className="text-xs whitespace-nowrap text-muted-foreground">
         {categorieLabels?.[p.categorieCode ?? p.categorie] ??
           getProductCategorieLabel(p.categorie)}
-      </td>
-      <td className="px-3 py-2">
-        <Badge variant="secondary" className="font-normal">
+      </Td>
+      <Td>
+        <span className="inline-flex h-6 items-center rounded-full bg-lvl-50 px-2.5 text-xs font-bold whitespace-nowrap text-lvl-700">
           {getProductTypeLabel(p.type)}
-        </Badge>
-      </td>
-      <td className="px-3 py-2 text-right">
+        </span>
+      </Td>
+      <Td className="text-right">
         <InlinePriceCell
           productId={p.id}
           field="prixOneShot"
           value={p.prixOneShot?.toString() ?? null}
           inactive={!expectsOneShot}
         />
-      </td>
-      <td className="px-3 py-2 text-right">
+      </Td>
+      <Td className="text-right">
         <InlinePriceCell
           productId={p.id}
           field="prixMensuel"
           value={p.prixMensuel?.toString() ?? null}
           inactive={!expectsMensuel}
         />
-      </td>
-      <td className="px-3 py-2 text-right">
+      </Td>
+      <Td className="text-right">
         <InlinePriceCell
           productId={p.id}
           field="prixAnnuel"
           value={p.prixAnnuel?.toString() ?? null}
           inactive={!expectsAnnuel}
         />
-      </td>
-      <td className="px-3 py-2 text-center">
-        <button
-          type="button"
-          onClick={handleToggle}
+      </Td>
+      <Td className="text-center">
+        <ActiveToggle
+          active={p.isActive}
+          onToggle={handleToggle}
           disabled={pending}
-          className={cn(
-            "inline-flex h-6 w-11 items-center rounded-full p-0.5 transition-colors",
-            p.isActive ? "bg-emerald-500" : "bg-slate-300",
-          )}
-          aria-label={p.isActive ? "Désactiver" : "Activer"}
-          aria-pressed={p.isActive}
-        >
-          <span
-            className={cn(
-              "block h-5 w-5 rounded-full bg-white shadow transition-transform",
-              p.isActive && "translate-x-5",
-            )}
-          />
-        </button>
-      </td>
-      <td className="px-3 py-2 text-right">
+          productName={p.nom}
+        />
+      </Td>
+      <Td className="pr-5 text-right sm:pr-6">
         <button
           type="button"
           onClick={handleDelete}
           disabled={pending}
-          className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors"
-          aria-label="Supprimer"
+          className="inline-flex size-9 items-center justify-center rounded-[10px] text-muted-foreground transition-colors hover:bg-alert-50 hover:text-alert-700 disabled:opacity-50"
+          aria-label={`Supprimer ${p.nom}`}
           title="Supprimer (impossible si lié à un deal/contrat)"
         >
-          <Icon name="LogOut" className="h-3.5 w-3.5 rotate-180" />
+          <Trash2 aria-hidden="true" className="size-4" />
         </button>
-      </td>
+      </Td>
     </tr>
-  );
-}
-
-function Th({
-  children,
-  className,
-}: {
-  children?: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <th
-      className={cn(
-        "px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground",
-        className,
-      )}
-    >
-      {children}
-    </th>
   );
 }

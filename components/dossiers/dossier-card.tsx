@@ -2,9 +2,12 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Building2, CalendarDays, Clock, FileText, MessageSquare } from "lucide-react";
 
-import { Icon } from "@/components/icon";
-import { DOSSIER_PRIORITE_BADGE, DOSSIER_PRIORITE_LABELS } from "@/lib/dossiers";
+import { PlayerAvatar } from "@/components/arena/player-avatar";
+import { StatusPill } from "@/components/arena/pills";
+import { DOSSIER_PRIORITE_TONE, initialesDe } from "@/components/dossiers/dossier-tones";
+import { DOSSIER_PRIORITE_LABELS } from "@/lib/dossiers";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -13,24 +16,15 @@ import type { DossierForKanban } from "@/lib/queries/dossiers";
 interface DossierCardProps {
   dossier: DossierForKanban;
   onOpen: (id: string) => void;
-  /** Afficher l'assigné sur la carte — utile seulement dans la vue « Tous »,
+  /** Afficher l'assigné sur la carte : utile seulement dans la vue « Tous »,
    * redondant quand on est déjà dans l'espace d'une personne. */
   showAssignee?: boolean;
 }
 
-export function DossierCard({
-  dossier,
-  onOpen,
-  showAssignee = false,
-}: DossierCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: dossier.id });
+export function DossierCard({ dossier, onOpen, showAssignee = false }: DossierCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: dossier.id,
+  });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -38,10 +32,7 @@ export function DossierCard({
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const isOverdue =
-    dossier.echeance &&
-    dossier.echeance < new Date() &&
-    dossier.statut !== "TERMINE";
+  const isOverdue = !!dossier.echeance && new Date(dossier.echeance) < new Date() && dossier.statut !== "TERMINE";
 
   return (
     <div
@@ -54,75 +45,81 @@ export function DossierCard({
         e.stopPropagation();
         onOpen(dossier.id);
       }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onOpen(dossier.id);
+        }
+      }}
       className={cn(
-        "cursor-grab rounded-md border border-border bg-card px-2.5 py-2 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing",
-        isDragging && "ring-2 ring-primary",
+        "cursor-grab rounded-[14px] border border-border bg-card p-3 shadow-[0_1px_2px_rgba(14,25,54,0.05)] transition-[box-shadow,transform] hover:-translate-y-px hover:shadow-arena active:cursor-grabbing",
+        isOverdue && "border-l-4 border-l-alert-500",
+        isDragging && "ring-2 ring-lvl-500",
         // Visible uniquement via « Voir les projets archivés » : on la distingue
         // du travail vivant sans la rendre illisible.
-        dossier.archive && "bg-muted/40 opacity-70",
+        dossier.archive && "bg-ground opacity-75",
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="line-clamp-2 text-sm font-medium leading-snug">
-          {dossier.titre}
-        </p>
+        <p className="line-clamp-2 text-sm leading-snug font-extrabold">{dossier.titre}</p>
         {dossier.priorite !== "NORMALE" && (
-          <span
-            className={cn(
-              "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold",
-              DOSSIER_PRIORITE_BADGE[dossier.priorite],
-            )}
-          >
+          <StatusPill tone={DOSSIER_PRIORITE_TONE[dossier.priorite]} className="h-5 px-2 text-[11px]">
             {DOSSIER_PRIORITE_LABELS[dossier.priorite]}
-          </span>
+          </StatusPill>
         )}
       </div>
 
       {dossier.prospect && (
-        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-          <Icon name="Users" className="h-3 w-3" />
-          {dossier.prospect.raisonSociale}
+        <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <Building2 aria-hidden="true" className="size-3.5 shrink-0" />
+          <span className="truncate">{dossier.prospect.raisonSociale}</span>
         </p>
       )}
 
       {dossier.echeance && (
         <p
           className={cn(
-            "mt-1 flex items-center gap-1 text-[11px]",
-            isOverdue ? "text-red-600" : "text-muted-foreground",
+            "mt-1 flex items-center gap-1.5 text-xs font-bold",
+            isOverdue ? "text-alert-700" : "text-muted-foreground",
           )}
         >
-          <Icon name="Calendar" className="h-3 w-3" />
+          {isOverdue ? (
+            <Clock aria-hidden="true" className="size-3.5" />
+          ) : (
+            <CalendarDays aria-hidden="true" className="size-3.5" />
+          )}
           {formatDate(dossier.echeance)}
           {isOverdue && " · en retard"}
         </p>
       )}
 
-      {(showAssignee ||
-        dossier.archive ||
-        dossier.nbDocuments > 0 ||
-        dossier.nbUpdates > 0) && (
-        <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+      {(showAssignee || dossier.archive || dossier.nbDocuments > 0 || dossier.nbUpdates > 0) && (
+        <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-bold text-muted-foreground">
           {showAssignee ? (
-            <span className="truncate">→ {dossier.assigneA.name}</span>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <PlayerAvatar initials={initialesDe(dossier.assigneA.name)} tone="navy" size={22} />
+              <span className="truncate">{dossier.assigneA.name}</span>
+            </span>
           ) : (
             <span />
           )}
           <span className="flex shrink-0 items-center gap-2">
             {dossier.archive && (
-              <span className="rounded-full bg-slate-200 px-1.5 text-[9px] font-medium text-slate-600">
+              <span className="rounded-full bg-navy-50 px-1.5 py-px text-[11px] font-bold text-muted-foreground">
                 Archivée
               </span>
             )}
             {dossier.nbDocuments > 0 && (
               <span className="flex items-center gap-1" title="Documents joints">
-                <Icon name="FileText" className="h-3 w-3" />
+                <FileText aria-hidden="true" className="size-3.5" />
+                <span className="sr-only">Documents : </span>
                 {dossier.nbDocuments}
               </span>
             )}
             {dossier.nbUpdates > 0 && (
               <span className="flex items-center gap-1" title="Mises à jour">
-                <Icon name="MessageSquare" className="h-3 w-3" />
+                <MessageSquare aria-hidden="true" className="size-3.5" />
+                <span className="sr-only">Mises à jour : </span>
                 {dossier.nbUpdates}
               </span>
             )}

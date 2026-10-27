@@ -15,7 +15,7 @@ const CommissionsChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-56 w-full animate-pulse rounded-md bg-muted/40" />
+      <div className="h-60 w-full animate-pulse rounded-[14px] bg-navy-50" />
     ),
   },
 );

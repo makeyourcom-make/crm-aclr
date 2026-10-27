@@ -5,26 +5,27 @@ interface PackCompositionProps {
   composantsIds: unknown;
 }
 
+/** Liste des composants d'un pack avec leurs prix (Server Component). */
 export async function PackComposition({ composantsIds }: PackCompositionProps) {
   const components = await resolvePackComponents(composantsIds);
 
   if (components.length === 0) {
     return (
-      <p className="text-xs italic text-muted-foreground">
+      <p className="text-xs text-muted-foreground italic">
         Aucun composant.
       </p>
     );
   }
 
   return (
-    <ul className="space-y-1 text-xs">
+    <ul className="space-y-1.5 text-xs">
       {components.map((c) => (
         <li
           key={c.id}
-          className="flex items-center justify-between rounded bg-muted/30 px-2 py-1"
+          className="flex items-center justify-between gap-3 rounded-[10px] bg-ground px-2.5 py-1.5"
         >
-          <span className="font-medium">{c.nom}</span>
-          <span className="text-muted-foreground tabular-nums">
+          <span className="min-w-0 truncate font-bold">{c.nom}</span>
+          <span className="shrink-0 text-muted-foreground tabular-nums">
             {c.prixOneShot && `${formatCHF(Number(c.prixOneShot))} one-shot`}
             {c.prixOneShot && c.prixMensuel && " · "}
             {c.prixMensuel && `${formatCHF(Number(c.prixMensuel))}/mois`}

@@ -1,5 +1,6 @@
 "use client";
 
+import { CircleCheck, FilePlus2, Loader2, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -9,7 +10,8 @@ import {
   markInvoiceEnvoyee,
   markInvoicePayee,
 } from "@/app/(app)/factures/actions";
-import { Button } from "@/components/ui/button";
+import { LABEL_CLASS, SELECT_CLASS } from "@/components/common/form-styles";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +21,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 
 const MOIS = [
   { value: 1, label: "Janvier" },
@@ -72,26 +73,29 @@ export function GenerateInvoiceButton({ users }: GenerateInvoiceButtonProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+      <DialogTrigger className={buttonVariants({ variant: "default", size: "lg" })}>
+        <FilePlus2 aria-hidden="true" />
         Générer une facture
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Générer une facture mensuelle</DialogTitle>
           <DialogDescription>
-            Calcule automatiquement les commissions acquises sur le mois +
-            applique la garantie absorbable + ajoute le forfait frais.
+            Calcule automatiquement les commissions acquises sur le mois,
+            applique la garantie absorbable et ajoute le forfait frais.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="userId">Commerciale</Label>
+          <div>
+            <label htmlFor="userId" className={LABEL_CLASS}>
+              Commerciale
+            </label>
             <select
               id="userId"
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
-              className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+              className={SELECT_CLASS}
               required
             >
               {users.map((u) => (
@@ -103,13 +107,15 @@ export function GenerateInvoiceButton({ users }: GenerateInvoiceButtonProps) {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="mois">Mois</Label>
+            <div>
+              <label htmlFor="mois" className={LABEL_CLASS}>
+                Mois
+              </label>
               <select
                 id="mois"
                 value={mois}
                 onChange={(e) => setMois(Number(e.target.value))}
-                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                className={SELECT_CLASS}
               >
                 {MOIS.map((m) => (
                   <option key={m.value} value={m.value}>
@@ -118,13 +124,15 @@ export function GenerateInvoiceButton({ users }: GenerateInvoiceButtonProps) {
                 ))}
               </select>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="annee">Année</Label>
+            <div>
+              <label htmlFor="annee" className={LABEL_CLASS}>
+                Année
+              </label>
               <select
                 id="annee"
                 value={annee}
                 onChange={(e) => setAnnee(Number(e.target.value))}
-                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                className={SELECT_CLASS}
               >
                 {[now.getFullYear() - 1, now.getFullYear()].map((y) => (
                   <option key={y} value={y}>
@@ -139,12 +147,14 @@ export function GenerateInvoiceButton({ users }: GenerateInvoiceButtonProps) {
             <Button
               type="button"
               variant="outline"
+              size="lg"
               onClick={() => setOpen(false)}
               disabled={pending}
             >
               Annuler
             </Button>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" size="lg" disabled={pending}>
+              {pending && <Loader2 aria-hidden="true" className="animate-spin" />}
               {pending ? "Génération…" : "Générer"}
             </Button>
           </DialogFooter>
@@ -184,18 +194,28 @@ export function InvoiceStatusButtons({
         toast.error(res.error ?? "Échec.");
         return;
       }
-      toast.success("Marquée payée. Versement Sophie effectué.");
+      toast.success("Marquée payée. Versement effectué.");
     });
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
       {statut === "BROUILLON" && (
-        <Button onClick={handleEnvoyee} disabled={pending} variant="outline">
+        <Button onClick={handleEnvoyee} disabled={pending} variant="outline" size="lg">
+          {pending ? (
+            <Loader2 aria-hidden="true" className="animate-spin" />
+          ) : (
+            <Send aria-hidden="true" />
+          )}
           Marquer envoyée
         </Button>
       )}
       {statut === "ENVOYEE" && isAdmin && (
-        <Button onClick={handlePayee} disabled={pending}>
+        <Button onClick={handlePayee} disabled={pending} size="lg">
+          {pending ? (
+            <Loader2 aria-hidden="true" className="animate-spin" />
+          ) : (
+            <CircleCheck aria-hidden="true" />
+          )}
           Marquer payée
         </Button>
       )}

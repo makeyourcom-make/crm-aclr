@@ -1,6 +1,10 @@
+import { CircleCheck, FilePen, Send } from "lucide-react";
+
+import { StatTile } from "@/components/arena/stat-tile";
+import { ChfValue } from "@/components/common/chf-value";
+import { PageShell } from "@/components/common/page-shell";
 import { GenerateInvoiceButton } from "@/components/factures/invoice-actions";
 import { InvoicesTable } from "@/components/factures/invoices-table";
-import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
 import { prisma } from "@/lib/db";
@@ -38,8 +42,9 @@ export default async function FacturesPage({ searchParams }: PageProps) {
   const enBrouillon = stats.byStatut.BROUILLON;
 
   return (
-    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+    <PageShell>
       <PageHeader
+        rubrique="finance"
         title={user.role === "ADMIN" ? "Salaires commerciales" : "Mes salaires"}
         description={
           user.role === "ADMIN"
@@ -53,48 +58,30 @@ export default async function FacturesPage({ searchParams }: PageProps) {
         }
       />
 
-      {/* KPIs — visibles uniquement côté admin (Sophie a déjà ces infos dans /commissions) */}
+      {/* KPIs : visibles uniquement côté admin (la commerciale a déjà ces infos dans /commissions) */}
       {user.role === "ADMIN" && (
-        <div className="mb-6 grid gap-3 sm:grid-cols-3">
-          <Card>
-            <CardContent className="py-4">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                Total versé YTD
-              </p>
-              <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-700">
-                {formatCHF(stats.ytdTotal)}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                dont {formatCHF(stats.ytdCommissions)} de commissions
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="py-4">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                En attente de paiement
-              </p>
-              <p className="mt-1 text-2xl font-semibold tabular-nums">
-                {formatCHF(Number(aPayer?._sum.montantTotal ?? 0))}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {aPayer?._count ?? 0} facture(s) envoyée(s)
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="py-4">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                Brouillons
-              </p>
-              <p className="mt-1 text-2xl font-semibold tabular-nums">
-                {formatCHF(Number(enBrouillon?._sum.montantTotal ?? 0))}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {enBrouillon?._count ?? 0} à envoyer
-              </p>
-            </CardContent>
-          </Card>
+        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <StatTile
+            label="Total versé YTD"
+            value={<ChfValue amount={stats.ytdTotal} />}
+            sub={`dont ${formatCHF(stats.ytdCommissions)} de commissions`}
+            tone="green"
+            icon={CircleCheck}
+          />
+          <StatTile
+            label="En attente de paiement"
+            value={<ChfValue amount={Number(aPayer?._sum.montantTotal ?? 0)} />}
+            sub={`${aPayer?._count ?? 0} facture(s) envoyée(s)`}
+            tone="gold"
+            icon={Send}
+          />
+          <StatTile
+            label="Brouillons"
+            value={<ChfValue amount={Number(enBrouillon?._sum.montantTotal ?? 0)} />}
+            sub={`${enBrouillon?._count ?? 0} à envoyer`}
+            tone="navy"
+            icon={FilePen}
+          />
         </div>
       )}
 
@@ -111,6 +98,6 @@ export default async function FacturesPage({ searchParams }: PageProps) {
           pageSize={pageSize}
         />
       </div>
-    </div>
+    </PageShell>
   );
 }

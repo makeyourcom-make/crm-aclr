@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * Kanban de suivi des dossiers/tâches — drag & drop entre colonnes (dnd-kit),
- * optimistic UI, panneau latéral de détail. Même socle que la pipeline deals.
+ * Kanban de suivi des dossiers/tâches (MYC Arena) : drag & drop entre
+ * colonnes (dnd-kit), optimistic UI, panneau latéral de détail. Même socle que
+ * la pipeline deals.
  */
 import {
   DndContext,
@@ -17,7 +18,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { DossierCard } from "@/components/dossiers/dossier-card";
@@ -31,27 +32,24 @@ import type { DossiersBoardData } from "@/lib/queries/dossiers";
 interface DossiersBoardProps {
   initialData: DossiersBoardData;
   users: Array<{ id: string; name: string }>;
-  /** Affiche l'assigné sur les cartes — vrai seulement en vue « Tous ». */
+  /** Affiche l'assigné sur les cartes : vrai seulement en vue « Tous ». */
   showAssignee?: boolean;
 }
 
-export function DossiersBoard({
-  initialData,
-  users,
-  showAssignee = false,
-}: DossiersBoardProps) {
+export function DossiersBoard({ initialData, users, showAssignee = false }: DossiersBoardProps) {
   const router = useRouter();
   const [data, setData] = useState<DossiersBoardData>(initialData);
+  // Données serveur rafraîchies (router.refresh) : on repart d'elles. Ajustement
+  // pendant le rendu plutôt qu'un effet (pas de setState synchrone en effet).
+  const [source, setSource] = useState<DossiersBoardData>(initialData);
+  if (source !== initialData) {
+    setSource(initialData);
+    setData(initialData);
+  }
   const [activeId, setActiveId] = useState<string | null>(null);
   const [openedId, setOpenedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    setData(initialData);
-  }, [initialData]);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   // Détection de collision basée sur le POINTEUR d'abord : une colonne VIDE
   // (ex. « En attente du client », sans carte) est sinon difficile à cibler avec
@@ -60,12 +58,10 @@ export function DossiersBoard({
   // entre colonnes), pour ne jamais perdre un drop.
   const collisionDetection: CollisionDetection = (args) => {
     const pointerCollisions = pointerWithin(args);
-    return pointerCollisions.length > 0
-      ? pointerCollisions
-      : rectIntersection(args);
+    return pointerCollisions.length > 0 ? pointerCollisions : rectIntersection(args);
   };
 
-  /** Carte → clé de sa colonne actuelle (`${userId}:${statut}` ou "TERMINE"). */
+  /** Carte → clé de sa colonne actuelle (le statut). */
   const columnKeyById = useMemo(() => {
     const map = new Map<string, string>();
     for (const col of data.columns) {
@@ -74,17 +70,11 @@ export function DossiersBoard({
     return map;
   }, [data.columns]);
 
-  const columnKeys = useMemo(
-    () => new Set(data.columns.map((c) => c.key)),
-    [data.columns],
-  );
+  const columnKeys = useMemo(() => new Set(data.columns.map((c) => c.key)), [data.columns]);
 
-  const activeDossier = activeId
-    ? data.columns.flatMap((c) => c.dossiers).find((d) => d.id === activeId)
-    : null;
+  const activeDossier = activeId ? data.columns.flatMap((c) => c.dossiers).find((d) => d.id === activeId) : null;
 
-  const handleDragStart = (e: DragStartEvent) =>
-    setActiveId(e.active.id as string);
+  const handleDragStart = (e: DragStartEvent) => setActiveId(e.active.id as string);
 
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveId(null);
@@ -94,9 +84,7 @@ export function DossiersBoard({
     const dossierId = active.id as string;
     const overId = over.id as string;
     // On peut lâcher sur la colonne elle-même ou sur une carte qu'elle contient.
-    const targetKey = columnKeys.has(overId)
-      ? overId
-      : columnKeyById.get(overId);
+    const targetKey = columnKeys.has(overId) ? overId : columnKeyById.get(overId);
     if (!targetKey) return;
 
     const currentKey = columnKeyById.get(dossierId);
@@ -107,10 +95,7 @@ export function DossiersBoard({
 
     // Optimistic
     setData((prev) => {
-      const columns = prev.columns.map((c) => ({
-        ...c,
-        dossiers: [...c.dossiers],
-      }));
+      const columns = prev.columns.map((c) => ({ ...c, dossiers: [...c.dossiers] }));
       let moved: (typeof columns)[number]["dossiers"][number] | null = null;
       for (const c of columns) {
         const idx = c.dossiers.findIndex((d) => d.id === dossierId);
@@ -123,15 +108,11 @@ export function DossiersBoard({
       const dst = columns.find((c) => c.key === targetKey);
       if (!dst) return prev;
       // Déposer dans une colonne = changer l'ÉTAPE (l'assignation ne bouge pas).
-      moved.statut = target.statut;
-      dst.dossiers.unshift(moved);
+      dst.dossiers.unshift({ ...moved, statut: target.statut });
       return { ...prev, columns };
     });
 
-    const res = await moveDossierStatut({
-      dossierId,
-      newStatut: target.statut,
-    });
+    const res = await moveDossierStatut({ dossierId, newStatut: target.statut });
     if (!res.ok) {
       toast.error(res.error ?? "Échec du déplacement.");
       router.refresh();
@@ -148,7 +129,7 @@ export function DossiersBoard({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:overflow-x-auto sm:pb-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:overflow-x-auto sm:pb-2">
         {data.columns.map((col) => (
           <DossiersColumn
             key={col.key}
@@ -163,13 +144,7 @@ export function DossiersBoard({
       </div>
 
       <DragOverlay>
-        {activeDossier && (
-          <DossierCard
-            dossier={activeDossier}
-            onOpen={() => {}}
-            showAssignee={showAssignee}
-          />
-        )}
+        {activeDossier && <DossierCard dossier={activeDossier} onOpen={() => {}} showAssignee={showAssignee} />}
       </DragOverlay>
 
       <DossierDetailSheet

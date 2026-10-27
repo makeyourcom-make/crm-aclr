@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Sélecteur de vue de la liste d'activités — admin uniquement.
+ * Sélecteur de vue de la liste d'activités - admin uniquement.
  *
  * Permet à Arthur de basculer entre :
  *   - ses propres activités (défaut)
@@ -41,8 +41,8 @@ export function ActivityViewSwitcher({
   const others = users.filter((u) => u.id !== currentUserId);
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-xs font-medium text-muted-foreground">Vue :</span>
+    <div role="group" aria-label="Vue" className="flex flex-wrap items-center gap-1.5">
+      <span className="text-xs font-bold text-muted-foreground">Vue :</span>
       <Btn
         active={activeView === "mine"}
         onClick={() => goTo("mine")}
@@ -77,12 +77,13 @@ function Btn({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-medium transition-colors",
+        "inline-flex h-9 items-center rounded-full border px-3.5 text-[13px] font-bold transition-colors",
         active
-          ? "border-primary bg-primary text-primary-foreground"
-          : "border-border bg-background text-foreground hover:bg-muted",
+          ? "border-navy-700 bg-navy-700 text-white"
+          : "border-border-strong bg-card text-foreground hover:bg-navy-50",
       )}
     >
       {label}

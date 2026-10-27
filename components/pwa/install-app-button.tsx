@@ -9,7 +9,7 @@
  *   « Partager → Sur l'écran d'accueil ».
  * - Déjà installé (mode standalone) : le bouton se cache tout seul.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { Icon } from "@/components/icon";
 
@@ -18,29 +18,38 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
+// Environnement lu sans setState dans un effet : valeurs stables côté client,
+// `false` côté serveur (le bouton n'est jamais rendu au SSR).
+const noopSubscribe = () => () => {};
+function readStandalone(): boolean {
+  return (
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    // iOS Safari
+    (window.navigator as unknown as { standalone?: boolean }).standalone ===
+      true
+  );
+}
+function readIsIos(): boolean {
+  return /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+}
+
 export function InstallAppButton() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
     null,
   );
-  const [installed, setInstalled] = useState(false);
-  const [isIos, setIsIos] = useState(false);
+  const [installedNow, setInstalled] = useState(false);
   const [showIosHint, setShowIosHint] = useState(false);
+  const standalone = useSyncExternalStore(
+    noopSubscribe,
+    readStandalone,
+    () => false,
+  );
+  const isIos = useSyncExternalStore(noopSubscribe, readIsIos, () => false);
+  const installed = standalone || installedNow;
 
   useEffect(() => {
     // Déjà installé / lancé en standalone → rien à proposer.
-    const standalone =
-      window.matchMedia?.("(display-mode: standalone)").matches ||
-      // iOS Safari
-      (window.navigator as unknown as { standalone?: boolean }).standalone ===
-        true;
-    if (standalone) {
-      setInstalled(true);
-      return;
-    }
-
-    const ua = window.navigator.userAgent.toLowerCase();
-    const ios = /iphone|ipad|ipod/.test(ua);
-    setIsIos(ios);
+    if (standalone) return;
 
     const onBeforeInstall = (e: Event) => {
       e.preventDefault(); // empêche l'invite auto → on la déclenche au clic
@@ -57,7 +66,7 @@ export function InstallAppButton() {
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
       window.removeEventListener("appinstalled", onInstalled);
     };
-  }, []);
+  }, [standalone]);
 
   // Rien à afficher : déjà installé, ou navigateur sans invite ni cas iOS.
   if (installed) return null;

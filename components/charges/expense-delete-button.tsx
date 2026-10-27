@@ -1,12 +1,12 @@
 "use client";
 
+import { Loader2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 
 import { deleteExpense } from "@/app/(app)/charges/actions";
 import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/icon";
 
 export function ExpenseDeleteButton({ id }: { id: string }) {
   const router = useRouter();
@@ -30,8 +30,12 @@ export function ExpenseDeleteButton({ id }: { id: string }) {
     });
   };
   return (
-    <Button variant="outline" onClick={del} disabled={pending}>
-      <Icon name="Trash" className="mr-1.5 h-4 w-4 text-rose-600" />
+    <Button variant="destructive" size="lg" onClick={del} disabled={pending}>
+      {pending ? (
+        <Loader2 aria-hidden="true" className="animate-spin" />
+      ) : (
+        <Trash2 aria-hidden="true" />
+      )}
       Supprimer
     </Button>
   );

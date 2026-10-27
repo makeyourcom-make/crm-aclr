@@ -2,17 +2,17 @@
 
 /**
  * Barre de filtres pour /factures-clients :
- *  - Recherche (n°, raison sociale, description)
+ *  - Recherche (n°, raison sociale, description, n° contrat)
  *  - Filtre Type (Mensualité, Acompte, Solde, Annuelle, Ponctuelle)
  *  - Filtre Client (dropdown des prospects avec contrats)
- *  - Le tri se fait via les en-têtes cliquables (cf. SortableHeader)
+ *  - Le tri se fait via les en-têtes cliquables (vue tableau, SortableHeader)
  *
- * Le filtre statut reste les onglets en haut (déjà présents dans la page).
+ * Le filtre statut reste les pastilles au-dessus (liens, dans la page).
  */
+import { LoaderCircle, Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
 
-import { Icon } from "@/components/icon";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -40,10 +40,13 @@ export function ClientInvoiceFilters({ prospects }: ClientInvoiceFiltersProps) {
   const currentStatut = searchParams.get("statut") ?? "";
   const currentSortBy = searchParams.get("sortBy") ?? "";
 
+  // Champ local resynchronisé quand l'URL change (pendant le rendu, sans effet).
   const [search, setSearch] = useState(currentQ);
-  useEffect(() => {
+  const [syncedQ, setSyncedQ] = useState(currentQ);
+  if (currentQ !== syncedQ) {
+    setSyncedQ(currentQ);
     setSearch(currentQ);
-  }, [currentQ]);
+  }
 
   const pushParams = useCallback(
     (mut: (sp: URLSearchParams) => void) => {
@@ -81,7 +84,7 @@ export function ClientInvoiceFilters({ prospects }: ClientInvoiceFiltersProps) {
 
   const clearAll = () => {
     startTransition(() => {
-      // garde le statut (les onglets) mais reset le reste
+      // garde le statut (les pastilles) mais reset le reste
       const sp = new URLSearchParams();
       if (currentStatut) sp.set("statut", currentStatut);
       router.push(`${pathname}?${sp.toString()}`);
@@ -90,22 +93,27 @@ export function ClientInvoiceFilters({ prospects }: ClientInvoiceFiltersProps) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="relative flex-1 min-w-0 sm:min-w-[220px] max-w-md">
-        <Icon
-          name="Search"
-          className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+      <div className="relative min-w-0 flex-1 sm:max-w-sm sm:min-w-[240px]">
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle"
         />
+        <label htmlFor="invoice-search" className="sr-only">
+          Rechercher une facture
+        </label>
         <Input
-          type="text"
-          placeholder="Rechercher (n°, client, description)…"
+          id="invoice-search"
+          type="search"
+          placeholder="N°, client, description, n° contrat"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
+          className="h-10 rounded-[12px] pl-9"
         />
       </div>
 
       <FilterSelect
-        label="Type"
+        label="Type de facture"
+        placeholder="Tous les types"
         value={currentType}
         onChange={(v) => setParam("type", v)}
         options={TYPE_OPTIONS}
@@ -114,6 +122,7 @@ export function ClientInvoiceFilters({ prospects }: ClientInvoiceFiltersProps) {
       {prospects.length > 0 && (
         <FilterSelect
           label="Client"
+          placeholder="Tous les clients"
           value={currentProspectId}
           onChange={(v) => setParam("prospectId", v)}
           options={prospects.map((p) => ({
@@ -125,15 +134,19 @@ export function ClientInvoiceFilters({ prospects }: ClientInvoiceFiltersProps) {
 
       {hasFilters && (
         <button
+          type="button"
           onClick={clearAll}
-          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+          className="h-10 px-2 text-[13px] font-bold text-info-700 underline underline-offset-2 hover:text-foreground"
         >
           Réinitialiser
         </button>
       )}
 
       {isPending && (
-        <span className="text-xs text-muted-foreground">Actualisation…</span>
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
+          Actualisation...
+        </span>
       )}
     </div>
   );
@@ -141,23 +154,24 @@ export function ClientInvoiceFilters({ prospects }: ClientInvoiceFiltersProps) {
 
 interface FilterSelectProps {
   label: string;
+  placeholder: string;
   value: string;
   onChange: (v: string) => void;
   options: ReadonlyArray<{ value: string; label: string }>;
 }
 
-function FilterSelect({ label, value, onChange, options }: FilterSelectProps) {
+function FilterSelect({ label, placeholder, value, onChange, options }: FilterSelectProps) {
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className={cn(
-        "h-9 rounded-md border border-input bg-background px-2.5 text-sm",
-        value && "border-primary/40 bg-primary/5",
+        "h-10 max-w-full rounded-[12px] border border-border-strong bg-card px-3 text-[13px] font-semibold text-foreground sm:max-w-[240px]",
+        value && "border-navy-700 bg-navy-50",
       )}
       aria-label={label}
     >
-      <option value="">{label}</option>
+      <option value="">{placeholder}</option>
       {options.map((opt) => (
         <option key={opt.value} value={opt.value}>
           {opt.label}

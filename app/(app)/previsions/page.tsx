@@ -1,9 +1,9 @@
 /**
- * Page /previsions — DÉPRÉCIÉE.
+ * Page /previsions : DÉPRÉCIÉE (inchangée dans MYC Arena).
  *
- * Les prévisions étaient redondantes avec /stats (KPIs + funnel + projections)
- * et /commissions (calendrier des versements à venir). On redirige donc
- * vers /stats pour ne pas casser les bookmarks.
+ * Les prévisions étaient redondantes avec /stats (KPIs, entonnoir, projection
+ * annuelle du pilotage) et /commissions (calendrier des versements à venir).
+ * On redirige donc vers /stats pour ne pas casser les favoris.
  */
 import { redirect } from "next/navigation";
 

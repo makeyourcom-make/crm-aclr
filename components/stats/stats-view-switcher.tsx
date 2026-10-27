@@ -1,18 +1,19 @@
 "use client";
 
 /**
- * Sélecteur de vue Statistiques — admin uniquement.
+ * Sélecteur de vue Statistiques : admin uniquement.
  *
  * Permet à Arthur d'analyser :
  *   - Toute l'équipe (défaut)
  *   - Ses propres résultats
- *   - Les résultats de Sophie (ou d'une autre commerciale)
+ *   - Les résultats d'une commerciale
  *
- * → "Matrice Arthur regarde Sophie" demandée par l'utilisateur.
+ * Matrice « Arthur regarde la commerciale » demandée par l'utilisateur.
+ * Contrôle segmenté MYC Arena (aria-pressed), la vue vit dans l'URL (?user=).
  */
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { cn } from "@/lib/utils";
+import { SegmentGroup, segmentClass } from "@/components/stats/ui";
 
 interface StatsViewSwitcherProps {
   users: Array<{ id: string; name: string }>;
@@ -37,7 +38,8 @@ export function StatsViewSwitcher({
     } else {
       params.set("user", mode);
     }
-    router.push(`/stats?${params.toString()}`);
+    const qs = params.toString();
+    router.push(qs ? `/stats?${qs}` : "/stats", { scroll: false });
   };
 
   const isAll = !activeUserId;
@@ -45,10 +47,7 @@ export function StatsViewSwitcher({
   const others = users.filter((u) => u.id !== currentUserId);
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-xs font-medium text-muted-foreground">
-        Vue :
-      </span>
+    <SegmentGroup label="Vue" visibleLabel="Vue :">
       <Btn active={isAll} onClick={() => goTo("all")} label="Toute l'équipe" />
       <Btn active={isMine} onClick={() => goTo("mine")} label="Mes résultats" />
       {others.map((u) => (
@@ -59,7 +58,7 @@ export function StatsViewSwitcher({
           label={u.name.split(" ")[0]}
         />
       ))}
-    </div>
+    </SegmentGroup>
   );
 }
 
@@ -75,13 +74,9 @@ function Btn({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
-      className={cn(
-        "inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-medium transition-colors",
-        active
-          ? "border-primary bg-primary text-primary-foreground"
-          : "border-border bg-background text-foreground hover:bg-muted",
-      )}
+      className={segmentClass(active)}
     >
       {label}
     </button>

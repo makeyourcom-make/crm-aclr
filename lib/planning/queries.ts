@@ -22,6 +22,8 @@ export interface PlanningLigneDTO {
   id: string;
   prospectId: string;
   client: string;
+  /** Localité du client (affichage « Vevey · ACLR-2026-0034 »). */
+  ville: string | null;
   service: string;
   libelle: string | null;
   auto: boolean;
@@ -64,7 +66,7 @@ export async function getPlanningData(ownerId: string, from: Date, to: Date): Pr
         libelle: true,
         auto: true,
         fraisPubAvances: true,
-        prospect: { select: { raisonSociale: true } },
+        prospect: { select: { raisonSociale: true, ville: true } },
         contract: { select: { numero: true } },
         regles: {
           orderBy: { createdAt: "asc" },
@@ -100,6 +102,7 @@ export async function getPlanningData(ownerId: string, from: Date, to: Date): Pr
         id: l.id,
         prospectId: l.prospectId,
         client: l.prospect.raisonSociale,
+        ville: l.prospect.ville,
         service: l.service,
         libelle: l.libelle,
         auto: l.auto,

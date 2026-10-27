@@ -434,6 +434,50 @@ export async function startCall(
 }
 
 /**
+ * Annule une session d'appel sans résultat (« Annuler sans enregistrer ») :
+ * supprime l'Activity APPEL_SORTANT créée par `startCall`, UNIQUEMENT si elle
+ * est encore EN_COURS et sans résultat (un appel déjà qualifié n'est jamais
+ * effacé ici). Sans ça, l'appel abandonné restait compté comme appel passé
+ * (stats, XP) alors que l'interface annonçait sa suppression.
+ */
+export async function cancelCall(
+  activityId: string,
+): Promise<ActivityActionResult> {
+  const user = await requireUser();
+  try {
+    if (typeof activityId !== "string" || activityId.length === 0) {
+      return { ok: false, error: "Activité introuvable." };
+    }
+    const a = await prisma.activity.findUnique({
+      where: { id: activityId },
+      select: {
+        userId: true,
+        type: true,
+        statut: true,
+        resultat: true,
+        prospectId: true,
+      },
+    });
+    // Déjà supprimée ou introuvable : rien à annuler.
+    if (!a) return { ok: true };
+    if (user.role !== "ADMIN" && a.userId !== user.id) {
+      return { ok: false, error: "Cette activité ne t'appartient pas." };
+    }
+    if (a.type !== "APPEL_SORTANT" || a.statut !== "EN_COURS" || a.resultat) {
+      // Appel déjà terminé / qualifié : on n'y touche pas.
+      return { ok: true, activityId };
+    }
+    await prisma.activity.delete({ where: { id: activityId } });
+    if (a.prospectId) revalidatePath(`/prospects/${a.prospectId}`);
+    revalidatePath("/activites");
+    revalidatePath("/phoning");
+    return { ok: true, activityId };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
+}
+
+/**
  * Enregistre le résultat d'un appel terminé.
  * Si résultat ∈ {COMBOX, NE_DECROCHE_PAS, A_RAPPELER, INTERESSE_PAS_PRET}
  *   ET qu'un délai de rappel est fourni → crée la prochaine activity auto
@@ -580,6 +624,7 @@ export async function recordCallResult(
     revalidatePath(`/prospects/${original.prospectId}`);
     revalidatePath("/activites");
     revalidatePath("/aujourd-hui");
+    revalidatePath("/phoning");
 
     return { ok: true, ...result };
   } catch (err) {

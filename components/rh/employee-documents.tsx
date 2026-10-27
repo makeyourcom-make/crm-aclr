@@ -1,18 +1,20 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { FileText, Trash2, Upload } from "lucide-react";
+import { useId, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
   deleteEmployeeDocument,
   uploadEmployeeDocument,
 } from "@/app/(app)/rh/actions";
+import { SectionCard } from "@/components/arena/section-card";
 import { DocumentPreviewButton } from "@/components/common/document-preview-button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Icon } from "@/components/icon";
-import { formatDate } from "@/lib/format";
+import { formatDateCH } from "@/lib/queries/objectifs-pace";
+import { cn } from "@/lib/utils";
 
 interface DocItem {
   id: string;
@@ -47,7 +49,9 @@ export function EmployeeDocuments({
   const [titre, setTitre] = useState("");
   const [fileDataUrl, setFileDataUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const uid = useId();
 
   const handleFile = (f: File | undefined) => {
     if (!f) return;
@@ -103,136 +107,141 @@ export function EmployeeDocuments({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">
-          Documents ({documents.length})
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Liste existante */}
-        {documents.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Aucun document pour ce collaborateur.
-          </p>
-        ) : (
-          <ul className="divide-y divide-border rounded-md border border-border">
-            {documents.map((d) => (
-              <li
-                key={d.id}
-                className="flex items-center gap-3 px-3 py-2"
-              >
-                <Icon name="FileText" className="h-4 w-4 text-muted-foreground" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{d.titre}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {DOC_TYPES.find((t) => t.value === d.type)?.label ??
-                      d.type}{" "}
-                    · {formatDate(d.createdAt)}
-                    {d.fileSize && (
-                      <>
-                        {" · "}
-                        {Math.round(d.fileSize / 1024)} KB
-                      </>
-                    )}
-                  </p>
-                </div>
+    <SectionCard
+      title={`Documents (${documents.length})`}
+      icon={FileText}
+      tone="navy"
+      contentClassName="flex flex-col gap-4"
+    >
+      {documents.length === 0 ? (
+        <p className="text-[13px] text-muted-foreground">
+          Aucun document pour ce collaborateur.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {documents.map((d) => (
+            <li
+              key={d.id}
+              className="flex flex-wrap items-center gap-2.5 rounded-[14px] border border-border px-3 py-2.5"
+            >
+              <FileText aria-hidden="true" className="size-4 shrink-0 text-subtle" />
+              <div className="min-w-0 flex-[1_1_140px]">
+                <p className="truncate text-[13px] font-bold text-foreground">{d.titre}</p>
+                <p className="text-xs text-muted-foreground">
+                  {DOC_TYPES.find((t) => t.value === d.type)?.label ?? d.type}
+                  {" · "}
+                  {formatDateCH(d.createdAt)}
+                  {d.fileSize ? ` · ${Math.round(d.fileSize / 1024)} KB` : ""}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
                 <DocumentPreviewButton
                   url={d.fileUrl}
                   filename={d.titre}
                   label="Voir"
                   icon="Eye"
-                  className="h-7 px-2 text-[11px]"
                 />
                 <button
                   type="button"
                   onClick={() => handleDelete(d.id)}
                   disabled={pending}
-                  className="inline-flex h-7 items-center rounded-md border border-red-200 bg-red-50 px-2 text-[11px] text-red-700 hover:bg-red-100 disabled:opacity-50"
+                  aria-label={`Supprimer le document ${d.titre}`}
+                  className="inline-flex h-9 items-center gap-1 rounded-[10px] border border-alert-500/30 bg-alert-50 px-2.5 text-xs font-bold text-alert-700 hover:bg-alert-50/70 disabled:opacity-50"
                 >
+                  <Trash2 aria-hidden="true" className="size-3.5" />
                   Supprimer
                 </button>
-              </li>
-            ))}
-          </ul>
-        )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
-        {/* Upload */}
-        <div className="rounded-md border border-dashed border-border p-4 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Ajouter un document
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <Label className="text-xs">Type</Label>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-              >
-                {DOC_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label className="text-xs">Titre</Label>
-              <Input
-                value={titre}
-                onChange={(e) => setTitre(e.target.value)}
-                placeholder="Contrat de travail signé 2026"
-                className="mt-1"
-              />
-            </div>
+      {/* Upload */}
+      <div className="flex flex-col gap-3 rounded-[14px] border border-dashed border-border-strong p-4">
+        <p className="text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
+          Ajouter un document
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`${uid}-type`} className="text-[13px]">Type</Label>
+            <select
+              id={`${uid}-type`}
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+              className="h-11 w-full rounded-[12px] border border-input bg-card px-3 text-[15px] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
+            >
+              {DOC_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
           </div>
-
-          <div
-            onClick={() => inputRef.current?.click()}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = "copy";
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              handleFile(e.dataTransfer.files[0]);
-            }}
-            className="flex cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-border bg-muted/30 px-4 py-5 text-center hover:bg-muted/50"
-          >
-            <Icon name="Upload" className="h-5 w-5 text-muted-foreground" />
-            {fileName ? (
-              <p className="mt-2 text-sm font-medium">{fileName}</p>
-            ) : (
-              <>
-                <p className="mt-2 text-sm">
-                  Glisse le fichier ici ou clique pour parcourir
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  PDF, image, max 6 MB
-                </p>
-              </>
-            )}
-            <input
-              ref={inputRef}
-              type="file"
-              accept="application/pdf,image/*"
-              className="hidden"
-              onChange={(e) => handleFile(e.target.files?.[0])}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`${uid}-titre`} className="text-[13px]">Titre</Label>
+            <Input
+              id={`${uid}-titre`}
+              value={titre}
+              onChange={(e) => setTitre(e.target.value)}
+              placeholder="Contrat de travail signé 2026"
+              className="h-11 rounded-[12px] border-border bg-card px-3 text-[15px] md:text-sm"
             />
           </div>
-
-          <button
-            type="button"
-            onClick={handleUpload}
-            disabled={pending || !fileDataUrl}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            <Icon name="Upload" className="h-4 w-4" />
-            {pending ? "Ajout…" : "Ajouter"}
-          </button>
         </div>
-      </CardContent>
-    </Card>
+
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            if (!dragOver) setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            handleFile(e.dataTransfer.files[0]);
+          }}
+          className={cn(
+            "flex flex-col items-center justify-center rounded-[12px] border-2 border-dashed px-4 py-5 text-center transition-colors",
+            dragOver ? "border-info-500 bg-info-50" : "border-border bg-ground hover:bg-navy-50",
+          )}
+        >
+          <Upload aria-hidden="true" className="size-5 text-muted-foreground" />
+          {fileName ? (
+            <span className="mt-2 text-sm font-bold text-foreground">{fileName}</span>
+          ) : (
+            <>
+              <span className="mt-2 text-sm font-semibold text-foreground">
+                Glisse le fichier ici ou clique pour parcourir
+              </span>
+              <span className="text-xs text-muted-foreground">PDF, image, max 6 MB</span>
+            </>
+          )}
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf,image/*"
+          className="hidden"
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={(e) => handleFile(e.target.files?.[0])}
+        />
+
+        <Button
+          type="button"
+          size="lg"
+          onClick={handleUpload}
+          disabled={pending || !fileDataUrl}
+          className="self-start"
+        >
+          <Upload aria-hidden="true" />
+          {pending ? "Ajout…" : "Ajouter"}
+        </Button>
+      </div>
+    </SectionCard>
   );
 }

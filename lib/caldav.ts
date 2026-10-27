@@ -11,7 +11,12 @@
  * DB avec AES-256-GCM (clé = AUTH_SECRET). On ne le déchiffre qu'au moment
  * d'appeler l'API CalDAV.
  */
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from "node:crypto";
 
 import { DAVClient, type DAVCalendar, type DAVCalendarObject } from "tsdav";
 
@@ -27,9 +32,7 @@ function getEncKey(): Buffer {
   const decoded = Buffer.from(secret, "base64");
   if (decoded.length === 32) return decoded;
   // Fallback : hash
-  return Buffer.from(
-    require("node:crypto").createHash("sha256").update(secret).digest(),
-  );
+  return createHash("sha256").update(secret).digest();
 }
 
 export function encryptPassword(plain: string): string {

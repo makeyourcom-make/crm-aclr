@@ -1,25 +1,31 @@
 "use client";
 
 /**
- * Modal pour composer + envoyer un email à un prospect.
+ * Modal pour composer + envoyer un email à un prospect (fiche entreprise).
  *
  * - Sélection optionnelle d'un template (charge sujet + contenu)
  * - Variables substituées côté serveur ({{prenomContact}}, {{raisonSociale}}, …)
  * - Envoi réel via Resend si EMAIL_MODE=live, sinon dry-run (enregistré en
  *   base avec statut BROUILLON sans envoi réseau)
+ * - MYC Arena : l'envoi crée l'activité EMAIL_ENVOYE → toast « +3 XP » puis
+ *   rafraîchissement de la coquille (pilules XP / série).
  */
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Mail, Save, Send } from "lucide-react";
 
 import { saveEmailDraft, sendEmailToProspect } from "@/app/(app)/emails/actions";
+import { xpToast } from "@/components/arena/celebrate";
+import { XpPill } from "@/components/arena/pills";
 import {
   AttachmentPicker,
   type PickedAttachment,
 } from "@/components/emails/attachment-picker";
+import { FIELD_CLASS, uiText } from "@/components/emails/mail-ui";
+import { RecipientInput } from "@/components/emails/recipient-input";
 import { RichTextEditor } from "@/components/emails/rich-text-editor";
-import { htmlToPlainText } from "@/lib/email-html";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -29,10 +35,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Icon } from "@/components/icon";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RecipientInput } from "@/components/emails/recipient-input";
+import { htmlToPlainText } from "@/lib/email-html";
+import { XP_RULES } from "@/lib/gamification/rules";
+import { cn } from "@/lib/utils";
 
 interface TemplateOption {
   id: string;
@@ -58,6 +64,14 @@ interface SendEmailDialogProps {
   triggerVariant?: "default" | "outline" | "compact";
 }
 
+const MAIL_VARIABLES = [
+  "{{prenomContact}}",
+  "{{nomContact}}",
+  "{{raisonSociale}}",
+  "{{ville}}",
+  "{{commerciale}}",
+];
+
 export function SendEmailDialog({
   prospectId,
   prospectEmail,
@@ -74,7 +88,7 @@ export function SendEmailDialog({
   const [objet, setObjet] = useState("");
   const [contenuHtml, setContenuHtml] = useState("");
   // HTML initial STABLE de l'éditeur (ne change qu'au montage / chargement de
-  // template) — surtout PAS la valeur live, sinon le curseur sauterait à chaque
+  // template) : surtout PAS la valeur live, sinon le curseur sauterait à chaque
   // frappe. Le remontage est déclenché par `editorKey`.
   const [editorInitial, setEditorInitial] = useState("");
   const [editorKey, setEditorKey] = useState(0);
@@ -82,7 +96,7 @@ export function SendEmailDialog({
   const [showCc, setShowCc] = useState(false);
   const [cc, setCc] = useState("");
   const [bcc, setBcc] = useState("");
-  // Signature par défaut, pré-insérée dans le corps (visible + éditable).
+  // Signature par défaut, affichée en aperçu (ajoutée automatiquement à l'envoi).
   const defaultSigHtml = signatures.find((s) => s.isDefault)?.html ?? "";
   const contenuTexte = htmlToPlainText(contenuHtml);
 
@@ -125,14 +139,15 @@ export function SendEmailDialog({
         bcc: bcc.trim() || undefined,
       });
       if (!res.ok) {
-        toast.error(res.error ?? "Échec de l'envoi.");
+        toast.error(uiText(res.error, "Échec de l'envoi."));
         return;
       }
-      if (res.dryRun) {
-        toast.success("Email enregistré (mode dry-run, pas d'envoi réel).");
-      } else {
-        toast.success(`Email envoyé à ${prospectName} ✓`);
-      }
+      // Activité EMAIL_ENVOYE créée à chaque envoi (même en dry-run).
+      xpToast(
+        XP_RULES.email,
+        res.dryRun ? "Email enregistré (dry-run)" : "Mail envoyé !",
+        `à ${prospectName}`,
+      );
       resetAndClose();
     });
   };
@@ -168,57 +183,67 @@ export function SendEmailDialog({
         bcc: bcc.trim(),
       });
       if (!res.ok) {
-        toast.error(res.error ?? "Échec de l'enregistrement.");
+        toast.error(uiText(res.error, "Échec de l'enregistrement."));
         return;
       }
-      toast.success("Brouillon enregistré — retrouve-le dans Emails › Brouillons ✓");
+      toast.success("Brouillon enregistré : retrouve-le dans Emails › Brouillons.");
       resetAndClose();
     });
   };
 
   const triggerClass =
     triggerVariant === "compact"
-      ? "inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-xs hover:bg-muted"
+      ? buttonVariants({ variant: "outline", size: "sm" })
       : triggerVariant === "outline"
-        ? "inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm hover:bg-muted"
-        : "inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90";
+        ? buttonVariants({ variant: "outline" })
+        : buttonVariants({ variant: "default" });
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger className={triggerClass} disabled={!prospectEmail}>
-        <Icon name="Mail" className="h-3.5 w-3.5" />
+        <Mail aria-hidden="true" />
         Envoyer un email
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="rounded-[20px] p-5 sm:max-w-xl sm:p-6">
         <DialogHeader>
-          <DialogTitle>Email à {prospectName}</DialogTitle>
+          <DialogTitle className="pr-8 font-display text-[22px] leading-tight font-extrabold tracking-[-0.02em]">
+            Email à {prospectName}
+          </DialogTitle>
           <DialogDescription>
             {prospectEmail ? (
-              <>Destinataire : <strong>{prospectEmail}</strong></>
+              <>
+                Destinataire : <strong className="font-bold text-foreground">{prospectEmail}</strong>
+              </>
             ) : (
-              "⚠️ Pas d'email connu pour ce prospect — renseigne-le d'abord."
+              <span className="font-semibold text-alert-700">
+                Pas d&apos;email connu pour ce prospect : renseigne-le d&apos;abord.
+              </span>
             )}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* CC / CCI — repliés par défaut (comme Gmail). */}
+          {/* CC / CCI : repliés par défaut (comme Gmail). */}
           <div className="space-y-1.5">
             {!showCc ? (
               <button
                 type="button"
                 onClick={() => setShowCc(true)}
-                className="text-xs font-medium text-primary hover:underline"
+                className="inline-flex h-8 items-center rounded-[10px] bg-navy-50 px-2.5 text-xs font-bold text-navy-600 hover:bg-navy-100"
               >
                 + Cc / Cci
               </button>
             ) : (
-              <div className="space-y-1.5">
-                <Label htmlFor="cc">Cc</Label>
+              <div className="space-y-2 rounded-[14px] border border-border bg-ground p-3">
+                <Label htmlFor="cc" className="text-xs font-bold text-muted-foreground">
+                  Cc
+                </Label>
                 <RecipientInput id="cc" value={cc} onChange={setCc} placeholder="copie@exemple.ch, autre@exemple.ch" />
-                <Label htmlFor="bcc">Cci (copie cachée)</Label>
+                <Label htmlFor="bcc" className="text-xs font-bold text-muted-foreground">
+                  Cci (copie cachée)
+                </Label>
                 <RecipientInput id="bcc" value={bcc} onChange={setBcc} placeholder="copie.cachee@exemple.ch" />
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Plusieurs adresses séparées par une virgule ou un
                   point-virgule.
                 </p>
@@ -228,66 +253,78 @@ export function SendEmailDialog({
 
           {templates.length > 0 && (
             <div className="space-y-1.5">
-              <Label htmlFor="template">Template (optionnel)</Label>
+              <Label htmlFor="template" className="text-xs font-bold text-muted-foreground">
+                Modèle (optionnel)
+              </Label>
               <select
                 id="template"
                 value={templateId}
                 onChange={(e) => handleTemplateChange(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                className={cn(FIELD_CLASS, "font-semibold")}
               >
-                <option value="">— Rédiger sans template —</option>
+                <option value="">Rédiger sans modèle</option>
                 {templates.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.nom}
                   </option>
                 ))}
               </select>
-              <p className="text-[11px] text-muted-foreground">
-                Les variables comme <code>{`{{prenomContact}}`}</code> seront
+              <p className="text-xs text-muted-foreground">
+                Les variables comme <code className="font-mono">{`{{prenomContact}}`}</code> seront
                 remplacées automatiquement.
               </p>
             </div>
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="objet">
-              Sujet <span className="text-red-500">*</span>
+            <Label htmlFor="objet" className="text-xs font-bold text-muted-foreground">
+              Objet{" "}
+              <span className="text-alert-700" aria-hidden="true">
+                *
+              </span>
             </Label>
-            <Input
+            <input
               id="objet"
               value={objet}
               onChange={(e) => setObjet(e.target.value)}
               placeholder="Ex. Démo Pack Web Complet"
               required
+              className={FIELD_CLASS}
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label>
-              Contenu <span className="text-red-500">*</span>
-            </Label>
+            <p className="text-xs font-bold text-muted-foreground">
+              Message{" "}
+              <span className="text-alert-700" aria-hidden="true">
+                *
+              </span>
+            </p>
             <RichTextEditor
               key={editorKey}
               initialHtml={editorInitial}
               onChange={setContenuHtml}
               disabled={pending}
               placeholder="Bonjour {{prenomContact}}, …"
+              variables={MAIL_VARIABLES}
+              footer={
+                defaultSigHtml ? (
+                  <div className="border-t border-dashed border-border bg-ground px-4 py-2.5">
+                    <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                      Signature ajoutée automatiquement à l&apos;envoi
+                    </p>
+                    <div className="text-xs" dangerouslySetInnerHTML={{ __html: defaultSigHtml }} />
+                  </div>
+                ) : undefined
+              }
             />
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Tu recevras automatiquement une copie sur ton Gmail.
             </p>
-            {defaultSigHtml && (
-              <div className="mt-2 rounded-md border border-dashed border-border bg-muted/20 p-3">
-                <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Signature (ajoutée automatiquement)
-                </p>
-                <div dangerouslySetInnerHTML={{ __html: defaultSigHtml }} />
-              </div>
-            )}
           </div>
 
           <div className="space-y-1.5">
-            <Label>Pièces jointes</Label>
+            <p className="text-xs font-bold text-muted-foreground">Pièces jointes</p>
             <AttachmentPicker
               value={attachments}
               onChange={setAttachments}
@@ -296,26 +333,30 @@ export function SendEmailDialog({
             />
           </div>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setOpen(false)}
-              disabled={pending}
-            >
-              Annuler
+          <DialogFooter className="-mx-5 -mb-5 flex-row flex-wrap rounded-b-[20px] bg-ground px-5 sm:-mx-6 sm:-mb-6 sm:justify-start sm:px-6">
+            <Button type="submit" variant="hero" disabled={pending || !prospectEmail}>
+              <Send aria-hidden="true" />
+              {pending ? "Envoi…" : "Envoyer l'email"}
+              <XpPill xp={XP_RULES.email} variant="solid" className="text-shadow-none" />
             </Button>
             <Button
               type="button"
               variant="outline"
+              size="lg"
               onClick={handleSaveDraft}
               disabled={pending}
             >
-              <Icon name="Save" className="mr-1.5 h-3.5 w-3.5" />
+              <Save aria-hidden="true" />
               Enregistrer en brouillon
             </Button>
-            <Button type="submit" disabled={pending || !prospectEmail}>
-              {pending ? "Envoi…" : "Envoyer l'email"}
+            <Button
+              type="button"
+              variant="ghost"
+              size="lg"
+              onClick={() => setOpen(false)}
+              disabled={pending}
+            >
+              Annuler
             </Button>
           </DialogFooter>
         </form>

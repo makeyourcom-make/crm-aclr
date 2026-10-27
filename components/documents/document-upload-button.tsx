@@ -8,11 +8,19 @@
  * repart ensuite vers le Server Action `createDocument`.
  */
 import { upload } from "@vercel/blob/client";
+import { FileCheck2, Loader2, Plus, Upload } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { createDocument } from "@/app/(app)/documents/actions";
-import { Icon } from "@/components/icon";
+import {
+  FIELD_CLASS,
+  LABEL_CLASS,
+  SELECT_CLASS,
+  TEXTAREA_CLASS,
+} from "@/components/common/form-styles";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -21,8 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 type Categorie = "FORMATION" | "VENTE" | "SUIVI";
 
@@ -52,6 +59,7 @@ export function DocumentUploadButton({
   const [description, setDescription] = useState("");
   const [categorie, setCategorie] = useState<Categorie>(defaultCategorie);
   const [file, setFile] = useState<File | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
@@ -124,11 +132,10 @@ export function DocumentUploadButton({
         type="button"
         onClick={() => setOpen(true)}
         className={
-          triggerClassName ??
-          "inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          triggerClassName ?? buttonVariants({ variant: "default", size: "lg" })
         }
       >
-        <Icon name="Plus" className="h-4 w-4" />
+        <Plus aria-hidden="true" className="size-4" />
         {triggerLabel}
       </button>
 
@@ -147,60 +154,83 @@ export function DocumentUploadButton({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-1">
             <div>
-              <Label htmlFor="doc-file" className="text-xs">
-                Fichier (PDF, Word, Excel, PowerPoint, image, vidéo - max 50 MB)
-              </Label>
-              <div
-                onClick={() => inputRef.current?.click()}
+              <span className={LABEL_CLASS}>
+                Fichier (PDF, Word, Excel, PowerPoint, image, vidéo · max 50 MB)
+              </span>
+              <label
+                htmlFor="doc-file"
                 onDragOver={(e) => {
                   e.preventDefault();
                   e.dataTransfer.dropEffect = "copy";
+                  setDragOver(true);
                 }}
+                onDragLeave={() => setDragOver(false)}
                 onDrop={(e) => {
                   e.preventDefault();
+                  setDragOver(false);
                   pickFile(e.dataTransfer.files[0]);
                 }}
-                className="mt-1 flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-3 py-4 text-sm text-muted-foreground hover:bg-muted"
+                className={cn(
+                  "flex cursor-pointer items-center gap-3 rounded-[14px] border-2 border-dashed px-3.5 py-4 text-sm transition-colors focus-within:border-navy-700 focus-within:ring-4 focus-within:ring-navy-100",
+                  dragOver
+                    ? "border-info-500 bg-info-50"
+                    : file
+                      ? "border-win-500/50 bg-win-50"
+                      : "border-border-strong bg-ground hover:bg-navy-50",
+                )}
               >
-                <Icon name="Upload" className="h-4 w-4 shrink-0" />
-                <span className="truncate">
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-card shadow-arena",
+                    file ? "text-win-700" : "text-info-700",
+                  )}
+                >
+                  {file ? <FileCheck2 className="size-4" /> : <Upload className="size-4" />}
+                </span>
+                <span
+                  className={cn(
+                    "min-w-0 truncate font-semibold",
+                    file ? "text-foreground" : "text-muted-foreground",
+                  )}
+                >
                   {file ? file.name : "Clique ou dépose un fichier ici"}
                 </span>
-              </div>
-              <input
-                ref={inputRef}
-                id="doc-file"
-                type="file"
-                className="hidden"
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.mp4,.mov,image/*"
-                onChange={(e) => pickFile(e.target.files?.[0])}
-              />
+                <input
+                  ref={inputRef}
+                  id="doc-file"
+                  type="file"
+                  className="sr-only"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.mp4,.mov,image/*"
+                  onChange={(e) => pickFile(e.target.files?.[0])}
+                />
+              </label>
             </div>
 
             <div>
-              <Label htmlFor="doc-titre" className="text-xs">
+              <label htmlFor="doc-titre" className={LABEL_CLASS}>
                 Titre
-              </Label>
+              </label>
               <Input
                 id="doc-titre"
                 value={titre}
                 onChange={(e) => setTitre(e.target.value)}
                 placeholder="Ex. Script d'appel - prise de RDV"
-                className="mt-1"
+                className={FIELD_CLASS}
               />
             </div>
 
             <div>
-              <Label htmlFor="doc-cat" className="text-xs">
+              <label htmlFor="doc-cat" className={LABEL_CLASS}>
                 Rubrique
-              </Label>
+              </label>
               <select
                 id="doc-cat"
                 value={categorie}
                 onChange={(e) => setCategorie(e.target.value as Categorie)}
-                className="mt-1 h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                className={SELECT_CLASS}
               >
                 {(Object.keys(CAT_LABEL) as Categorie[]).map((c) => (
                   <option key={c} value={c}>
@@ -211,36 +241,33 @@ export function DocumentUploadButton({
             </div>
 
             <div>
-              <Label htmlFor="doc-desc" className="text-xs">
+              <label htmlFor="doc-desc" className={LABEL_CLASS}>
                 Description (optionnel)
-              </Label>
+              </label>
               <textarea
                 id="doc-desc"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={2}
                 placeholder="À quoi sert ce document ?"
-                className="mt-1 w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
+                className={TEXTAREA_CLASS}
               />
             </div>
           </div>
 
-          <div className="flex justify-end gap-2">
-            <button
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
               type="button"
+              variant="outline"
+              size="lg"
               onClick={() => setOpen(false)}
-              className="h-9 rounded-md border border-border px-3 text-sm hover:bg-muted"
             >
               Annuler
-            </button>
-            <button
-              type="button"
-              onClick={submit}
-              disabled={pending}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-            >
+            </Button>
+            <Button type="button" size="lg" onClick={submit} disabled={pending}>
+              {pending && <Loader2 aria-hidden="true" className="animate-spin" />}
               {pending ? "Envoi…" : "Ajouter"}
-            </button>
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

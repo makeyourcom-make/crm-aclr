@@ -111,7 +111,7 @@ export function DeleteClientInvoiceButton({
     <DeleteButton
       variant={variant}
       disabled={isPayee}
-      disabledReason="Facture payée — non supprimable (créer un avoir)"
+      disabledReason="Facture payée : non supprimable (créer un avoir)"
       onDelete={async () => {
         const res = await deleteClientInvoice(invoiceId);
         return { ok: res.ok, error: res.error };
@@ -131,7 +131,7 @@ export function DeleteContractButton({
     <DeleteButton
       variant={variant}
       disabled={!canDelete}
-      disabledReason="Contrat actif ou avec facture payée — utiliser 'Résilier'"
+      disabledReason="Contrat actif ou avec facture payée : utiliser 'Résilier'"
       onDelete={async () => {
         const res = await deleteContract(contractId);
         return { ok: res.ok, error: res.error };

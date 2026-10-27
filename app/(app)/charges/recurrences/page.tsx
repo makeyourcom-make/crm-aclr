@@ -1,44 +1,32 @@
+import { CalendarClock, ListChecks, PlusCircle, Repeat, Sigma } from "lucide-react";
 import Link from "next/link";
 
-import { RecurrenceForm } from "@/components/charges/recurrence-form";
+import { EmptyState, SectionCard, StatTile, StatusPill } from "@/components/arena";
+import { CategoryChip } from "@/components/charges/expense-statut-pill";
 import { GenerateRecurrenceButton } from "@/components/charges/generate-recurrence-button";
+import { FREQ_LABEL } from "@/components/charges/labels";
+import { RecurrenceForm } from "@/components/charges/recurrence-form";
 import { RecurrenceRowActions } from "@/components/charges/recurrence-row-actions";
-import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Icon } from "@/components/icon";
+import {
+  TABLE_CLASS,
+  THEAD_CLASS,
+  TR_CLASS,
+  TableEmptyRow,
+  TableScroll,
+  Td,
+  Th,
+} from "@/components/common/arena-table";
+import { BackLink } from "@/components/common/back-link";
+import { ChfValue } from "@/components/common/chf-value";
+import { PageShell } from "@/components/common/page-shell";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
 import { formatCHF, formatDate } from "@/lib/format";
 import { requireAdmin } from "@/lib/session";
+import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Charges récurrentes" };
 export const dynamic = "force-dynamic";
-
-const FREQ_LABEL: Record<string, string> = {
-  MENSUEL: "Mensuel",
-  BIMESTRIEL: "Bi-mensuel",
-  TRIMESTRIEL: "Trimestriel",
-  SEMESTRIEL: "Semestriel",
-  ANNUEL: "Annuel",
-};
-
-const CATEGORIE_LABEL: Record<string, string> = {
-  LOYER: "Loyer",
-  SOFTWARE_SAAS: "Software",
-  MARKETING: "Marketing",
-  PUBLICITE: "Publicité",
-  DEPLACEMENTS: "Déplacements",
-  RESTAURATION: "Restauration",
-  MATERIEL_BUREAU: "Matériel",
-  ASSURANCES: "Assurances",
-  TELECOM: "Télécom",
-  FORMATION: "Formation",
-  HONORAIRES: "Honoraires",
-  IMPOTS: "Impôts",
-  BANQUE_FRAIS: "Frais bancaires",
-  AUTRE: "Autre",
-};
 
 export default async function RecurrencesPage() {
   await requireAdmin();
@@ -72,168 +60,151 @@ export default async function RecurrencesPage() {
   }, 0);
 
   return (
-    <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+    <PageShell>
       <PageHeader
+        rubrique="finance"
         title="Charges récurrentes"
-        description="Templates qui génèrent automatiquement des charges en attente chaque mois. Utile pour les abonnements (Sunrise, Workspace, Lucas freelance...)."
-        breadcrumb={
-          <Link
-            href="/charges"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Icon name="ChevronRight" className="h-3 w-3 rotate-180" />
-            Retour aux charges
-          </Link>
-        }
+        description="Modèles qui génèrent automatiquement des charges en attente chaque mois. Utile pour les abonnements (Sunrise, Workspace, Lucas freelance...)."
+        breadcrumb={<BackLink href="/charges">Retour aux charges</BackLink>}
         actions={<GenerateRecurrenceButton />}
       />
 
       {/* KPIs */}
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        <Card>
-          <CardContent className="py-4">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              Récurrences actives
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-primary tabular-nums">
-              {actives.length}
-            </p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
-              sur {recurrences.length} au total
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-4">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              Total mensualisé estimé
-            </p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">
-              {formatCHF(totalMensualise)}
-            </p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
-              Équivalent / mois (toutes fréquences confondues)
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-4">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              Charges générées
-            </p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">
-              {recurrences.reduce((s, r) => s + r._count.expenses, 0)}
-            </p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
-              Toutes périodes
-            </p>
-          </CardContent>
-        </Card>
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <StatTile
+          label="Récurrences actives"
+          value={actives.length}
+          sub={`sur ${recurrences.length} au total`}
+          tone="violet"
+          icon={Repeat}
+        />
+        <StatTile
+          label="Total mensualisé estimé"
+          value={<ChfValue amount={totalMensualise} />}
+          sub="Équivalent / mois (toutes fréquences)"
+          tone="red"
+          icon={Sigma}
+        />
+        <StatTile
+          label="Charges générées"
+          value={recurrences.reduce((s, r) => s + r._count.expenses, 0)}
+          sub="Toutes périodes"
+          tone="navy"
+          icon={ListChecks}
+        />
       </div>
 
-      {/* Nouveau template */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-base">Nouvelle récurrence</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RecurrenceForm prospects={prospects} />
-        </CardContent>
-      </Card>
+      {/* Nouveau modèle */}
+      <SectionCard
+        className="mb-6"
+        title="Nouvelle récurrence"
+        description="Un abonnement = un modèle, généré chaque période"
+        icon={PlusCircle}
+        tone="green"
+      >
+        <RecurrenceForm prospects={prospects} />
+      </SectionCard>
 
       {/* Liste */}
-      <Card>
-        <CardContent className="p-0">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border bg-muted/30 text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+      <SectionCard
+        className="overflow-hidden"
+        title="Modèles récurrents"
+        description={`${recurrences.length} modèle(s)`}
+        icon={CalendarClock}
+        tone="navy"
+        contentClassName="-mx-5 -mb-5 sm:-mx-6 sm:-mb-6"
+      >
+        <TableScroll label="Liste des charges récurrentes">
+          <table className={TABLE_CLASS}>
+            <thead className={THEAD_CLASS}>
               <tr>
-                <th className="px-3 py-2.5">Libellé</th>
-                <th className="px-3 py-2.5">Fréquence</th>
-                <th className="px-3 py-2.5">Catégorie</th>
-                <th className="px-3 py-2.5">Client</th>
-                <th className="px-3 py-2.5 text-right">Montant estimé</th>
-                <th className="px-3 py-2.5">Statut</th>
-                <th className="px-3 py-2.5 text-right">Générées</th>
-                <th className="px-3 py-2.5"></th>
+                <Th className="pl-5 sm:pl-6">Libellé</Th>
+                <Th>Fréquence</Th>
+                <Th>Catégorie</Th>
+                <Th>Client</Th>
+                <Th className="text-right">Montant estimé</Th>
+                <Th>Statut</Th>
+                <Th className="text-right">Générées</Th>
+                <Th className="pr-5 text-right sm:pr-6">
+                  <span className="sr-only">Actions</span>
+                </Th>
               </tr>
             </thead>
             <tbody>
               {recurrences.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="px-3 py-12 text-center text-muted-foreground"
-                  >
-                    Aucune récurrence définie.
-                  </td>
-                </tr>
+                <TableEmptyRow colSpan={8}>
+                  <EmptyState
+                    icon={Repeat}
+                    tone="violet"
+                    title="Aucune récurrence définie"
+                    description="Crée ton premier modèle ci-dessus : les charges seront générées chaque période."
+                  />
+                </TableEmptyRow>
               ) : (
                 recurrences.map((r) => (
                   <tr
                     key={r.id}
-                    className={`border-b border-border last:border-0 hover:bg-muted/30 ${!r.actif ? "opacity-50" : ""}`}
+                    className={cn(TR_CLASS, !r.actif && "bg-ground/60 text-muted-foreground")}
                   >
-                    <td className="px-3 py-2">
-                      <p className="text-sm font-medium">{r.label}</p>
+                    <Td className="min-w-[180px] pl-5 sm:pl-6">
+                      <p className="text-[13px] font-bold text-foreground">{r.label}</p>
                       {r.fournisseur && (
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           {r.fournisseur}
                         </p>
                       )}
-                    </td>
-                    <td className="px-3 py-2 text-xs">
-                      {FREQ_LABEL[r.frequence] ?? r.frequence}
-                      <div className="text-[10px] text-muted-foreground">
+                    </Td>
+                    <Td className="text-xs whitespace-nowrap">
+                      <span className="font-semibold">
+                        {FREQ_LABEL[r.frequence] ?? r.frequence}
+                      </span>
+                      <div className="text-[11px] text-muted-foreground">
                         le {r.jourMois ?? 1} du mois
                       </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <Badge variant="secondary" className="font-normal">
-                        {CATEGORIE_LABEL[r.categorie] ?? r.categorie}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-2 text-xs">
+                    </Td>
+                    <Td>
+                      <CategoryChip categorie={r.categorie} />
+                    </Td>
+                    <Td className="text-xs">
                       {r.prospect ? (
                         <Link
                           href={`/prospects/${r.prospect.id}`}
-                          className="hover:text-primary"
+                          className="font-bold text-info-700 hover:underline"
                         >
                           {r.prospect.raisonSociale}
                         </Link>
                       ) : (
                         <span className="text-muted-foreground">interne</span>
                       )}
-                    </td>
-                    <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                    </Td>
+                    <Td className="text-right font-extrabold whitespace-nowrap text-foreground tabular-nums">
                       {formatCHF(Number(r.montantEstime))}
-                    </td>
-                    <td className="px-3 py-2">
+                    </Td>
+                    <Td className="whitespace-nowrap">
                       {r.actif ? (
-                        <Badge variant="default" className="bg-emerald-100 text-emerald-800">
-                          actif
-                        </Badge>
+                        <StatusPill tone="green">Actif</StatusPill>
                       ) : (
-                        <Badge variant="outline">suspendu</Badge>
+                        <StatusPill tone="navy">Suspendu</StatusPill>
                       )}
                       {r.dateFin && (
-                        <div className="mt-0.5 text-[10px] text-muted-foreground">
+                        <div className="mt-1 text-[11px] text-muted-foreground">
                           fin {formatDate(r.dateFin)}
                         </div>
                       )}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs">
+                    </Td>
+                    <Td className="text-right text-xs font-semibold tabular-nums">
                       {r._count.expenses}
-                    </td>
-                    <td className="px-3 py-2">
-                      <RecurrenceRowActions id={r.id} actif={r.actif} />
-                    </td>
+                    </Td>
+                    <Td className="pr-5 sm:pr-6">
+                      <RecurrenceRowActions id={r.id} actif={r.actif} label={r.label} />
+                    </Td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
-        </CardContent>
-      </Card>
-    </div>
+        </TableScroll>
+      </SectionCard>
+    </PageShell>
   );
 }

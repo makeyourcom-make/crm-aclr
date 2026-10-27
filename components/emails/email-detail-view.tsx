@@ -4,12 +4,26 @@
  * Vue détaillée d'un mail unique (page /emails/[id]).
  *
  * Affiche le corps HTML/texte, les pièces jointes téléchargeables, et
- * propose les actions Archiver / Désarchiver / Supprimer / Répondre.
+ * propose les actions Archiver / Désarchiver / Corbeille / Répondre.
+ * Une réponse dans un fil lié à un client rapporte +3 XP (activité
+ * EMAIL_ENVOYE) : toast XP + rafraîchissement de la coquille.
  */
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import {
+  Archive,
+  ArchiveRestore,
+  Building2,
+  Download,
+  File as FileIcon,
+  FileText,
+  Image as ImageIcon,
+  Reply,
+  Send,
+  Trash2,
+} from "lucide-react";
 
 import {
   deleteEmail,
@@ -17,14 +31,24 @@ import {
   replyToEmail,
   setEmailArchive,
 } from "@/app/(app)/emails/actions";
+import { xpToast } from "@/components/arena/celebrate";
+import { StatusPill, XpPill } from "@/components/arena/pills";
+import type { Tone } from "@/components/arena/tones";
 import {
   AttachmentPicker,
   type PickedAttachment,
 } from "@/components/emails/attachment-picker";
 import { EmailHtmlFrame } from "@/components/emails/email-html-frame";
-import { Icon } from "@/components/icon";
-import { Button } from "@/components/ui/button";
+import {
+  CAPS_CLASS,
+  initialsFrom,
+  mailDateTime,
+  uiText,
+} from "@/components/emails/mail-ui";
 import { RecipientInput } from "@/components/emails/recipient-input";
+import { Button } from "@/components/ui/button";
+import { formatFileSize } from "@/lib/format";
+import { XP_RULES } from "@/lib/gamification/rules";
 
 interface EmailAttachment {
   id: string;
@@ -53,6 +77,28 @@ interface EmailDetail {
   attachments: EmailAttachment[];
 }
 
+const STATUT_LABEL: Record<string, string> = {
+  BROUILLON: "Brouillon",
+  ENVOYE: "Envoyé",
+  LIVRE: "Livré",
+  OUVERT: "Ouvert",
+  CLIQUE: "Cliqué",
+  REPONDU: "Répondu",
+  REBOND: "Rebond",
+  ERREUR: "Erreur",
+};
+
+const STATUT_TONE: Record<string, Tone> = {
+  BROUILLON: "navy",
+  ENVOYE: "navy",
+  LIVRE: "blue",
+  OUVERT: "teal",
+  CLIQUE: "green",
+  REPONDU: "violet",
+  REBOND: "red",
+  ERREUR: "red",
+};
+
 export function EmailDetailView({ email }: { email: EmailDetail }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -69,10 +115,10 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
     startTransition(async () => {
       const res = await refetchEmailBody(email.id);
       if (!res.ok) {
-        toast.error(res.error ?? "Échec de la récupération.");
+        toast.error(uiText(res.error, "Échec de la récupération."));
         return;
       }
-      toast.success("Contenu récupéré ✓");
+      toast.success("Contenu récupéré.");
       router.refresh();
     });
   };
@@ -88,7 +134,7 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
     startTransition(async () => {
       const res = await setEmailArchive(email.id, next);
       if (!res.ok) {
-        toast.error(res.error ?? "Échec.");
+        toast.error(uiText(res.error, "Échec."));
         return;
       }
       toast.success(next ? "Archivé." : "Remis dans la boîte.");
@@ -96,15 +142,16 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
     });
   };
 
+  // deleteEmail = mise à la corbeille (restaurable depuis la boîte).
   const handleDelete = () => {
-    if (!confirm("Supprimer définitivement ce mail ? Action irréversible.")) return;
+    if (!confirm("Mettre ce mail à la corbeille ? Il restera restaurable depuis la Corbeille de la boîte.")) return;
     startTransition(async () => {
       const res = await deleteEmail(email.id);
       if (!res.ok) {
-        toast.error(res.error ?? "Échec.");
+        toast.error(uiText(res.error, "Échec."));
         return;
       }
-      toast.success("Mail supprimé.");
+      toast.success("Mail mis à la corbeille.");
       router.push(email.prospect ? `/prospects/${email.prospect.id}` : "/emails");
     });
   };
@@ -125,10 +172,18 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
         replyBcc.trim() || undefined,
       );
       if (!res.ok) {
-        toast.error(res.error ?? "Échec.");
+        toast.error(uiText(res.error, "Échec."));
         return;
       }
-      toast.success(res.dryRun ? "Réponse enregistrée (dry-run)." : "Réponse envoyée ✓");
+      if (email.prospect) {
+        xpToast(
+          XP_RULES.email,
+          res.dryRun ? "Réponse enregistrée (dry-run)" : "Réponse envoyée !",
+          `à ${email.prospect.raisonSociale}`,
+        );
+      } else {
+        toast.success(res.dryRun ? "Réponse enregistrée (dry-run)." : "Réponse envoyée.");
+      }
       setReplyContent("");
       setReplyAttachments([]);
       setReplyCc("");
@@ -139,98 +194,117 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
     });
   };
 
+  const fromLabel = email.expediteurNom
+    ? `${email.expediteurNom} <${email.expediteurEmail}>`
+    : email.expediteurEmail;
+  const replyTarget =
+    email.direction === "ENTRANT" ? email.expediteurEmail : email.destinataireEmail;
+
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="rounded-lg border border-border bg-card p-4">
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0 flex-1 space-y-1 text-sm">
-            <p>
-              <strong>De :</strong>{" "}
-              {email.expediteurNom
-                ? `${email.expediteurNom} <${email.expediteurEmail}>`
-                : email.expediteurEmail}
-            </p>
-            <p>
-              <strong>À :</strong> {email.destinataireEmail}
-            </p>
-            {email.prospect && (
-              <p className="text-xs text-muted-foreground">
-                Client :{" "}
-                <Link
-                  href={`/prospects/${email.prospect.id}`}
-                  className="text-primary hover:underline"
-                >
-                  {email.prospect.raisonSociale}
-                </Link>
+      {/* En-tête */}
+      <div className="rounded-[20px] border border-border bg-card p-4 shadow-arena sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-[1_1_260px] items-start gap-3">
+            <span
+              aria-hidden="true"
+              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-mail-50 text-[13px] font-extrabold text-mail-700"
+            >
+              {initialsFrom(email.expediteurNom || email.expediteurEmail)}
+            </span>
+            <div className="min-w-0 space-y-1 text-sm">
+              <p className="break-words">
+                <span className="font-bold text-muted-foreground">De : </span>
+                <span className="font-semibold text-foreground">{fromLabel}</span>
               </p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              {new Date(email.envoyeLe ?? email.createdAt).toLocaleString(
-                "fr-CH",
-                {
-                  day: "2-digit",
-                  month: "long",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                },
-              )}
-            </p>
+              <p className="break-words">
+                <span className="font-bold text-muted-foreground">À : </span>
+                <span className="font-semibold text-foreground">{email.destinataireEmail}</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {mailDateTime(email.envoyeLe ?? email.createdAt)}
+                {email.user?.name ? ` · boîte de ${email.user.name}` : ""}
+              </p>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <StatusPill tone={STATUT_TONE[email.statut] ?? "navy"}>
+                  {STATUT_LABEL[email.statut] ?? email.statut}
+                </StatusPill>
+                {email.prospect && (
+                  <Link
+                    href={`/prospects/${email.prospect.id}`}
+                    className="inline-flex h-6 items-center gap-1 rounded-full bg-info-50 px-2.5 text-xs font-bold text-info-700 hover:underline"
+                  >
+                    <Building2 className="size-3.5" aria-hidden="true" />
+                    {email.prospect.raisonSociale}
+                  </Link>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="flex shrink-0 gap-1">
-            <button
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button
               type="button"
+              variant="outline"
               onClick={handleArchiveToggle}
               disabled={pending}
-              className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background px-2.5 text-xs hover:bg-muted disabled:opacity-50"
               title={email.archive ? "Désarchiver" : "Archiver"}
             >
-              <Icon name="Inbox" className="h-3.5 w-3.5" />
+              {email.archive ? (
+                <ArchiveRestore aria-hidden="true" />
+              ) : (
+                <Archive aria-hidden="true" />
+              )}
               {email.archive ? "Désarchiver" : "Archiver"}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
               onClick={handleDelete}
               disabled={pending}
-              className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background px-2.5 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
-              title="Supprimer définitivement"
+              className="text-alert-700 hover:bg-alert-50 hover:text-alert-700"
+              title="Mettre à la corbeille"
             >
-              <Icon name="Trash2" className="h-3.5 w-3.5" />
-              Supprimer
-            </button>
+              <Trash2 aria-hidden="true" />
+              Corbeille
+            </Button>
           </div>
         </div>
       </div>
 
       {/* Corps */}
-      <div className="rounded-lg border border-border bg-card p-4">
+      <div className="rounded-[20px] border border-border bg-card p-4 shadow-arena sm:p-5">
         {email.contenuHtml ? (
-          <EmailHtmlFrame html={email.contenuHtml} title={email.objet} />
+          <EmailHtmlFrame
+            html={email.contenuHtml}
+            title={email.objet}
+            className="w-full rounded-[12px] border border-border bg-white"
+          />
         ) : email.contenuTexte ? (
-          <pre className="whitespace-pre-wrap font-sans text-sm">
+          <pre className="font-sans text-sm leading-relaxed whitespace-pre-wrap text-foreground">
             {email.contenuTexte}
           </pre>
         ) : email.direction === "ENTRANT" ? (
-          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-            <p className="text-xs text-amber-800">
+          <div className="rounded-[12px] bg-gold-50 px-3 py-2.5">
+            <p className="text-xs font-semibold text-gold-700">
               Le contenu n&apos;a pas pu être récupéré à la réception (API Resend
               momentanément indisponible). Le message existe toujours côté
               Resend.
             </p>
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={handleRefetch}
               disabled={pending}
-              className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+              className="mt-2"
             >
-              <Icon name="Download" className="h-3 w-3" />
+              <Download aria-hidden="true" />
               {pending ? "Récupération…" : "Récupérer le contenu"}
-            </button>
+            </Button>
           </div>
         ) : (
-          <p className="italic text-xs text-muted-foreground">
-            (Contenu vide — le mail reçu n&apos;avait pas de corps)
+          <p className="text-xs text-muted-foreground italic">
+            (Contenu vide : le mail reçu n&apos;avait pas de corps)
           </p>
         )}
 
@@ -239,26 +313,28 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
             email.contenuHtml,
           ) &&
           !email.attachments.some((a) => a.mimeType.startsWith("image/")) && (
-            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-              <p className="text-xs text-amber-800">
+            <div className="mt-3 rounded-[12px] bg-gold-50 px-3 py-2.5">
+              <p className="text-xs font-semibold text-gold-700">
                 Une image de ce mail n&apos;a pas pu être chargée à la réception.
               </p>
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={handleRefetch}
                 disabled={pending}
-                className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                className="mt-2"
               >
-                <Icon name="Download" className="h-3 w-3" />
+                <Download aria-hidden="true" />
                 {pending ? "Récupération…" : "Récupérer l'image"}
-              </button>
+              </Button>
             </div>
           )}
 
         {email.attachments.length > 0 && (
           <div className="mt-4 space-y-2 border-t border-border pt-4">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className={CAPS_CLASS}>
                 {email.attachments.length} pièce
                 {email.attachments.length > 1 ? "s" : ""} jointe
                 {email.attachments.length > 1 ? "s" : ""}
@@ -266,97 +342,131 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
               {email.attachments.length > 1 && (
                 <a
                   href={`/api/emails/${email.id}/attachments/zip`}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-[10px] px-2 text-xs font-bold text-info-700 transition-colors hover:bg-info-50"
                   title="Télécharger toutes les pièces jointes dans un .zip"
                 >
-                  <Icon name="Download" className="h-3.5 w-3.5" />
+                  <Download className="size-3.5" aria-hidden="true" />
                   Tout télécharger (.zip)
                 </a>
               )}
             </div>
             <div className="flex flex-wrap gap-2">
-              {email.attachments.map((a) => (
-                <a
-                  key={a.id}
-                  href={a.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs hover:bg-muted"
-                  title={`${a.mimeType} · ${formatSize(a.taille)}`}
-                >
-                  <Icon
-                    name={
-                      a.mimeType.startsWith("image/")
-                        ? "Image"
-                        : a.mimeType === "application/pdf"
-                          ? "FileText"
-                          : "Download"
-                    }
-                    className="h-3 w-3"
-                  />
-                  <span className="max-w-[200px] truncate">{a.nom}</span>
-                  <span className="text-[10px] text-muted-foreground">
-                    ({formatSize(a.taille)})
-                  </span>
-                </a>
-              ))}
+              {email.attachments.map((a) => {
+                const AttIcon = a.mimeType.startsWith("image/")
+                  ? ImageIcon
+                  : a.mimeType === "application/pdf"
+                    ? FileText
+                    : FileIcon;
+                return (
+                  <a
+                    key={a.id}
+                    href={a.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-[12px] border border-border-strong bg-card px-3 py-1.5 text-[13px] text-foreground transition-colors hover:bg-navy-50"
+                    title={`${a.mimeType} · ${formatFileSize(a.taille)}`}
+                  >
+                    <AttIcon className="size-4 shrink-0 text-mail-700" aria-hidden="true" />
+                    <span className="max-w-[200px] truncate font-bold">{a.nom}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {formatFileSize(a.taille)}
+                    </span>
+                  </a>
+                );
+              })}
             </div>
           </div>
         )}
       </div>
 
       {/* Réponse */}
-      <div className="rounded-lg border border-border bg-card p-4">
+      <div className="rounded-[20px] border border-border bg-card p-4 shadow-arena sm:p-5">
         {!showReply ? (
-          <Button
-            type="button"
-            onClick={() => setShowReply(true)}
-            variant="outline"
-            className="w-full"
-          >
-            <Icon name="MailPlus" className="mr-2 h-3.5 w-3.5" />
-            Répondre
-          </Button>
-        ) : (
           <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              Répondre à{" "}
-              <strong>
-                {email.direction === "ENTRANT"
-                  ? email.expediteurEmail
-                  : email.destinataireEmail}
-              </strong>
-            </p>
+            <Button
+              type="button"
+              onClick={() => setShowReply(true)}
+              variant="outline"
+              size="lg"
+              className="w-full"
+            >
+              <Reply aria-hidden="true" />
+              Répondre
+            </Button>
+            {email.prospect && (
+              <p className="flex items-center justify-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                <XpPill xp={XP_RULES.email} /> à l&apos;envoi de ta réponse
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-display text-lg font-extrabold tracking-[-0.02em] text-foreground">
+                Répondre à {replyTarget}
+              </h2>
+              {email.prospect && <XpPill xp={XP_RULES.email} label="à l'envoi" />}
+            </div>
             {!showReplyCc ? (
               <button
                 type="button"
                 onClick={() => setShowReplyCc(true)}
-                className="text-xs font-medium text-primary hover:underline"
+                className="inline-flex h-8 items-center rounded-[10px] bg-navy-50 px-2.5 text-xs font-bold text-navy-600 hover:bg-navy-100"
               >
                 + Cc / Cci
               </button>
             ) : (
-              <div className="space-y-1.5">
-                <RecipientInput value={replyCc} onChange={setReplyCc} placeholder="Cc : copie@exemple.ch, autre@exemple.ch" disabled={pending} />
-                <RecipientInput value={replyBcc} onChange={setReplyBcc} placeholder="Cci : copie.cachee@exemple.ch" disabled={pending} />
+              <div className="space-y-2 rounded-[14px] border border-border bg-ground p-3">
+                <label htmlFor="detail-cc" className="text-xs font-bold text-muted-foreground">
+                  Cc
+                </label>
+                <RecipientInput
+                  id="detail-cc"
+                  value={replyCc}
+                  onChange={setReplyCc}
+                  placeholder="copie@exemple.ch, autre@exemple.ch"
+                  disabled={pending}
+                />
+                <label htmlFor="detail-bcc" className="text-xs font-bold text-muted-foreground">
+                  Cci
+                </label>
+                <RecipientInput
+                  id="detail-bcc"
+                  value={replyBcc}
+                  onChange={setReplyBcc}
+                  placeholder="copie.cachee@exemple.ch"
+                  disabled={pending}
+                />
               </div>
             )}
+            <label htmlFor="detail-reply" className="sr-only">
+              Réponse
+            </label>
             <textarea
+              id="detail-reply"
               value={replyContent}
               onChange={(e) => setReplyContent(e.target.value)}
-              rows={6}
+              rows={7}
               placeholder="Tape ta réponse…"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="w-full rounded-[14px] border border-border-strong bg-card px-4 py-3 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-info-500 focus-visible:ring-3 focus-visible:ring-info-500/25"
             />
             <AttachmentPicker
               value={replyAttachments}
               onChange={setReplyAttachments}
               disabled={pending}
             />
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button type="button" variant="hero" onClick={handleReply} disabled={pending}>
+                <Send aria-hidden="true" />
+                {pending ? "Envoi…" : "Envoyer la réponse"}
+                {email.prospect && (
+                  <XpPill xp={XP_RULES.email} variant="solid" className="text-shadow-none" />
+                )}
+              </Button>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
+                size="lg"
                 onClick={() => {
                   setShowReply(false);
                   setReplyContent("");
@@ -366,19 +476,10 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
               >
                 Annuler
               </Button>
-              <Button type="button" onClick={handleReply} disabled={pending}>
-                {pending ? "Envoi…" : "Envoyer la réponse"}
-              </Button>
             </div>
           </div>
         )}
       </div>
     </div>
   );
-}
-
-function formatSize(b: number): string {
-  if (b < 1024) return `${b} B`;
-  if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
-  return `${(b / 1024 / 1024).toFixed(1)} MB`;
 }

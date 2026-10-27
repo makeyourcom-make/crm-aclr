@@ -3,7 +3,7 @@
 /**
  * Sélecteur de pièces jointes pour les formulaires email.
  *
- * - Bouton "Joindre un fichier" + drop zone
+ * - Bouton "Joindre un fichier" + zone de dépôt (charte MYC Arena)
  * - Upload vers Vercel Blob via uploadEmailAttachment()
  * - État local de la liste pour affichage / retrait
  * - Notifie le parent via onChange à chaque mise à jour
@@ -14,6 +14,7 @@ import { toast } from "sonner";
 
 import { uploadEmailAttachment } from "@/app/(app)/emails/attachments-actions";
 import { Icon } from "@/components/icon";
+import { uiText } from "@/components/emails/mail-ui";
 
 export interface PickedAttachment {
   url: string;
@@ -59,7 +60,7 @@ export function AttachmentPicker({
       cumulative += f.size;
       if (cumulative > remaining) {
         toast.error(
-          `Limite ${maxTotalMb} MB dépassée — retire des fichiers ou réduis-les.`,
+          `Limite de ${maxTotalMb} MB dépassée : retire des fichiers ou réduis-les.`,
         );
         return;
       }
@@ -91,7 +92,7 @@ export function AttachmentPicker({
           const res = await uploadEmailAttachment(formData);
           if (!res.ok || !res.url) {
             toast.error(
-              `${file.name}: ${res.error ?? "Stockage des pièces jointes non configuré (Vercel Blob)."}`,
+              `${file.name} : ${uiText(res.error, "Stockage des pièces jointes non configuré (Vercel Blob).")}`,
             );
             continue;
           }
@@ -105,7 +106,7 @@ export function AttachmentPicker({
       }
       if (added.length > 0) {
         onChange([...value, ...added]);
-        toast.success(`${added.length} fichier(s) joint(s) ✓`);
+        toast.success(`${added.length} fichier(s) joint(s)`);
       }
     });
   };
@@ -114,6 +115,8 @@ export function AttachmentPicker({
     const next = value.filter((_, i) => i !== index);
     onChange(next);
   };
+
+  const remainingMb = Math.max(0, Math.round((remaining / 1024 / 1024) * 10) / 10);
 
   return (
     <div className="space-y-2">
@@ -143,33 +146,33 @@ export function AttachmentPicker({
           if (disabled || pending) return;
           if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
         }}
-        className={`flex flex-wrap items-center gap-2 rounded-md border-2 border-dashed p-2 transition-colors ${
+        className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[14px] border-2 border-dashed px-3 py-2.5 transition-colors ${
           dragOver
-            ? "border-primary bg-primary/5"
-            : "border-border bg-muted/20"
+            ? "border-mail-500 bg-mail-50"
+            : "border-border-strong bg-ground/60"
         }`}
       >
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={disabled || pending}
-          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs hover:bg-muted disabled:opacity-50"
+          className="inline-flex h-9 items-center gap-1.5 rounded-[12px] border border-border-strong bg-card px-3 text-[13px] font-bold text-foreground transition-colors hover:bg-navy-50 disabled:opacity-50"
         >
-          <Icon name="Upload" className="h-3 w-3" />
-          {pending ? "Upload…" : (label ?? "Joindre un fichier")}
+          <Icon name={pending ? "Loader" : "Paperclip"} className={`h-4 w-4 ${pending ? "animate-spin" : ""}`} />
+          {pending ? "Envoi du fichier…" : (label ?? "Joindre un fichier")}
         </button>
-        <span className="text-[10px] text-muted-foreground">
-          ou glisse-dépose ici — {Math.round((remaining / 1024 / 1024) * 10) / 10}{" "}
-          MB restants
+        <span className="text-xs font-medium text-muted-foreground">ou glisse-dépose ici</span>
+        <span className="ml-auto text-xs font-semibold text-muted-foreground tabular-nums">
+          {remainingMb} MB restants sur {maxTotalMb} MB
         </span>
       </div>
 
       {value.length > 0 && (
-        <ul className="space-y-1">
+        <ul className="flex flex-wrap gap-2">
           {value.map((a, idx) => (
             <li
               key={`${a.url}-${idx}`}
-              className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-1 text-xs"
+              className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-[12px] border border-border-strong bg-card py-1 pr-1 pl-2.5 text-[13px]"
             >
               <Icon
                 name={
@@ -177,22 +180,23 @@ export function AttachmentPicker({
                     ? "Image"
                     : a.mimeType === "application/pdf"
                       ? "FileText"
-                      : "Download"
+                      : "File"
                 }
-                className="h-3 w-3 shrink-0 text-muted-foreground"
+                className="h-4 w-4 shrink-0 text-mail-700"
               />
-              <span className="flex-1 truncate font-medium">{a.filename}</span>
-              <span className="shrink-0 text-[10px] text-muted-foreground">
+              <span className="min-w-0 truncate font-bold">{a.filename}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">
                 {formatBytes(a.size)}
               </span>
               <button
                 type="button"
                 onClick={() => handleRemove(idx)}
                 disabled={disabled || pending}
-                className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                className="flex size-7 shrink-0 items-center justify-center rounded-[8px] text-muted-foreground transition-colors hover:bg-alert-50 hover:text-alert-700 disabled:opacity-50"
+                aria-label={`Retirer ${a.filename}`}
                 title="Retirer"
               >
-                <Icon name="X" className="h-3 w-3" />
+                <Icon name="X" className="h-3.5 w-3.5" />
               </button>
             </li>
           ))}

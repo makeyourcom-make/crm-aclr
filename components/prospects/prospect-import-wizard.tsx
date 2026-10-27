@@ -8,14 +8,14 @@
  *   2. Mapping des colonnes (auto-détection + override manuel) + aperçu
  *   3. Résultat de l'import (X importés, Y erreurs)
  */
+import { AlertTriangle, FileSpreadsheet } from "lucide-react";
+import Link from "next/link";
 import Papa from "papaparse";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Icon } from "@/components/icon";
 import { guessFieldFromHeader } from "@/lib/schemas/prospect";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +44,7 @@ const TARGET_FIELDS: { value: string; label: string; required?: boolean }[] = [
   { value: "effectif", label: "Effectif" },
   { value: "noga", label: "Code NOGA" },
   { value: "notesGenerales", label: "Notes" },
-  { value: "__ignore", label: "— Ignorer cette colonne —" },
+  { value: "__ignore", label: "Ignorer cette colonne" },
 ];
 
 type Step = "upload" | "mapping" | "importing" | "done";
@@ -61,7 +61,6 @@ interface ParsedCsv {
 }
 
 export function ProspectImportWizard() {
-  const router = useRouter();
   const [step, setStep] = useState<Step>("upload");
   const [csv, setCsv] = useState<ParsedCsv | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
@@ -114,7 +113,7 @@ export function ProspectImportWizard() {
     const mappedFields = Object.values(mapping).filter((v) => v !== "__ignore");
     if (!mappedFields.includes("raisonSociale")) {
       toast.error(
-        "La colonne 'Raison sociale' est obligatoire — mappe-la d'abord.",
+        "La colonne 'Raison sociale' est obligatoire : mappe-la d'abord.",
       );
       return;
     }
@@ -206,9 +205,9 @@ export function ProspectImportWizard() {
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-3 py-12">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-r-transparent" />
+          <div className="size-9 animate-spin rounded-full border-[3px] border-coral-400 border-r-transparent" />
           <p className="text-sm text-muted-foreground">
-            Import en cours, ne ferme pas la page…
+            Import en cours, ne ferme pas la page...
           </p>
         </CardContent>
       </Card>
@@ -223,24 +222,24 @@ export function ProspectImportWizard() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">
-              <p className="text-2xl font-semibold text-emerald-700">
+            <div className="rounded-[14px] bg-win-50 px-4 py-3">
+              <p className="score-number text-3xl text-win-700">
                 {result.imported}
               </p>
-              <p className="text-xs text-emerald-700">prospect(s) importé(s)</p>
+              <p className="text-xs font-bold text-win-700">prospect(s) importé(s)</p>
             </div>
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
-              <p className="text-2xl font-semibold text-amber-700">
+            <div className="rounded-[14px] bg-gold-50 px-4 py-3">
+              <p className="score-number text-3xl text-gold-700">
                 {result.skipped}
               </p>
-              <p className="text-xs text-amber-700">ligne(s) en erreur</p>
+              <p className="text-xs font-bold text-gold-700">ligne(s) en erreur</p>
             </div>
           </div>
 
           {result.errors.length > 0 && (
             <>
-              <details className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
-                <summary className="cursor-pointer font-medium">
+              <details className="rounded-[14px] border border-border bg-ground px-3 py-2 text-sm">
+                <summary className="cursor-pointer font-bold">
                   Voir le détail des {result.errors.length} erreur(s)
                 </summary>
                 <ul className="mt-2 max-h-60 space-y-1 overflow-y-auto text-xs">
@@ -252,8 +251,8 @@ export function ProspectImportWizard() {
                     </li>
                   ))}
                   {result.errors.length > 50 && (
-                    <li className="italic text-muted-foreground">
-                      … et {result.errors.length - 50} autre(s) (voir CSV
+                    <li className="text-muted-foreground">
+                      ... et {result.errors.length - 50} autre(s) (voir CSV
                       téléchargeable)
                     </li>
                   )}
@@ -261,7 +260,7 @@ export function ProspectImportWizard() {
               </details>
 
               <Button onClick={downloadErrorsCsv} variant="outline">
-                <Icon name="FileSpreadsheet" className="mr-1.5 h-4 w-4" />
+                <FileSpreadsheet aria-hidden="true" />
                 Télécharger le CSV des erreurs
               </Button>
             </>
@@ -278,13 +277,12 @@ export function ProspectImportWizard() {
             >
               Importer un autre fichier
             </Button>
-            <a
+            <Link
               href="/prospects"
-              className={buttonVariants({ variant: "default" })}
-              onClick={() => router.refresh()}
+              className={cn(buttonVariants({ variant: "default" }))}
             >
-              Voir les prospects
-            </a>
+              Voir les entreprises
+            </Link>
           </div>
         </CardContent>
       </Card>
@@ -305,8 +303,8 @@ function UploadStep({ onFile }: { onFile: (file: File) => void }) {
     <Card>
       <CardContent
         className={cn(
-          "flex flex-col items-center gap-4 py-12 transition-colors",
-          dragOver && "bg-primary/5",
+          "m-4 flex flex-col items-center gap-4 rounded-[16px] border-2 border-dashed border-border-strong py-12 transition-colors sm:m-5",
+          dragOver && "border-info-500 bg-info-50/60",
         )}
         onDragOver={(e) => {
           e.preventDefault();
@@ -320,24 +318,26 @@ function UploadStep({ onFile }: { onFile: (file: File) => void }) {
           if (file) onFile(file);
         }}
       >
-        <Icon
-          name="FileSpreadsheet"
-          className="h-10 w-10 text-muted-foreground"
-        />
+        <span
+          aria-hidden="true"
+          className="flex size-14 items-center justify-center rounded-[16px] bg-info-50 text-info-700"
+        >
+          <FileSpreadsheet className="size-7" />
+        </span>
         <div className="text-center">
-          <p className="text-base font-medium">
-            Glisser-déposer ton fichier CSV ici
+          <p className="font-display text-lg font-extrabold">
+            Glisse-dépose ton fichier CSV ici
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            ou cliquer ci-dessous pour parcourir. Formats acceptés : .csv, .tsv
+            ou clique ci-dessous pour parcourir. Formats acceptés : .csv, .tsv
           </p>
         </div>
-        <label className={buttonVariants({ variant: "default" })}>
+        <label className={cn(buttonVariants({ variant: "default", size: "lg" }), "cursor-pointer")}>
           Choisir un fichier
           <input
             type="file"
             accept=".csv,.tsv,.txt"
-            className="hidden"
+            className="sr-only"
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) onFile(file);
@@ -348,7 +348,7 @@ function UploadStep({ onFile }: { onFile: (file: File) => void }) {
           <p className="font-medium text-foreground">Format attendu :</p>
           <p className="mt-1">
             Première ligne = en-têtes de colonnes. La colonne{" "}
-            <code className="rounded bg-muted px-1">Raison sociale</code> est
+            <code className="rounded bg-navy-50 px-1 font-bold">Raison sociale</code> est
             obligatoire. Les autres colonnes (email, téléphone, ville, etc.)
             sont reconnues automatiquement.
           </p>
@@ -380,11 +380,11 @@ function MappingStep({
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle>Mapping des colonnes</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
-              {csv.rows.length} ligne(s) détectée(s) — {mappedCount} colonne(s)
+              {csv.rows.length} ligne(s) détectée(s) · {mappedCount} colonne(s)
               mappée(s)
             </p>
           </div>
@@ -418,7 +418,8 @@ function MappingStep({
                         onChange={(e) =>
                           onChange({ ...mapping, [header]: e.target.value })
                         }
-                        className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                        aria-label={`Champ pour la colonne ${header}`}
+                        className="h-9 rounded-[10px] border border-border-strong bg-card px-2 text-sm font-semibold"
                       >
                         {TARGET_FIELDS.map((f) => (
                           <option key={f.value} value={f.value}>
@@ -430,7 +431,7 @@ function MappingStep({
                     </td>
                     <td className="px-2 py-2 text-xs text-muted-foreground">
                       {previewRows[0]?.[header] || (
-                        <span className="italic">vide</span>
+                        <span>vide</span>
                       )}
                     </td>
                   </tr>
@@ -474,7 +475,7 @@ function MappingStep({
                     </td>
                     <td className="px-2 py-1.5 font-medium">
                       {get("raisonSociale") || (
-                        <span className="text-red-600 italic">
+                        <span className="font-bold text-alert-700">
                           (manquante)
                         </span>
                       )}
@@ -482,10 +483,10 @@ function MappingStep({
                     <td className="px-2 py-1.5">
                       {[get("contactPrenom"), get("contactNom")]
                         .filter(Boolean)
-                        .join(" ") || "—"}
+                        .join(" ") || "-"}
                     </td>
-                    <td className="px-2 py-1.5">{get("email") || "—"}</td>
-                    <td className="px-2 py-1.5">{get("ville") || "—"}</td>
+                    <td className="px-2 py-1.5">{get("email") || "-"}</td>
+                    <td className="px-2 py-1.5">{get("ville") || "-"}</td>
                   </tr>
                 );
               })}
@@ -494,13 +495,14 @@ function MappingStep({
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {!hasRaisonSociale && (
-          <p className="text-sm text-red-600">
-            ⚠ Mappe la colonne « Raison sociale » avant d&apos;importer.
+          <p className="inline-flex items-center gap-1.5 text-sm font-bold text-alert-700">
+            <AlertTriangle aria-hidden="true" className="size-4" />
+            Mappe la colonne « Raison sociale » avant d&apos;importer.
           </p>
         )}
-        <Button onClick={onImport} disabled={!hasRaisonSociale}>
+        <Button onClick={onImport} disabled={!hasRaisonSociale} size="lg">
           Importer {csv.rows.length} prospect(s)
         </Button>
       </div>

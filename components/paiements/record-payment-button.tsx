@@ -125,7 +125,7 @@ export function RecordPaymentButton({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+      <DialogTrigger className="inline-flex h-9 items-center gap-1.5 rounded-[12px] border border-border-strong bg-card px-3.5 text-sm font-bold text-foreground transition-colors hover:bg-navy-50">
         <Icon name="Banknote" className="h-4 w-4" />
         Enregistrer un paiement
       </DialogTrigger>
@@ -147,9 +147,9 @@ export function RecordPaymentButton({
                 id="facture"
                 value={clientInvoiceId}
                 onChange={(e) => handleSelectFacture(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                className="h-10 w-full rounded-[12px] border border-input bg-card px-3 text-sm"
               >
-                <option value="">— Aucune ou paiement libre —</option>
+                <option value="">Aucune (paiement libre)</option>
                 {factures.map((f) => (
                   <option key={f.id} value={f.id}>
                     {f.numero} · {formatCHF(Number(f.total))}
@@ -178,7 +178,7 @@ export function RecordPaymentButton({
                 id="type"
                 value={type}
                 onChange={(e) => setType(e.target.value as PaymentType)}
-                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                className="h-10 w-full rounded-[12px] border border-input bg-card px-3 text-sm"
               >
                 {TYPE_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -224,7 +224,7 @@ export function RecordPaymentButton({
               Annuler
             </Button>
             <Button type="submit" disabled={pending}>
-              {pending ? "Enregistrement…" : "Enregistrer & encaisser"}
+              {pending ? "Enregistrement..." : "Enregistrer et encaisser"}
             </Button>
           </DialogFooter>
         </form>

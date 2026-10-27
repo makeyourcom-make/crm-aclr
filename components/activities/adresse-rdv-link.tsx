@@ -64,7 +64,7 @@ export function AdresseRdvLink({
       href={href}
       target={isPhone ? "_self" : "_blank"}
       rel={isPhone ? undefined : "noopener noreferrer"}
-      className={`inline-flex items-center gap-1 ${textClass} text-primary hover:underline`}
+      className={`inline-flex max-w-full min-w-0 items-center gap-1 ${textClass} font-semibold text-info-700 underline-offset-2 hover:underline`}
       onClick={(e) => e.stopPropagation()}
       title={title}
     >

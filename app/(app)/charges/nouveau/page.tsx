@@ -1,7 +1,6 @@
-import Link from "next/link";
-
 import { ExpenseForm } from "@/components/charges/expense-form";
-import { Icon } from "@/components/icon";
+import { BackLink } from "@/components/common/back-link";
+import { PageShell } from "@/components/common/page-shell";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
@@ -18,21 +17,14 @@ export default async function NewExpensePage() {
     orderBy: [{ statut: "asc" }, { raisonSociale: "asc" }],
   });
   return (
-    <div className="mx-auto max-w-3xl px-6 py-6 lg:px-8">
+    <PageShell width="narrow">
       <PageHeader
+        rubrique="finance"
         title="Nouvelle charge"
         description="Charge un ticket en photo et laisse l'IA pré-remplir les champs, ou saisis tout à la main."
-        breadcrumb={
-          <Link
-            href="/charges"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Icon name="ChevronRight" className="h-3 w-3 rotate-180" />
-            Retour aux charges
-          </Link>
-        }
+        breadcrumb={<BackLink href="/charges">Retour aux charges</BackLink>}
       />
       <ExpenseForm prospects={prospects} />
-    </div>
+    </PageShell>
   );
 }

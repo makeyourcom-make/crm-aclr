@@ -115,7 +115,7 @@ export function EmailPreviewButton({ email }: { email: EmailPreviewData }) {
                 )}
                 {email.bcc && (
                   <>
-                    <span className="font-medium text-muted-foreground">Bcc :</span>
+                    <span className="font-medium text-muted-foreground">Cci :</span>
                     <span>{email.bcc}</span>
                   </>
                 )}

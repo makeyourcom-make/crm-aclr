@@ -5,11 +5,12 @@
  * Génère un mot de passe temporaire, l'envoie à l'email de récupération externe
  * du collaborateur (si défini) et l'affiche à l'admin pour transmission.
  */
+import { Copy, KeyRound, Loader2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { resetUserPassword } from "@/app/(app)/rh/security-actions";
-import { Icon } from "@/components/icon";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -44,52 +45,59 @@ export function ResetPasswordButton({
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="lg"
         onClick={handle}
         disabled={pending}
-        className="inline-flex h-9 items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
         title="Générer un mot de passe temporaire pour ce collaborateur"
+        className="border-gold-500/50 bg-gold-50 text-gold-700 hover:bg-gold-50/70 hover:text-gold-700"
       >
-        <Icon name={pending ? "Loader" : "Lock"} className={`h-4 w-4 ${pending ? "animate-spin" : ""}`} />
+        {pending ? (
+          <Loader2 aria-hidden="true" className="animate-spin" />
+        ) : (
+          <KeyRound aria-hidden="true" />
+        )}
         {pending ? "Réinitialisation…" : "Réinitialiser le mot de passe"}
-      </button>
+      </Button>
 
       <Dialog open={!!result} onOpenChange={(o) => !o && setResult(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Mot de passe réinitialisé</DialogTitle>
             <DialogDescription>
-              Mot de passe temporaire de {userName}. À transmettre — il ne sera
+              Mot de passe temporaire de {userName}. À transmettre : il ne sera
               plus affiché ensuite.
             </DialogDescription>
           </DialogHeader>
           {result && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
-                <code className="select-all text-base font-semibold">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-2 rounded-[12px] border border-border bg-ground px-3 py-2.5">
+                <code className="text-base font-bold break-all select-all">
                   {result.tempPassword}
                 </code>
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => {
                     navigator.clipboard?.writeText(result.tempPassword);
-                    toast.success("Copié ✓");
+                    toast.success("Copié.");
                   }}
-                  className="inline-flex h-7 items-center gap-1 rounded border border-border bg-background px-2 text-xs hover:bg-muted"
                 >
-                  <Icon name="Copy" className="h-3.5 w-3.5" />
+                  <Copy aria-hidden="true" />
                   Copier
-                </button>
+                </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 {result.emailedTo
                   ? `Également envoyé par email à ${result.emailedTo}.`
                   : hasRecoveryEmail
-                    ? "L'envoi par email a échoué — transmets-le manuellement."
-                    : "Aucun email de récupération défini pour ce collaborateur — transmets-le manuellement (et renseigne un email de secours dans sa fiche)."}
+                    ? "L'envoi par email a échoué : transmets-le manuellement."
+                    : "Aucun email de récupération défini pour ce collaborateur : transmets-le manuellement (et renseigne un email de secours dans sa fiche)."}
               </p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Le collaborateur devra le changer dans Paramètres → Sécurité.
               </p>
             </div>

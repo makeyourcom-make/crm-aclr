@@ -1,13 +1,13 @@
 import Link from "next/link";
+import { FilePlus2, Plus } from "lucide-react";
 
-import { Icon } from "@/components/icon";
 import { PageHeader } from "@/components/page-header";
 import { PipelineBoard } from "@/components/pipeline/pipeline-board";
 import { PipelineViewSwitcher } from "@/components/pipeline/pipeline-view-switcher";
 import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/db";
-import { formatCHF } from "@/lib/format";
-import { getPipeline } from "@/lib/queries/deals";
+import { firstNameOf } from "@/lib/gamification/rules";
+import { getPipeline, getPipelineScoreboard } from "@/lib/queries/deals";
 import { DealListParamsSchema } from "@/lib/schemas/deal";
 import { requireUser } from "@/lib/session";
 
@@ -18,13 +18,24 @@ interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
+// Mois affiché = mois des données : getPipeline / getPipelineScoreboard
+// découpent le mois en heure locale du serveur (new Date(y, m, 1)), donc pas
+// de timeZone forcé ici (sinon « novembre » sur des chiffres d'octobre la
+// nuit du 31 au 1er sur un serveur UTC).
+const MONTH_FMT = new Intl.DateTimeFormat("fr-CH", { month: "long" });
+const DM_FMT = new Intl.DateTimeFormat("fr-CH", {
+  day: "2-digit",
+  month: "2-digit",
+  timeZone: "Europe/Zurich",
+});
+
 export default async function PipelinePage({ searchParams }: PageProps) {
   const user = await requireUser();
   const raw = await searchParams;
   const isAdmin = user.role === "ADMIN";
 
   // Côté admin : défaut "Toute l'équipe" (vue de pilotage globale).
-  // Le switcher permet de filtrer sur Sophie, Arthur, etc.
+  // Le sélecteur permet de filtrer sur chaque collaborateur.
   // Côté commercial : RLS appliquée côté query, ce param est ignoré.
   const explicitAssigneAId =
     typeof raw.assigneAId === "string" ? raw.assigneAId : undefined;
@@ -35,69 +46,107 @@ export default async function PipelinePage({ searchParams }: PageProps) {
     assigneAId: effectiveAssigneAId ?? raw.assigneAId,
   });
 
-  const [pipeline, teamUsers] = await Promise.all([
+  const [pipeline, teamUsers, scoreboard] = await Promise.all([
     getPipeline(user, params),
     isAdmin
       ? prisma.user.findMany({
           where: { isActive: true },
-          select: { id: true, name: true },
+          select: { id: true, name: true, role: true },
           orderBy: { name: "asc" },
         })
       : Promise.resolve([]),
+    getPipelineScoreboard(user, effectiveAssigneAId),
   ]);
 
-  // Libellé selon la vue active
+  // Vue active : libellés du sous-titre et du héros
   const viewedUser =
     effectiveAssigneAId && effectiveAssigneAId !== user.id
       ? teamUsers.find((u) => u.id === effectiveAssigneAId)
       : null;
-  const viewLabel = isAdmin
-    ? !effectiveAssigneAId
-      ? "Toute l'équipe"
-      : viewedUser
-        ? `Pipeline de ${viewedUser.name}`
-        : "Mon pipeline"
-    : "Mon pipeline";
+  let viewLabel: string;
+  let view: { eyebrow: string; objPhrase: string };
+  if (isAdmin && !effectiveAssigneAId) {
+    viewLabel = "Toute l'équipe";
+    view = {
+      eyebrow: "Tableau de chasse de l'équipe",
+      objPhrase: "l'objectif de l'équipe",
+    };
+  } else if (viewedUser) {
+    const first = firstNameOf(viewedUser.name);
+    viewLabel = `Pipeline de ${viewedUser.name}`;
+    view = {
+      eyebrow: `Tableau de chasse de ${first}`,
+      objPhrase: `l'objectif de ${first}`,
+    };
+  } else if (isAdmin && effectiveAssigneAId && effectiveAssigneAId !== user.id) {
+    viewLabel = "Pipeline d'un collaborateur";
+    view = { eyebrow: "Tableau de chasse", objPhrase: "l'objectif" };
+  } else {
+    viewLabel = "Mon pipeline";
+    view = { eyebrow: "Ton tableau de chasse", objPhrase: "ton objectif" };
+  }
+
+  // Mois courant et remise à zéro des colonnes Signé / Perdu (le 1er).
+  const now = new Date();
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const daysToReset = Math.max(
+    1,
+    Math.ceil((nextMonth.getTime() - now.getTime()) / 86_400_000),
+  );
+  const monthLabel = MONTH_FMT.format(now);
+  const resetLabel = DM_FMT.format(nextMonth);
+
+  const activeCount = pipeline.columns
+    .filter((c) => c.stage !== "SIGNE" && c.stage !== "PERDU")
+    .reduce((s, c) => s + c.deals.length, 0);
 
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
+        rubrique="pipeline"
         title="Pipeline"
-        description={`${viewLabel} · total ${formatCHF(pipeline.grandTotal)} · pondéré ${formatCHF(pipeline.grandTotalPondere)}`}
+        description={`${viewLabel} · ${activeCount} ${activeCount >= 2 ? "deals actifs" : "deal actif"} · ${monthLabel} ${now.getFullYear()}`}
         actions={
-          <Link
-            href="/contrats/nouveau"
-            className={buttonVariants({ variant: "default" })}
-          >
-            <Icon name="FileText" className="mr-1.5 h-4 w-4" />
-            Nouveau contrat
-          </Link>
+          <>
+            <Link
+              href="/contrats/nouveau"
+              className={buttonVariants({ variant: "outline", size: "lg" })}
+            >
+              <FilePlus2 aria-hidden="true" />
+              Nouveau contrat
+            </Link>
+            <Link
+              href="/pipeline/nouveau"
+              className={buttonVariants({ variant: "default", size: "lg" })}
+            >
+              <Plus aria-hidden="true" strokeWidth={2.4} />
+              Nouveau deal
+            </Link>
+          </>
         }
       />
 
-      {isAdmin && teamUsers.length > 1 && (
-        <div className="mb-4">
-          <PipelineViewSwitcher
-            users={teamUsers}
-            currentUserId={user.id}
-            activeAssigneAId={effectiveAssigneAId}
-          />
-        </div>
-      )}
-
-      <PipelineBoard initialData={pipeline} isAdmin={isAdmin} />
-
-      <p className="mt-4 text-center text-xs text-muted-foreground">
-        💡 Glisse une carte d&apos;une colonne à l&apos;autre pour changer son stage —
-        la probabilité par défaut est mise à jour automatiquement.
-        {isAdmin && (
-          <>
-            <br />
-            🗑️ La colonne <strong>Perdu</strong> est réinitialisée à 0 chaque
-            mois : seules les pertes du mois courant restent visibles.
-          </>
-        )}
-      </p>
+      <PipelineBoard
+        initialData={pipeline}
+        scoreboard={scoreboard}
+        isAdmin={isAdmin}
+        currentUserId={user.id}
+        nowIso={now.toISOString()}
+        monthLabel={monthLabel}
+        resetLabel={resetLabel}
+        daysToReset={daysToReset}
+        view={view}
+        viewSwitcher={
+          isAdmin && teamUsers.length > 1 ? (
+            <PipelineViewSwitcher
+              users={teamUsers}
+              currentUserId={user.id}
+              currentUserName={user.name}
+              activeAssigneAId={effectiveAssigneAId}
+            />
+          ) : undefined
+        }
+      />
     </div>
   );
 }

@@ -90,7 +90,7 @@ export function CreateClientDialog({
         toast.error(res.error ?? "Échec de la création du client.");
         return;
       }
-      toast.success(`Client « ${form.raisonSociale.trim()} » créé ✓`);
+      toast.success(`Client « ${form.raisonSociale.trim()} » créé.`);
       onCreated({
         id: res.prospectId,
         raisonSociale: form.raisonSociale.trim(),

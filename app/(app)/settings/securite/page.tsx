@@ -1,4 +1,7 @@
-import { PageHeader } from "@/components/page-header";
+import { ShieldCheck } from "lucide-react";
+
+import { IconPageHeader } from "@/components/common/icon-page-header";
+import { PageShell } from "@/components/common/page-shell";
 import { ChangePassword } from "@/components/settings/change-password";
 import { TotpSetup } from "@/components/settings/totp-setup";
 import { prisma } from "@/lib/db";
@@ -15,8 +18,10 @@ export default async function SecuritePage() {
   });
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
-      <PageHeader
+    <PageShell width="tight">
+      <IconPageHeader
+        icon={ShieldCheck}
+        tone="green"
         title="Sécurité"
         description="Mot de passe et double authentification (2FA) de ton compte."
       />
@@ -25,6 +30,6 @@ export default async function SecuritePage() {
         enabled={!!dbUser?.totpEnabled}
         recoveryRemaining={dbUser?.totpRecoveryCodes.length ?? 0}
       />
-    </div>
+    </PageShell>
   );
 }

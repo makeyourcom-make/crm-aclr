@@ -6,8 +6,12 @@
  *
  * On s'arrête à la marge brute (pas de provision impôts).
  */
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Gauge } from "lucide-react";
+
+import { SectionCard } from "@/components/arena/section-card";
+import type { Tone } from "@/components/arena/tones";
 import { formatCHF, formatPercent } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 import type { ProjectMargin } from "@/lib/queries/project-profitability";
 
@@ -15,117 +19,114 @@ interface ProjectMarginBoxProps {
   margin: ProjectMargin;
 }
 
+const VERDICT: Record<
+  "great" | "ok" | "low" | "loss",
+  { tone: Tone; title: string; text: string; pill: string; box: string; value: string }
+> = {
+  great: {
+    tone: "green",
+    title: "Projet très rentable",
+    text: "Identifie ce qui marche pour le reproduire.",
+    pill: "bg-win-50 text-win-700",
+    box: "bg-win-50 text-win-700",
+    value: "text-win-700",
+  },
+  ok: {
+    tone: "teal",
+    title: "Projet sain",
+    text: "Rentabilité dans la fourchette normale.",
+    pill: "bg-mail-50 text-mail-700",
+    box: "bg-mail-50 text-mail-700",
+    value: "text-mail-700",
+  },
+  low: {
+    tone: "gold",
+    title: "Rentabilité faible",
+    text: "Voir si tu peux renégocier le prix au renouvellement ou réduire les coûts directs.",
+    pill: "bg-gold-50 text-gold-700",
+    box: "bg-gold-50 text-gold-700",
+    value: "text-gold-700",
+  },
+  loss: {
+    tone: "red",
+    title: "Projet déficitaire",
+    text: "Il faut soit augmenter le prix, soit réduire les coûts, soit accepter que ce client soit une perte d'image.",
+    pill: "bg-alert-50 text-alert-700",
+    box: "bg-alert-50 text-alert-700",
+    value: "text-alert-700",
+  },
+};
+
 export function ProjectMarginBox({ margin }: ProjectMarginBoxProps) {
   const m = margin;
-  const tone =
+  const key =
     m.rentabilite >= 0.35
-      ? "emerald"
+      ? "great"
       : m.rentabilite >= 0.15
-        ? "primary"
+        ? "ok"
         : m.rentabilite >= 0
-          ? "amber"
-          : "red";
-
-  const borderColor = {
-    emerald: "border-l-emerald-500",
-    primary: "border-l-primary",
-    amber: "border-l-amber-500",
-    red: "border-l-red-500",
-  }[tone];
-
-  const textColor = {
-    emerald: "text-emerald-700",
-    primary: "text-primary",
-    amber: "text-amber-700",
-    red: "text-red-700",
-  }[tone];
-
-  const badgeBg = {
-    emerald: "bg-emerald-100 text-emerald-800",
-    primary: "bg-blue-100 text-blue-700",
-    amber: "bg-amber-100 text-amber-800",
-    red: "bg-red-100 text-red-700",
-  }[tone];
+          ? "low"
+          : "loss";
+  const v = VERDICT[key];
 
   return (
-    <Card className={`border-l-4 ${borderColor}`}>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between gap-2 text-base">
-          <span>Rentabilité du projet</span>
-          <span
-            className={`inline-flex h-7 items-center rounded-full px-3 text-sm font-bold tabular-nums ${badgeBg}`}
-          >
-            {formatPercent(m.rentabilite)}
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {/* Cascade visuelle */}
-        <div className="space-y-1.5 text-sm">
-          <Row
-            label={`Revenu sur ${m.dureeMois} mois`}
-            value={formatCHF(m.revenu)}
-            bold
-          />
-          <Row
-            label="Coûts directs (produits)"
-            value={`- ${formatCHF(m.coutsDirects)}`}
-            danger
-          />
-          <Row
-            label={`Commission (${m.commercialeName})`}
-            value={`- ${formatCHF(m.commission)}`}
-            danger
-          />
-          <Row
-            label="Quote-part frais généraux"
-            value={`- ${formatCHF(m.quotePartFrais)}`}
-            danger
-          />
-          {m.chargesReelles > 0 && (
-            <Row
-              label="Charges réelles rattachées"
-              value={`- ${formatCHF(m.chargesReelles)}`}
-              danger
-            />
+    <SectionCard
+      title="Rentabilité du projet"
+      icon={Gauge}
+      tone={v.tone}
+      description="Revenu moins coûts directs, commission et frais alloués"
+      action={
+        <span
+          className={cn(
+            "inline-flex h-9 items-center rounded-[12px] px-3 font-display text-xl font-extrabold tabular-nums",
+            v.pill,
           )}
-          <div className="border-t-2 border-foreground pt-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-sm font-semibold uppercase tracking-wider">
-                Marge brute
-              </span>
-              <span
-                className={`text-2xl font-bold tabular-nums ${textColor}`}
-              >
-                {formatCHF(m.margeBrute)}
-              </span>
-            </div>
+        >
+          {formatPercent(m.rentabilite)}
+        </span>
+      }
+    >
+      <div className="flex flex-col gap-1.5 text-sm">
+        <Row label={`Revenu sur ${m.dureeMois} mois`} value={formatCHF(m.revenu)} bold />
+        <Row
+          label="Coûts directs (produits)"
+          value={`- ${formatCHF(m.coutsDirects)}`}
+          danger
+        />
+        <Row
+          label={`Commission (${m.commercialeName})`}
+          value={`- ${formatCHF(m.commission)}`}
+          danger
+        />
+        <Row
+          label="Quote-part frais généraux"
+          value={`- ${formatCHF(m.quotePartFrais)}`}
+          danger
+        />
+        {m.chargesReelles > 0 && (
+          <Row
+            label="Charges réelles rattachées"
+            value={`- ${formatCHF(m.chargesReelles)}`}
+            danger
+          />
+        )}
+        <div className="mt-1 border-t-2 border-foreground pt-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="text-[11px] font-bold tracking-[0.08em] uppercase">
+              Marge brute
+            </span>
+            <span className={cn("score-number text-2xl", v.value)}>
+              {formatCHF(m.margeBrute)}
+            </span>
           </div>
         </div>
+      </div>
 
-        {/* Verdict */}
-        <div
-          className={`rounded-md p-2.5 text-xs ${
-            tone === "emerald"
-              ? "bg-emerald-50 text-emerald-800"
-              : tone === "primary"
-                ? "bg-blue-50 text-blue-700"
-                : tone === "amber"
-                  ? "bg-amber-50 text-amber-800"
-                  : "bg-red-50 text-red-700"
-          }`}
-        >
-          {tone === "emerald" &&
-            "🏆 Projet très rentable. Identifie ce qui marche pour le reproduire."}
-          {tone === "primary" &&
-            "✅ Projet sain. Rentabilité dans la fourchette normale."}
-          {tone === "amber" &&
-            "⚠️ Rentabilité faible. Voir si tu peux renégocier le prix au renouvellement ou réduire les coûts directs."}
-          {tone === "red" &&
-            "🔴 Projet déficitaire. Il faut soit augmenter le prix, soit réduire les coûts, soit accepter que ce client soit une perte d'image."}
-        </div>
-      </CardContent>
-    </Card>
+      <div className={cn("mt-4 rounded-[14px] px-3.5 py-3 text-[13px]", v.box)}>
+        <strong className="font-extrabold">{v.title}.</strong>{" "}
+        <span className="text-foreground">{v.text}</span>
+      </div>
+    </SectionCard>
   );
 }
 
@@ -142,15 +143,13 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-2">
+      <span className={bold ? "font-bold" : "text-muted-foreground"}>{label}</span>
       <span
-        className={`text-sm ${bold ? "font-semibold" : "text-muted-foreground"}`}
-      >
-        {label}
-      </span>
-      <span
-        className={`tabular-nums ${bold ? "font-semibold" : ""} ${
-          danger ? "text-red-700" : ""
-        }`}
+        className={cn(
+          "tabular-nums whitespace-nowrap",
+          bold && "font-bold",
+          danger && "text-alert-700",
+        )}
       >
         {value}
       </span>

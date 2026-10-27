@@ -184,7 +184,7 @@ export async function sendEmailToProspect(
   if (!prospect.email) {
     return {
       ok: false,
-      error: "Pas d'email connu pour ce prospect — ajoute-le d'abord.",
+      error: "Pas d'email connu pour ce prospect : ajoute-le d'abord.",
     };
   }
   if (user.role !== "ADMIN" && prospect.assigneAId !== user.id) {
@@ -235,9 +235,9 @@ export async function sendEmailToProspect(
 
   // CC / CCI (copie visible / cachée) — saisie libre validée.
   const ccParsed = parseAddressList(parsed.data.cc);
-  if (ccParsed.error) return { ok: false, error: `CC — ${ccParsed.error}` };
+  if (ccParsed.error) return { ok: false, error: `CC - ${ccParsed.error}` };
   const bccParsed = parseAddressList(parsed.data.bcc);
-  if (bccParsed.error) return { ok: false, error: `CCI — ${bccParsed.error}` };
+  if (bccParsed.error) return { ok: false, error: `CCI - ${bccParsed.error}` };
 
   // Envoi réel via Resend (avec BCC auto vers expéditeur pour copie Gmail).
   // En dry-run, sendMail() log et renvoie ok=true sans envoyer.
@@ -386,9 +386,9 @@ export async function sendFreeFormEmail(
   const threadId = randomBytes(8).toString("hex");
 
   const ccParsed = parseAddressList(parsed.data.cc);
-  if (ccParsed.error) return { ok: false, error: `CC — ${ccParsed.error}` };
+  if (ccParsed.error) return { ok: false, error: `CC - ${ccParsed.error}` };
   const bccParsed = parseAddressList(parsed.data.bcc);
-  if (bccParsed.error) return { ok: false, error: `CCI — ${bccParsed.error}` };
+  if (bccParsed.error) return { ok: false, error: `CCI - ${bccParsed.error}` };
 
   const attachments = parsed.data.attachments ?? [];
   const sendResult = await sendMail({
@@ -573,9 +573,9 @@ export async function replyToEmail(
   const attachmentsValidated = (attachmentsInput ?? []).filter((a) => a.url && a.filename);
 
   const ccParsed = parseAddressList(ccInput);
-  if (ccParsed.error) return { ok: false, error: `CC — ${ccParsed.error}` };
+  if (ccParsed.error) return { ok: false, error: `CC - ${ccParsed.error}` };
   const bccParsed = parseAddressList(bccInput);
-  if (bccParsed.error) return { ok: false, error: `CCI — ${bccParsed.error}` };
+  if (bccParsed.error) return { ok: false, error: `CCI - ${bccParsed.error}` };
 
   const sendResult = await sendMail({
     from,
@@ -808,9 +808,9 @@ export async function forwardEmail(input: unknown): Promise<SendEmailResult> {
   ];
 
   const ccParsed = parseAddressList(parsed.data.cc);
-  if (ccParsed.error) return { ok: false, error: `CC — ${ccParsed.error}` };
+  if (ccParsed.error) return { ok: false, error: `CC - ${ccParsed.error}` };
   const bccParsed = parseAddressList(parsed.data.bcc);
-  if (bccParsed.error) return { ok: false, error: `CCI — ${bccParsed.error}` };
+  if (bccParsed.error) return { ok: false, error: `CCI - ${bccParsed.error}` };
 
   const sendResult = await sendMail({
     from,
@@ -1713,9 +1713,9 @@ export async function saveEmailDraft(input: unknown): Promise<SendEmailResult> {
 
   // CC / CCI : validés ; `undefined` = non fourni (on ne touche pas l'existant).
   const ccParsed = parseAddressList(parsed.data.cc);
-  if (ccParsed.error) return { ok: false, error: `CC — ${ccParsed.error}` };
+  if (ccParsed.error) return { ok: false, error: `CC - ${ccParsed.error}` };
   const bccParsed = parseAddressList(parsed.data.bcc);
-  if (bccParsed.error) return { ok: false, error: `CCI — ${bccParsed.error}` };
+  if (bccParsed.error) return { ok: false, error: `CCI - ${bccParsed.error}` };
   const ccValue =
     parsed.data.cc === undefined
       ? undefined

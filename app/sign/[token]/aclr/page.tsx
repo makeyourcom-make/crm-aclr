@@ -65,7 +65,7 @@ export default async function AclrSignPage({ params }: PageProps) {
             Signature du contrat
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            N° {sig.contract.numero} — {sig.contract.prospect.raisonSociale}
+            N° {sig.contract.numero} · {sig.contract.prospect.raisonSociale}
           </p>
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
             <span>
@@ -85,7 +85,7 @@ export default async function AclrSignPage({ params }: PageProps) {
             <span>
               Client :{" "}
               {sig.signeParClient ? (
-                <strong className="text-emerald-700">a signé ✓</strong>
+                <strong className="text-emerald-700">a signé</strong>
               ) : (
                 <strong className="text-amber-700">pas encore signé</strong>
               )}
@@ -95,18 +95,18 @@ export default async function AclrSignPage({ params }: PageProps) {
           <div className="mt-6">
             {isExpired ? (
               <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                ⚠ Ce lien a expiré le {formatDateLong(sig.expireA)}.
+                Ce lien a expiré le {formatDateLong(sig.expireA)}.
               </div>
             ) : already ? (
               <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-4">
                 <p className="font-medium text-emerald-900">
-                  ✓ Déjà signé par le commercial
+                  Déjà signé par le commercial
                 </p>
                 <p className="mt-1 text-sm text-emerald-800">
                   Le{" "}
                   {sig.dateSignatureAclr
                     ? formatDateLong(sig.dateSignatureAclr)
-                    : "—"}
+                    : "-"}
                   . L&apos;admin validera le contrat pour l&apos;activer.
                 </p>
                 <a

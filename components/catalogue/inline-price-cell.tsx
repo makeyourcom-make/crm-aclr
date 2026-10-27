@@ -3,7 +3,7 @@
 /**
  * Cellule de prix éditable in-place.
  *
- * - Affichage : montant formaté CHF, ou tiret "—" si null
+ * - Affichage : montant formaté CHF, ou petit tiret si null
  * - Clic → entre en mode édition (input number autoFocus)
  * - Blur ou Enter → sauvegarde via updateProductPrice
  * - Escape → annule
@@ -24,6 +24,12 @@ interface InlinePriceCellProps {
   inactive?: boolean;
 }
 
+const FIELD_LABEL: Record<InlinePriceCellProps["field"], string> = {
+  prixOneShot: "one-shot",
+  prixMensuel: "mensuel",
+  prixAnnuel: "annuel",
+};
+
 export function InlinePriceCell({
   productId,
   field,
@@ -36,6 +42,7 @@ export function InlinePriceCell({
   const [localValue, setLocalValue] = useState(value);
 
   const numeric = localValue === null ? null : Number(localValue);
+  const hasValue = numeric !== null && Number.isFinite(numeric);
 
   const commit = () => {
     const trimmed = draft.trim();
@@ -84,6 +91,7 @@ export function InlinePriceCell({
         type="number"
         min={0}
         step="0.01"
+        inputMode="decimal"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
@@ -98,7 +106,8 @@ export function InlinePriceCell({
         }}
         autoFocus
         disabled={pending}
-        className="h-7 w-24 rounded border border-primary bg-background px-1.5 text-right text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/30"
+        aria-label={`Prix ${FIELD_LABEL[field]} en CHF`}
+        className="h-8 w-28 rounded-[10px] border-2 border-navy-700 bg-card px-2 text-right text-[13px] font-semibold tabular-nums outline-none focus-visible:ring-4 focus-visible:ring-navy-100"
         placeholder="0.00"
       />
     );
@@ -109,14 +118,18 @@ export function InlinePriceCell({
       type="button"
       onClick={() => setEditing(true)}
       className={cn(
-        "inline-flex h-7 items-center justify-end rounded px-1.5 text-sm tabular-nums transition-colors hover:bg-muted",
+        "inline-flex h-8 items-center justify-end rounded-[10px] px-2 text-[13px] whitespace-nowrap tabular-nums transition-colors hover:bg-navy-50",
+        hasValue ? "font-semibold" : "text-muted-foreground",
         inactive && "text-muted-foreground",
       )}
       title="Cliquer pour modifier"
+      aria-label={
+        hasValue
+          ? `Prix ${FIELD_LABEL[field]} : ${formatCHF(numeric)}. Modifier`
+          : `Aucun prix ${FIELD_LABEL[field]}. Définir`
+      }
     >
-      {numeric !== null && Number.isFinite(numeric)
-        ? formatCHF(numeric)
-        : "—"}
+      {hasValue ? formatCHF(numeric) : "-"}
     </button>
   );
 }

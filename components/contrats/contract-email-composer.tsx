@@ -5,12 +5,16 @@
  * choisit d'inclure le lien de signature en ligne et/ou le PDF (à imprimer /
  * signer à la main). Ouvert après l'enregistrement depuis le wizard.
  */
+import { LoaderCircle, Send } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { sendContractEmailCustom } from "@/app/(app)/contrats/actions";
 import { getMyDefaultSignatureHtml } from "@/app/(app)/emails/actions";
+import { xpToast } from "@/components/arena/celebrate";
 import { Button } from "@/components/ui/button";
+import { XP_RULES } from "@/lib/gamification/rules";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +46,7 @@ export function ContractEmailComposer({
   defaultBody,
   onSent,
 }: ContractEmailComposerProps) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [subject, setSubject] = useState(defaultSubject);
   const [body, setBody] = useState(defaultBody);
@@ -52,13 +57,17 @@ export function ContractEmailComposer({
   // l'abîmer). On la montre ici pour rassurer avant d'envoyer.
   const [sigHtml, setSigHtml] = useState("");
 
-  // Re-synchronise quand on rouvre avec un autre contrat.
-  useEffect(() => {
+  // Re-synchronise quand on rouvre avec un autre contrat (pattern « ajuster
+  // l'état pendant le rendu », sans effet).
+  const syncKey = `${contractId}\u0000${defaultSubject}\u0000${defaultBody}`;
+  const [syncedKey, setSyncedKey] = useState(syncKey);
+  if (syncKey !== syncedKey) {
+    setSyncedKey(syncKey);
     setSubject(defaultSubject);
     setBody(defaultBody);
     setIncludeSignLink(true);
     setIncludePdf(true);
-  }, [defaultSubject, defaultBody, contractId]);
+  }
 
   // Charge la signature par défaut à l'ouverture.
   useEffect(() => {
@@ -83,11 +92,13 @@ export function ContractEmailComposer({
         toast.error(res.error ?? "Échec de l'envoi.");
         return;
       }
-      toast.success(
-        res.dryRun
-          ? "Email préparé (mode test) — visible dans Emails."
-          : "Email envoyé au client ✉️",
-      );
+      if (res.dryRun) {
+        toast.success("Email préparé (mode test), visible dans Emails.");
+      } else {
+        // L'envoi crée une activité EMAIL_ENVOYE : +3 XP.
+        xpToast(XP_RULES.email, "Contrat envoyé au client !", to);
+      }
+      router.refresh();
       onOpenChange(false);
       onSent();
     });
@@ -97,7 +108,9 @@ export function ContractEmailComposer({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Envoyer le contrat par email</DialogTitle>
+          <DialogTitle className="font-display text-xl font-extrabold">
+            Envoyer le contrat par email
+          </DialogTitle>
           <DialogDescription>
             Rédige ton message et choisis ce que le client reçoit.
           </DialogDescription>
@@ -129,11 +142,11 @@ export function ContractEmailComposer({
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={8}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="w-full rounded-[12px] border border-input bg-card px-3 py-2 text-sm focus:ring-2 focus:ring-ring/30 focus:outline-none"
             />
           </div>
 
-          <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+          <div className="space-y-2 rounded-[14px] border border-border bg-ground p-3.5">
             <p className="text-xs font-medium text-foreground">
               À inclure dans l&apos;email :
             </p>
@@ -145,7 +158,7 @@ export function ContractEmailComposer({
                 className="mt-0.5 h-4 w-4"
               />
               <span>
-                <strong>Lien de signature en ligne</strong> — le client signe
+                <strong>Lien de signature en ligne</strong> : le client signe
                 directement à l&apos;écran (bouton « Signer le contrat »).
               </span>
             </label>
@@ -157,7 +170,7 @@ export function ContractEmailComposer({
                 className="mt-0.5 h-4 w-4"
               />
               <span>
-                <strong>PDF du contrat</strong> — à télécharger, imprimer,
+                <strong>PDF du contrat</strong> : à télécharger, imprimer,
                 signer à la main et renvoyer scanné.
               </span>
             </label>
@@ -169,7 +182,7 @@ export function ContractEmailComposer({
                 Signature (ajoutée automatiquement)
               </Label>
               <div
-                className="overflow-x-auto rounded-md border border-border bg-white p-3"
+                className="overflow-x-auto rounded-[12px] border border-border bg-white p-3"
                 dangerouslySetInnerHTML={{ __html: sigHtml }}
               />
             </div>
@@ -180,13 +193,19 @@ export function ContractEmailComposer({
           <Button
             type="button"
             variant="outline"
+            size="lg"
             onClick={() => onOpenChange(false)}
             disabled={pending}
           >
             Annuler
           </Button>
-          <Button type="button" onClick={handleSend} disabled={pending}>
-            {pending ? "Envoi…" : "Envoyer l'email"}
+          <Button type="button" size="lg" onClick={handleSend} disabled={pending}>
+            {pending ? (
+              <LoaderCircle aria-hidden="true" className="animate-spin" />
+            ) : (
+              <Send aria-hidden="true" />
+            )}
+            {pending ? "Envoi..." : "Envoyer l'email"}
           </Button>
         </DialogFooter>
       </DialogContent>

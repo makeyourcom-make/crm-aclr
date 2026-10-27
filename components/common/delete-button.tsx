@@ -8,11 +8,15 @@
  *     onDelete={async () => await deleteFoo(id)}
  *     confirmMessage="Supprimer cet email ?"
  *   />
+ *
+ * Style MYC Arena : bouton icône 32 px (bord #D5DAE6, survol alerte) ou
+ * bouton plein « icône + libellé » sur fond alerte clair.
  */
+import { Loader2, Trash2 } from "lucide-react";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-import { Icon } from "@/components/icon";
+import { cn } from "@/lib/utils";
 
 interface DeleteButtonProps {
   onDelete: () => Promise<{ ok: boolean; error?: string }>;
@@ -26,7 +30,7 @@ interface DeleteButtonProps {
   disabledReason?: string;
   /**
    * Où aller après une suppression réussie. À utiliser quand l'élément
-   * supprimé EST la page courante (ex. fiche contrat) — sinon un refresh
+   * supprimé EST la page courante (ex. fiche contrat) : sinon un refresh
    * laisserait un 404. Sans valeur : simple router.refresh().
    */
   redirectTo?: string;
@@ -66,6 +70,8 @@ export function DeleteButton({
     });
   };
 
+  const IconCmp = pending ? Loader2 : Trash2;
+
   if (variant === "full") {
     return (
       <button
@@ -73,13 +79,13 @@ export function DeleteButton({
         onClick={handleClick}
         disabled={disabled || pending}
         title={disabled ? disabledReason : undefined}
-        className="inline-flex h-7 items-center gap-1 rounded-md border border-red-200 bg-white px-2 text-xs text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-alert-50 bg-alert-50 px-2.5 text-xs font-bold text-alert-700 transition-colors hover:border-alert-500/40 hover:bg-alert-50/70 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <Icon
-          name={pending ? "Loader" : "Trash2"}
-          className={`h-3 w-3 ${pending ? "animate-spin" : ""}`}
+        <IconCmp
+          aria-hidden="true"
+          className={cn("size-3.5", pending && "animate-spin")}
         />
-        {pending ? "…" : label}
+        {pending ? "Suppression…" : label}
       </button>
     );
   }
@@ -91,11 +97,11 @@ export function DeleteButton({
       disabled={disabled || pending}
       title={disabled ? disabledReason : label}
       aria-label={label}
-      className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+      className="inline-flex size-9 shrink-0 items-center justify-center rounded-[10px] border border-border-strong bg-card text-muted-foreground transition-colors hover:border-alert-500/40 hover:bg-alert-50 hover:text-alert-700 disabled:cursor-not-allowed disabled:opacity-40"
     >
-      <Icon
-        name={pending ? "Loader" : "Trash2"}
-        className={`h-3.5 w-3.5 ${pending ? "animate-spin" : ""}`}
+      <IconCmp
+        aria-hidden="true"
+        className={cn("size-4", pending && "animate-spin")}
       />
     </button>
   );

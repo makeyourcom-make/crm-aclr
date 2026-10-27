@@ -1,14 +1,6 @@
-import Link from "next/link";
-
 import { AddActivityDialog } from "@/components/agenda/add-activity-dialog";
-import {
-  AgendaToolbar,
-  type AgendaMode,
-} from "@/components/agenda/agenda-toolbar";
-import { AgendaViewSwitcher } from "@/components/agenda/agenda-view-switcher";
-import { MonthView } from "@/components/agenda/month-view";
-import { WeekView } from "@/components/agenda/week-view";
-import { Icon } from "@/components/icon";
+import { AgendaBoard } from "@/components/agenda/agenda-board";
+import type { AgendaMode } from "@/components/agenda/agenda-toolbar";
 import { PageHeader } from "@/components/page-header";
 import {
   activityCategory,
@@ -18,16 +10,26 @@ import {
 } from "@/lib/activity-category";
 import { AGENDA_DEFAULT_VIEW } from "@/lib/agenda-view";
 import { prisma } from "@/lib/db";
-import { getAgendaRange, getStartOfWeek } from "@/lib/queries/agenda";
+import { firstNameOf } from "@/lib/gamification/rules";
+import {
+  getAgendaGame,
+  getAgendaRange,
+  getPhoningOrigins,
+  getRdvDayCounts,
+  resolveAgendaSubject,
+} from "@/lib/queries/agenda";
+import {
+  addDaysKey,
+  isDayKey,
+  mondayOfKey,
+  monthStartKey,
+  zDayKey,
+  zStartOfDay,
+} from "@/lib/queries/agenda-dates";
 import { requireUser } from "@/lib/session";
 
 export const metadata = { title: "Agenda" };
 export const dynamic = "force-dynamic";
-
-function toIso(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -36,18 +38,27 @@ interface PageProps {
 export default async function AgendaPage({ searchParams }: PageProps) {
   const user = await requireUser();
   const raw = await searchParams;
+  const now = new Date();
+  const todayKey = zDayKey(now);
 
   // Mode d'affichage : jour / semaine (défaut) / mois
   const mode: AgendaMode =
     raw.mode === "day" || raw.mode === "month" ? raw.mode : "week";
 
-  // Date de référence : ?date= (ou ?week= en rétrocompat), sinon aujourd'hui
+  // Date de référence : ?date= (ou ?week= en rétrocompat), sinon aujourd'hui.
+  // Jours découpés en heure suisse (le serveur tourne en UTC).
   const dateParam =
     (typeof raw.date === "string" ? raw.date : undefined) ??
     (typeof raw.week === "string" ? raw.week : undefined);
-  const requested = dateParam ? new Date(dateParam) : new Date();
-  const refDate = isNaN(requested.getTime()) ? new Date() : requested;
-  refDate.setHours(0, 0, 0, 0);
+  let refKey = todayKey;
+  if (dateParam) {
+    const head = dateParam.slice(0, 10);
+    if (isDayKey(head)) refKey = head;
+    else {
+      const d = new Date(dateParam);
+      if (!Number.isNaN(d.getTime())) refKey = zDayKey(d);
+    }
+  }
   const hideDone = raw.hideDone === "1";
 
   // Filtre par catégorie d'activité (?cat=rdv,mail,appel). Absent = défaut
@@ -65,43 +76,26 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   // (y compris "none"/vide → on n'affiche rien).
   const catFilterActive = activeCats.length < ALL_CATEGORY_KEYS.length;
 
-  // Construit la liste des colonnes (dates) + l'intervalle de requête
-  let dates: Date[];
-  let rangeStart: Date;
-  let rangeEnd: Date;
-  let targetMonth = refDate.getMonth();
-
+  // Colonnes (jours) + intervalle de requête [premier jour, lendemain du dernier[
+  let dayKeys: string[];
   if (mode === "day") {
-    dates = [new Date(refDate)];
-    rangeStart = new Date(refDate);
-    rangeEnd = new Date(refDate);
-    rangeEnd.setDate(rangeEnd.getDate() + 1);
+    dayKeys = [refKey];
   } else if (mode === "month") {
-    const monthFirst = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
-    targetMonth = monthFirst.getMonth();
-    rangeStart = getStartOfWeek(monthFirst);
-    dates = Array.from({ length: 42 }, (_, i) => {
-      const d = new Date(rangeStart);
-      d.setDate(d.getDate() + i);
-      return d;
-    });
-    rangeEnd = new Date(rangeStart);
-    rangeEnd.setDate(rangeEnd.getDate() + 42);
+    const gridStart = mondayOfKey(monthStartKey(refKey));
+    dayKeys = Array.from({ length: 42 }, (_, i) => addDaysKey(gridStart, i));
   } else {
-    const ws = getStartOfWeek(refDate);
-    dates = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(ws);
-      d.setDate(d.getDate() + i);
-      return d;
-    });
-    rangeStart = ws;
-    rangeEnd = new Date(ws);
-    rangeEnd.setDate(rangeEnd.getDate() + 7);
+    const ws = mondayOfKey(refKey);
+    dayKeys = Array.from({ length: 7 }, (_, i) => addDaysKey(ws, i));
   }
+  const rangeStart = zStartOfDay(dayKeys[0]);
+  const rangeEnd = zStartOfDay(addDaysKey(dayKeys[dayKeys.length - 1], 1));
+  // Mini-calendrier : grille de 6 semaines du mois de référence.
+  const miniStart = mondayOfKey(monthStartKey(refKey));
+  const miniEnd = addDaysKey(miniStart, 42);
 
   // Vue admin : "all" (défaut, cf. AGENDA_DEFAULT_VIEW), "mine", ou userId
   // d'une commerciale précise. Ignorée pour les commerciaux (scope verrouillé
-  // côté query) — d'où le repli sur "mine" pour eux, purement cosmétique.
+  // côté query), d'où le repli sur "mine" pour eux, purement cosmétique.
   const isAdmin = user.role === "ADMIN";
   const view =
     typeof raw.view === "string"
@@ -119,28 +113,48 @@ export default async function AgendaPage({ searchParams }: PageProps) {
       })
     : [];
 
-  // Le sélecteur de client du dialogue d'activité fait sa recherche côté
-  // serveur (ProspectCombobox) — plus besoin de précharger la liste entière
-  // des prospects ici (jusqu'à ~121k pour l'admin), gros gain de payload.
-  const allActivities = await getAgendaRange(
+  // Agenda d'une personne qui n'est plus active (lien direct) : on retrouve son nom.
+  const viewedUser =
+    isAdmin && view !== "mine" && view !== "all"
+      ? (teamUsers.find((u) => u.id === view) ??
+        (await prisma.user.findUnique({
+          where: { id: view },
+          select: { id: true, name: true, role: true },
+        })))
+      : null;
+  const subject = resolveAgendaSubject(
     user,
-    rangeStart,
-    rangeEnd,
-    hideDone,
     view,
+    viewedUser && !teamUsers.some((u) => u.id === viewedUser.id)
+      ? [...teamUsers, viewedUser]
+      : teamUsers,
   );
+
+  // Le sélecteur de client du dialogue d'activité fait sa recherche côté
+  // serveur (ProspectCombobox) : aucune liste de prospects préchargée ici.
+  const [allActivities, game, dayCounts] = await Promise.all([
+    getAgendaRange(user, rangeStart, rangeEnd, hideDone, view),
+    getAgendaGame(subject),
+    getRdvDayCounts(subject, miniStart, miniEnd),
+  ]);
   const activeCatSet = new Set(activeCats);
   const activities = catFilterActive
     ? allActivities.filter((a) => activeCatSet.has(activityCategory(a.type)))
     : allActivities;
 
-  const today = new Date();
+  // Compteurs des puces de filtre (hors annulées)
+  const catCounts: Record<ActivityCategory, number> = { rdv: 0, mail: 0, appel: 0, autre: 0 };
+  for (const a of allActivities) {
+    if (a.statut !== "ANNULE") catCounts[activityCategory(a.type)] += 1;
+  }
+
+  const phoning = await getPhoningOrigins([
+    ...activities,
+    ...game.pending,
+    ...game.upcoming,
+  ]);
 
   // Description dynamique selon la vue active
-  const viewedUser =
-    view !== "mine" && view !== "all"
-      ? teamUsers.find((u) => u.id === view)
-      : null;
   const viewLabel = isAdmin
     ? view === "all"
       ? "Toute l'équipe"
@@ -150,79 +164,49 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     : "Mon agenda";
   const periodeLabel =
     mode === "day" ? "ce jour" : mode === "month" ? "ce mois" : "la semaine";
-  const description = `${activities.length} activité(s) sur ${periodeLabel} · ${viewLabel}.`;
+  const n = activities.length;
+  const description = `${n} activité${n > 1 ? "s" : ""} sur ${periodeLabel} · ${viewLabel}`;
 
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
+        rubrique="agenda"
         title="Agenda"
         description={description}
         actions={
-          <>
-            <Link
-              href="/settings/calendar"
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-50 px-3 text-sm font-medium text-emerald-800 hover:bg-emerald-100"
-              title="Configurer la synchronisation Infomaniak / Google / Apple"
-            >
-              <Icon name="Repeat" className="h-3.5 w-3.5" />
-              Synchroniser l&apos;agenda
-            </Link>
-            <AddActivityDialog
-              defaultDate={toIso(today)}
-              defaultTime="09:00"
-              triggerMode="header"
-              users={teamUsers}
-              currentUserId={user.id}
-              isAdmin={isAdmin}
-            />
-          </>
+          <AddActivityDialog
+            defaultDate={todayKey}
+            defaultTime="09:00"
+            triggerMode="header"
+            users={teamUsers}
+            currentUserId={user.id}
+            isAdmin={isAdmin}
+          />
         }
       />
 
-      {isAdmin && teamUsers.length > 1 && (
-        <div className="mb-3">
-          <AgendaViewSwitcher
-            users={teamUsers}
-            currentUserId={user.id}
-            activeView={view}
-          />
-        </div>
-      )}
-
-      <div className="mb-4">
-        <AgendaToolbar
-          mode={mode}
-          date={refDate}
-          view={view}
-          hideDone={hideDone}
-          activeCats={activeCats}
-        />
-      </div>
-
-      {mode === "month" ? (
-        <MonthView
-          dates={dates}
-          targetMonth={targetMonth}
-          activities={activities}
-          view={view}
-          hideDone={hideDone}
-        />
-      ) : (
-        <WeekView
-          dates={dates}
-          activities={activities}
-          showUserBadge={isAdmin && view === "all"}
-          users={teamUsers}
-          currentUserId={user.id}
-          isAdmin={isAdmin}
-        />
-      )}
-
-      <p className="mt-4 text-center text-xs text-muted-foreground">
-        {mode === "month"
-          ? "💡 Clique sur un jour pour l'ouvrir en vue Jour."
-          : "💡 Clique sur un créneau vide pour planifier, glisse un événement pour le déplacer, tire son bas pour changer la durée."}
-      </p>
+      <AgendaBoard
+        mode={mode}
+        refKey={refKey}
+        dayKeys={dayKeys}
+        targetMonth={refKey.slice(0, 7)}
+        view={view}
+        hideDone={hideDone}
+        activeCats={activeCats}
+        catCounts={catCounts}
+        activities={activities}
+        game={game}
+        dayCounts={dayCounts}
+        phoning={phoning}
+        subject={{
+          kind: subject.kind,
+          firstName: firstNameOf(subject.name),
+        }}
+        teamUsers={teamUsers}
+        currentUserId={user.id}
+        isAdmin={isAdmin}
+        serverNowMs={now.getTime()}
+      />
     </div>
   );
 }

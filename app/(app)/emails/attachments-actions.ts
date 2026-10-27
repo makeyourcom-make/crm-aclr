@@ -54,7 +54,7 @@ export async function uploadEmailAttachment(
   try {
     user = await requireUser();
   } catch {
-    return { ok: false, error: "Session expirée — reconnecte-toi." };
+    return { ok: false, error: "Session expirée, reconnecte-toi." };
   }
   const file = formData.get("file");
 

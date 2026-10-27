@@ -4,13 +4,14 @@
  * Badge de statut cliquable sur la fiche client : un clic ouvre une liste
  * déroulante pour changer le statut directement (sans page d'édition).
  */
-import { useState, useTransition } from "react";
+import { ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { updateProspectStatut } from "@/app/(app)/prospects/actions";
 import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badge";
-import { getProspectStatutLabel } from "@/lib/labels";
+import { statutOptionLabel } from "@/components/prospects/statut-meta";
 
 import type { ProspectStatut } from "@prisma/client";
 
@@ -37,6 +38,9 @@ export function ProspectStatutSelect({
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
 
+  // Un statut posé automatiquement (ex. Numéro invalide) reste sélectionné.
+  const options = STATUTS.includes(statut) ? STATUTS : [...STATUTS, statut];
+
   const change = (v: string) => {
     if (v === statut) {
       setEditing(false);
@@ -58,15 +62,16 @@ export function ProspectStatutSelect({
     return (
       <select
         autoFocus
+        aria-label="Statut de l'entreprise"
         defaultValue={statut}
         disabled={pending}
         onChange={(e) => change(e.target.value)}
         onBlur={() => setEditing(false)}
-        className="h-8 rounded-md border border-primary/50 bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+        className="h-9 rounded-[10px] border border-border-strong bg-card px-2.5 text-sm font-semibold text-foreground"
       >
-        {STATUTS.map((s) => (
+        {options.map((s) => (
           <option key={s} value={s}>
-            {getProspectStatutLabel(s)}
+            {statutOptionLabel(s)}
           </option>
         ))}
       </select>
@@ -78,15 +83,11 @@ export function ProspectStatutSelect({
       type="button"
       onClick={() => setEditing(true)}
       title="Changer le statut"
-      className="inline-flex items-center rounded-md transition-colors hover:opacity-80"
+      aria-label={`Statut : ${statutOptionLabel(statut)}. Changer le statut`}
+      className="inline-flex items-center gap-1 rounded-full transition-opacity hover:opacity-80"
     >
-      {statut === "VIERGE" ? (
-        <span className="rounded-md border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground">
-          Définir le statut
-        </span>
-      ) : (
-        <ProspectStatutBadge statut={statut} />
-      )}
+      <ProspectStatutBadge statut={statut} />
+      <ChevronDown aria-hidden="true" className="size-3.5 text-muted-foreground" />
     </button>
   );
 }

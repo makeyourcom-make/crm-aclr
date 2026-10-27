@@ -41,14 +41,15 @@ export default async function NewDealPage() {
   ]);
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-6 lg:px-8">
+    <div className="mx-auto max-w-3xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
       <PageHeader
+        rubrique="pipeline"
         title="Nouveau deal"
         description="Crée une opportunité commerciale rattachée à un prospect existant."
         breadcrumb={
           <Link
             href="/pipeline"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
           >
             <Icon name="ChevronRight" className="h-3 w-3 rotate-180" />
             Retour au pipeline

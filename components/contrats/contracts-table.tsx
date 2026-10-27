@@ -1,13 +1,22 @@
 "use client";
 
+/**
+ * Liste des contrats (MYC Arena) : cartes sur téléphone, tableau triable sur
+ * ordinateur (en-têtes cliquables → ?sortBy / ?sortDir, ligne cliquable vers
+ * la fiche contrat).
+ */
 import { type ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 
+import { StatusPill } from "@/components/arena/pills";
+import { PlayerAvatar, toneForRole } from "@/components/arena/player-avatar";
+import type { Tone } from "@/components/arena/tones";
 import { SortableHeader } from "@/components/common/sortable-header";
 import { ContractStatutBadge } from "@/components/contrats/contract-statut-badge";
 import { DataTable } from "@/components/ui/data-table";
 import { getNextRenewalDate, relativeDays } from "@/lib/contract-renewal";
 import { formatCHF, formatDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 import type { ContractListItem } from "@/lib/queries/contracts";
 
@@ -16,48 +25,118 @@ interface ContractsTableProps {
   showCommerciale?: boolean;
 }
 
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+/** Palier de valeur an 1 (repère de jeu, données réelles). */
+function palierOf(an1: number): { label: string; tone: Tone } {
+  if (an1 >= 10000) return { label: "Diamant", tone: "violet" };
+  if (an1 >= 5000) return { label: "Or", tone: "gold" };
+  if (an1 >= 2000) return { label: "Argent", tone: "blue" };
+  return { label: "Bronze", tone: "navy" };
+}
+
+function offresOf(c: ContractListItem): string {
+  const names = c.products.map((p) => p.nom);
+  if (names.length === 0) return "Aucune offre liée";
+  if (names.length <= 2) return names.join(" · ");
+  return `${names.slice(0, 2).join(" · ")} +${names.length - 2}`;
+}
+
+function RenewalCell({ c }: { c: ContractListItem }) {
+  const renewal = getNextRenewalDate({
+    dateDebut: c.dateDebut,
+    dureeMois: c.dureeMois,
+    statut: c.statut,
+    reconductible: c.reconductible,
+  });
+  if (!renewal) {
+    return <span className="text-[13px] text-muted-foreground">-</span>;
+  }
+  const rel = relativeDays(renewal);
+  const tone =
+    rel.days < 30
+      ? "font-bold text-gold-700"
+      : rel.days < 90
+        ? "font-semibold text-foreground"
+        : "text-muted-foreground";
+  return (
+    <span className={cn("flex flex-col text-[13px] whitespace-nowrap", tone)}>
+      <span>{formatDate(renewal)}</span>
+      <span className="text-xs">{rel.label}</span>
+    </span>
+  );
+}
+
 export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
   const columns: ColumnDef<ContractListItem>[] = [
     {
-      id: "numero",
+      id: "contrat",
       header: () => (
-        <SortableHeader
-          label="N° contrat"
-          field="numero"
-          defaultSortBy="dateSignature"
-        />
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <SortableHeader label="N°" field="numero" defaultSortBy="dateSignature" />
+          <span aria-hidden="true" className="text-subtle">
+            ·
+          </span>
+          <SortableHeader
+            label="Client"
+            field="raisonSociale"
+            defaultSortBy="dateSignature"
+          />
+        </span>
       ),
-      cell: ({ row }) => (
-        <Link
-          href={`/contrats/${row.original.id}`}
-          className="font-mono text-xs font-medium text-foreground hover:underline"
-        >
-          {row.original.numero}
-        </Link>
-      ),
+      cell: ({ row }) => {
+        const c = row.original;
+        const palier = palierOf(Number(c.valeurAn1));
+        return (
+          <div className="flex min-w-[220px] items-center gap-2.5">
+            <PlayerAvatar
+              initials={initialsOf(c.assigneA.name)}
+              tone={toneForRole(c.assigneA.role)}
+              size={30}
+              label={c.assigneA.name}
+            />
+            <div className="min-w-0">
+              <Link
+                href={`/contrats/${c.id}`}
+                className="block text-xs font-bold text-muted-foreground tabular-nums hover:text-foreground hover:underline"
+              >
+                {c.numero}
+              </Link>
+              <Link
+                href={`/prospects/${c.prospect.id}`}
+                className="block truncate text-sm font-extrabold text-foreground hover:underline"
+              >
+                {c.prospect.raisonSociale}
+              </Link>
+              <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                {c.prospect.ville && <span>{c.prospect.ville}</span>}
+                <StatusPill tone={palier.tone} dot={false} className="h-5 px-2 text-[11px]">
+                  Palier {palier.label}
+                </StatusPill>
+              </span>
+            </div>
+          </div>
+        );
+      },
     },
     {
-      id: "prospect",
+      id: "offres",
       header: () => (
-        <SortableHeader
-          label="Client"
-          field="raisonSociale"
-          defaultSortBy="dateSignature"
-        />
+        <span className="text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
+          Offres · durée
+        </span>
       ),
       cell: ({ row }) => (
-        <div>
-          <Link
-            href={`/prospects/${row.original.prospect.id}`}
-            className="font-medium hover:underline"
-          >
-            {row.original.prospect.raisonSociale}
-          </Link>
-          {row.original.prospect.ville && (
-            <p className="text-xs text-muted-foreground">
-              {row.original.prospect.ville}
-            </p>
-          )}
+        <div className="flex min-w-[160px] max-w-[260px] flex-col">
+          <span className="truncate text-[13px] font-semibold">{offresOf(row.original)}</span>
+          <span className="text-xs text-muted-foreground">
+            {row.original.dureeMois} mois
+          </span>
         </div>
       ),
     },
@@ -72,25 +151,18 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
         />
       ),
       cell: ({ row }) => (
-        <span className="font-semibold tabular-nums">
-          {formatCHF(Number(row.original.valeurAn1))}
-        </span>
-      ),
-    },
-    {
-      id: "valeurTotale",
-      header: () => (
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Valeur totale
-        </span>
-      ),
-      cell: ({ row }) => (
-        <span className="font-semibold tabular-nums text-primary">
-          {formatCHF(
-            Number(row.original.montantOneShot) +
-              Number(row.original.montantMensuel) * row.original.dureeMois,
-          )}
-        </span>
+        <div className="flex flex-col">
+          <span className="font-display text-[15px] font-extrabold whitespace-nowrap tabular-nums">
+            {formatCHF(Number(row.original.valeurAn1))}
+          </span>
+          <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+            total{" "}
+            {formatCHF(
+              Number(row.original.montantOneShot) +
+                Number(row.original.montantMensuel) * row.original.dureeMois,
+            )}
+          </span>
+        </div>
       ),
     },
     {
@@ -104,10 +176,10 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
         />
       ),
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground tabular-nums">
+        <span className="text-[13px] font-semibold whitespace-nowrap tabular-nums">
           {Number(row.original.montantMensuel) > 0
-            ? `${formatCHF(Number(row.original.montantMensuel))}/mois`
-            : "—"}
+            ? `${formatCHF(Number(row.original.montantMensuel))} / mois`
+            : "-"}
         </span>
       ),
     },
@@ -122,7 +194,7 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
         />
       ),
       cell: ({ row }) => (
-        <span className="whitespace-nowrap text-xs">
+        <span className="text-[13px] whitespace-nowrap">
           {formatDate(row.original.dateSignature)}
         </span>
       ),
@@ -130,41 +202,16 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
     {
       id: "renewal",
       header: () => (
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Prochain renouvel.
+        <span className="text-[11px] font-bold tracking-[0.08em] whitespace-nowrap text-muted-foreground uppercase">
+          Renouvel.
         </span>
       ),
-      cell: ({ row }) => {
-        const renewal = getNextRenewalDate({
-          dateDebut: row.original.dateDebut,
-          dureeMois: row.original.dureeMois,
-          statut: row.original.statut,
-          reconductible: row.original.reconductible,
-        });
-        if (!renewal) return <span className="text-xs text-muted-foreground">—</span>;
-        const rel = relativeDays(renewal);
-        const tone =
-          rel.days < 30
-            ? "text-amber-700 font-medium"
-            : rel.days < 90
-              ? "text-foreground"
-              : "text-muted-foreground";
-        return (
-          <span className={`whitespace-nowrap text-xs ${tone}`}>
-            {formatDate(renewal)}
-            <span className="ml-1 opacity-70">({rel.label})</span>
-          </span>
-        );
-      },
+      cell: ({ row }) => <RenewalCell c={row.original} />,
     },
     {
       id: "statut",
       header: () => (
-        <SortableHeader
-          label="Statut"
-          field="statut"
-          defaultSortBy="dateSignature"
-        />
+        <SortableHeader label="Statut" field="statut" defaultSortBy="dateSignature" />
       ),
       cell: ({ row }) => <ContractStatutBadge statut={row.original.statut} />,
     },
@@ -172,9 +219,13 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
       ? [
           {
             id: "commerciale",
-            header: "Commerciale",
+            header: () => (
+              <span className="text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
+                Commerciale
+              </span>
+            ),
             cell: ({ row }) => (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-[13px] whitespace-nowrap text-muted-foreground">
                 {row.original.assigneA.name}
               </span>
             ),
@@ -186,11 +237,11 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
   return (
     <>
       {/* Vue CARTES sur mobile */}
-      <div className="divide-y divide-border overflow-hidden rounded-lg border border-border md:hidden">
+      <ul className="flex flex-col gap-2.5 md:hidden">
         {rows.length === 0 ? (
-          <p className="px-4 py-12 text-center text-sm text-muted-foreground">
-            Aucun contrat. Crée un contrat depuis un deal signé.
-          </p>
+          <li className="rounded-[14px] border border-dashed border-border-strong px-4 py-10 text-center text-sm font-semibold text-muted-foreground">
+            Aucun contrat ne correspond. Essaie un autre filtre.
+          </li>
         ) : (
           rows.map((c) => {
             const renewal = getNextRenewalDate({
@@ -199,67 +250,75 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
               statut: c.statut,
               reconductible: c.reconductible,
             });
+            const palier = palierOf(Number(c.valeurAn1));
             return (
-              <div key={c.id} className="p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
+              <li
+                key={c.id}
+                className="rounded-[14px] border border-border bg-card p-3.5"
+              >
+                <div className="flex items-start gap-2.5">
+                  <PlayerAvatar
+                    initials={initialsOf(c.assigneA.name)}
+                    tone={toneForRole(c.assigneA.role)}
+                    size={30}
+                    label={c.assigneA.name}
+                  />
+                  <div className="min-w-0 flex-1">
                     <Link
-                      href={`/prospects/${c.prospect.id}`}
-                      className="block truncate font-medium text-foreground hover:underline"
+                      href={`/contrats/${c.id}`}
+                      className="block truncate text-[15px] font-extrabold text-foreground hover:underline"
                     >
                       {c.prospect.raisonSociale}
                     </Link>
-                    <p className="font-mono text-[10px] text-muted-foreground">
-                      <Link
-                        href={`/contrats/${c.id}`}
-                        className="hover:underline"
-                      >
-                        {c.numero}
-                      </Link>
+                    <p className="text-xs font-semibold text-muted-foreground tabular-nums">
+                      {c.numero}
                       {c.prospect.ville ? ` · ${c.prospect.ville}` : ""}
                     </p>
                   </div>
                   <ContractStatutBadge statut={c.statut} />
                 </div>
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                <p className="mt-2 truncate text-[13px] font-semibold">{offresOf(c)}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
                   <span className="tabular-nums">
                     <span className="text-muted-foreground">An 1 </span>
-                    <span className="font-semibold">
-                      {formatCHF(Number(c.valeurAn1))}
-                    </span>
+                    <span className="font-extrabold">{formatCHF(Number(c.valeurAn1))}</span>
                   </span>
                   {Number(c.montantMensuel) > 0 && (
-                    <span className="tabular-nums text-muted-foreground">
-                      {formatCHF(Number(c.montantMensuel))}/mois
+                    <span className="font-semibold tabular-nums">
+                      {formatCHF(Number(c.montantMensuel))} / mois
                     </span>
                   )}
-                  <span className="tabular-nums text-muted-foreground">
-                    signé {formatDate(c.dateSignature)}
-                  </span>
+                  <StatusPill tone={palier.tone} dot={false} className="h-5 px-2 text-[11px]">
+                    Palier {palier.label}
+                  </StatusPill>
                 </div>
-                {renewal && (
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    Renouvel. {formatDate(renewal)} ({relativeDays(renewal).label})
-                  </p>
-                )}
-                {showCommerciale && (
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {c.assigneA.name}
-                  </p>
-                )}
-              </div>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Signé le {formatDate(c.dateSignature)}
+                  {renewal
+                    ? ` · renouvel. ${formatDate(renewal)} (${relativeDays(renewal).label})`
+                    : ""}
+                  {showCommerciale ? ` · ${c.assigneA.name}` : ""}
+                </p>
+                <Link
+                  href={`/prospects/${c.prospect.id}`}
+                  className="mt-2 inline-flex h-9 items-center text-[13px] font-bold text-info-700 underline-offset-2 hover:underline"
+                >
+                  Fiche entreprise
+                </Link>
+              </li>
             );
           })
         )}
-      </div>
+      </ul>
 
-      {/* Vue TABLEAU sur desktop */}
+      {/* Vue TABLEAU sur ordinateur */}
       <div className="hidden md:block">
         <DataTable
           columns={columns}
           data={rows}
-          emptyMessage="Aucun contrat. Crée un contrat depuis un deal signé."
+          emptyMessage="Aucun contrat ne correspond. Essaie un autre filtre."
           getRowHref={(c) => `/contrats/${c.id}`}
+          className="rounded-[16px] [&_tbody_tr:hover]:bg-navy-50/70 [&_thead]:bg-ground/80"
         />
       </div>
     </>

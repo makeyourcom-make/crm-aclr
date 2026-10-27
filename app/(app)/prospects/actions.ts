@@ -501,7 +501,7 @@ function zodErrorToResult(err: import("zod").ZodError): ProspectActionResult {
   }
   return {
     ok: false,
-    error: "Formulaire invalide — voir les champs en rouge.",
+    error: "Formulaire invalide : vérifie les champs en rouge.",
     fieldErrors,
   };
 }
