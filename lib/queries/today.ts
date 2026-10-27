@@ -187,7 +187,8 @@ export async function getTodayCockpit(
         ...scopeWhere,
         type: { in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"] },
         prospectId: { not: null },
-        date: { gte: startOfToday, lte: endOfToday },
+        // Plafonné à maintenant : un RDV futur marqué « fait » par erreur ne compte pas.
+        date: { gte: startOfToday, lte: new Date(Math.min(endOfToday.getTime(), Date.now())) },
         statut: "FAIT",
       },
     }),

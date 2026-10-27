@@ -131,7 +131,7 @@ export async function getTodayCallStats(user: SessionUser) {
         type: { in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"] },
         // RDV honoré = rattaché à un client (exclut phoning / points internes).
         prospectId: { not: null },
-        date: { gte: start, lte: end },
+        date: { gte: start, lte: new Date(Math.min(end.getTime(), Date.now())) },
         statut: "FAIT",
       },
     }),

@@ -343,7 +343,7 @@ export async function getTeamActivityOverview(
           type: { in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"] },
           prospectId: { not: null },
           statut: "FAIT",
-          date: range,
+          date: { ...range, lte: new Date(Math.min(range.lte.getTime(), Date.now())) },
         },
         _count: true,
       }),
@@ -475,7 +475,7 @@ export async function getStats(
         // Un vrai RDV honoré est rattaché à un client : exclut le phoning et les
         // points internes (ex. « RDV Arthur ») enregistrés avec le type RDV.
         prospectId: { not: null },
-        date: { gte: start, lte: end },
+        date: { gte: start, lte: new Date(Math.min(end.getTime(), Date.now())) },
         statut: "FAIT",
       },
     }),

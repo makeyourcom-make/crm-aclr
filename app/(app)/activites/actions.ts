@@ -44,6 +44,18 @@ export interface ActivityActionResult {
 }
 
 // ===========================================================================
+// GARDE-FOU RDV : un rendez-vous ne peut pas être « fait » avant son heure
+// ===========================================================================
+
+const RDV_TYPES = new Set(["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"]);
+const RDV_PAS_ENCORE_EU_LIEU =
+  "Ce rendez-vous n'a pas encore eu lieu : il ne peut pas être marqué comme fait avant son heure.";
+
+function rdvFaitAvantHeure(type: string, date: Date, statut: string | undefined | null): boolean {
+  return statut === "FAIT" && RDV_TYPES.has(type) && date.getTime() > Date.now();
+}
+
+// ===========================================================================
 // CREATE — manuel (formulaire "Logger une activité")
 // ===========================================================================
 
@@ -64,6 +76,10 @@ export async function createActivity(
 
   // Si admin et userId fourni → on assigne à ce user (Sophie par ex.)
   // Sinon, fallback sur l'user courant (Sophie ne peut s'assigner qu'à elle).
+  if (rdvFaitAvantHeure(parsed.data.type, parsed.data.date, parsed.data.statut)) {
+    return { ok: false, error: RDV_PAS_ENCORE_EU_LIEU };
+  }
+
   const assignToUserId =
     user.role === "ADMIN" && parsed.data.userId ? parsed.data.userId : user.id;
 
@@ -184,6 +200,9 @@ export async function createRecurringActivities(
   if (parsed.data.prospectId) {
     await assertCanAccessProspect(user, parsed.data.prospectId);
   }
+  if (rdvFaitAvantHeure(parsed.data.type, parsed.data.date, parsed.data.statut)) {
+    return { ok: false, error: RDV_PAS_ENCORE_EU_LIEU };
+  }
   const assignToUserId =
     user.role === "ADMIN" && parsed.data.userId ? parsed.data.userId : user.id;
 
@@ -242,6 +261,19 @@ export async function updateActivity(
     return zodErrorToResult(parsed.error);
   }
 
+  if (parsed.data.statut === "FAIT") {
+    const current = await prisma.activity.findUnique({
+      where: { id },
+      select: { type: true, date: true },
+    });
+    if (
+      current &&
+      rdvFaitAvantHeure(parsed.data.type ?? current.type, parsed.data.date ?? current.date, "FAIT")
+    ) {
+      return { ok: false, error: RDV_PAS_ENCORE_EU_LIEU };
+    }
+  }
+
   try {
     const updated = await prisma.activity.update({
       where: { id },
@@ -271,6 +303,14 @@ export async function markActivityDone(
 ): Promise<ActivityActionResult> {
   const user = await requireUser();
   await assertCanEditActivity(user, id);
+
+  const current = await prisma.activity.findUnique({
+    where: { id },
+    select: { type: true, date: true },
+  });
+  if (current && rdvFaitAvantHeure(current.type, current.date, "FAIT")) {
+    return { ok: false, error: RDV_PAS_ENCORE_EU_LIEU };
+  }
 
   try {
     const updated = await prisma.activity.update({
