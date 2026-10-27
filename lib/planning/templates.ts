@@ -3,11 +3,12 @@
  * service par service. Chaque règle est ensuite MODIFIABLE par client (rythme,
  * fenêtre, durée, activation) depuis le planning.
  *
+ * « Site internet - SEO » est UN seul service (fusion demandée par Arthur le
+ * 27.10.2026 : site et référencement trop liés) : un article par mois, un point
+ * SEO par mois, le rapport client tous les 2 mois.
  * Dédoublonnage entre services d'un même client :
- *  - un seul article par mois : client avec SEO → l'article SEO remplace celui
- *    du site ; le « point SEO » du site disparaît aussi au profit du SEO ;
- *  - Google Business : intégré au calendrier éditorial RS ; un client SEO SANS
- *    réseaux sociaux a une tâche « post Google Business » mensuelle ;
+ *  - Google Business : intégré au calendrier éditorial RS ; un client Site
+ *    internet - SEO SANS réseaux sociaux a une tâche « post Google Business » ;
  *  - ADS : refacturation des frais pub seulement si ACLR les avance.
  */
 import type { PlanningFrequence } from "@prisma/client";
@@ -15,7 +16,6 @@ import type { PlanningFrequence } from "@prisma/client";
 export type ServiceCode =
   | "SITE"
   | "RS"
-  | "SEO"
   | "ADS"
   | "CMO"
   | "STRATEGIE"
@@ -28,9 +28,8 @@ export const SERVICES: Record<
   ServiceCode,
   { label: string; badge: string; ajoutable: boolean }
 > = {
-  SITE: { label: "Site web", badge: "bg-blue-100 text-blue-800", ajoutable: true },
+  SITE: { label: "Site internet - SEO", badge: "bg-blue-100 text-blue-800", ajoutable: true },
   RS: { label: "Réseaux sociaux", badge: "bg-pink-100 text-pink-800", ajoutable: true },
-  SEO: { label: "Référencement", badge: "bg-teal-100 text-teal-800", ajoutable: true },
   ADS: { label: "Publicité Google / Meta", badge: "bg-orange-100 text-orange-800", ajoutable: true },
   CMO: { label: "CMO", badge: "bg-indigo-100 text-indigo-800", ajoutable: true },
   STRATEGIE: { label: "Stratégie", badge: "bg-amber-100 text-amber-800", ajoutable: true },
@@ -43,9 +42,11 @@ export const SERVICES: Record<
 /** Catégorie produit (catalogue) → service du planning. */
 export function serviceFromCategorie(categorie: string): ServiceCode | null {
   switch (categorie) {
+    // Site et référencement = un seul service « Site internet - SEO ».
     case "SITE":
-    case "RS":
     case "SEO":
+      return "SITE";
+    case "RS":
     case "ADS":
     case "CMO":
       return categorie;
@@ -78,12 +79,8 @@ export interface RegleTemplate {
 
 export const TEMPLATES: Record<string, RegleTemplate[]> = {
   SITE: [
-    { code: "SITE_ARTICLE", titre: "Rédiger et publier l'article du mois", court: "Article", frequence: "MENSUELLE", fenetreDebut: 1, fenetreFin: 22, dureeMin: 15 },
-    { code: "SITE_POINT_SEO", titre: "Point SEO mensuel (contrôle du site + mises à jour techniques)", court: "Point SEO", frequence: "MENSUELLE", fenetreDebut: 1, fenetreFin: 22, dureeMin: 60 },
-  ],
-  SEO: [
-    { code: "SEO_ARTICLE", titre: "Rédaction SEO : article / page du mois", court: "Article SEO", frequence: "MENSUELLE", fenetreDebut: 1, fenetreFin: 22, dureeMin: 15 },
-    { code: "SEO_POINT", titre: "Point SEO mensuel (positions, optimisations, contrôle, mises à jour) - rapport interne", court: "Point SEO", frequence: "MENSUELLE", fenetreDebut: 1, fenetreFin: 22, dureeMin: 60 },
+    { code: "SITE_ARTICLE", titre: "Rédiger et publier l'article / la page du mois", court: "Article", frequence: "MENSUELLE", fenetreDebut: 1, fenetreFin: 22, dureeMin: 15 },
+    { code: "SITE_POINT_SEO", titre: "Point SEO mensuel (positions, optimisations, contrôle du site, mises à jour techniques) - rapport interne", court: "Point SEO", frequence: "MENSUELLE", fenetreDebut: 1, fenetreFin: 22, dureeMin: 60 },
     { code: "SEO_RAPPORT", titre: "Envoyer le rapport SEO au client", court: "Rapport client", frequence: "BIMESTRIELLE", fenetreDebut: 15, fenetreFin: 22, dureeMin: 30 },
     { code: "SEO_GBP", titre: "Post Google Business", court: "Post Google", frequence: "MENSUELLE", fenetreDebut: 1, fenetreFin: 22, dureeMin: 15 },
   ],
@@ -126,17 +123,13 @@ export function libelleCourt(code: string | null | undefined, titre: string): st
 
 /**
  * Codes de règles à DÉSACTIVER pour un client selon l'ensemble de ses services
- * actifs (un seul article / point SEO ; Google Business ; refacturation ADS).
+ * actifs (Google Business si réseaux sociaux ; refacturation ADS).
  */
 export function codesDesactives(
   services: Set<string>,
   opts: { fraisPubAvances: boolean },
 ): Set<string> {
   const off = new Set<string>();
-  if (services.has("SEO")) {
-    off.add("SITE_ARTICLE");
-    off.add("SITE_POINT_SEO");
-  }
   if (services.has("RS")) off.add("SEO_GBP");
   if (!opts.fraisPubAvances) off.add("ADS_REFAC");
   return off;

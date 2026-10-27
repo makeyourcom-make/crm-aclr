@@ -418,12 +418,68 @@ function MonthView({
       .flatMap((w) => index.map.get(`${ligneId}|${m}|${w}`) ?? [])
       .sort((a, b) => a.date.localeCompare(b.date));
 
-  // Regroupe les lignes par client.
-  const groupes = useMemo(() => {
+  // Tableau DYNAMIQUE : les clients qui ont quelque chose à faire maintenant
+  // (retards, puis cette semaine) en haut ; une fois leurs tâches faites, ils
+  // descendent, et remontent quand leur prochaine semaine arrive.
+  const sections = useMemo(() => {
+    // Point de vue : aujourd'hui (ou le début du mois affiché s'il est futur).
+    const focus = from > today ? from : today;
+    const dow = new Date(`${focus}T00:00:00Z`).getUTCDay() || 7;
+    const finSemaine = addDaysStr(focus, 7 - dow); // dimanche de la semaine
+
+    type Score = { critiques: number; retards: number; prochaine: string | null };
+    const scoreLigne = new Map<string, Score>();
+    for (const l of lignes) scoreLigne.set(l.id, { critiques: 0, retards: 0, prochaine: null });
+    for (const t of taches) {
+      if (t.statut === "FAIT") continue;
+      const sc = scoreLigne.get(t.ligneId);
+      if (!sc) continue;
+      const e = etatTache(t, today);
+      if (e === "critique") sc.critiques++;
+      else if (e === "retard") sc.retards++;
+      else if (t.date >= focus && (!sc.prochaine || t.date < sc.prochaine)) sc.prochaine = t.date;
+    }
+    const cmp = (a: Score, b: Score) =>
+      b.critiques - a.critiques ||
+      b.retards - a.retards ||
+      (a.prochaine ?? "9999").localeCompare(b.prochaine ?? "9999");
+
     const g = new Map<string, PlanningLigneDTO[]>();
     for (const l of lignes) g.set(l.prospectId, [...(g.get(l.prospectId) ?? []), l]);
-    return [...g.values()];
-  }, [lignes]);
+    const groupes = [...g.values()].map((ls) => {
+      // Services du client : ceux qui ont quelque chose à faire d'abord.
+      const tries = [...ls].sort((a, b) => cmp(scoreLigne.get(a.id)!, scoreLigne.get(b.id)!));
+      const sc = tries
+        .map((l) => scoreLigne.get(l.id)!)
+        .reduce(
+          (acc, x) => ({
+            critiques: acc.critiques + x.critiques,
+            retards: acc.retards + x.retards,
+            prochaine: !acc.prochaine || (x.prochaine && x.prochaine < acc.prochaine) ? x.prochaine ?? acc.prochaine : acc.prochaine,
+          }),
+          { critiques: 0, retards: 0, prochaine: null } as Score,
+        );
+      const aPreciser = ls.every((l) => PLACEHOLDERS.has(l.service));
+      const section: 0 | 1 | 2 | 3 = aPreciser
+        ? 3
+        : sc.critiques + sc.retards > 0 || (sc.prochaine !== null && sc.prochaine <= finSemaine)
+          ? 0
+          : sc.prochaine
+            ? 1
+            : 2;
+      return { ls: tries, sc, section, nom: ls[0]!.client };
+    });
+    groupes.sort((a, b) => a.section - b.section || cmp(a.sc, b.sc) || a.nom.localeCompare(b.nom, "fr"));
+    const titres = [
+      "À traiter : retards et tâches de cette semaine",
+      "À venir",
+      "Rien de prévu sur la période",
+      "Services à préciser",
+    ];
+    return [0, 1, 2, 3]
+      .map((i) => ({ titre: titres[i]!, groupes: groupes.filter((x) => x.section === i) }))
+      .filter((x) => x.groupes.length > 0);
+  }, [lignes, taches, today, from]);
 
   const nbCols = months.reduce((s, m) => s + (expanded.has(m) ? 4 : 1), 0);
 
@@ -484,7 +540,17 @@ function MonthView({
           </tr>
         </thead>
         <tbody>
-          {groupes.map((ls) => {
+          {sections.map((sec) => [
+            <tr key={`sec-${sec.titre}`} className="bg-muted/60">
+              <td
+                colSpan={2}
+                className="sticky left-0 z-10 bg-muted px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+              >
+                {sec.titre} · {sec.groupes.length}
+              </td>
+              <td colSpan={nbCols} className="bg-muted/60" />
+            </tr>,
+            ...sec.groupes.map(({ ls }) => {
             const client = { id: ls[0]!.prospectId, nom: ls[0]!.client };
             const deja = ls.map((l) => l.service);
             return ls.map((l, i) => (
@@ -545,7 +611,8 @@ function MonthView({
                 )}
               </tr>
             ));
-          })}
+            }),
+          ])}
         </tbody>
       </table>
     </div>

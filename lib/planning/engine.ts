@@ -34,7 +34,7 @@ import {
 } from "@/lib/planning/templates";
 
 /** Codes concernés par le dédoublonnage inter-services (cf. templates). */
-const DEDUPE_CODES = ["SITE_ARTICLE", "SITE_POINT_SEO", "SEO_GBP", "ADS_REFAC"];
+const DEDUPE_CODES = ["SEO_GBP", "ADS_REFAC"];
 /** Lignes « à préciser » : disparaissent dès qu'un vrai service existe. */
 const PLACEHOLDERS = new Set(["A_CONFIGURER", "PACK"]);
 
@@ -202,8 +202,8 @@ export async function setLigneActif(ligneId: string, actif: boolean) {
 }
 
 /**
- * Dédoublonnage entre services d'un client (un seul article/point SEO,
- * Google Business, refacturation ADS) : active/désactive les règles concernées.
+ * Dédoublonnage entre services d'un client (Google Business si réseaux
+ * sociaux, refacturation ADS) : active/désactive les règles concernées.
  */
 export async function applyDedupe(ownerId: string, prospectId: string) {
   const lignes = await prisma.planningLigne.findMany({
