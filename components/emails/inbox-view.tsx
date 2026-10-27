@@ -55,6 +55,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { htmlToPlainText } from "@/lib/email-html";
 import { formatFileSize } from "@/lib/format";
+import { RecipientInput } from "@/components/emails/recipient-input";
 
 const STATUT_LABEL: Record<string, string> = {
   BROUILLON: "Brouillon",
@@ -952,20 +953,8 @@ function DraftEditor({ draft }: { draft: InboxEmail }) {
           </button>
         ) : (
           <div className="space-y-1.5">
-            <input
-              value={cc}
-              onChange={(e) => setCc(e.target.value)}
-              placeholder="Cc : copie@exemple.ch, autre@exemple.ch"
-              disabled={pending}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            <input
-              value={bcc}
-              onChange={(e) => setBcc(e.target.value)}
-              placeholder="Cci : copie.cachee@exemple.ch"
-              disabled={pending}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
+            <RecipientInput value={cc} onChange={setCc} placeholder="Cc : copie@exemple.ch, autre@exemple.ch" disabled={pending} />
+            <RecipientInput value={bcc} onChange={setBcc} placeholder="Cci : copie.cachee@exemple.ch" disabled={pending} />
           </div>
         )}
         <div className="space-y-1.5">
@@ -1418,14 +1407,14 @@ function ThreadDetail({
               <span className="mb-1 block text-muted-foreground">
                 Transférer à
               </span>
-              <input
-                type="email"
+              <RecipientInput
                 value={forwardTo}
-                onChange={(e) => setForwardTo(e.target.value)}
-                placeholder="adresse@exemple.ch"
+                onChange={setForwardTo}
+                multiple={false}
+                placeholder="Client, contact ou adresse@exemple.ch"
                 disabled={pending}
                 autoFocus
-                className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                className="h-9 px-2.5 py-0"
               />
             </label>
 
@@ -1439,20 +1428,8 @@ function ThreadDetail({
               </button>
             ) : (
               <div className="space-y-1.5">
-                <input
-                  value={forwardCc}
-                  onChange={(e) => setForwardCc(e.target.value)}
-                  placeholder="Cc : copie@exemple.ch, autre@exemple.ch"
-                  disabled={pending}
-                  className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-                />
-                <input
-                  value={forwardBcc}
-                  onChange={(e) => setForwardBcc(e.target.value)}
-                  placeholder="Cci : copie.cachee@exemple.ch"
-                  disabled={pending}
-                  className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-                />
+                <RecipientInput value={forwardCc} onChange={setForwardCc} placeholder="Cc : copie@exemple.ch, autre@exemple.ch" disabled={pending} className="h-9 px-2.5 py-0" />
+                <RecipientInput value={forwardBcc} onChange={setForwardBcc} placeholder="Cci : copie.cachee@exemple.ch" disabled={pending} className="h-9 px-2.5 py-0" />
               </div>
             )}
 
@@ -1533,20 +1510,8 @@ function ThreadDetail({
               </button>
             ) : (
               <div className="space-y-1.5">
-                <input
-                  value={replyCc}
-                  onChange={(e) => setReplyCc(e.target.value)}
-                  placeholder="Cc : copie@exemple.ch, autre@exemple.ch"
-                  disabled={pending}
-                  className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-                />
-                <input
-                  value={replyBcc}
-                  onChange={(e) => setReplyBcc(e.target.value)}
-                  placeholder="Cci : copie.cachee@exemple.ch"
-                  disabled={pending}
-                  className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
-                />
+                <RecipientInput value={replyCc} onChange={setReplyCc} placeholder="Cc : copie@exemple.ch, autre@exemple.ch" disabled={pending} className="h-9 px-2.5 py-0" />
+                <RecipientInput value={replyBcc} onChange={setReplyBcc} placeholder="Cci : copie.cachee@exemple.ch" disabled={pending} className="h-9 px-2.5 py-0" />
               </div>
             )}
             <RichTextEditor

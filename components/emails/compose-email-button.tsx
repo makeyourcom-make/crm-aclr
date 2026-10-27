@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RecipientInput } from "@/components/emails/recipient-input";
 
 interface ProspectOption {
   id: string;
@@ -422,19 +423,9 @@ export function ComposeEmailButton() {
               ) : (
                 <div className="space-y-1.5">
                   <Label htmlFor="cc">Cc</Label>
-                  <Input
-                    id="cc"
-                    value={cc}
-                    onChange={(e) => setCc(e.target.value)}
-                    placeholder="copie@exemple.ch, autre@exemple.ch"
-                  />
+                  <RecipientInput id="cc" value={cc} onChange={setCc} placeholder="copie@exemple.ch, autre@exemple.ch" />
                   <Label htmlFor="bcc">Cci (copie cachée)</Label>
-                  <Input
-                    id="bcc"
-                    value={bcc}
-                    onChange={(e) => setBcc(e.target.value)}
-                    placeholder="copie.cachee@exemple.ch"
-                  />
+                  <RecipientInput id="bcc" value={bcc} onChange={setBcc} placeholder="copie.cachee@exemple.ch" />
                   <p className="text-[11px] text-muted-foreground">
                     Plusieurs adresses séparées par une virgule ou un
                     point-virgule.

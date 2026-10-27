@@ -24,6 +24,7 @@ import {
 import { EmailHtmlFrame } from "@/components/emails/email-html-frame";
 import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
+import { RecipientInput } from "@/components/emails/recipient-input";
 
 interface EmailAttachment {
   id: string;
@@ -336,20 +337,8 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
               </button>
             ) : (
               <div className="space-y-1.5">
-                <input
-                  value={replyCc}
-                  onChange={(e) => setReplyCc(e.target.value)}
-                  placeholder="Cc : copie@exemple.ch, autre@exemple.ch"
-                  disabled={pending}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-                <input
-                  value={replyBcc}
-                  onChange={(e) => setReplyBcc(e.target.value)}
-                  placeholder="Cci : copie.cachee@exemple.ch"
-                  disabled={pending}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
+                <RecipientInput value={replyCc} onChange={setReplyCc} placeholder="Cc : copie@exemple.ch, autre@exemple.ch" disabled={pending} />
+                <RecipientInput value={replyBcc} onChange={setReplyBcc} placeholder="Cci : copie.cachee@exemple.ch" disabled={pending} />
               </div>
             )}
             <textarea
