@@ -17,6 +17,10 @@ export const ALL_CATEGORY_KEYS: ActivityCategory[] = ACTIVITY_CATEGORIES.map(
   (c) => c.key,
 );
 
+/** Affichage par défaut de l'agenda : les rendez-vous seulement (demande
+ *  d'Arthur) ; mails, appels et autres s'ajoutent d'un clic. */
+export const DEFAULT_CATEGORY_KEYS: ActivityCategory[] = ["rdv"];
+
 export function activityCategory(type: ActivityType): ActivityCategory {
   switch (type) {
     case "RDV_PHYSIQUE":

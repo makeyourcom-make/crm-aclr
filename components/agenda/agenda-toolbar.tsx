@@ -6,6 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import {
   ACTIVITY_CATEGORIES,
   ALL_CATEGORY_KEYS,
+  DEFAULT_CATEGORY_KEYS,
   type ActivityCategory,
 } from "@/lib/activity-category";
 import { AGENDA_DEFAULT_VIEW } from "@/lib/agenda-view";
@@ -42,9 +43,13 @@ export function AgendaToolbar({
   hideDone,
   activeCats,
 }: AgendaToolbarProps) {
-  // Paramètre cat= à préserver dans les liens (omis quand tout est affiché).
-  const allShown = activeCats.length === ALL_CATEGORY_KEYS.length;
-  const catValue = allShown
+  // Paramètre cat= à préserver dans les liens (omis quand c'est l'affichage
+  // par défaut : RDV seulement).
+  const isDefault = (cats: ActivityCategory[]) =>
+    cats.length === DEFAULT_CATEGORY_KEYS.length &&
+    DEFAULT_CATEGORY_KEYS.every((k) => cats.includes(k));
+  const defaultShown = isDefault(activeCats);
+  const catValue = defaultShown
     ? null
     : activeCats.length === 0
       ? "none"
@@ -61,7 +66,7 @@ export function AgendaToolbar({
   };
 
   // Lien d'un chip de catégorie : bascule cette catégorie dans l'ensemble
-  // affiché. Tout affiché → on omet le paramètre.
+  // affiché. Affichage par défaut → on omet le paramètre.
   const chipHref = (c: ActivityCategory) => {
     const set = new Set(activeCats);
     if (set.has(c)) set.delete(c);
@@ -72,8 +77,7 @@ export function AgendaToolbar({
     sp.set("date", toIso(date));
     if (view && view !== AGENDA_DEFAULT_VIEW) sp.set("view", view);
     if (hideDone) sp.set("hideDone", "1");
-    if (next.length > 0 && next.length < ALL_CATEGORY_KEYS.length)
-      sp.set("cat", next.join(","));
+    if (next.length > 0 && !isDefault(next)) sp.set("cat", next.join(","));
     // next vide = aucune catégorie : on encode "none" pour ne rien afficher.
     if (next.length === 0) sp.set("cat", "none");
     return `/agenda?${sp.toString()}`;
@@ -191,7 +195,7 @@ export function AgendaToolbar({
             </Link>
           );
         })}
-        {!allShown && (
+        {!defaultShown && (
           <Link
             href={(() => {
               const sp = new URLSearchParams();
@@ -203,7 +207,7 @@ export function AgendaToolbar({
             })()}
             className="ml-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
           >
-            Réinitialiser
+            Réinitialiser (RDV)
           </Link>
         )}
       </div>

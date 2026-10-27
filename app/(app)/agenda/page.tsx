@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/page-header";
 import {
   activityCategory,
   ALL_CATEGORY_KEYS,
+  DEFAULT_CATEGORY_KEYS,
   type ActivityCategory,
 } from "@/lib/activity-category";
 import { AGENDA_DEFAULT_VIEW } from "@/lib/agenda-view";
@@ -49,7 +50,8 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   refDate.setHours(0, 0, 0, 0);
   const hideDone = raw.hideDone === "1";
 
-  // Filtre par catégorie d'activité (?cat=rdv,mail,appel). Absent = tout.
+  // Filtre par catégorie d'activité (?cat=rdv,mail,appel). Absent = défaut
+  // (RDV seulement) ; « none » = rien.
   const catParam = typeof raw.cat === "string" ? raw.cat : undefined;
   const activeCats: ActivityCategory[] = catParam
     ? (catParam
@@ -58,12 +60,10 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         .filter((c) =>
           ALL_CATEGORY_KEYS.includes(c as ActivityCategory),
         ) as ActivityCategory[])
-    : ALL_CATEGORY_KEYS;
-  // Filtre actif dès qu'un cat= est fourni et qu'il ne couvre pas tout
+    : DEFAULT_CATEGORY_KEYS;
+  // Filtre actif dès que l'ensemble affiché ne couvre pas tout
   // (y compris "none"/vide → on n'affiche rien).
-  const catFilterActive =
-    catParam !== undefined &&
-    activeCats.length < ALL_CATEGORY_KEYS.length;
+  const catFilterActive = activeCats.length < ALL_CATEGORY_KEYS.length;
 
   // Construit la liste des colonnes (dates) + l'intervalle de requête
   let dates: Date[];
