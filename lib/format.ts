@@ -1,5 +1,5 @@
 /**
- * Helpers de formatage — convention suisse / UI française.
+ * Helpers de formatage - convention suisse / UI française.
  *
  * Montants : convention suisse (apostrophe milliers, point décimal)
  *   ex. CHF 2'500.00, CHF 1'490.00
@@ -44,9 +44,9 @@ const numberFormatter = new Intl.NumberFormat("de-CH", {
  * @example formatCHF(1490)  → "CHF 1'490.00"
  */
 export function formatCHF(amount: number | string | null | undefined): string {
-  if (amount === null || amount === undefined || amount === "") return "—";
+  if (amount === null || amount === undefined || amount === "") return "-";
   const n = typeof amount === "string" ? Number(amount) : amount;
-  if (!Number.isFinite(n)) return "—";
+  if (!Number.isFinite(n)) return "-";
   return chfFormatter.format(n);
 }
 
@@ -59,9 +59,9 @@ export function formatMoney(
   amount: number | string | null | undefined,
   devise?: string | null,
 ): string {
-  if (amount === null || amount === undefined || amount === "") return "—";
+  if (amount === null || amount === undefined || amount === "") return "-";
   const n = typeof amount === "string" ? Number(amount) : amount;
-  if (!Number.isFinite(n)) return "—";
+  if (!Number.isFinite(n)) return "-";
   const cur = (devise ?? "CHF").toUpperCase();
   if (cur === "EUR") {
     // Intl.NumberFormat fr-FR utilise U+202F (narrow no-break space) comme
@@ -87,9 +87,9 @@ export function formatMoney(
 export function formatCHFCompact(
   amount: number | string | null | undefined,
 ): string {
-  if (amount === null || amount === undefined || amount === "") return "—";
+  if (amount === null || amount === undefined || amount === "") return "-";
   const n = typeof amount === "string" ? Number(amount) : amount;
-  if (!Number.isFinite(n)) return "—";
+  if (!Number.isFinite(n)) return "-";
   return chfFormatterCompact.format(n);
 }
 
@@ -98,7 +98,7 @@ export function formatCHFCompact(
  * @example formatNumber(2500.5) → "2'500.5"
  */
 export function formatNumber(n: number | null | undefined): string {
-  if (n === null || n === undefined || !Number.isFinite(n)) return "—";
+  if (n === null || n === undefined || !Number.isFinite(n)) return "-";
   return numberFormatter.format(n);
 }
 
@@ -110,7 +110,7 @@ export function formatPercent(
   decimals = 1,
 ): string {
   if (ratio === null || ratio === undefined || !Number.isFinite(ratio))
-    return "—";
+    return "-";
   return `${(ratio * 100).toFixed(decimals).replace(".", ".")} %`;
 }
 
@@ -122,9 +122,9 @@ export function formatPercent(
  * Date longue en français : "28 mai 2026".
  */
 export function formatDateLong(date: Date | string | null | undefined): string {
-  if (!date) return "—";
+  if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
-  if (!isValid(d)) return "—";
+  if (!isValid(d)) return "-";
   return dfnsFormat(d, "d MMMM yyyy", { locale: fr });
 }
 
@@ -132,9 +132,9 @@ export function formatDateLong(date: Date | string | null | undefined): string {
  * Date courte numérique : "28/05/2026".
  */
 export function formatDate(date: Date | string | null | undefined): string {
-  if (!date) return "—";
+  if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
-  if (!isValid(d)) return "—";
+  if (!isValid(d)) return "-";
   return dfnsFormat(d, "dd/MM/yyyy", { locale: fr });
 }
 
@@ -144,9 +144,9 @@ export function formatDate(date: Date | string | null | undefined): string {
 export function formatDateTime(
   date: Date | string | null | undefined,
 ): string {
-  if (!date) return "—";
+  if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
-  if (!isValid(d)) return "—";
+  if (!isValid(d)) return "-";
   return dfnsFormat(d, "dd/MM/yyyy HH:mm", { locale: fr });
 }
 
@@ -154,9 +154,9 @@ export function formatDateTime(
  * Heure seule : "14:30".
  */
 export function formatTime(date: Date | string | null | undefined): string {
-  if (!date) return "—";
+  if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
-  if (!isValid(d)) return "—";
+  if (!isValid(d)) return "-";
   return dfnsFormat(d, "HH:mm", { locale: fr });
 }
 
@@ -166,9 +166,9 @@ export function formatTime(date: Date | string | null | undefined): string {
 export function formatRelative(
   date: Date | string | null | undefined,
 ): string {
-  if (!date) return "—";
+  if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
-  if (!isValid(d)) return "—";
+  if (!isValid(d)) return "-";
   return formatDistanceToNow(d, { locale: fr, addSuffix: true });
 }
 
@@ -183,7 +183,7 @@ export function formatRelative(
  */
 export function formatDuration(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds))
-    return "—";
+    return "-";
   const s = Math.max(0, Math.floor(seconds));
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
@@ -202,7 +202,7 @@ export function formatDuration(seconds: number | null | undefined): string {
  * Accepte plusieurs formats d'entrée, normalise vers "+41 XX XXX XX XX".
  */
 export function formatPhone(raw: string | null | undefined): string {
-  if (!raw) return "—";
+  if (!raw) return "-";
   const digits = raw.replace(/\D/g, "");
   // Cas +41XXXXXXXXX
   if (digits.startsWith("41") && digits.length === 11) {
@@ -228,7 +228,7 @@ export function normalizePhone(raw: string | null | undefined): string | null {
   return null;
 }
 
-/** Taille de fichier lisible (B / KB / MB) — pièces jointes email et projets. */
+/** Taille de fichier lisible (B / KB / MB) - pièces jointes email et projets. */
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;

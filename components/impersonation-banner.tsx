@@ -15,7 +15,7 @@ export async function ImpersonationBanner() {
     <div className="sticky top-0 z-50 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-amber-500 px-4 py-2 text-center text-sm font-medium text-white shadow">
       <Icon name="Eye" className="h-4 w-4 shrink-0" />
       <span>
-        Vue support — tu consultes le CRM en tant que{" "}
+        Vue support · tu consultes le CRM en tant que{" "}
         <b>{imp.asUser.name}</b>.
       </span>
       <form action={stopImpersonating}>

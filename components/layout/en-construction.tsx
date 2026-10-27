@@ -12,7 +12,7 @@ interface EnConstructionProps {
 /**
  * Composant placeholder pour les pages pas encore implémentées.
  *
- * Utilisé pour les 23 modules à venir dans le route group (app)/, pour
+ * Utilisé pour les modules à venir dans le route group (app)/, pour
  * que la navigation soit fonctionnelle dès maintenant.
  */
 export function EnConstruction({
@@ -21,16 +21,18 @@ export function EnConstruction({
   description,
 }: EnConstructionProps) {
   return (
-    <div className="mx-auto max-w-2xl px-6 py-16 text-center">
-      <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10 text-accent">
-        <Icon name="Construction" className="h-7 w-7" />
+    <div className="mx-auto max-w-2xl px-4 py-16 text-center sm:px-6">
+      <div className="mx-auto mb-6 flex size-16 items-center justify-center rounded-[18px] bg-coral-50 text-coral-600 shadow-arena">
+        <Icon name="Construction" className="size-8" />
       </div>
-      <h1 className="text-2xl font-semibold tracking-tight">{titre}</h1>
+      <h1 className="font-display text-2xl font-extrabold tracking-[-0.02em] sm:text-[28px]">
+        {titre}
+      </h1>
       <p className="mt-2 text-sm text-muted-foreground">
         Cette section sera implémentée à l&apos;<strong>étape {etape}/30</strong>.
       </p>
       {description && (
-        <p className="mt-4 mx-auto max-w-md text-sm text-muted-foreground">
+        <p className="mx-auto mt-4 max-w-md text-sm text-muted-foreground">
           {description}
         </p>
       )}

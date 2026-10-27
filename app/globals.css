@@ -5,92 +5,163 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================================================
-   Palette Make Your Com (ACLR Sàrl)
+   MYC Arena - design system du CRM Make Your Com (ACLR Sàrl)
    ----------------------------------------------------------------------------
-   Primaire  : navy profond #0E1936 (couleur du fond du logo)
-   Accent    : coral #F47174 (couleur du "C" dans COM)
-   Neutres   : échelle shadcn (oklch grays)
+   Cockpit commercial lumineux : fond #F4F6FB, cartes blanches très arrondies,
+   sidebar navy comme ancrage, coral pour l'énergie, teintes vives réservées
+   aux scores et aux rubriques. Charte complète : myc-spec/DESIGN.md.
+
+   Règle d'or des teintes : texte = teinte foncée (700), fond = teinte claire
+   (50), barres / anneaux = teinte vive (500). Jamais de texte en #8A93A6
+   (subtle) ni en coral 400 sur blanc en petite taille.
    ============================================================================ */
 
 @theme {
-  /* Navy profond MYC */
-  --color-primary-50:  #eef0f6;
+  /* --- Échelles historiques (conservées : login, anciens écrans) --- */
+  --color-primary-50: #eef0f6;
   --color-primary-100: #d1d6e3;
   --color-primary-200: #a3adc8;
   --color-primary-300: #7484ac;
   --color-primary-400: #4a5d8d;
   --color-primary-500: #2f4470;
   --color-primary-600: #1c2f55;
-  --color-primary-700: #0E1936;   /* couleur principale — fond du logo */
+  --color-primary-700: #0e1936;
   --color-primary-800: #0a1228;
   --color-primary-900: #060a18;
 
-  /* Coral MYC */
-  --color-accent-50:  #fff1f1;
+  --color-accent-50: #fff1f1;
   --color-accent-100: #ffe0e1;
   --color-accent-200: #ffc6c8;
   --color-accent-300: #ff9fa3;
-  --color-accent-400: #F47174;   /* couleur accent — "C" de COM */
+  --color-accent-400: #f47174;
   --color-accent-500: #e95256;
   --color-accent-600: #d33a3f;
   --color-accent-700: #b22d32;
 
-  --font-sans: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* --- Marque : navy (ancrage) --- */
+  --color-navy-50: #eef0f6;
+  --color-navy-100: #e3e7f2;
+  --color-navy-200: #d1d6e3; /* texte des liens sidebar */
+  --color-navy-300: #a3adc8; /* texte secondaire sur navy */
+  --color-navy-400: #7484ac; /* libellés de groupe sur navy (4.6:1) */
+  --color-navy-500: #2f4470;
+  --color-navy-600: #1c2f55;
+  --color-navy-700: #0e1936;
+
+  /* --- Marque : coral (énergie, CTA, flammes) --- */
+  --color-coral-50: #fff1f1;
+  --color-coral-100: #ffe0e1;
+  --color-coral-400: #f47174;
+  --color-coral-500: #e95256;
+  --color-coral-600: #c8323a; /* texte coral sur blanc (5.3:1) */
+
+  /* --- Scores et états --- */
+  --color-win-50: #e3f7eb;
+  --color-win-500: #12a150;
+  --color-win-700: #0b7a3b;
+
+  --color-gold-50: #fff4dc;
+  --color-gold-500: #f5a524;
+  --color-gold-700: #8a5300;
+
+  --color-info-50: #e8eeff;
+  --color-info-500: #3b6ff6;
+  --color-info-700: #2350c9;
+
+  --color-lvl-50: #efeaff;
+  --color-lvl-200: #c9b8ff; /* niveau, en clair sur navy */
+  --color-lvl-500: #7c5cfc;
+  --color-lvl-700: #5b3fd6;
+
+  --color-mail-50: #ddf6f5;
+  --color-mail-500: #0ea5a4;
+  /* #0B7F7E de la charte ne fait que 4.3:1 sur #DDF6F5 : valeur tranchée par
+     le Kit validé (« texte des pastilles teal en #0A6F6E ») = 5.3:1. */
+  --color-mail-700: #0a6f6e;
+
+  --color-alert-50: #fde7e8;
+  --color-alert-500: #e5484d;
+  --color-alert-700: #b42328;
+
+  /* --- Structure --- */
+  --color-ground: #f4f6fb;
+  --color-ink: #0e1936;
+  --color-subtle: #8a93a6; /* icônes / décors uniquement */
+  --color-border-strong: #d5dae6;
+
+  /* --- Ombres --- */
+  --shadow-arena: 0 1px 2px rgba(14, 25, 54, 0.05), 0 8px 24px rgba(14, 25, 54, 0.06);
+  --shadow-arena-lg: 0 12px 32px rgba(14, 25, 54, 0.14);
+  --shadow-cta: 0 8px 20px rgba(233, 82, 86, 0.3);
+
+  /* --- Animations (keyframes définies plus bas, toujours émises) --- */
+  --animate-confetti: myc-confetti 1.6s ease-out both;
+  --animate-confetti-burst: myc-confetti-burst 2s linear both;
+  --animate-confetti-flutter: myc-confetti-flutter 0.45s ease-in-out infinite alternate;
+  --animate-pop: myc-pop 0.6s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
+  --animate-rise: myc-rise 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-pulse-ring: myc-pulse-ring 2s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+  --animate-ring-fill: myc-ring-fill 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  --animate-meter-fill: myc-meter-fill 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  --animate-sheen: myc-sheen 3.2s ease-in-out infinite;
 }
 
 /* ============================================================================
-   Variables sémantiques shadcn (light mode)
-   `--primary` et `--accent` sont branchés sur l'identité ACLR.
+   Variables sémantiques shadcn (mode clair uniquement)
+   Toutes les classes existantes (bg-background, bg-card, text-muted-foreground,
+   border, sidebar-*…) héritent ainsi du look MYC Arena sans retoucher les pages.
    ============================================================================ */
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: #f4f6fb;
+  --foreground: #0e1936;
 
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card: #ffffff;
+  --card-foreground: #0e1936;
 
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --popover: #ffffff;
+  --popover-foreground: #0e1936;
 
-  /* PRIMARY = navy MYC */
-  --primary: #0E1936;
+  /* PRIMARY = navy MYC (boutons primaires) */
+  --primary: #0e1936;
   --primary-foreground: #ffffff;
 
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
+  --secondary: #eef0f6;
+  --secondary-foreground: #0e1936;
 
-  /* ACCENT = coral MYC */
-  --accent: #F47174;
-  --accent-foreground: #ffffff;
+  /* ACCENT = coral doux : survols de menus, mises en avant légères.
+     Texte navy dessus (contraste 13:1). */
+  --accent: #ffe0e1;
+  --accent-foreground: #0e1936;
 
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted: #eef0f6;
+  --muted-foreground: #5b6478; /* 5.9:1 sur blanc */
 
-  --destructive: oklch(0.577 0.245 27.325);
+  /* Rouge lisible en petit texte (6.5:1 sur blanc) */
+  --destructive: #b42328;
 
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: #0E1936;
+  --border: #e5e8f0;
+  --input: #e5e8f0;
+  --ring: #0e1936;
 
-  --radius: 0.625rem;
+  --radius: 0.875rem;
 
-  /* Graphiques (Recharts) — palette dérivée navy + coral */
-  --chart-1: #0E1936;
-  --chart-2: #F47174;
-  --chart-3: #4a5d8d;
-  --chart-4: #ff9fa3;
-  --chart-5: #2f4470;
+  /* Graphiques (Recharts) : navy, coral, vert, or, violet */
+  --chart-1: #0e1936;
+  --chart-2: #f47174;
+  --chart-3: #12a150;
+  --chart-4: #f5a524;
+  --chart-5: #7c5cfc;
 
-  /* Sidebar — fond très légèrement teinté */
-  --sidebar: #fafbfc;
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #0E1936;
+  /* Sidebar navy */
+  --sidebar: #0e1936;
+  --sidebar-foreground: #d1d6e3;
+  --sidebar-primary: #1c2f55;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: oklch(0.96 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: #0E1936;
+  --sidebar-accent: #1c2f55;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #1c2f55;
+  --sidebar-ring: #3b6ff6;
 }
 
 @theme inline {
@@ -128,19 +199,24 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
+  /* Échelle : sm 10 · md 12 (boutons, champs) · lg 14 (tuiles) · xl ~20 (cartes) */
   --radius-sm: calc(var(--radius) - 0.25rem);
   --radius-md: calc(var(--radius) - 0.125rem);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
 
-  --font-sans: var(--font-sans);
-  --font-heading: var(--font-sans);
+  /* Polices chargées par next/font dans app/layout.tsx */
+  --font-sans:
+    var(--font-jakarta), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-display:
+    var(--font-bricolage), var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-display);
 }
 
-/* Dark mode désactivé pour V1 (admin pourra le toggler plus tard).
-   On garde les variables pour la compat shadcn, mais .dark n'est jamais
-   appliqué à <html> dans cette V1. */
+/* Dark mode désactivé (MYC Arena est volontairement clair). On garde les
+   variables pour la compat shadcn, mais .dark n'est jamais appliqué. */
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -154,7 +230,7 @@
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: #F47174;
+  --accent: #f47174;
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
@@ -171,7 +247,149 @@
 }
 
 /* ============================================================================
-   Layer base — defaults sur tous les éléments
+   Utilitaires MYC Arena
+   Les deux SEULS dégradés autorisés par la charte.
+   ============================================================================ */
+
+@utility bg-gradient-coral {
+  background-image: linear-gradient(135deg, #f47174 0%, #e95256 100%);
+}
+
+@utility bg-gradient-navy {
+  background-image: linear-gradient(135deg, #0e1936 0%, #1c2f55 60%, #2f4470 100%);
+}
+
+/* Gros chiffres de score : Bricolage, chiffres tabulaires, approche serrée. */
+@utility score-number {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* ============================================================================
+   Keyframes (hors @theme pour être toujours émises, utilisables aussi en
+   classes arbitraires par les rubriques : animate-[myc-pop_0.6s_ease-out]).
+   ============================================================================ */
+
+/* Petits confettis locaux sur une carte (chute courte). */
+@keyframes myc-confetti {
+  0% {
+    transform: translateY(-12px) rotate(0deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(70px) rotate(320deg);
+    opacity: 0;
+  }
+}
+
+/* Rafale plein écran : montée amortie puis chute accélérée.
+   Variables par confetti : --dx, --dy, --rot (posées en style inline). */
+@keyframes myc-confetti-burst {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(0.5);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.12, 0.75, 0.3, 1);
+  }
+  6% {
+    opacity: 1;
+  }
+  42% {
+    transform: translate3d(var(--dx, 0), var(--dy, -30vh), 0)
+      rotate(calc(var(--rot, 360deg) * 0.45)) scale(1);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.85, 0.55);
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(calc(var(--dx, 0) * 1.3), calc(var(--dy, -30vh) + 80vh), 0)
+      rotate(var(--rot, 360deg)) scale(1);
+    opacity: 0;
+  }
+}
+
+/* Battement du papier (donne l'impression qu'il tourne sur lui-même). */
+@keyframes myc-confetti-flutter {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(0.25);
+  }
+}
+
+@keyframes myc-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes myc-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Halo coral qui pulse autour d'un élément (CTA, combo actif). */
+@keyframes myc-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(244, 113, 116, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(244, 113, 116, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(244, 113, 116, 0);
+  }
+}
+
+/* Remplissage des anneaux SVG : part de --ring-c (circonférence). */
+@keyframes myc-ring-fill {
+  from {
+    stroke-dashoffset: var(--ring-c);
+  }
+}
+
+/* Remplissage des jauges horizontales. */
+@keyframes myc-meter-fill {
+  from {
+    width: 0;
+  }
+}
+
+/* Reflet qui balaie une barre XP. */
+@keyframes myc-sheen {
+  0% {
+    translate: -120% 0;
+  }
+  55%,
+  100% {
+    translate: 420% 0;
+  }
+}
+
+/* ============================================================================
+   Layer base
    ============================================================================ */
 
 @layer base {
@@ -200,5 +418,31 @@
   button,
   [role="button"] {
     touch-action: manipulation;
+  }
+
+  /* Focus clavier bien visible (charte : contour bleu 3 px). Les composants
+     shadcn gardent leur propre anneau (ils posent outline-none).
+     `--focus-ring` permet à une surface sombre (HeroPanel) de passer le
+     contour en blanc : le bleu n'y tient que 2.3:1 sur #2F4470. */
+  :where(a, button, summary, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 3px solid var(--focus-ring, var(--color-info-500));
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-coral-100);
+    color: var(--color-navy-700);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-muted-foreground);
+  }
+}
+
+/* Mouvement réduit : aucune animation décorative MYC Arena. */
+@media (prefers-reduced-motion: reduce) {
+  .myc-anim {
+    animation: none !important;
   }
 }

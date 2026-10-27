@@ -1,17 +1,28 @@
 "use client";
 
+/**
+ * Sidebar MYC Arena (navy) : logo « MAKE YOUR COM · Arena », groupes Jouer /
+ * Vendre / Livrer / Gagner (+ Finance, Administration, Configuration pour
+ * l'admin), bouton d'installation PWA et carte joueur en bas.
+ *
+ * Utilisée à la fois dans l'aside desktop (repliable) et dans le tiroir
+ * mobile (MobileNav / BottomTabBar) : `onNavigate` ferme le tiroir au clic,
+ * `onClose` affiche un bouton « Fermer le menu ».
+ */
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { Icon } from "@/components/icon";
+import { PlayerCard } from "@/components/layout/player-card";
 import { InstallAppButton } from "@/components/pwa/install-app-button";
-import { cn } from "@/lib/utils";
+import type { PlayerHeader } from "@/lib/gamification/rules";
 import {
   ROUTE_GROUPS,
   findRoute,
   getAccessibleRoutes,
   type RouteDef,
 } from "@/lib/routes";
+import { cn } from "@/lib/utils";
 
 import type { Role } from "@prisma/client";
 
@@ -19,68 +30,99 @@ interface SidebarProps {
   role: Role;
   /** Pour le drawer mobile : callback exécuté au clic sur un lien. */
   onNavigate?: () => void;
+  /** Pour le drawer mobile : affiche un bouton de fermeture. */
+  onClose?: () => void;
   /** Compteurs de notifications par section (emails non lus, etc.) */
   badges?: {
     emails?: number;
   };
+  /** Carte joueur (null si le moteur de jeu est indisponible). */
+  player?: PlayerHeader | null;
 }
 
-export function Sidebar({ role, onNavigate, badges }: SidebarProps) {
+export function Sidebar({
+  role,
+  onNavigate,
+  onClose,
+  badges,
+  player,
+}: SidebarProps) {
   const pathname = usePathname();
   const active = findRoute(pathname);
   const visible = getAccessibleRoutes(role);
 
   return (
     <nav
-      className="flex h-full flex-col gap-1 overflow-y-auto bg-sidebar px-3 py-4"
+      className="flex h-full flex-col bg-sidebar text-sidebar-foreground"
+      style={{
+        paddingTop: "max(1.25rem, env(safe-area-inset-top))",
+        paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+      }}
       aria-label="Navigation principale"
     >
-      {/* Marque — wordmark texte net (navy + COM coral). Rendu vectoriel :
-          toujours nnet, bien cadré, sur PC comme mobile. */}
-      <Link
-        href="/"
-        onClick={onNavigate}
-        className="mb-5 flex flex-col gap-0.5 px-2 pt-1"
-        aria-label="Make Your Com - Accueil"
-      >
-        <span className="text-[15px] font-extrabold leading-none tracking-tight">
-          <span className="text-[#0E1936] dark:text-white">MAKE YOUR </span>
-          <span className="text-[#F47174]">COM</span>
-        </span>
-        <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-          CRM · ACLR Sàrl
-        </span>
-      </Link>
+      {/* Marque : wordmark texte net, le « C » de COM en coral. */}
+      <div className="flex shrink-0 items-start justify-between gap-2 px-3.5 pb-4">
+        <Link
+          href="/"
+          onClick={onNavigate}
+          className="flex flex-col gap-0.5 rounded-[12px] px-2.5 pt-1 pb-1.5"
+          aria-label="Make Your Com Arena - Accueil"
+        >
+          <span className="font-display text-[20px] leading-none font-extrabold tracking-[-0.02em] text-white">
+            MAKE YOUR <span className="text-coral-400">C</span>OM
+          </span>
+          <span className="text-[11px] font-semibold tracking-[0.08em] text-navy-300">
+            Arena
+          </span>
+        </Link>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fermer le menu"
+            className="flex size-10 shrink-0 items-center justify-center rounded-[12px] text-navy-300 transition-colors hover:bg-navy-600 hover:text-white"
+          >
+            <Icon name="X" className="size-5" />
+          </button>
+        )}
+      </div>
 
-      {/* Liens groupés */}
-      {ROUTE_GROUPS.map((group) => {
-        const items = visible.filter((r) => r.group === group.id);
-        if (items.length === 0) return null;
-        return (
-          <div key={group.id} className="mt-2">
-            <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              {group.label}
-            </p>
-            <ul className="space-y-0.5">
-              {items.map((item) => (
-                <SidebarLink
-                  key={item.href}
-                  item={item}
-                  isActive={active?.href === item.href}
-                  isAdmin={role === "ADMIN"}
-                  onClick={onNavigate}
-                  badge={
-                    item.href === "/emails" ? badges?.emails ?? 0 : 0
-                  }
-                />
-              ))}
-            </ul>
-          </div>
-        );
-      })}
+      {/* Liens groupés : seule cette zone défile, la carte joueur reste visible. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-3.5 pb-3 [scrollbar-color:#2F4470_transparent] [scrollbar-width:thin]">
+        {ROUTE_GROUPS.map((group) => {
+          const items = visible.filter((r) => r.group === group.id);
+          if (items.length === 0) return null;
+          return (
+            <div key={group.id} className="flex flex-col gap-1">
+              <p className="px-3 pb-1 text-[11px] font-bold tracking-[0.08em] text-navy-400 uppercase">
+                {group.label}
+              </p>
+              <ul className="flex flex-col gap-1">
+                {items.map((item) => (
+                  <SidebarLink
+                    key={item.href}
+                    item={item}
+                    isActive={active?.href === item.href}
+                    isAdmin={role === "ADMIN"}
+                    onClick={onNavigate}
+                    badge={item.href === "/emails" ? (badges?.emails ?? 0) : 0}
+                  />
+                ))}
+              </ul>
+            </div>
+          );
+        })}
 
-      {/* Installer la PWA — visible seulement si installable / pas déjà installé */}
-      <InstallAppButton />
+        {/* Installer la PWA : visible seulement si installable / pas déjà installé */}
+        <InstallAppButton />
+      </div>
+
+      {/* Carte joueur épinglée en bas */}
+      {player && (
+        <div className="shrink-0 border-t border-white/[0.06] px-3.5 pt-3">
+          <PlayerCard player={player} role={role} />
+        </div>
+      )}
     </nav>
   );
 }
@@ -96,7 +138,7 @@ function SidebarLink({
   isActive: boolean;
   isAdmin: boolean;
   onClick?: () => void;
-  /** Compteur de notifications à afficher en badge rouge (0 = caché) */
+  /** Compteur de notifications à afficher en pastille coral (0 = caché) */
   badge?: number;
 }) {
   const label =
@@ -107,22 +149,33 @@ function SidebarLink({
       <Link
         href={item.href}
         onClick={onClick}
+        aria-current={isActive ? "page" : undefined}
         className={cn(
-          "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors",
+          "group/link flex h-10 items-center gap-3 rounded-[12px] px-3 text-sm font-semibold transition-colors",
           isActive
-            ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium"
-            : "text-sidebar-foreground hover:bg-sidebar-accent",
+            ? "bg-navy-600 text-white"
+            : "text-sidebar-foreground hover:bg-navy-600/70 hover:text-white",
         )}
       >
-        <Icon name={item.icon} className="h-4 w-4 shrink-0" />
+        <Icon
+          name={item.icon}
+          className={cn(
+            "size-[18px] shrink-0 transition-colors",
+            isActive ? "text-coral-400" : "text-navy-300 group-hover/link:text-white",
+          )}
+        />
         <span className="flex-1 truncate">{label}</span>
         {hasBadge && (
-          <span
-            className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white"
-            aria-label={`${badge} non lu${badge > 1 ? "s" : ""}`}
-          >
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-coral-600 px-1.5 text-[11px] font-extrabold text-white tabular-nums">
             {badge > 99 ? "99+" : badge}
+            <span className="sr-only"> non lu{badge > 1 ? "s" : ""}</span>
           </span>
+        )}
+        {isActive && (
+          <span
+            aria-hidden="true"
+            className="h-[18px] w-1 shrink-0 rounded-full bg-coral-400"
+          />
         )}
       </Link>
     </li>

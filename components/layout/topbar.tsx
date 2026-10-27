@@ -1,7 +1,9 @@
 import { GlobalSearch } from "@/components/layout/global-search";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { ScorePills } from "@/components/layout/score-pills";
 import { SidebarToggle } from "@/components/layout/sidebar-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
+import type { PlayerHeader } from "@/lib/gamification/rules";
 
 import type { Role } from "@prisma/client";
 
@@ -12,31 +14,41 @@ interface TopbarProps {
     role: Role;
   };
   badges?: { emails?: number };
+  /** Données de jeu (XP du jour, série) ; null si indisponibles. */
+  player?: PlayerHeader | null;
 }
 
-export function Topbar({ user, badges }: TopbarProps) {
+/**
+ * Barre du haut MYC Arena : burger (mobile) / repli sidebar (desktop),
+ * recherche globale, pilule « XP du jour », pilule série, menu utilisateur.
+ * Reste collée en haut, sous l'encoche en mode app (safe-area).
+ */
+export function Topbar({ user, badges, player }: TopbarProps) {
   return (
     <header
-      className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+      className="sticky top-0 z-30 flex items-center gap-2 border-b border-border/70 bg-background/85 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/75 sm:gap-3 sm:px-6 lg:px-8"
       style={{
         // Descend le contenu sous l'encoche en mode app (0 sur desktop).
-        height: "calc(3.5rem + env(safe-area-inset-top))",
+        height: "calc(4rem + env(safe-area-inset-top))",
         paddingTop: "env(safe-area-inset-top)",
       }}
     >
       {/* Hamburger mobile */}
-      <MobileNav role={user.role} badges={badges} />
+      <MobileNav role={user.role} badges={badges} player={player} />
 
       {/* Réduire / afficher le bandeau latéral (desktop) */}
       <SidebarToggle />
 
-      {/* Recherche globale (⌘K) — entreprises, deals, contrats */}
+      {/* Recherche globale (⌘K) : entreprises, deals, contrats */}
       <GlobalSearch />
 
-      <div className="flex-1 md:flex-none" />
+      <div className="min-w-0 flex-1" />
+
+      {/* Score du jour + série */}
+      {player && <ScorePills player={player} role={user.role} />}
 
       {/* Menu utilisateur */}
-      <UserMenu user={user} />
+      <UserMenu user={user} player={player} />
     </header>
   );
 }
