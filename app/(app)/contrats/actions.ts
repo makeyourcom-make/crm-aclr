@@ -175,6 +175,25 @@ function effectiveUnitPrices(
 //
 // Si une étape échoue, tout est rollback.
 
+/**
+ * Valeur annoncée au client dans les emails de contrat : le total sur la DURÉE
+ * RÉELLE du contrat (one-shot + mensuel × durée), dans sa devise. Un contrat de
+ * 6 mois affiche « valeur totale sur 6 mois », pas une projection sur 12 mois.
+ */
+function valeurContratLabel(c: {
+  montantOneShot: unknown;
+  montantMensuel: unknown;
+  dureeMois: number;
+  devise: string | null;
+}): string {
+  const mensuel = Number(c.montantMensuel);
+  const total = Number(c.montantOneShot) + mensuel * c.dureeMois;
+  const montant = `${c.devise ?? "CHF"} ${total.toLocaleString("fr-CH", { maximumFractionDigits: 2 })}`;
+  return mensuel > 0
+    ? `valeur totale sur ${c.dureeMois} mois : ${montant}`
+    : `valeur totale : ${montant}`;
+}
+
 export async function createContractFromDeal(
   input: unknown,
 ): Promise<ContractActionResult> {
@@ -890,6 +909,10 @@ export async function sendSignatureByEmail(
     select: {
       numero: true,
       valeurAn1: true,
+      montantOneShot: true,
+      montantMensuel: true,
+      dureeMois: true,
+      devise: true,
       prospect: {
         select: {
           id: true,
@@ -921,7 +944,7 @@ export async function sendSignatureByEmail(
   const contenuTexte = [
     greeting,
     "",
-    `Merci pour notre échange. Vous trouverez ci-joint le récapitulatif de votre contrat (${contract.numero}, valeur 12 mois : CHF ${Number(contract.valeurAn1).toLocaleString("fr-CH")}).`,
+    `Merci pour notre échange. Vous trouverez ci-joint le récapitulatif de votre contrat (${contract.numero}, ${valeurContratLabel(contract)}).`,
     "",
     "Pour le signer en ligne en 2 minutes :",
     signUrl,
@@ -937,7 +960,7 @@ export async function sendSignatureByEmail(
   ].join("\n");
   const contenuHtml = `
     <p>${greeting}</p>
-    <p>Merci pour notre échange. Vous trouverez ci-joint le récapitulatif de votre contrat <strong>${contract.numero}</strong> (valeur 12 mois : CHF ${Number(contract.valeurAn1).toLocaleString("fr-CH")}).</p>
+    <p>Merci pour notre échange. Vous trouverez ci-joint le récapitulatif de votre contrat <strong>${contract.numero}</strong> (${valeurContratLabel(contract)}).</p>
     <p><strong>Pour le signer en ligne en 2 minutes :</strong><br>
     <a href="${signUrl}" style="display:inline-block;background:#0E1936;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;margin-top:8px;">Signer le contrat ✍</a></p>
     <p>Vous pouvez aussi <a href="${pdfUrl}">télécharger le PDF du contrat</a> pour le consulter, l'imprimer, le signer à la main et nous le renvoyer scanné par retour d'email.</p>
@@ -1038,6 +1061,10 @@ export async function sendContractSignatureEmail(
       id: true,
       numero: true,
       valeurAn1: true,
+      montantOneShot: true,
+      montantMensuel: true,
+      dureeMois: true,
+      devise: true,
       assigneAId: true,
       prospect: {
         select: {
@@ -1085,11 +1112,10 @@ export async function sendContractSignatureEmail(
     ? `Bonjour ${contract.prospect.contactPrenom},`
     : "Bonjour,";
   const objet = `Votre contrat ${contract.numero} - Make Your Com`;
-  const valeur = Number(contract.valeurAn1).toLocaleString("fr-CH");
   const contenuTexte = [
     greeting,
     "",
-    `Merci pour notre échange. Vous trouverez ci-joint le récapitulatif de votre contrat (${contract.numero}, valeur 12 mois : CHF ${valeur}).`,
+    `Merci pour notre échange. Vous trouverez ci-joint le récapitulatif de votre contrat (${contract.numero}, ${valeurContratLabel(contract)}).`,
     "",
     "Pour le signer en ligne en 2 minutes :",
     signUrl,
@@ -1103,7 +1129,7 @@ export async function sendContractSignatureEmail(
   ].join("\n");
   const contenuHtml = `
     <p>${greeting}</p>
-    <p>Merci pour notre échange. Vous trouverez ci-joint le récapitulatif de votre contrat <strong>${contract.numero}</strong> (valeur 12 mois : CHF ${valeur}).</p>
+    <p>Merci pour notre échange. Vous trouverez ci-joint le récapitulatif de votre contrat <strong>${contract.numero}</strong> (${valeurContratLabel(contract)}).</p>
     <p><strong>Pour le signer en ligne en 2 minutes :</strong><br>
     <a href="${signUrl}" style="display:inline-block;background:#0E1936;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;margin-top:8px;">Signer le contrat ✍</a></p>
     <p>Vous pouvez aussi <a href="${pdfUrl}">télécharger le PDF du contrat</a> pour le consulter, l'imprimer, le signer à la main et nous le renvoyer scanné par retour d'email.</p>
@@ -1195,6 +1221,10 @@ export async function prepareContractEmail(contractId: string): Promise<{
     select: {
       numero: true,
       valeurAn1: true,
+      montantOneShot: true,
+      montantMensuel: true,
+      dureeMois: true,
+      devise: true,
       assigneAId: true,
       prospect: { select: { email: true, contactPrenom: true } },
       signatures: {
@@ -1225,11 +1255,10 @@ export async function prepareContractEmail(contractId: string): Promise<{
   const greeting = contract.prospect.contactPrenom
     ? `Bonjour ${contract.prospect.contactPrenom},`
     : "Bonjour,";
-  const valeur = Number(contract.valeurAn1).toLocaleString("fr-CH");
   const defaultBody = [
     greeting,
     "",
-    `Merci pour notre échange. Veuillez trouver votre contrat ${contract.numero} (valeur 12 mois : CHF ${valeur}).`,
+    `Merci pour notre échange. Veuillez trouver votre contrat ${contract.numero} (${valeurContratLabel(contract)}).`,
     "",
     "Bien cordialement,",
     user.name,

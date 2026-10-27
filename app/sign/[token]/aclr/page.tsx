@@ -8,7 +8,7 @@ import { notFound } from "next/navigation";
 
 import { Logo } from "@/components/brand/logo";
 import { prisma } from "@/lib/db";
-import { formatCHF, formatDateLong } from "@/lib/format";
+import { formatDateLong, formatMoney } from "@/lib/format";
 
 import { AclrSignForm } from "./form";
 
@@ -27,7 +27,10 @@ export default async function AclrSignPage({ params }: PageProps) {
         select: {
           id: true,
           numero: true,
-          valeurAn1: true,
+          montantOneShot: true,
+          montantMensuel: true,
+          dureeMois: true,
+          devise: true,
           prospect: { select: { raisonSociale: true } },
           assigneA: { select: { name: true } },
         },
@@ -70,9 +73,13 @@ export default async function AclrSignPage({ params }: PageProps) {
               <strong className="text-slate-700">{commercialName}</strong>
             </span>
             <span>
-              Valeur an 1 :{" "}
+              Valeur totale ({sig.contract.dureeMois} mois) :{" "}
               <strong className="text-slate-700">
-                {formatCHF(Number(sig.contract.valeurAn1))}
+                {formatMoney(
+                  Number(sig.contract.montantOneShot) +
+                    Number(sig.contract.montantMensuel) * sig.contract.dureeMois,
+                  sig.contract.devise,
+                )}
               </strong>
             </span>
             <span>

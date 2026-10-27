@@ -10,7 +10,7 @@ import { SignForm } from "./form";
 import { Logo } from "@/components/brand/logo";
 import { CGV_ARTICLES, CGV_TITLE, CGV_VERSION } from "@/lib/cgv";
 import { prisma } from "@/lib/db";
-import { formatCHF, formatDateLong } from "@/lib/format";
+import { formatDateLong, formatMoney } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +46,13 @@ export default async function SignPage({ params }: PageProps) {
     },
   });
   if (!sig) notFound();
+  // Montants dans la devise du contrat (CHF ou EUR), comme sur le PDF.
+  const money = (n: number) => formatMoney(n, sig.contract.devise);
+  // Valeur annoncée = total sur la durée réelle (un contrat de 6 mois n'affiche
+  // pas une projection sur 12 mois).
+  const valeurTotale =
+    Number(sig.contract.montantOneShot) +
+    Number(sig.contract.montantMensuel) * sig.contract.dureeMois;
 
   const hdrs = await headers();
   const ipClient =
@@ -111,7 +118,7 @@ export default async function SignPage({ params }: PageProps) {
       meta?.remiseType === "POURCENT" && meta?.remiseValeur
         ? `−${meta.remiseValeur}%`
         : meta?.remiseType === "MONTANT" && meta?.remiseValeur
-          ? `−${formatCHF(meta.remiseValeur)}`
+          ? `−${money(meta.remiseValeur)}`
           : null;
     const desc = (p.description ?? "").trim();
 
@@ -189,15 +196,19 @@ export default async function SignPage({ params }: PageProps) {
               />
               <Row
                 label="Montant one-shot"
-                value={formatCHF(Number(sig.contract.montantOneShot))}
+                value={money(Number(sig.contract.montantOneShot))}
               />
               <Row
                 label="Mensuel"
-                value={`${formatCHF(Number(sig.contract.montantMensuel))} / mois`}
+                value={`${money(Number(sig.contract.montantMensuel))} / mois`}
               />
               <Row
-                label="Valeur an 1"
-                value={formatCHF(Number(sig.contract.valeurAn1))}
+                label={
+                  Number(sig.contract.montantMensuel) > 0
+                    ? `Valeur totale (${sig.contract.dureeMois} mois)`
+                    : "Valeur totale"
+                }
+                value={money(valeurTotale)}
                 big
               />
             </dl>
@@ -247,11 +258,11 @@ export default async function SignPage({ params }: PageProps) {
                             )}
                             {l.origTotal !== l.effTotal && (
                               <span className="text-xs text-muted-foreground line-through">
-                                {formatCHF(l.origTotal)}
+                                {money(l.origTotal)}
                               </span>
                             )}
                             <span className="font-medium">
-                              {formatCHF(l.effTotal)}
+                              {money(l.effTotal)}
                               {l.suffix}
                             </span>
                           </span>
