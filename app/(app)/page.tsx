@@ -415,49 +415,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           />
         </CardContent>
       </Card>
-
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="text-base">
-            Renouvellements (90 prochains jours)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {data.renouvellementsAVenir.length === 0 ? (
-            <p className="px-3 py-4 text-sm text-muted-foreground">
-              Aucun anniversaire de contrat dans les 90 prochains jours.
-            </p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {data.renouvellementsAVenir.map((r) => (
-                <li
-                  key={r.contractId}
-                  className="flex items-center gap-3 px-3 py-2"
-                >
-                  <Icon name="Repeat" className="h-4 w-4 text-muted-foreground" />
-                  <div className="min-w-0 flex-1">
-                    <Link
-                      href={`/contrats/${r.contractId}`}
-                      className="text-sm font-medium hover:underline"
-                    >
-                      {r.numero}
-                    </Link>
-                    <p className="text-xs text-muted-foreground">
-                      {r.raisonSociale}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs">{formatDate(r.dateAnniversaire)}</p>
-                    <p className="text-[10px] text-emerald-700 tabular-nums">
-                      + {formatCHFCompact(r.commissionMensuelle)} / mois
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
