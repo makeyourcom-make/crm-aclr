@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { CommissionsChartLazy as CommissionsChart } from "@/components/dashboard/commissions-chart-lazy";
+import { RdvAValiderBanner } from "@/components/dashboard/rdv-a-valider";
 import { ValidateContractButton } from "@/components/contrats/validate-contract-button";
 import { SignAclrButton } from "@/components/signatures/sign-aclr-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +10,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { formatCHF, formatCHFCompact, formatDate } from "@/lib/format";
 import { getDashboard } from "@/lib/queries/dashboard";
 import { getPlanningAlertes } from "@/lib/planning/queries";
+import { getRdvAValider } from "@/lib/queries/rdv-a-valider";
 import {
   getTeamActivityOverview,
   resolvePeriode,
@@ -33,6 +35,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   );
   // Alerte planning de production (tâches du jour / en retard).
   const planning = await getPlanningAlertes(user.id);
+  // Rappel de fin de journée : RDV passés à valider (effectué / manqué / annulé).
+  const rdvAValider = await getRdvAValider(user.id);
+  const todayZurich = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Zurich" });
 
   const teamActivity =
     user.role === "ADMIN"
@@ -228,6 +233,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             </CardContent>
           </Card>
         )}
+
+      <RdvAValiderBanner rdvs={rdvAValider.rdvs} today={todayZurich} />
 
       {/* Planning de production : tâches du jour + retards (alerte rouge au-delà
           d'un mois de retard, règle validée avec Arthur). */}

@@ -76,8 +76,10 @@ export async function createActivity(
 
   // Si admin et userId fourni → on assigne à ce user (Sophie par ex.)
   // Sinon, fallback sur l'user courant (Sophie ne peut s'assigner qu'à elle).
+  // Un RDV futur saisi « fait » (ex. « Logger une activité ») est en réalité
+  // un RDV à venir : on l'enregistre planifié, à valider après coup.
   if (rdvFaitAvantHeure(parsed.data.type, parsed.data.date, parsed.data.statut)) {
-    return { ok: false, error: RDV_PAS_ENCORE_EU_LIEU };
+    parsed.data.statut = "PLANIFIE";
   }
 
   const assignToUserId =
@@ -200,8 +202,10 @@ export async function createRecurringActivities(
   if (parsed.data.prospectId) {
     await assertCanAccessProspect(user, parsed.data.prospectId);
   }
+  // Un RDV futur saisi « fait » (ex. « Logger une activité ») est en réalité
+  // un RDV à venir : on l'enregistre planifié, à valider après coup.
   if (rdvFaitAvantHeure(parsed.data.type, parsed.data.date, parsed.data.statut)) {
-    return { ok: false, error: RDV_PAS_ENCORE_EU_LIEU };
+    parsed.data.statut = "PLANIFIE";
   }
   const assignToUserId =
     user.role === "ADMIN" && parsed.data.userId ? parsed.data.userId : user.id;
@@ -678,4 +682,39 @@ function prismaErrorToResult(err: unknown): ActivityActionResult {
   }
   console.error("[activity action] erreur inattendue", err);
   return { ok: false, error: "Erreur serveur inattendue." };
+}
+
+/**
+ * Validation d'un RDV après coup (rappel de fin de journée du dashboard) :
+ * effectué, manqué (client absent) ou annulé.
+ */
+export async function validerRdv(
+  id: string,
+  statut: "FAIT" | "MANQUE" | "ANNULE",
+): Promise<ActivityActionResult> {
+  const user = await requireUser();
+  await assertCanEditActivity(user, id);
+
+  const current = await prisma.activity.findUnique({
+    where: { id },
+    select: { type: true, date: true },
+  });
+  if (!current) return { ok: false, error: "Rendez-vous introuvable." };
+  if (statut === "FAIT" && rdvFaitAvantHeure(current.type, current.date, "FAIT")) {
+    return { ok: false, error: RDV_PAS_ENCORE_EU_LIEU };
+  }
+
+  try {
+    const updated = await prisma.activity.update({
+      where: { id },
+      data: { statut },
+    });
+    if (updated.prospectId) revalidatePath(`/prospects/${updated.prospectId}`);
+    revalidatePath("/");
+    revalidatePath("/agenda");
+    void pushActivityToGoogle(id).catch(() => {});
+    return { ok: true, activityId: id };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
 }
