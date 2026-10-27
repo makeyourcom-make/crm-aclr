@@ -318,7 +318,7 @@ model AuditLog {
 
   /// Verbe d'action, ex. "login.success", "login.fail", "prospect.delete",
   /// "contract.sign", "charges.export", "prospects.bulk_reassign".
-  action String
+  action   String
   /// Type de ressource concernée (ex. "Prospect", "Contract") — optionnel.
   entity   String?
   entityId String?
@@ -378,12 +378,12 @@ model User {
   /// CalDAV (sync bidirectionnelle Infomaniak / Google / Apple).
   /// Le mot de passe est chiffré symétriquement avec AUTH_SECRET.
   /// `caldavCalendarUrl` = URL complète du calendrier choisi (PROPFIND).
-  caldavServerUrl    String?
-  caldavUsername     String?
-  caldavPasswordEnc  String?
-  caldavCalendarUrl  String?
-  caldavSyncToken    String? // sync-token CalDAV (RFC 6578) pour pull incrémental
-  caldavLastSyncAt   DateTime?
+  caldavServerUrl   String?
+  caldavUsername    String?
+  caldavPasswordEnc String?
+  caldavCalendarUrl String?
+  caldavSyncToken   String? // sync-token CalDAV (RFC 6578) pour pull incrémental
+  caldavLastSyncAt  DateTime?
 
   // Google Calendar (API + OAuth2) — sync bidirectionnelle avec un Gmail.
   // Le refresh token est chiffré (AES-256-GCM, clé = AUTH_SECRET), jamais en clair.
@@ -400,37 +400,39 @@ model User {
 
   // ========== Fiche RH (admin uniquement) ==========
   dateNaissance       DateTime?
-  numeroAVS           String?    // 756.XXXX.XXXX.XX (Suisse)
+  numeroAVS           String? // 756.XXXX.XXXX.XX (Suisse)
   contactUrgenceNom   String?
   contactUrgenceTel   String?
   typeContrat         TypeContrat?
-  dateEntree          DateTime?  // date d'embauche
-  dateSortie          DateTime?  // si l'employé est parti
-  pourcentageActivite Int?       @default(100) // 100, 80, 50, etc.
-  salaireBase         Decimal?   @db.Decimal(12, 2)
-  notesRH             String?    @db.Text
+  dateEntree          DateTime? // date d'embauche
+  dateSortie          DateTime? // si l'employé est parti
+  pourcentageActivite Int?         @default(100) // 100, 80, 50, etc.
+  salaireBase         Decimal?     @db.Decimal(12, 2)
+  notesRH             String?      @db.Text
 
   // Relations
-  prospectsAssignes Prospect[]
-  dealsAssignes     Deal[]
-  contratsAssignes  Contract[]
-  activities        Activity[]
-  commissions       Commission[]
-  invoices          Invoice[]
-  emails            Email[]            @relation("EmailOwner")
-  emailsArchives    Email[]            @relation("EmailCollaborateur")
-  stats             Stat[]
-  objectives        Objective[]
-  documentsRH       EmployeeDocument[]
-  expensesCreated   Expense[]
-  emailSignatures   EmailSignature[]
-  auditLogs         AuditLog[]
-  dossierAttachments  DossierAttachment[]
-  emailBlockRules   EmailBlockRule[]
-  dossiersAssignes  Dossier[]          @relation("DossierAssignee")
-  dossiersCrees     Dossier[]          @relation("DossierCreateur")
-  dossierUpdates    DossierUpdate[]
-  documents         Document[]
+  prospectsAssignes  Prospect[]
+  dealsAssignes      Deal[]
+  contratsAssignes   Contract[]
+  activities         Activity[]
+  commissions        Commission[]
+  invoices           Invoice[]
+  emails             Email[]             @relation("EmailOwner")
+  emailsArchives     Email[]             @relation("EmailCollaborateur")
+  stats              Stat[]
+  objectives         Objective[]
+  documentsRH        EmployeeDocument[]
+  expensesCreated    Expense[]
+  emailSignatures    EmailSignature[]
+  auditLogs          AuditLog[]
+  dossierAttachments DossierAttachment[]
+  emailBlockRules    EmailBlockRule[]
+  dossiersAssignes   Dossier[]           @relation("DossierAssignee")
+  dossiersCrees      Dossier[]           @relation("DossierCreateur")
+  planningLignes     PlanningLigne[]
+  planningTaches     PlanningTache[]
+  dossierUpdates     DossierUpdate[]
+  documents          Document[]
 
   @@index([email])
   @@map("users")
@@ -518,12 +520,12 @@ model Expense {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  date          DateTime         // date du ticket (facture/quittance)
-  dateReglement DateTime?        // date à laquelle la charge a été débitée du compte (réconciliation bancaire)
+  date          DateTime // date du ticket (facture/quittance)
+  dateReglement DateTime? // date à laquelle la charge a été débitée du compte (réconciliation bancaire)
   categorie     ExpenseCategorie
   fournisseur   String?
   description   String?
-  reference     String?          // numéro de ticket / facture du fournisseur
+  reference     String? // numéro de ticket / facture du fournisseur
 
   /// Statut de paiement (pour la réconciliation mensuelle avec le relevé bancaire)
   statutPaiement ExpenseStatutPaiement @default(EN_ATTENTE)
@@ -548,7 +550,7 @@ model Expense {
   /// Indique si les champs ont été pré-remplis par OCR (vs saisis à la main)
   ocrUtilise Boolean @default(false)
 
-  createdBy   User?  @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
   createdById String?
 
   /// Lien vers un client (Prospect) pour les charges directement attribuables :
@@ -584,10 +586,10 @@ model Expense {
 }
 
 enum ExpenseStatutPaiement {
-  EN_ATTENTE     // charge enregistrée, pas encore débitée du compte
-  PAYE           // débit confirmé sur relevé bancaire (dateReglement renseignée)
-  LITIGE         // débit contesté (ex. doublon LWS)
-  REMBOURSE      // débit récupéré (annulation, remboursement)
+  EN_ATTENTE // charge enregistrée, pas encore débitée du compte
+  PAYE // débit confirmé sur relevé bancaire (dateReglement renseignée)
+  LITIGE // débit contesté (ex. doublon LWS)
+  REMBOURSE // débit récupéré (annulation, remboursement)
 }
 
 /// Template de charge récurrente. Permet de générer automatiquement chaque mois
@@ -598,7 +600,7 @@ model ExpenseRecurrence {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  label       String           // nom du template (ex. "Sunrise mobile + internet")
+  label       String // nom du template (ex. "Sunrise mobile + internet")
   categorie   ExpenseCategorie
   fournisseur String?
   description String?
@@ -725,12 +727,12 @@ model Prospect {
   contactPrenom   String?
   contactFonction String?
 
-  email           String?
+  email            String?
   /// Email dédié à l'envoi des factures (ex. boîte compta/Odoo du client). Si
   /// renseigné, les factures partent ICI au lieu de `email`.
   emailFacturation String?
-  telephone       String?
-  telephoneMobile String?
+  telephone        String?
+  telephoneMobile  String?
 
   adresse    String?
   codePostal String?
@@ -791,7 +793,7 @@ model Prospect {
   /// Date de RDV (MAX(Activity.date) sur RDV_PHYSIQUE/VISIO/TELEPHONIQUE —
   /// inclut les RDV futurs planifiés). Colonne dénormalisée maintenue par
   /// trigger. Permet de trier le listing par « date de RDV ».
-  dateRdvLe DateTime?
+  dateRdvLe      DateTime?
 
   assigneA   User?   @relation(fields: [assigneAId], references: [id], onDelete: SetNull)
   assigneAId String?
@@ -813,15 +815,16 @@ model Prospect {
   masterData     Json?
 
   // Relations
-  activities          Activity[]
-  deals               Deal[]
-  contracts           Contract[]
-  emails              Email[]
-  expenses            Expense[] // charges directement attribuables au client
-  expenseAllocations  ExpenseAllocation[] // parts de charges multi-clients
-  expenseRecurrences  ExpenseRecurrence[] // templates de charges récurrentes liées
-  tags                ProspectTagAssignment[] // tags libres (admin uniquement)
-  dossiers            Dossier[] // dossiers/tâches de suivi rattachés
+  activities         Activity[]
+  deals              Deal[]
+  contracts          Contract[]
+  emails             Email[]
+  expenses           Expense[] // charges directement attribuables au client
+  expenseAllocations ExpenseAllocation[] // parts de charges multi-clients
+  expenseRecurrences ExpenseRecurrence[] // templates de charges récurrentes liées
+  tags               ProspectTagAssignment[] // tags libres (admin uniquement)
+  dossiers           Dossier[] // dossiers/tâches de suivi rattachés
+  planningLignes     PlanningLigne[]
 
   @@index([statut])
   @@index([assigneAId])
@@ -859,9 +862,9 @@ model ProspectTag {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  nom     String @unique
+  nom         String  @unique
   /// Couleur Tailwind du badge (slate, blue, emerald, amber, rose, purple, …)
-  couleur String @default("slate")
+  couleur     String  @default("slate")
   /// Description / mémo pour l'admin (optionnel)
   description String?
 
@@ -1012,10 +1015,10 @@ model Product {
   nom         String
   description String? @db.Text
 
-  type      ProductType
+  type          ProductType
   /// Catégorie LEGACY (enum) — conservée car elle pilote la règle de commission
   /// ADS. Reste la valeur "système" pour les 7 catégories d'origine.
-  categorie ProductCategorie
+  categorie     ProductCategorie
   /// Catégorie EFFECTIVE (code texte) — source de vérité pour l'affichage et le
   /// regroupement. Permet d'ajouter des catégories libres au-delà de l'enum.
   /// Backfill = valeur de `categorie`. Voir ProductCategorieMeta.
@@ -1029,8 +1032,8 @@ model Product {
   /// Utilisé pour calculer la marge réelle par contrat.
   ///   - coutOneShot : setup, intégration, licences à l'install
   ///   - coutMensuel : hébergement, SaaS récurrent, ad spend mensuel, etc.
-  coutOneShot Decimal? @db.Decimal(12, 2) @default(0)
-  coutMensuel Decimal? @db.Decimal(12, 2) @default(0)
+  coutOneShot Decimal? @default(0) @db.Decimal(12, 2)
+  coutMensuel Decimal? @default(0) @db.Decimal(12, 2)
 
   /// Si true, le prix est "dès X CHF" — le commercial peut overrider le prix
   /// au moment de l'ajout dans un Deal ou un Contrat (sur-mesure).
@@ -1132,7 +1135,7 @@ model Contract {
   /// Jour du mois (1-28) auquel générer la mensualité via le générateur à jour
   /// fixe. NULL = facturation normale par le filet (mois courant, début de
   /// mois). Voir generateAnticipatedInvoices.
-  facturationJourMois Int?
+  facturationJourMois  Int?
   /// Combiné à facturationJourMois : true = on facture D'AVANCE le mois SUIVANT
   /// (le client paie le mois à venir) ; false = on facture le mois EN COURS ce
   /// jour-là. Défaut true (comportement historique). Sans effet si
@@ -1141,6 +1144,7 @@ model Contract {
 
   // Relations
   products       Product[]        @relation("ContractProducts")
+  planningLignes PlanningLigne[]
   payments       Payment[]
   commissions    Commission[]
   renewals       Renewal[]
@@ -1391,8 +1395,8 @@ model Email {
 
   /// Vrai = email lu par l'utilisateur côté CRM. Pour les ENTRANT, par défaut false ;
   /// pour les SORTANT, par défaut true (on a forcément lu ce qu'on a écrit).
-  lu       Boolean  @default(true)
-  luALe    DateTime?
+  lu    Boolean   @default(true)
+  luALe DateTime?
 
   /// Vrai = email archivé : retiré de la boîte de réception (/emails) mais
   /// reste visible sur la fiche du prospect rattaché. Utile pour nettoyer
@@ -1456,7 +1460,7 @@ model EmailBlockRule {
   type  EmailBlockType
   /// Valeur à comparer (adresse, domaine ou mot-clé) — stockée en minuscules.
   value String
-  actif Boolean @default(true)
+  actif Boolean        @default(true)
 
   /// Qui a créé la règle (traçabilité) — nullable pour les règles seed système.
   creePar   User?   @relation(fields: [creeParId], references: [id], onDelete: SetNull)
@@ -1899,4 +1903,139 @@ model Document {
   @@index([categorie])
   @@index([createdAt])
   @@map("documents")
+}
+
+// ============================================================================
+// PLANNING DE PRODUCTION — pilotage des tâches clients (récurrences)
+// ============================================================================
+// Une ligne = un service (SITE, RS, SEO, ADS, CMO, STRATEGIE, LICENCE…) d'un
+// client, dans le planning d'un utilisateur (cloisonné : chacun son planning,
+// l'admin peut consulter celui des autres). Chaque ligne porte des règles de
+// récurrence qui génèrent des tâches sur un calendrier glissant de 12 mois.
+
+enum PlanningFrequence {
+  MENSUELLE
+  BIMENSUELLE
+  HEBDO
+  BIMESTRIELLE
+  TRIMESTRIELLE
+  ANNUELLE
+  PONCTUELLE
+}
+
+enum PlanningTacheStatut {
+  A_FAIRE
+  EN_COURS
+  ATTENTE_CLIENT
+  FAIT
+  ABANDONNEE
+}
+
+model PlanningLigne {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Propriétaire du planning (Arthur, Lucille…).
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+
+  prospect   Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  prospectId String
+
+  /// Contrat d'origine (lignes auto-créées depuis les contrats actifs).
+  contract   Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  contractId String?
+
+  /// Code service : SITE | RS | SEO | ADS | CMO | STRATEGIE | LICENCE | PACK | AUTRE
+  service String
+  /// Libellé libre (ex. « Licence Metricool »), sinon libellé du service.
+  libelle String?
+
+  /// Ligne créée automatiquement depuis un contrat (vs ajoutée à la main).
+  auto  Boolean @default(true)
+  /// false = masquée (contrat terminé ou ligne retirée) ; tâches conservées.
+  actif Boolean @default(true)
+
+  /// ADS : ACLR avance les frais pub (→ tâche de refacturation). SOS Pneus = false.
+  fraisPubAvances Boolean @default(true)
+
+  regles PlanningRegle[]
+  taches PlanningTache[]
+
+  @@unique([ownerId, prospectId, service])
+  @@index([ownerId, actif])
+  @@map("planning_lignes")
+}
+
+model PlanningRegle {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ligne   PlanningLigne @relation(fields: [ligneId], references: [id], onDelete: Cascade)
+  ligneId String
+
+  /// Code du modèle (ex. SITE_ARTICLE, RS_STATS) ou CUSTOM.
+  code  String
+  titre String
+
+  frequence      PlanningFrequence @default(MENSUELLE)
+  /// true = date imposée (cycle RS) : jamais déplacée par l'étalement.
+  fixe           Boolean           @default(false)
+  /// Fenêtre (jours du mois) dans laquelle l'étalement peut placer la tâche.
+  fenetreDebut   Int               @default(1)
+  fenetreFin     Int               @default(28)
+  /// Jour(s) du mois retenus (placement stable). BIMENSUELLE = 2 jours.
+  jours          Int[]
+  /// HEBDO : 1 = lundi … 5 = vendredi.
+  jourSemaine    Int?
+  /// BIMESTRIELLE / TRIMESTRIELLE / ANNUELLE : 1er mois (1-12) du cycle.
+  moisAncre      Int?
+  /// PONCTUELLE : date de la tâche.
+  datePonctuelle DateTime?
+
+  dureeMin Int     @default(30)
+  actif    Boolean @default(true)
+
+  /// Pas de tâche générée avant / après ces dates.
+  dateDebut DateTime  @default(now())
+  dateFin   DateTime?
+
+  taches PlanningTache[]
+
+  @@index([ligneId])
+  @@map("planning_regles")
+}
+
+model PlanningTache {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+
+  ligne   PlanningLigne @relation(fields: [ligneId], references: [id], onDelete: Cascade)
+  ligneId String
+
+  /// Null = tâche manuelle (hors récurrence).
+  regle   PlanningRegle? @relation(fields: [regleId], references: [id], onDelete: SetNull)
+  regleId String?
+  /// Clé d'occurrence (ex. « 2026-11 », « 2026-11#2 », « 2026-W45 ») : dédoublonne.
+  cle     String?
+
+  titre    String
+  /// Date prévue (jour ouvré) — c'est l'échéance de la tâche.
+  date     DateTime
+  dureeMin Int      @default(30)
+
+  statut PlanningTacheStatut @default(A_FAIRE)
+  faitLe DateTime?
+  notes  String?             @db.Text
+
+  @@unique([regleId, cle])
+  @@index([ownerId, date])
+  @@index([ligneId, date])
+  @@map("planning_taches")
 }

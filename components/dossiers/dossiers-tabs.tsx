@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Sous-onglets de la Gestion des projets : « Tableau » (kanban) et
- * « Document de suivi » (Google Doc partagé).
+ * Sous-onglets de la Gestion des projets : « Planning » (planning de
+ * production, par défaut), « Dossiers » (kanban) et « Document de suivi ».
  */
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -11,7 +11,8 @@ import { Icon } from "@/components/icon";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { href: "/dossiers", label: "Tableau", icon: "ClipboardList" },
+  { href: "/dossiers/planning", label: "Planning", icon: "CalendarRange" },
+  { href: "/dossiers", label: "Dossiers", icon: "ClipboardList" },
   { href: "/dossiers/document", label: "Document de suivi", icon: "FileText" },
 ] as const;
 

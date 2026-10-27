@@ -8,6 +8,7 @@ import { Icon } from "@/components/icon";
 import { buttonVariants } from "@/components/ui/button";
 import { formatCHF, formatCHFCompact, formatDate } from "@/lib/format";
 import { getDashboard } from "@/lib/queries/dashboard";
+import { getPlanningAlertes } from "@/lib/planning/queries";
 import {
   getTeamActivityOverview,
   resolvePeriode,
@@ -30,6 +31,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const periodeActivite = resolvePeriode(
     typeof raw.activite === "string" ? raw.activite : "jour",
   );
+  // Alerte planning de production (tâches du jour / en retard).
+  const planning = await getPlanningAlertes(user.id);
+
   const teamActivity =
     user.role === "ADMIN"
       ? await getTeamActivityOverview(
@@ -224,6 +228,32 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             </CardContent>
           </Card>
         )}
+
+      {/* Planning de production : tâches du jour + retards (alerte rouge au-delà
+          d'un mois de retard, règle validée avec Arthur). */}
+      {(planning.aujourdhui > 0 || planning.enRetard > 0) && (
+        <Link
+          href="/dossiers/planning?vue=jour"
+          className={`mt-6 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border px-4 py-3 text-sm transition hover:shadow-md ${
+            planning.critiques > 0
+              ? "border-red-300 bg-red-50 text-red-900"
+              : planning.enRetard > 0
+                ? "border-amber-300 bg-amber-50 text-amber-900"
+                : "border-border bg-card"
+          }`}
+        >
+          <span className="flex items-center gap-2 font-semibold">
+            <Icon name="CalendarRange" className="h-4 w-4" />
+            Planning de production
+          </span>
+          <span>{planning.aujourdhui} tâche(s) aujourd&apos;hui</span>
+          {planning.enRetard > 0 && <span>· {planning.enRetard} en retard</span>}
+          {planning.critiques > 0 && (
+            <span className="font-semibold">· {planning.critiques} avec plus d&apos;un mois de retard</span>
+          )}
+          <span className="ml-auto text-xs underline-offset-2 hover:underline">Voir mes tâches →</span>
+        </Link>
+      )}
 
       {/* ====================================================================
           PILOTAGE ÉQUIPE — activité par collaborateur (jour/semaine/mois)

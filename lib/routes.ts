@@ -34,6 +34,8 @@ export interface RouteDef {
   adminOnly?: boolean;
   /** Si true, masqué pour les ADMIN (page strictement terrain commerciale). */
   commercialOnly?: boolean;
+  /** Préfixe d'URL qui active l'entrée du menu (si différent de `href`). */
+  matchPrefix?: string;
   /** Raccourci clavier `g x` après `g` initial (single letter ou string). */
   kbd?: string;
 }
@@ -82,7 +84,9 @@ export const ROUTES: RouteDef[] = [
     etape: 6,
   },
   {
-    href: "/dossiers",
+    // S'ouvre sur le Planning ; reste actif sur tout /dossiers (kanban, document).
+    href: "/dossiers/planning",
+    matchPrefix: "/dossiers",
     label: "Gestion des projets",
     icon: "ClipboardList",
     group: "operationnel",
@@ -258,7 +262,8 @@ export function findRoute(pathname: string): RouteDef | undefined {
   const exact = ROUTES.find((r) => r.href === pathname);
   if (exact) return exact;
   // Sinon préfixe le plus long
+  const prefix = (r: RouteDef) => r.matchPrefix ?? r.href;
   return ROUTES.filter(
-    (r) => r.href !== "/" && pathname.startsWith(r.href),
-  ).sort((a, b) => b.href.length - a.href.length)[0];
+    (r) => r.href !== "/" && pathname.startsWith(prefix(r)),
+  ).sort((a, b) => prefix(b).length - prefix(a).length)[0];
 }
