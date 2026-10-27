@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Widget flottant « Appel en cours » (MYC Arena) : carte navy en bas à
+ * Widget flottant « Appel en cours » : carte navy en bas à
  * droite, chrono en gros, pastille verte qui pulse. « J'ai raccroché » ouvre
  * la modale de résultat.
  *

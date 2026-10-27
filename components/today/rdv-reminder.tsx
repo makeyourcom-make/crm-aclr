@@ -8,7 +8,6 @@
 import { AlarmClock, ArrowRight } from "lucide-react";
 
 import { formatInt } from "@/components/arena/format";
-import { XP_RULES } from "@/lib/gamification/rules";
 import type { RdvAValiderItem } from "@/lib/queries/today";
 
 const MAX_NAMES = 2;
@@ -39,8 +38,8 @@ export function RdvReminder({ items }: { items: RdvAValiderItem[] }) {
         </h2>
         <p className="text-[13px] leading-relaxed break-words text-muted-foreground">
           {noms.join(", ")}
-          {autres > 0 ? ` et ${formatInt(autres)} de plus` : ""}. Chaque RDV effectué rapporte +
-          {XP_RULES.rdvEffectue} XP.
+          {autres > 0 ? ` et ${formatInt(autres)} de plus` : ""}. Valide-les pour enchaîner
+          sur les propositions.
         </p>
         <a
           href="#rdv-a-valider"

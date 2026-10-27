@@ -1,5 +1,5 @@
 /**
- * Petits helpers d'affichage du jeu (client-safe).
+ * Petits helpers d'affichage (client-safe).
  * Les nombres passent par `formatNumber` de lib/format (convention suisse
  * du CRM) pour rester cohérents avec le reste de l'application.
  */
@@ -11,12 +11,12 @@ export function formatInt(n: number | null | undefined): string {
   return formatNumber(Math.round(n));
 }
 
-/** « 3'420 XP » */
+/** @deprecated Plus d'XP dans l'interface. « 3'420 XP » */
 export function formatXp(xp: number | null | undefined): string {
   return `${formatInt(xp)} XP`;
 }
 
-/** « +50 XP » (ou « -10 XP » si négatif). */
+/** @deprecated Plus d'XP dans l'interface. « +50 XP » (ou « -10 XP »). */
 export function formatSignedXp(xp: number | null | undefined): string {
   const n = xp !== null && xp !== undefined && Number.isFinite(xp) ? Math.round(xp) : 0;
   return `${n < 0 ? "-" : "+"}${formatInt(Math.abs(n))} XP`;

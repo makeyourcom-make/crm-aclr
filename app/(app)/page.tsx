@@ -1,37 +1,41 @@
-import { Check, TrendingUp, Wallet } from "lucide-react";
+import { Check, Coins, TrendingUp, Wallet } from "lucide-react";
 
 import { plural } from "@/components/arena/format";
+import { MoneyStat } from "@/components/arena/money-stat";
 import { StatusPill } from "@/components/arena/pills";
 import { SectionCard } from "@/components/arena/section-card";
-import { StatTile } from "@/components/arena/stat-tile";
 import { ActivityOverview } from "@/components/dashboard/activity-overview";
 import {
   ContratsASigner,
   ContratsAValiderDefinitif,
 } from "@/components/dashboard/admin-contracts";
 import { AgencyKpis } from "@/components/dashboard/agency-kpis";
-import { BadgesSection } from "@/components/dashboard/badges-section";
 import { CommissionsChartLazy as CommissionsChart } from "@/components/dashboard/commissions-chart-lazy";
+import { DailyGoalsSection } from "@/components/dashboard/daily-goals-section";
 import { zDateLong, zTime } from "@/components/dashboard/dates";
-import { MissionsSection } from "@/components/dashboard/missions-section";
+import { ResultsLeaderboard } from "@/components/dashboard/leaderboard";
 import { MonthlyGoals } from "@/components/dashboard/monthly-goals";
 import { PlanningAlertCard } from "@/components/dashboard/planning-alert-card";
-import { PlayerHero } from "@/components/dashboard/player-hero";
 import { RdvAValiderBanner } from "@/components/dashboard/rdv-a-valider";
+import { RecordsSection } from "@/components/dashboard/records-section";
+import { ResultsFeed } from "@/components/dashboard/results-feed";
+import { DEVISE, ResultsHero } from "@/components/dashboard/results-hero";
 import { TeamActivity } from "@/components/dashboard/team-activity";
 import { UpcomingRdvSection } from "@/components/dashboard/upcoming-rdv";
-import { WeeklyLeaderboard } from "@/components/dashboard/weekly-leaderboard";
-import { XpFeed } from "@/components/dashboard/xp-feed";
 import { PageHeader } from "@/components/page-header";
 import { formatCHFCompact } from "@/lib/format";
-import { getPlayerStats, getWeeklyLeaderboard } from "@/lib/gamification";
+import {
+  getMonthlyLeaderboard,
+  getPlayerStats,
+  getWeeklyLeaderboard,
+} from "@/lib/gamification";
 import { getPlanningAlertes } from "@/lib/planning/queries";
 import {
   getActivityPeriods,
   getDashboard,
   getMonthCalendar,
+  getResultsFeed,
   getUpcomingRdv,
-  getXpFeed,
   isTodayWorkingDay,
 } from "@/lib/queries/dashboard";
 import { getRdvAValider } from "@/lib/queries/rdv-a-valider";
@@ -49,7 +53,7 @@ interface PageProps {
 }
 
 /**
- * Couche de jeu : si une requête du moteur échoue, le dashboard reste
+ * Blocs de résultats : si une de ces requêtes échoue, le dashboard reste
  * utilisable (blocs métier intacts), seul le bloc concerné disparaît.
  */
 async function safe<T>(label: string, run: () => Promise<T>): Promise<T | null> {
@@ -81,7 +85,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     rdvAValider,
     teamActivity,
     stats,
-    leaderboard,
+    weekly,
+    monthly,
     upcoming,
     feed,
     periods,
@@ -94,8 +99,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       : Promise.resolve(null),
     safe("getPlayerStats", () => getPlayerStats(user.id)),
     safe("getWeeklyLeaderboard", () => getWeeklyLeaderboard(user.id)),
+    safe("getMonthlyLeaderboard", () => getMonthlyLeaderboard(user.id)),
     safe("getUpcomingRdv", () => getUpcomingRdv(user.id)),
-    isAdmin ? Promise.resolve(null) : safe("getXpFeed", () => getXpFeed(user.id)),
+    isAdmin ? Promise.resolve(null) : safe("getResultsFeed", () => getResultsFeed(user.id)),
     isAdmin
       ? Promise.resolve(null)
       : safe("getActivityPeriods", () => getActivityPeriods(user.id)),
@@ -116,8 +122,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const caTotal12 = data.evolutionCASignatures.reduce((s, m) => s + m.montant, 0);
   const firstName = user.name.split(" ")[0];
 
-  const missionTarget = (key: "appels" | "rdvPris") =>
-    stats?.missions.find((m) => m.key === key)?.target ?? null;
+  const dailyTarget = (key: "appels" | "rdvPris" | "propositions") =>
+    stats?.dailyGoals.find((g) => g.key === key)?.target ?? null;
+  const hasLeaderboard = weekly !== null || monthly !== null;
 
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
@@ -128,11 +135,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
       <div className="flex flex-col gap-6">
       {stats && (
-        <PlayerHero
+        <ResultsHero
           stats={stats}
-          leaderboard={leaderboard}
+          weekly={weekly}
           role={user.role}
           dateLabel={`${zDateLong(now)} · ${zTime(now)}`}
+          mois={calendar.mois}
           isWorkingDay={isTodayWorkingDay(now)}
           money={
             isAdmin
@@ -141,26 +149,35 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                   commissions: data.commissionsAcquisesMois,
                   salairePrevu: data.salairePrevuMois,
                   garantieActive: data.garantieActiveMois,
-                  mois: calendar.mois,
                 }
           }
           pendingCount={pendingCount}
         />
       )}
 
-      {/* Moteur de jeu indisponible : on garde les KPI de rémunération. */}
+      {/* Résultats indisponibles : on garde la devise, le CA signé et la
+          rémunération (requêtes du dashboard). */}
+      {!stats && <p className="text-sm font-bold text-coral-600">{DEVISE}</p>}
       {!stats && !isAdmin && (
-        <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2">
-          <StatTile
+        <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 lg:grid-cols-3">
+          <MoneyStat
+            label={`CA signé · ${calendar.mois}`}
+            amount={data.monthlyProgress.caRealise}
+            target={data.monthlyProgress.caObjectif}
+            icon={Coins}
+            tone="green"
+            href="/contrats"
+          />
+          <MoneyStat
             label="Commissions acquises"
-            value={formatCHFCompact(data.commissionsAcquisesMois)}
+            amount={data.commissionsAcquisesMois}
             sub="versées via ton salaire mensuel"
             icon={Wallet}
             tone="green"
           />
-          <StatTile
+          <MoneyStat
             label="Salaire prévu"
-            value={formatCHFCompact(data.salairePrevuMois)}
+            amount={data.salairePrevuMois}
             sub={data.garantieActiveMois ? "Garantie active" : "Performance pure"}
             icon={Wallet}
             tone={data.garantieActiveMois ? "gold" : "green"}
@@ -185,7 +202,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             </StatusPill>
           ) : (
             <StatusPill tone="green" icon={Check} size="md">
-              Tout est traité, bravo
+              Tout est traité
             </StatusPill>
           )}
         </div>
@@ -212,7 +229,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {pendingCount === 0 && (
           <p className="rounded-[16px] border border-win-500/30 bg-win-50 px-4 py-3 text-[13px] font-semibold text-win-700">
             Aucun RDV à valider, planning à jour
-            {isAdmin ? ", aucun contrat en attente" : ""}. Place à l&apos;action !
+            {isAdmin ? ", aucun contrat en attente" : ""}. Place aux appels !
           </p>
         )}
       </section>
@@ -227,9 +244,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             <TeamActivity rows={teamActivity} periode={periodeActivite} />
           )}
 
-          {(leaderboard || upcoming) && (
+          {(hasLeaderboard || upcoming) && (
             <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-              {leaderboard && <WeeklyLeaderboard entries={leaderboard} stats={stats} />}
+              {hasLeaderboard && <ResultsLeaderboard weekly={weekly} monthly={monthly} />}
               {upcoming && (
                 <UpcomingRdvSection
                   rdvs={upcoming.rdvs}
@@ -242,13 +259,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         </>
       ) : (
         <>
-          {stats && <MissionsSection missions={stats.missions} />}
+          {stats && <DailyGoalsSection goals={stats.dailyGoals} />}
 
           {periods && (
             <ActivityOverview
               periods={periods}
               objectifs={{
-                jour: { appels: missionTarget("appels"), rdvPris: missionTarget("rdvPris") },
+                jour: {
+                  appels: dailyTarget("appels"),
+                  rdvPris: dailyTarget("rdvPris"),
+                  propositions: dailyTarget("propositions"),
+                },
                 mois: {
                   appels: data.monthlyProgress.nbAppelsObjectif,
                   rdvEffectues: data.monthlyProgress.nbRdvObjectif,
@@ -266,10 +287,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               pipeline={{ montant: pipelinePondere, deals: data.topDeals.length }}
               className="flex-[3_1_560px]"
             />
-            {leaderboard && (
-              <WeeklyLeaderboard
-                entries={leaderboard}
-                stats={stats}
+            {hasLeaderboard && (
+              <ResultsLeaderboard
+                weekly={weekly}
+                monthly={monthly}
                 className="flex-[2_1_340px]"
               />
             )}
@@ -283,8 +304,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                 today={todayZurich}
               />
             )}
-            {feed && <XpFeed items={feed} xpToday={stats?.xpToday ?? 0} today={todayZurich} />}
-            {stats && <BadgesSection badges={stats.badges} />}
+            {feed && <ResultsFeed items={feed} today={todayZurich} />}
+            {stats && <RecordsSection stats={stats} todayKey={todayZurich} />}
           </div>
         </>
       )}

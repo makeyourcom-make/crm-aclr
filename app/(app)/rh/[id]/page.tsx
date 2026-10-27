@@ -11,21 +11,20 @@ import {
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { BadgeMedal } from "@/components/arena/badge-medal";
-import { formatInt, formatXp } from "@/components/arena/format";
+import { formatDayKey, formatInt } from "@/components/arena/format";
 import { HeroPanel } from "@/components/arena/hero-panel";
-import { LevelPill, StreakPill, XpPill } from "@/components/arena/pills";
+import { moneyTargetText } from "@/components/arena/money-stat";
+import { StreakPill } from "@/components/arena/pills";
 import { PlayerAvatar, toneForRole } from "@/components/arena/player-avatar";
 import { SectionCard } from "@/components/arena/section-card";
 import { StatTile } from "@/components/arena/stat-tile";
-import { XpBar } from "@/components/arena/xp-bar";
 import { ImpersonateButton } from "@/components/collaborateurs/impersonate-button";
 import { EmployeeDocuments } from "@/components/rh/employee-documents";
 import { EmployeeForm } from "@/components/rh/employee-form";
 import { ResetPasswordButton } from "@/components/rh/reset-password-button";
 import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
-import { formatCHF } from "@/lib/format";
+import { formatCHF, formatCHFCompact } from "@/lib/format";
 import { getPlayerStats } from "@/lib/gamification";
 import { initialsOf, type PlayerStats } from "@/lib/gamification/rules";
 import { getEmployeeById } from "@/lib/queries/hr";
@@ -88,7 +87,6 @@ export default async function EmployeeFichePage({ params }: PageProps) {
   const salaireIndicatif =
     Math.max(Number(employee.salaireBase ?? 0), Number(employee.garantieMensuelle)) +
     Number(employee.forfaitFrais);
-  const badgesEarned = stats ? stats.badges.filter((b) => b.earned) : [];
 
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
@@ -120,42 +118,60 @@ export default async function EmployeeFichePage({ params }: PageProps) {
 
       <div className="flex flex-col gap-6">
         {stats && (
-          <HeroPanel aria-labelledby="fiche-joueur-titre">
+          <HeroPanel aria-labelledby="fiche-resultats-titre">
             <div className="flex flex-wrap items-center gap-6">
               <div className="flex min-w-0 flex-[1_1_280px] items-center gap-4">
                 <PlayerAvatar initials={initialsOf(employee.name)} tone={toneForRole(employee.role)} size="lg" />
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <h2 id="fiche-joueur-titre" className="text-xs font-bold tracking-[0.08em] text-navy-200 uppercase">
-                    Fiche joueur
+                  <h2 id="fiche-resultats-titre" className="text-xs font-bold tracking-[0.08em] text-navy-200 uppercase">
+                    Résultats commerciaux
                   </h2>
                   <div className="flex flex-wrap items-center gap-2">
-                    <LevelPill level={stats.level} variant="dark" size="md" />
                     <StreakPill days={stats.streak} variant="dark" size="md" />
-                    <XpPill xp={stats.xpToday} label="aujourd'hui" variant="dark" size="md" />
                   </div>
-                  <XpBar pct={stats.level.pct} className="h-2 bg-navy-500" label="Progression du niveau" />
                   <span className="text-xs font-semibold text-navy-200 tabular-nums">
-                    {formatXp(stats.level.xp)}
-                    {stats.level.nextXp != null && stats.level.nextName
-                      ? ` · ${formatXp(stats.level.xpToNext ?? 0)} avant ${stats.level.nextName}`
-                      : " · niveau maximum"}
+                    Aujourd&apos;hui : {formatInt(stats.today.appels)} / {formatInt(stats.dailyTargets.appels)} appels ·{" "}
+                    {formatInt(stats.today.rdvPris)} RDV pris · {formatInt(stats.today.propositions)} proposition
+                    {stats.today.propositions > 1 ? "s" : ""}
                   </span>
                 </div>
               </div>
               <dl className="grid flex-[1_1_300px] grid-cols-2 gap-3 sm:grid-cols-3">
-                <HeroStat label="XP cette semaine" value={formatXp(stats.xpWeek)} sub={`record ${formatXp(stats.xpRecordWeek)}`} />
-                <HeroStat label="Record de série" value={`${formatInt(stats.streakRecord)} j`} sub={`objectif ${stats.dailyCallTarget} appels / jour`} />
-                <HeroStat label="Badges" value={`${badgesEarned.length} / ${stats.badges.length}`} sub="débloqués" />
+                <HeroStat
+                  label="CA signé ce mois"
+                  value={formatCHFCompact(stats.month.caSigne)}
+                  sub={moneyTargetText(stats.month.caSigne, stats.monthTargets.caSigne) ?? "valeur totale des contrats"}
+                />
+                <HeroStat
+                  label="Contrats signés"
+                  value={formatInt(stats.month.contratsSignes)}
+                  sub={
+                    stats.monthTargets.contratsSignes != null
+                      ? `ce mois · objectif ${formatInt(stats.monthTargets.contratsSignes)}`
+                      : "ce mois"
+                  }
+                />
+                <HeroStat
+                  label="RDV pris ce mois"
+                  value={formatInt(stats.month.rdvPris)}
+                  sub={`${formatInt(stats.month.rdvEffectues)} effectué${stats.month.rdvEffectues > 1 ? "s" : ""} · ${formatInt(stats.month.appels)} appels`}
+                />
+                <HeroStat
+                  label="Plus gros contrat"
+                  value={stats.records.biggestContractMensuel > 0 ? formatCHF(stats.records.biggestContractMensuel) : "Aucun"}
+                  sub="montant mensuel"
+                />
+                <HeroStat
+                  label="Meilleure journée"
+                  value={`${formatInt(stats.records.bestDayRdvPris)} RDV`}
+                  sub={stats.records.bestDayRdvPrisDate ? `pris le ${formatDayKey(stats.records.bestDayRdvPrisDate)}` : "pas encore de RDV"}
+                />
+                <HeroStat
+                  label="Plus longue série"
+                  value={`${formatInt(stats.streakRecord)} j`}
+                  sub={`objectif ${stats.dailyCallTarget} appels / jour`}
+                />
               </dl>
-              {badgesEarned.length > 0 && (
-                <ul aria-label="Badges obtenus" className="flex w-full flex-wrap gap-3">
-                  {badgesEarned.map((b) => (
-                    <li key={b.key}>
-                      <BadgeMedal badge={b} size="sm" showLabel={false} />
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
           </HeroPanel>
         )}

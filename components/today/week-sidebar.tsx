@@ -1,5 +1,5 @@
 /**
- * « Cette semaine » : compteurs hebdo (moteur de jeu) face aux objectifs
+ * « Cette semaine » : compteurs hebdo réels face aux objectifs
  * hebdo (objectif quotidien × jours ouvrés), avec le repère du rythme
  * attendu à la fin de la journée, puis la charge de la semaine (actions par
  * jour ouvré, lien vers l'agenda).

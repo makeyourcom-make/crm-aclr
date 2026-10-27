@@ -1,6 +1,6 @@
 /**
  * Couleurs des tags d'entreprise (valeur stockée en base : slate, blue,
- * emerald, amber, rose, purple, cyan, orange) → pastille MYC Arena.
+ * emerald, amber, rose, purple, cyan, orange) → pastille.
  * Source unique pour la liste, la fiche et la gestion des tags.
  * Classes écrites en entier pour le scan Tailwind.
  */

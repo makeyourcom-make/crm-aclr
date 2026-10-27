@@ -21,7 +21,6 @@ import {
   Repeat,
   Tag,
   Users,
-  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -45,7 +44,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { XP_RULES } from "@/lib/gamification/rules";
 import { AGENDA_COLORS } from "@/lib/agenda-colors";
 import { ACTIVITY_TYPE_OPTIONS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -340,7 +338,7 @@ function ActivityForm({
         editActivity ? "Activité modifiée." : "Activité ajoutée à l'agenda.",
         isRdv && prospectId && !editActivity
           ? {
-              description: `RDV calé : +${XP_RULES.rdvEffectue} XP à la clé une fois effectué.`,
+              description: "RDV calé : prépare-le pour en sortir une proposition.",
             }
           : undefined,
       );
@@ -581,13 +579,14 @@ function ActivityForm({
               prospectId ? "text-gold-700" : "text-muted-foreground",
             )}
           >
-            <Zap
+            <Check
               aria-hidden="true"
-              className="size-3.5 shrink-0 fill-gold-500 text-gold-500"
+              className="size-3.5 shrink-0 text-gold-700"
+              strokeWidth={3}
             />
             {prospectId
-              ? `+${XP_RULES.rdvEffectue} XP une fois le RDV effectué et validé.`
-              : "Rattache un client pour que ce RDV compte dans tes XP."}
+              ? "Ce RDV compte dans tes RDV de la semaine une fois effectué et validé."
+              : "Rattache un client pour que ce RDV compte dans tes résultats."}
           </p>
         )}
       </FieldRow>

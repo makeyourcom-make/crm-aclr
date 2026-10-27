@@ -1,5 +1,6 @@
 /**
- * MYC Arena - moteur de jeu (requêtes serveur).
+ * Résultats commerciaux - requêtes serveur (compteurs, série, objectifs du
+ * jour, records, classements).
  *
  * SERVEUR UNIQUEMENT (server-only) : ce module interroge la base via prisma.
  * Pas de `import "server-only"` : Next le gère en interne, mais le paquet
@@ -8,13 +9,14 @@
  * uniquement `@/lib/gamification/rules`, jamais `@/lib/gamification`.
  *
  * Principes :
- *  - Aucune table d'XP : tout est recalculé à partir des agrégats existants
+ *  - Aucune table dédiée : tout est recalculé à partir des agrégats existants
  *    (activités, contrats), avec les MÊMES définitions que
- *    `lib/queries/stats.ts` / `lib/queries/today.ts`.
+ *    `lib/queries/pilotage.ts` (compteurs) et `lib/queries/dashboard.ts`
+ *    (CA signé = valeur totale des contrats réellement signés).
  *  - Les dates sont stockées en UTC (timestamp sans fuseau) : les jours sont
  *    découpés en fuseau Europe/Zurich, côté SQL (`AT TIME ZONE`) comme côté JS.
  *  - Une seule requête d'agrégat « par jour » sur tout l'historique d'un
- *    joueur, partagée (via `cache()` de React) entre `getPlayerHeader`
+ *    utilisateur, partagée (via `cache()` de React) entre `getPlayerHeader`
  *    (layout, à chaque navigation) et `getPlayerStats` (dashboard).
  *
  * Définitions des compteurs :
@@ -26,11 +28,14 @@
  *                    rattachées à un prospect, FAIT, datées au plus tard
  *                    maintenant
  *  - propositions  : contrats (devis) créés par la commerciale assignée
- *                    (createdAt), quel que soit leur sort ensuite (stats.ts)
+ *                    (createdAt), quel que soit leur sort ensuite, hors
+ *                    contrats importés a posteriori
  *  - signatures    : contrats réellement signés (hors ATTENTE_SIGNATURE_CLIENT
  *                    et ATTENTE_VALIDATION_ADMIN), datés par dateSignature
- *  - emails        : Activity EMAIL_ENVOYE au statut FAIT (créée à chaque
- *                    envoi depuis le CRM : mail prospect, contrat, facture)
+ *  - caSigne (CHF) : somme sur ces contrats de montantOneShot +
+ *                    montantMensuel × dureeMois (valeur totale, comme le
+ *                    dashboard et le héros pipeline)
+ *  - emails        : Activity EMAIL_ENVOYE au statut FAIT
  */
 import { cache } from "react";
 
@@ -43,7 +48,9 @@ import {
   BADGE_DEFS,
   BADGE_THRESHOLDS,
   DEFAULT_DAILY_TARGETS,
+  dailyGoalsFor,
   emptyCounters,
+  emptyMonthResults,
   firstNameOf,
   initialsOf,
   levelFor,
@@ -53,6 +60,8 @@ import {
   type DailyTargets,
   type DayCounters,
   type LeaderboardEntry,
+  type MonthResults,
+  type MonthTargets,
   type PlayerHeader,
   type PlayerStats,
 } from "./rules";
@@ -125,6 +134,22 @@ function zDay(column: string): Prisma.Sql {
   );
 }
 
+/** Bornes utiles autour de « maintenant » (Zurich). */
+function nowWindow(now: Date) {
+  const todayKey = zurichDayKey(now);
+  const todayDate = keyToUtcDate(todayKey);
+  const monthKey = todayKey.slice(0, 7);
+  const mondayDate = addDays(todayDate, -((todayDate.getUTCDay() || 7) - 1));
+  return {
+    todayKey,
+    todayDate,
+    monthKey,
+    weekStart: zurichStartOfDay(utcDateToKey(mondayDate)),
+    monthStart: zurichStartOfDay(`${monthKey}-01`),
+    tomorrowStart: zurichStartOfDay(utcDateToKey(addDays(todayDate, 1))),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // AGRÉGAT PAR JOUR (une requête, UNION ALL activités + contrats)
 // ---------------------------------------------------------------------------
@@ -141,6 +166,7 @@ interface DayAggRow {
   signatures: number;
   mensuel: number;
   mensuel_max: number;
+  ca: number;
 }
 
 interface DayData {
@@ -149,6 +175,8 @@ interface DayData {
   mensuel: number;
   /** Plus gros montant mensuel signé ce jour-là (CHF). */
   mensuelMax: number;
+  /** CA signé ce jour-là (CHF, valeur totale). */
+  ca: number;
 }
 
 type Scope = { userId: string } | { activeUsers: true };
@@ -180,7 +208,8 @@ function dayAggregateSql(scope: Scope, from: Date | null, to: Date, now: Date): 
       SUM(t.propositions)::int AS propositions,
       SUM(t.signatures)::int AS signatures,
       COALESCE(SUM(t.mensuel), 0)::float8 AS mensuel,
-      COALESCE(MAX(t.mensuel_max), 0)::float8 AS mensuel_max
+      COALESCE(MAX(t.mensuel_max), 0)::float8 AS mensuel_max,
+      COALESCE(SUM(t.ca), 0)::float8 AS ca
     FROM (
       SELECT a."userId" AS uid, ${zDay('a."date"')} AS d,
         COUNT(*) FILTER (
@@ -204,7 +233,8 @@ function dayAggregateSql(scope: Scope, from: Date | null, to: Date, now: Date): 
         0::bigint AS propositions,
         0::bigint AS signatures,
         0::numeric AS mensuel,
-        0::numeric AS mensuel_max
+        0::numeric AS mensuel_max,
+        0::numeric AS ca
       FROM activities a
       WHERE ${actUser}
         ${actFrom}
@@ -228,7 +258,7 @@ function dayAggregateSql(scope: Scope, from: Date | null, to: Date, now: Date): 
       SELECT c."assigneAId" AS uid, ${zDay('c."createdAt"')} AS d,
         0, 0, 0, 0, 0,
         COUNT(*) AS propositions,
-        0, 0, 0
+        0, 0, 0, 0
       FROM contracts c
       WHERE ${ctUser}
         ${createdFrom}
@@ -244,7 +274,8 @@ function dayAggregateSql(scope: Scope, from: Date | null, to: Date, now: Date): 
         0, 0, 0, 0, 0, 0,
         COUNT(*) AS signatures,
         SUM(c."montantMensuel") AS mensuel,
-        MAX(c."montantMensuel") AS mensuel_max
+        MAX(c."montantMensuel") AS mensuel_max,
+        SUM(c."montantOneShot" + c."montantMensuel" * c."dureeMois") AS ca
       FROM contracts c
       WHERE ${ctUser}
         AND c."statut" NOT IN ('ATTENTE_SIGNATURE_CLIENT', 'ATTENTE_VALIDATION_ADMIN')
@@ -270,11 +301,22 @@ function rowToDayData(r: DayAggRow): DayData {
     },
     mensuel: Number(r.mensuel) || 0,
     mensuelMax: Number(r.mensuel_max) || 0,
+    ca: Number(r.ca) || 0,
   };
 }
 
+/** Cumule un jour dans des résultats mensuels (mutation). */
+function addDayToMonth(m: MonthResults, day: DayData): void {
+  m.caSigne += day.ca;
+  m.contratsSignes += day.c.signatures;
+  m.rdvPris += day.c.rdvPris;
+  m.rdvEffectues += day.c.rdvEffectues;
+  m.appels += day.c.appels;
+  m.propositions += day.c.propositions;
+}
+
 // ---------------------------------------------------------------------------
-// OBJECTIFS QUOTIDIENS
+// OBJECTIFS QUOTIDIENS / MENSUELS
 // ---------------------------------------------------------------------------
 
 interface DailyObjective {
@@ -317,6 +359,12 @@ async function loadDailyObjectives(userId: string | null): Promise<DailyObjectiv
 const positive = (v: number | null | undefined, fallback: number): number =>
   v != null && v > 0 ? v : fallback;
 
+/** Arrondi au centime (évite les 5074.799999 des sommes flottantes). */
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+const positiveOrNull = (v: number | null | undefined): number | null =>
+  v != null && Number.isFinite(v) && v > 0 ? v : null;
+
 /** Objectifs du jour `key` (Objective QUOTIDIEN actif couvrant ce jour, sinon défauts). */
 function targetsFor(objectives: DailyObjective[], key: string): DailyTargets {
   const o = objectives.find((x) => x.startKey <= key && x.endKey >= key);
@@ -327,8 +375,41 @@ function targetsFor(objectives: DailyObjective[], key: string): DailyTargets {
   };
 }
 
+/**
+ * Objectif MENSUEL actif le plus récent couvrant le mois en cours (même
+ * requête que `computeMonthlyProgressPartial` du dashboard).
+ */
+async function loadMonthTargets(userId: string, now: Date): Promise<MonthTargets> {
+  const { monthKey, monthStart } = nowWindow(now);
+  const [y, m] = monthKey.split("-").map(Number) as [number, number];
+  const nextMonthKey = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+  const monthEnd = new Date(zurichStartOfDay(`${nextMonthKey}-01`).getTime() - 1);
+  const o = await prisma.objective.findFirst({
+    where: {
+      userId,
+      periode: "MENSUEL",
+      isActif: true,
+      dateDebut: { lte: monthEnd },
+      dateFin: { gte: monthStart },
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      caObjectif: true,
+      nbSignaturesObjectif: true,
+      nbRdvObjectif: true,
+      nbAppelsObjectif: true,
+    },
+  });
+  return {
+    caSigne: positiveOrNull(o?.caObjectif != null ? Number(o.caObjectif) : null),
+    contratsSignes: positiveOrNull(o?.nbSignaturesObjectif),
+    rdv: positiveOrNull(o?.nbRdvObjectif),
+    appels: positiveOrNull(o?.nbAppelsObjectif),
+  };
+}
+
 // ---------------------------------------------------------------------------
-// NOYAU JOUEUR (requêtes + calculs dérivés, mis en cache par requête)
+// NOYAU (requêtes + calculs dérivés, mis en cache par requête)
 // ---------------------------------------------------------------------------
 
 interface PlayerCore {
@@ -337,47 +418,56 @@ interface PlayerCore {
   todayKey: string;
   today: DayCounters;
   todayTargets: DailyTargets;
+  month: MonthResults;
+  streak: number;
+  longestStreak: number;
+  bestDayRdvPris: number;
+  bestDayRdvPrisDate: string | null;
+  bestMonthCaSigne: number;
+  bestMonthCaSigneKey: string | null;
+  biggestContractMensuel: number;
+  // --- déprécié (XP / badges) ---
   xpTotal: number;
   xpToday: number;
   xpWeek: number;
-  streak: number;
-  longestStreak: number;
   bestDayXp: number;
   bestDayDate: string | null;
   bestWeekXp: number;
-  maxRdvPrisDay: number;
   maxAppelsWeek: number;
   longestGrandChelem: number;
   signaturesTotal: number;
-  biggestContractMensuel: number;
 }
 
 const loadPlayerCore = cache(async (userId: string): Promise<PlayerCore> => {
   const now = new Date();
-  const todayKey = zurichDayKey(now);
-  const todayDate = keyToUtcDate(todayKey);
-  const tomorrowStart = zurichStartOfDay(utcDateToKey(addDays(todayDate, 1)));
+  const { todayKey, todayDate, monthKey, tomorrowStart } = nowWindow(now);
 
   const [user, objectives, rows] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
     loadDailyObjectives(userId),
-    prisma.$queryRaw<DayAggRow[]>(
-      dayAggregateSql({ userId }, null, tomorrowStart, now),
-    ),
+    prisma.$queryRaw<DayAggRow[]>(dayAggregateSql({ userId }, null, tomorrowStart, now)),
   ]);
 
+  // Lignes triées par jour croissant (ORDER BY t.d) : la Map garde cet ordre.
   const days = new Map<string, DayData>();
   for (const r of rows) days.set(r.d, rowToDayData(r));
 
   const dayTargets = (key: string) => targetsFor(objectives, key);
   const callGoalMet = (key: string) =>
     (days.get(key)?.c.appels ?? 0) >= dayTargets(key).appels;
-  const allMissionsDone = (key: string) => {
+  const allGoalsDone = (key: string) => {
     const day = days.get(key);
-    return day ? missionsFor(day.c, dayTargets(key)).every((m) => m.done) : false;
+    return day ? dailyGoalsFor(day.c, dayTargets(key)).every((m) => m.done) : false;
   };
 
-  // XP par jour / semaine + records
+  // Mois en cours, records en résultats (+ XP déprécié).
+  const month = emptyMonthResults(monthKey);
+  const caByMonth = new Map<string, number>();
+  let bestDayRdvPris = 0;
+  let bestDayRdvPrisDate: string | null = null;
+  let biggestContractMensuel = 0;
+  let signaturesTotal = 0;
+
   const todayWeek = isoWeekKey(todayDate);
   const weekXp = new Map<string, number>();
   const weekAppels = new Map<string, number>();
@@ -385,10 +475,18 @@ const loadPlayerCore = cache(async (userId: string): Promise<PlayerCore> => {
   let xpToday = 0;
   let bestDayXp = 0;
   let bestDayDate: string | null = null;
-  let maxRdvPrisDay = 0;
-  let signaturesTotal = 0;
-  let biggestContractMensuel = 0;
+
   for (const [key, day] of days) {
+    const mk = key.slice(0, 7);
+    if (mk === monthKey) addDayToMonth(month, day);
+    if (day.ca > 0) caByMonth.set(mk, (caByMonth.get(mk) ?? 0) + day.ca);
+    if (day.c.rdvPris > bestDayRdvPris) {
+      bestDayRdvPris = day.c.rdvPris;
+      bestDayRdvPrisDate = key;
+    }
+    biggestContractMensuel = Math.max(biggestContractMensuel, day.mensuelMax);
+    signaturesTotal += day.c.signatures;
+
     const xp = xpForDay(day.c, day.mensuel, dayTargets(key));
     xpTotal += xp;
     if (key === todayKey) xpToday = xp;
@@ -399,12 +497,18 @@ const loadPlayerCore = cache(async (userId: string): Promise<PlayerCore> => {
     const wk = isoWeekKey(keyToUtcDate(key));
     weekXp.set(wk, (weekXp.get(wk) ?? 0) + xp);
     weekAppels.set(wk, (weekAppels.get(wk) ?? 0) + day.c.appels);
-    maxRdvPrisDay = Math.max(maxRdvPrisDay, day.c.rdvPris);
-    signaturesTotal += day.c.signatures;
-    biggestContractMensuel = Math.max(biggestContractMensuel, day.mensuelMax);
   }
-  const bestWeekXp = Math.max(0, ...weekXp.values());
-  const maxAppelsWeek = Math.max(0, ...weekAppels.values());
+
+  month.caSigne = round2(month.caSigne);
+  let bestMonthCaSigne = 0;
+  let bestMonthCaSigneKey: string | null = null;
+  for (const [mk, raw] of caByMonth) {
+    const ca = round2(raw);
+    if (ca > bestMonthCaSigne) {
+      bestMonthCaSigne = ca;
+      bestMonthCaSigneKey = mk;
+    }
+  }
 
   // Séries (jours ouvrés lun-ven hors fériés VS ; week-ends et fériés ignorés).
   // Plus longues séries : parcours chronologique de tout l'historique.
@@ -428,7 +532,7 @@ const loadPlayerCore = cache(async (userId: string): Promise<PlayerCore> => {
       } else if (!isToday) {
         run = 0;
       }
-      if (allMissionsDone(key)) {
+      if (allGoalsDone(key)) {
         runChelem += 1;
         longestGrandChelem = Math.max(longestGrandChelem, runChelem);
       } else if (!isToday) {
@@ -459,19 +563,23 @@ const loadPlayerCore = cache(async (userId: string): Promise<PlayerCore> => {
     todayKey,
     today: days.get(todayKey)?.c ?? emptyCounters(),
     todayTargets: dayTargets(todayKey),
+    month,
+    streak,
+    longestStreak,
+    bestDayRdvPris,
+    bestDayRdvPrisDate,
+    bestMonthCaSigne,
+    bestMonthCaSigneKey,
+    biggestContractMensuel,
     xpTotal,
     xpToday,
     xpWeek: weekXp.get(todayWeek) ?? 0,
-    streak,
-    longestStreak,
     bestDayXp,
     bestDayDate,
-    bestWeekXp,
-    maxRdvPrisDay,
-    maxAppelsWeek,
+    bestWeekXp: Math.max(0, ...weekXp.values()),
+    maxAppelsWeek: Math.max(0, ...weekAppels.values()),
     longestGrandChelem,
     signaturesTotal,
-    biggestContractMensuel,
   };
 });
 
@@ -481,10 +589,13 @@ function headerFromCore(core: PlayerCore): PlayerHeader {
     name: core.name,
     firstName: firstNameOf(core.name),
     initials: initialsOf(core.name),
-    level: levelFor(core.xpTotal),
-    xpToday: core.xpToday,
+    today: core.today,
+    dailyTargets: core.todayTargets,
+    month: core.month,
     streak: core.streak,
     dailyCallTarget: core.todayTargets.appels,
+    level: levelFor(core.xpTotal),
+    xpToday: core.xpToday,
   };
 }
 
@@ -493,35 +604,34 @@ function headerFromCore(core: PlayerCore): PlayerHeader {
 // ---------------------------------------------------------------------------
 
 /**
- * En-tête joueur (carte joueur de la sidebar, pilules de la topbar).
- * Léger : 3 requêtes en parallèle (utilisateur, objectifs quotidiens,
- * agrégat par jour), dédupliquées par requête avec getPlayerStats.
+ * En-tête léger (carte résultats de la sidebar, pilules de la topbar) :
+ * compteurs du jour, objectifs du jour, résultats du mois, série.
+ * 3 requêtes en parallèle (utilisateur, objectifs quotidiens, agrégat par
+ * jour), dédupliquées par requête avec getPlayerStats.
  */
 export const getPlayerHeader = cache(async (userId: string): Promise<PlayerHeader> => {
   return headerFromCore(await loadPlayerCore(userId));
 });
 
-/** Statistiques complètes du joueur (dashboard, objectifs, kit). */
+/** Statistiques complètes (dashboard, Ma journée, objectifs, commissions...). */
 export const getPlayerStats = cache(async (userId: string): Promise<PlayerStats> => {
-  const [core, unreadInbox, closer] = await Promise.all([
+  const now = new Date();
+  const [core, monthTargets, unreadInbox, closer] = await Promise.all([
     loadPlayerCore(userId),
-    // Non lus de la boîte de réception (même périmètre que /emails) : hors
-    // archivés ET hors corbeille. Un mail supprimé sans avoir été ouvert reste
-    // `lu: false` : sans `supprime: false`, il bloquerait « Inbox zéro » alors
-    // qu'il n'est plus visible dans la boîte. (Le badge « non lus » historique
-    // de la sidebar, lui, ne filtre pas encore la corbeille.)
+    loadMonthTargets(userId, now),
+    // Déprécié (badge « Inbox zéro ») : non lus de la boîte de réception.
     prisma.email.count({
       where: { userId, direction: "ENTRANT", lu: false, archive: false, supprime: false },
     }),
+    // Déprécié (badge « Closer du mois »).
     isCloserOfTheMonth(userId),
   ]);
 
   const header = headerFromCore(core);
-  const missions = missionsFor(core.today, core.todayTargets);
 
   const earned: Record<BadgeState["key"], boolean> = {
     "premier-sang": core.signaturesTotal >= 1,
-    sniper: core.maxRdvPrisDay >= BADGE_THRESHOLDS.sniperRdvJour,
+    sniper: core.bestDayRdvPris >= BADGE_THRESHOLDS.sniperRdvJour,
     marathon: core.maxAppelsWeek >= BADGE_THRESHOLDS.marathonAppelsSemaine,
     "serie-de-feu": core.longestStreak >= BADGE_THRESHOLDS.serieDeFeuJours,
     "closer-du-mois": closer,
@@ -529,91 +639,128 @@ export const getPlayerStats = cache(async (userId: string): Promise<PlayerStats>
     legende: header.level.level === 5,
     "grand-chelem": core.longestGrandChelem >= BADGE_THRESHOLDS.grandChelemJours,
   };
-  const badges: BadgeState[] = BADGE_DEFS.map((b) => ({ ...b, earned: earned[b.key] }));
 
   return {
     ...header,
+    dailyGoals: dailyGoalsFor(core.today, core.todayTargets),
+    monthTargets,
+    records: {
+      bestDayRdvPris: core.bestDayRdvPris,
+      bestDayRdvPrisDate: core.bestDayRdvPrisDate,
+      bestMonthCaSigne: core.bestMonthCaSigne,
+      bestMonthCaSigneKey: core.bestMonthCaSigneKey,
+      biggestContractMensuel: core.biggestContractMensuel,
+      longestStreak: core.longestStreak,
+      bestDayXp: core.bestDayXp,
+      bestDayDate: core.bestDayDate,
+      bestWeekXp: core.bestWeekXp,
+    },
+    streakRecord: core.longestStreak,
+    missions: missionsFor(core.today, core.todayTargets),
+    badges: BADGE_DEFS.map((b) => ({ ...b, earned: earned[b.key] })),
     xpTotal: core.xpTotal,
     xpRecordDay: core.bestDayXp,
     xpWeek: core.xpWeek,
     xpRecordWeek: core.bestWeekXp,
-    streakRecord: core.longestStreak,
-    today: core.today,
-    missions,
-    badges,
-    records: {
-      bestDayXp: core.bestDayXp,
-      bestDayDate: core.bestDayDate,
-      bestWeekXp: core.bestWeekXp,
-      longestStreak: core.longestStreak,
-      biggestContractMensuel: core.biggestContractMensuel,
-    },
   };
 });
 
 /**
- * Classement XP de la semaine ISO en cours (lundi → aujourd'hui, Zurich)
- * parmi les utilisateurs actifs. Mêmes règles que getPlayerStats().xpWeek.
+ * Classement des utilisateurs actifs sur [from, demain 00:00 Zurich[ :
+ * CA signé décroissant, puis RDV pris, puis appels, puis nom.
+ * Ex aequo (même rang) si même CA signé ET mêmes RDV pris.
  */
+async function buildLeaderboard(meId: string, from: Date, now: Date): Promise<LeaderboardEntry[]> {
+  const { tomorrowStart } = nowWindow(now);
+  const [users, objectives, rows] = await Promise.all([
+    prisma.user.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    loadDailyObjectives(null),
+    prisma.$queryRaw<DayAggRow[]>(
+      dayAggregateSql({ activeUsers: true }, from, tomorrowStart, now),
+    ),
+  ]);
+
+  const objByUser = new Map<string, DailyObjective[]>();
+  for (const o of objectives) {
+    const list = objByUser.get(o.userId) ?? [];
+    list.push(o);
+    objByUser.set(o.userId, list);
+  }
+
+  const acc = new Map<
+    string,
+    { caSigne: number; contratsSignes: number; rdvPris: number; appels: number; xp: number }
+  >();
+  for (const r of rows) {
+    const day = rowToDayData(r);
+    const cur = acc.get(r.uid) ?? { caSigne: 0, contratsSignes: 0, rdvPris: 0, appels: 0, xp: 0 };
+    cur.caSigne = round2(cur.caSigne + day.ca);
+    cur.contratsSignes += day.c.signatures;
+    cur.rdvPris += day.c.rdvPris;
+    cur.appels += day.c.appels;
+    cur.xp += xpForDay(day.c, day.mensuel, targetsFor(objByUser.get(r.uid) ?? [], r.d));
+    acc.set(r.uid, cur);
+  }
+
+  const sorted = users
+    .map((u) => ({
+      userId: u.id,
+      name: u.name,
+      ...(acc.get(u.id) ?? { caSigne: 0, contratsSignes: 0, rdvPris: 0, appels: 0, xp: 0 }),
+    }))
+    .sort(
+      (a, b) =>
+        b.caSigne - a.caSigne ||
+        b.rdvPris - a.rdvPris ||
+        b.appels - a.appels ||
+        a.name.localeCompare(b.name, "fr"),
+    );
+
+  let prev: { caSigne: number; rdvPris: number } | null = null;
+  let prevRank = 0;
+  return sorted.map((e, i) => {
+    const rank =
+      prev !== null && e.caSigne === prev.caSigne && e.rdvPris === prev.rdvPris ? prevRank : i + 1;
+    prev = { caSigne: e.caSigne, rdvPris: e.rdvPris };
+    prevRank = rank;
+    return {
+      userId: e.userId,
+      name: e.name,
+      initials: initialsOf(e.name),
+      caSigne: round2(e.caSigne),
+      contratsSignes: e.contratsSignes,
+      rdvPris: e.rdvPris,
+      appels: e.appels,
+      rank,
+      isMe: e.userId === meId,
+      xp: e.xp,
+    };
+  });
+}
+
+/** Classement de la semaine ISO en cours (lundi → aujourd'hui, Zurich). */
 export const getWeeklyLeaderboard = cache(
   async (meId: string): Promise<LeaderboardEntry[]> => {
     const now = new Date();
-    const todayKey = zurichDayKey(now);
-    const todayDate = keyToUtcDate(todayKey);
-    const mondayDate = addDays(todayDate, -((todayDate.getUTCDay() || 7) - 1));
-    const weekStart = zurichStartOfDay(utcDateToKey(mondayDate));
-    const tomorrowStart = zurichStartOfDay(utcDateToKey(addDays(todayDate, 1)));
+    return buildLeaderboard(meId, nowWindow(now).weekStart, now);
+  },
+);
 
-    const [users, objectives, rows] = await Promise.all([
-      prisma.user.findMany({
-        where: { isActive: true },
-        select: { id: true, name: true },
-        orderBy: { name: "asc" },
-      }),
-      loadDailyObjectives(null),
-      prisma.$queryRaw<DayAggRow[]>(
-        dayAggregateSql({ activeUsers: true }, weekStart, tomorrowStart, now),
-      ),
-    ]);
-
-    const objByUser = new Map<string, DailyObjective[]>();
-    for (const o of objectives) {
-      const list = objByUser.get(o.userId) ?? [];
-      list.push(o);
-      objByUser.set(o.userId, list);
-    }
-    const xpByUser = new Map<string, number>();
-    for (const r of rows) {
-      const day = rowToDayData(r);
-      const xp = xpForDay(day.c, day.mensuel, targetsFor(objByUser.get(r.uid) ?? [], r.d));
-      xpByUser.set(r.uid, (xpByUser.get(r.uid) ?? 0) + xp);
-    }
-
-    const sorted = users
-      .map((u) => ({ userId: u.id, name: u.name, xp: xpByUser.get(u.id) ?? 0 }))
-      .sort((a, b) => b.xp - a.xp || a.name.localeCompare(b.name, "fr"));
-
-    let prevXp: number | null = null;
-    let prevRank = 0;
-    return sorted.map((e, i) => {
-      const rank = prevXp !== null && e.xp === prevXp ? prevRank : i + 1;
-      prevXp = e.xp;
-      prevRank = rank;
-      return {
-        userId: e.userId,
-        name: e.name,
-        initials: initialsOf(e.name),
-        xp: e.xp,
-        rank,
-        isMe: e.userId === meId,
-      };
-    });
+/** Classement du mois en cours (1er du mois → aujourd'hui, Zurich). */
+export const getMonthlyLeaderboard = cache(
+  async (meId: string): Promise<LeaderboardEntry[]> => {
+    const now = new Date();
+    return buildLeaderboard(meId, nowWindow(now).monthStart, now);
   },
 );
 
 /**
- * Compteurs d'un joueur sur une fenêtre [start, end] (bornes incluses, comme
- * stats.ts). Réutilisable par les rubriques (une seule requête).
+ * Compteurs d'un utilisateur sur une fenêtre [start, end] (bornes incluses,
+ * comme stats.ts). Réutilisable par les rubriques (une seule requête).
  *
  * `cache()` compare les arguments par identité : deux `new Date()` égales ne
  * dédupliqueraient jamais. On met donc en cache sur les timestamps (nombres).
@@ -698,21 +845,21 @@ const dayCountersCached = cache(
 );
 
 // ---------------------------------------------------------------------------
-// BADGE « CLOSER DU MOIS »
+// DÉPRÉCIÉ : BADGE « CLOSER DU MOIS » (gardé tant que `badges` existe)
 // ---------------------------------------------------------------------------
 
 /**
- * Vrai si le joueur a le meilleur CA signé (somme valeurAn1, comme stats.ts)
- * parmi les utilisateurs actifs, sur le mois précédent OU le mois en cours.
+ * Vrai si l'utilisateur a le meilleur CA signé (somme valeurAn1, comme
+ * stats.ts) parmi les utilisateurs actifs, sur le mois précédent OU le mois
+ * en cours.
  */
 async function isCloserOfTheMonth(userId: string): Promise<boolean> {
   const now = new Date();
-  const todayKey = zurichDayKey(now);
+  const { todayKey, tomorrowStart } = nowWindow(now);
   const [y, m] = todayKey.split("-").map(Number) as [number, number];
   const prevY = m === 1 ? y - 1 : y;
   const prevM = m === 1 ? 12 : m - 1;
   const prevMonthStart = zurichStartOfDay(`${prevY}-${String(prevM).padStart(2, "0")}-01`);
-  const tomorrowStart = zurichStartOfDay(utcDateToKey(addDays(keyToUtcDate(todayKey), 1)));
 
   const rows = await prisma.$queryRaw<Array<{ uid: string; m: string; ca: number }>>`
     SELECT c."assigneAId" AS uid,

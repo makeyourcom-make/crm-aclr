@@ -59,7 +59,7 @@ export function ContratsAValiderDefinitif({
             <p className="font-display text-base font-extrabold text-lvl-700 tabular-nums">
               {formatCHF(c.valeurAn1)}
             </p>
-            {/* Carte de victoire complète (client, prénom, XP de signature),
+            {/* Carte de signature complète (client, prénom, montant mensuel),
                 comme dans la file Contrats. */}
             <ValidateContractButton
               contractId={c.contractId}

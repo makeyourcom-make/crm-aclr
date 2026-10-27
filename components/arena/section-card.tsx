@@ -3,7 +3,7 @@
  * description, action à droite, contenu dessous.
  *
  *   <SectionCard title="Missions du jour" icon={Target} tone="coral"
- *                description="3 quêtes · +100 XP chacune"
+ *                description="3 objectifs du jour"
  *                action={<XpPill xp={300} label="en jeu" />}>
  *     …
  *   </SectionCard>

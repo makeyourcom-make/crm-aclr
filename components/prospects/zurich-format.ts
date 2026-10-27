@@ -1,5 +1,5 @@
 /**
- * Dates de la rubrique Entreprises au format de la charte MYC Arena
+ * Dates de la rubrique Entreprises au format de la charte
  * (« 28.10.2026 », « 28.10 », « 09:30 »), TOUJOURS en fuseau Europe/Zurich.
  *
  * Pourquoi pas `formatDate` de lib/format ? Il formate dans le fuseau du

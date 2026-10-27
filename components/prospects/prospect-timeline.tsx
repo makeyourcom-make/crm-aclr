@@ -1,8 +1,7 @@
 /**
- * Historique MYC Arena d'une fiche : à venir puis passé, une tuile colorée
- * par type (appel coral, email teal, RDV or), statut, résultat, rappel auto,
- * lieu, notes, durée et les XP réellement rapportés par chaque action
- * (mêmes règles que le moteur de jeu). Server-safe.
+ * Historique d'une fiche : à venir puis passé, une tuile colorée par type
+ * (appel coral, email teal, RDV or), statut, résultat, rappel auto, lieu,
+ * notes et durée. Server-safe.
  */
 import type { Activity, ActivityResultat, ActivityType, User } from "@prisma/client";
 import {
@@ -28,7 +27,6 @@ import {
 } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
-import { activityXp } from "./lead-heat";
 import { fmtDate, fmtTime, relativeDayLabel } from "./zurich-format";
 
 export type TimelineActivity = Activity & {
@@ -131,7 +129,6 @@ function Item({
 }) {
   const kind = KIND[a.type];
   const Icon = kind.icon;
-  const xp = activityXp(a, nowMs);
   const rel = relativeDayLabel(a.date, nowMs);
 
   return (
@@ -170,11 +167,6 @@ function Item({
               )}
             >
               {getActivityResultatLabel(a.resultat)}
-            </span>
-          )}
-          {xp > 0 && (
-            <span className="ml-auto rounded-full bg-gold-50 px-2 py-0.5 text-[11px] font-extrabold text-gold-700 tabular-nums">
-              +{xp} XP
             </span>
           )}
         </div>

@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * « Ton activité » : appels, conversations, RDV pris, RDV effectués, emails
- * sur le jour / la semaine / le mois, avec tendance vs la période précédente
- * (à date équivalente) et entonnoir de conversion.
+ * « Ton activité » : appels, conversations, RDV pris, RDV effectués,
+ * propositions, emails sur le jour / la semaine / le mois, avec tendance vs la
+ * période précédente (à date équivalente) et entonnoir de conversion
+ * (appel, conversation, RDV, signature).
  *
  * Les 3 périodes sont calculées côté serveur (getActivityPeriods) : la bascule
  * Jour / Semaine / Mois est instantanée, sans aller-retour serveur.
@@ -16,6 +17,7 @@ import {
   Mail,
   MessageCircle,
   Phone,
+  Send,
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -25,7 +27,7 @@ import { SectionCard } from "@/components/arena/section-card";
 import { TrendChip } from "@/components/arena/stat-tile";
 import { TONE_CLASSES, type Tone } from "@/components/arena/tones";
 import { formatPercent } from "@/lib/format";
-import { XP_RULES, type DayCounters } from "@/lib/gamification/rules";
+import type { DayCounters } from "@/lib/gamification/rules";
 import type { ActivityPeriod, ActivityPeriodKey } from "@/lib/queries/dashboard";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +35,7 @@ export interface PeriodObjectives {
   appels?: number | null;
   rdvPris?: number | null;
   rdvEffectues?: number | null;
+  propositions?: number | null;
 }
 
 interface TileDef {
@@ -41,7 +44,7 @@ interface TileDef {
   icon: LucideIcon;
   tone: Tone;
   objKey?: keyof PeriodObjectives;
-  sub: (c: DayCounters) => string;
+  sub?: (c: DayCounters) => string;
 }
 
 function ratioTxt(num: number, den: number): string {
@@ -55,7 +58,6 @@ const TILES: TileDef[] = [
     icon: Phone,
     tone: "coral",
     objKey: "appels",
-    sub: () => `+${XP_RULES.appel} XP chacun`,
   },
   {
     key: "conversations",
@@ -70,7 +72,7 @@ const TILES: TileDef[] = [
     icon: CalendarPlus,
     tone: "gold",
     objKey: "rdvPris",
-    sub: () => `+${XP_RULES.rdvPris} XP chacun`,
+    sub: (c) => `${ratioTxt(c.rdvPris, c.appels)} des appels`,
   },
   {
     key: "rdvEffectues",
@@ -78,14 +80,19 @@ const TILES: TileDef[] = [
     icon: CalendarCheck,
     tone: "green",
     objKey: "rdvEffectues",
-    sub: () => `+${XP_RULES.rdvEffectue} XP chacun`,
+  },
+  {
+    key: "propositions",
+    label: "Propositions",
+    icon: Send,
+    tone: "violet",
+    objKey: "propositions",
   },
   {
     key: "emails",
     label: "Emails envoyés",
     icon: Mail,
     tone: "teal",
-    sub: () => `+${XP_RULES.email} XP chacun`,
   },
 ];
 
@@ -197,7 +204,9 @@ export function ActivityOverview({
               )}
               <div className="flex flex-wrap items-center gap-1.5">
                 <TrendChip value={value - p.previous[t.key]} label={p.compareLabel} />
-                <span className="text-xs font-semibold text-muted-foreground">{t.sub(c)}</span>
+                {t.sub && (
+                  <span className="text-xs font-semibold text-muted-foreground">{t.sub(c)}</span>
+                )}
               </div>
             </div>
           );
@@ -220,7 +229,12 @@ export function ActivityOverview({
         <ChevronRight aria-hidden="true" className="size-4 text-subtle" />
         <span className="rounded-full border border-border bg-card px-3 py-1.5 text-[13px] font-bold">
           Appel vers RDV{" "}
-          <strong className="text-win-700">{ratioTxt(c.rdvPris, c.appels)}</strong>
+          <strong className="text-gold-700">{ratioTxt(c.rdvPris, c.appels)}</strong>
+        </span>
+        <ChevronRight aria-hidden="true" className="size-4 text-subtle" />
+        <span className="rounded-full border border-border bg-card px-3 py-1.5 text-[13px] font-bold">
+          RDV effectué vers signature{" "}
+          <strong className="text-win-700">{ratioTxt(c.signatures, c.rdvEffectues)}</strong>
         </span>
       </div>
     </SectionCard>

@@ -60,7 +60,7 @@ const ROLE_LABELS: Record<Role, string> = {
 export const getRoleLabel = (v: Role) => ROLE_LABELS[v];
 
 // ============================================================================
-// PROSPECT — statut
+// PROSPECT - statut
 // ============================================================================
 
 const PROSPECT_STATUT_LABELS: Record<ProspectStatut, string> = {
@@ -97,7 +97,7 @@ export const PROSPECT_STATUT_COLORS: Record<ProspectStatut, string> = {
 };
 
 // ============================================================================
-// PROSPECT — secteur
+// PROSPECT - secteur
 // ============================================================================
 
 // Liste réaliste inspirée des rubriques principales de local.ch. L'ordre ici
@@ -135,7 +135,7 @@ export const PROSPECT_SECTEUR_OPTIONS: SelectOption<ProspectSecteur>[] = (
 ).map((v) => ({ value: v, label: PROSPECT_SECTEUR_LABELS[v] }));
 
 // ============================================================================
-// PROSPECT — source
+// PROSPECT - source
 // ============================================================================
 
 const PROSPECT_SOURCE_LABELS: Record<ProspectSource, string> = {
@@ -172,7 +172,7 @@ export const PROSPECT_SOURCE_OPTIONS: SelectOption<ProspectSource>[] =
   }));
 
 // ============================================================================
-// ACTIVITY — type
+// ACTIVITY - type
 // ============================================================================
 
 const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
@@ -208,7 +208,7 @@ export const ACTIVITY_TYPE_ICONS: Record<ActivityType, string> = {
 };
 
 // ============================================================================
-// ACTIVITY — statut
+// ACTIVITY - statut
 // ============================================================================
 
 const ACTIVITY_STATUT_LABELS: Record<ActivityStatut, string> = {
@@ -223,7 +223,7 @@ export const getActivityStatutLabel = (v: ActivityStatut) =>
   ACTIVITY_STATUT_LABELS[v];
 
 // ============================================================================
-// ACTIVITY — résultat (les boutons radio de la modale fin d'appel)
+// ACTIVITY - résultat (les boutons radio de la modale fin d'appel)
 // ============================================================================
 
 const ACTIVITY_RESULTAT_LABELS: Record<ActivityResultat, string> = {
@@ -269,7 +269,7 @@ export const RESULTATS_AVEC_RAPPEL: ActivityResultat[] = [
 ];
 
 // ============================================================================
-// DEAL — stage
+// DEAL - stage
 // ============================================================================
 
 const DEAL_STAGE_LABELS: Record<DealStage, string> = {

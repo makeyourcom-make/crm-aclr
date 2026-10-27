@@ -17,7 +17,7 @@ const TABS: { key: TabKey; label: string; tone: "violet" | "blue" | "teal"; empt
     label: "Produits",
     tone: "violet",
     empty: "Aucun produit vendu sur cette période.",
-    hint: "% = part des contrats signés contenant ce produit. CA = part de valeur an 1 attribuée (répartie à parts égales entre les produits du contrat).",
+    hint: "% = part des contrats signés contenant ce produit. CA = part de valeur 1re année attribuée (répartie à parts égales entre les produits du contrat).",
   },
   {
     key: "secteurs",

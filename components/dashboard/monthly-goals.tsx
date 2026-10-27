@@ -1,5 +1,5 @@
 /**
- * Module « Objectifs du mois » du Dashboard (MYC Arena).
+ * Module « Objectifs du mois » du Dashboard.
  *
  * - 2 jauges demi-cercle : contrats signés et CA signé (vs Objective MENSUEL).
  * - Jauges horizontales : RDV effectués / appels / contacts (mails + RS),

@@ -31,7 +31,6 @@ import { PageHeader } from "@/components/page-header";
 import { prisma } from "@/lib/db";
 import { formatCHF } from "@/lib/format";
 import { getClientCashTrend, getFinancePulse } from "@/lib/queries/contracts";
-import { XP_RULES } from "@/lib/gamification/rules";
 import { requireAdmin } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -326,6 +325,17 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
   const overdueGroup = rows
     .filter((i) => i.isOverdue)
     .sort((a, b) => a.dateEcheance.getTime() - b.dateEcheance.getTime());
+  // Montant d'un groupe, par devise (« 3'450 CHF + 200 EUR »), vide si nul.
+  const totalsLabel = (list: InvoiceRowData[]): string => {
+    const byDevise = new Map<string, number>();
+    for (const r of list) byDevise.set(r.devise, (byDevise.get(r.devise) ?? 0) + r.total);
+    return [...byDevise.entries()]
+      .filter(([, t]) => t > 0)
+      .map(([d, t]) => `${formatInt(t)} ${d}`)
+      .join(" + ");
+  };
+  const draftsAmount = totalsLabel(draftGroup);
+  const overdueAmount = totalsLabel(overdueGroup);
   const sentGroup = rows
     .filter((i) => i.statut === "ENVOYEE" && !i.isOverdue)
     .sort((a, b) => a.dateEcheance.getTime() - b.dateEcheance.getTime());
@@ -372,8 +382,8 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
   const inv = pulse.invoices;
   const draftsCount = drafts.length;
   const sentToday = inv?.sentToday ?? 0;
-  const missionTotal = sentToday + draftsCount;
-  const missionPct = missionTotal > 0 ? Math.round((sentToday / missionTotal) * 100) : 0;
+  const dayTotal = sentToday + draftsCount;
+  const dayPct = dayTotal > 0 ? Math.round((sentToday / dayTotal) * 100) : 0;
 
   const months = cash.months;
   const curMonth = months[months.length - 1]?.total ?? 0;
@@ -595,7 +605,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
         </SectionCard>
       ) : (
         <>
-          {/* Brouillons : mission facturation */}
+          {/* Brouillons : facturation du jour */}
           {show("BROUILLON") && (
             <section
               id="brouillons"
@@ -612,7 +622,8 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                   </span>
                   <div className="min-w-0">
                     <p className="text-[11px] font-bold tracking-[0.08em] text-coral-600 uppercase">
-                      Mission du jour · +{XP_RULES.email} XP par envoi
+                      Objectif du jour
+                      {draftsAmount ? ` · ${draftsAmount} à facturer` : ""}
                     </p>
                     <h2 className="font-display text-[22px] leading-tight font-extrabold tracking-[-0.02em]">
                       Lancer la facturation du jour
@@ -627,21 +638,21 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                   <div className="min-w-[180px] flex-1">
                     <div className="mb-1.5 flex justify-between gap-2 text-xs font-bold text-muted-foreground">
                       <span>
-                        {formatInt(sentToday)} / {formatInt(missionTotal)} envoyées aujourd&apos;hui
+                        {formatInt(sentToday)} / {formatInt(dayTotal)} envoyées aujourd&apos;hui
                       </span>
                     </div>
                     <div
                       role="progressbar"
-                      aria-label="Mission facturation du jour"
+                      aria-label="Facturation du jour"
                       aria-valuemin={0}
-                      aria-valuemax={Math.max(missionTotal, 1)}
+                      aria-valuemax={Math.max(dayTotal, 1)}
                       aria-valuenow={sentToday}
-                      aria-valuetext={`${sentToday} sur ${missionTotal}`}
+                      aria-valuetext={`${sentToday} sur ${dayTotal}`}
                       className="h-2.5 overflow-hidden rounded-full bg-coral-100"
                     >
                       <div
                         className="h-full rounded-full bg-gradient-coral transition-[width] duration-700"
-                        style={{ width: `${missionTotal === 0 ? 0 : missionPct}%` }}
+                        style={{ width: `${dayTotal === 0 ? 0 : dayPct}%` }}
                       />
                     </div>
                   </div>
@@ -657,7 +668,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                   )}
                 >
                   {sentToday > 0
-                    ? `${formatInt(sentToday)} facture(s) parties aujourd'hui · mission pliée, la caisse est propre.`
+                    ? `${formatInt(sentToday)} facture(s) parties aujourd'hui · facturation du jour terminée.`
                     : "Plus aucun brouillon émis à ce jour. Les prochaines mensualités apparaîtront à leur date."}
                 </div>
               ) : (
@@ -687,6 +698,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
                   <div>
                     <h2 className="font-display text-[22px] leading-tight font-extrabold tracking-[-0.02em]">
                       Zone rouge · {formatInt(overdueGroup.length)} en retard
+                      {overdueAmount ? ` · ${overdueAmount} à encaisser` : ""}
                     </h2>
                     <p className="mt-0.5 text-[13px] text-muted-foreground">
                       {overdueGroup.length > 0

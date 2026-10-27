@@ -412,7 +412,7 @@ export async function createContractFromDeal(
       //
       // Conséquence : tant que le client n'a pas signé, le deal reste
       // visible dans sa colonne d'origine (typiquement NEGOCIATION) avec
-      // le badge "📝 Contrat prêt — en attente signature client", et le
+      // le badge "Contrat prêt - en attente signature client", et le
       // prospect reste dans la liste /prospects.
 
       // ---- 5. Commission + 12 versements ----
@@ -962,7 +962,7 @@ export async function sendSignatureByEmail(
     <p>${greeting}</p>
     <p>Merci pour notre échange. Vous trouverez ci-joint le récapitulatif de votre contrat <strong>${contract.numero}</strong> (${valeurContratLabel(contract)}).</p>
     <p><strong>Pour le signer en ligne en 2 minutes :</strong><br>
-    <a href="${signUrl}" style="display:inline-block;background:#0E1936;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;margin-top:8px;">Signer le contrat ✍</a></p>
+    <a href="${signUrl}" style="display:inline-block;background:#0E1936;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;margin-top:8px;">Signer le contrat</a></p>
     <p>Vous pouvez aussi <a href="${pdfUrl}">télécharger le PDF du contrat</a> pour le consulter, l'imprimer, le signer à la main et nous le renvoyer scanné par retour d'email.</p>
     <p>Bien cordialement,<br>
     ${user.name}<br>
@@ -1131,7 +1131,7 @@ export async function sendContractSignatureEmail(
     <p>${greeting}</p>
     <p>Merci pour notre échange. Vous trouverez ci-joint le récapitulatif de votre contrat <strong>${contract.numero}</strong> (${valeurContratLabel(contract)}).</p>
     <p><strong>Pour le signer en ligne en 2 minutes :</strong><br>
-    <a href="${signUrl}" style="display:inline-block;background:#0E1936;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;margin-top:8px;">Signer le contrat ✍</a></p>
+    <a href="${signUrl}" style="display:inline-block;background:#0E1936;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;margin-top:8px;">Signer le contrat</a></p>
     <p>Vous pouvez aussi <a href="${pdfUrl}">télécharger le PDF du contrat</a> pour le consulter, l'imprimer, le signer à la main et nous le renvoyer scanné par retour d'email.</p>
     <p>Bien cordialement,<br>${user.name}<br><em>ACLR Sàrl - Make Your Com</em></p>
   `;
@@ -1357,10 +1357,10 @@ export async function sendContractEmailCustom(
     .join("");
   let contenuHtml = bodyHtml;
   if (includeSignLink) {
-    contenuHtml += `<p style="margin-top:14px;"><a href="${signUrl}" style="display:inline-block;background:#0E1936;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Signer le contrat en ligne ✍</a></p>`;
+    contenuHtml += `<p style="margin-top:14px;"><a href="${signUrl}" style="display:inline-block;background:#0E1936;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Signer le contrat en ligne</a></p>`;
   }
   if (includePdf) {
-    contenuHtml += `<p style="margin-top:10px;">📄 <a href="${pdfUrl}">Télécharger le PDF du contrat</a> (à imprimer / signer à la main et renvoyer scanné par retour d'email).</p>`;
+    contenuHtml += `<p style="margin-top:10px;"><a href="${pdfUrl}">Télécharger le PDF du contrat</a> (à imprimer / signer à la main et renvoyer scanné par retour d'email).</p>`;
   }
 
   const userFull = await prisma.user.findUnique({

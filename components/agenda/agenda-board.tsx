@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Agenda MYC Arena : orchestrateur client.
+ * Agenda : orchestrateur client.
  *
  * Tient l'état partagé (RDV sélectionné, création, édition, validation en
  * cours) entre le héros, le bandeau « à valider », la grille (jour / semaine /
@@ -11,8 +11,9 @@
  * droite (par défaut : le premier RDV à valider, sinon le prochain RDV) ; sur
  * téléphone / tablette il s'ouvre dans une fenêtre au toucher d'un RDV.
  *
- * Toute action qui rapporte des XP rafraîchit la coquille (router.refresh)
- * pour mettre à jour les pilules XP / série de la barre du haut.
+ * Toute action qui change un résultat (RDV effectué, appel, email) rafraîchit
+ * la coquille (router.refresh) pour mettre à jour les compteurs de la barre
+ * du haut. Toasts sobres via resultToast, jamais de points.
  */
 import { CalendarDays, CircleCheck, Flame } from "lucide-react";
 import Link from "next/link";
@@ -26,11 +27,11 @@ import {
   rescheduleActivity,
   validerRdv,
 } from "@/app/(app)/activites/actions";
-import { xpToast } from "@/components/arena/celebrate";
+import { resultToast } from "@/components/arena/celebrate";
 import { buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { type ActivityCategory } from "@/lib/activity-category";
-import { firstNameOf, XP_RULES } from "@/lib/gamification/rules";
+import { firstNameOf } from "@/lib/gamification/rules";
 import { cn } from "@/lib/utils";
 import { dowOfKey, pad2, zDayKey, zTime } from "@/lib/queries/agenda-dates";
 
@@ -38,7 +39,6 @@ import {
   AddActivityDialog,
   type EditActivityInput,
 } from "./add-activity-dialog";
-import { AgendaDefis } from "./agenda-defis";
 import { AgendaHero, type HeroSubject } from "./agenda-hero";
 import { AgendaLegend } from "./agenda-legend";
 import { MiniMonthCard, UpcomingCard } from "./agenda-side";
@@ -54,7 +54,7 @@ import { dureeMin, WeekView } from "./week-view";
 
 import type {
   AgendaActivity,
-  AgendaGame,
+  AgendaResults,
   DayRdvCount,
 } from "@/lib/queries/agenda";
 
@@ -76,7 +76,7 @@ export interface AgendaBoardProps {
   activeCats: ActivityCategory[];
   catCounts: Record<ActivityCategory, number>;
   activities: AgendaActivity[];
-  game: AgendaGame;
+  results: AgendaResults;
   dayCounts: Record<string, DayRdvCount>;
   phoning: Record<string, string>;
   subject: HeroSubject;
@@ -120,7 +120,7 @@ export function AgendaBoard({
   activeCats,
   catCounts,
   activities,
-  game,
+  results,
   dayCounts,
   phoning,
   subject,
@@ -142,7 +142,7 @@ export function AgendaBoard({
     time: string;
   }>({
     open: false,
-    dateIso: game.todayKey,
+    dateIso: results.todayKey,
     time: "09:00",
   });
   const [editing, setEditing] = useState<AgendaActivity | null>(null);
@@ -157,9 +157,9 @@ export function AgendaBoard({
 
   // Toutes les activités connues de la page (grille + à valider + à venir)
   const pool = new Map<string, AgendaActivity>();
-  for (const a of [...game.pending, ...game.upcoming, ...activities])
+  for (const a of [...results.pending, ...results.upcoming, ...activities])
     pool.set(a.id, a);
-  const defaultId = game.pending[0]?.id ?? game.upcoming[0]?.id ?? null;
+  const defaultId = results.pending[0]?.id ?? results.upcoming[0]?.id ?? null;
   const panelId = selId === undefined ? defaultId : selId;
   const panelActivity = panelId ? (pool.get(panelId) ?? null) : null;
   const mobileActivity =
@@ -207,22 +207,20 @@ export function AgendaBoard({
       const titre = a.prospect?.raisonSociale ?? a.sujet;
       if (statut === "FAIT") {
         if (isClientRdv(a) && a.userId === currentUserId) {
-          xpToast(XP_RULES.rdvEffectue, "RDV effectué !", titre);
+          resultToast(`RDV effectué avec ${titre}`, "Prochaine étape : envoyer la proposition");
         } else if (isClientRdv(a)) {
-          toast.success("RDV validé comme effectué", {
-            description: `+${XP_RULES.rdvEffectue} XP pour ${ownerFirstName(a)} · ${titre}`,
-          });
+          const owner = ownerFirstName(a);
+          resultToast(
+            "RDV validé comme effectué",
+            `${titre}${owner ? ` · RDV de ${owner}` : ""} · prochaine étape : la proposition`,
+          );
         } else {
-          toast.success("RDV validé comme effectué.");
+          resultToast("RDV validé comme effectué", titre);
         }
       } else if (statut === "MANQUE") {
-        toast("RDV noté comme manqué", {
-          description: "Recale un créneau vite pour garder le lead au chaud.",
-        });
+        resultToast("RDV noté comme manqué", "Recale un créneau vite pour garder le lead au chaud");
       } else {
-        toast("RDV annulé", {
-          description: "Il ne compte plus dans la semaine.",
-        });
+        resultToast("RDV annulé", "Il ne compte plus dans la semaine");
       }
       setValidatedCount((c) => c + 1);
       router.refresh();
@@ -238,21 +236,15 @@ export function AgendaBoard({
         toast.error(res.error ?? "Échec.");
         return;
       }
-      // XP réels du moteur : appel passé +5, email envoyé +3 (au porteur).
-      // Le moteur compte déjà un appel EN_COURS, et ne compte une activité
-      // qu'à partir de son jour : pas de toast XP trompeur dans ces cas.
-      const counted = zDayKey(a.date) <= zDayKey(Date.now());
-      const xp =
-        a.userId !== currentUserId || !counted
-          ? 0
-          : a.type === "APPEL_SORTANT" && a.statut !== "EN_COURS"
-            ? XP_RULES.appel
-            : a.type === "EMAIL_ENVOYE"
-              ? XP_RULES.email
-              : 0;
-      if (xp > 0)
-        xpToast(xp, "Activité faite", a.prospect?.raisonSociale ?? a.sujet);
-      else toast.success("Faite.");
+      // Toast de résultat : libellé selon le type, entreprise en détail.
+      const titre = a.prospect?.raisonSociale ?? a.sujet;
+      const label =
+        a.type === "APPEL_SORTANT" || a.type === "APPEL_ENTRANT"
+          ? "Appel enregistré"
+          : a.type === "EMAIL_ENVOYE"
+            ? "Email envoyé"
+            : "Activité faite";
+      resultToast(label, titre);
       router.refresh();
     });
   };
@@ -336,7 +328,7 @@ export function AgendaBoard({
       )}
 
       <AgendaHero
-        game={game}
+        results={results}
         subject={subject}
         nowMs={nowMs}
         onPrepare={open}
@@ -344,14 +336,14 @@ export function AgendaBoard({
       />
 
       <PendingBanner
-        pending={game.pending}
+        pending={results.pending}
         todayKey={nowKey}
         busyId={busyId}
         showOwner={showOwner}
         onValidate={valider}
         onOpen={open}
       />
-      {game.pending.length === 0 && validatedCount > 0 && (
+      {results.pending.length === 0 && validatedCount > 0 && (
         <section
           aria-label="Agenda à jour"
           className="flex flex-wrap items-center gap-3 rounded-[20px] border border-win-500 bg-win-50 px-5 py-3.5"
@@ -363,14 +355,14 @@ export function AgendaBoard({
             <CircleCheck className="size-[18px]" strokeWidth={2.6} />
           </span>
           <p className="min-w-0 flex-[1_1_260px] text-sm font-bold text-win-700">
-            Agenda à jour : aucun RDV en attente de validation. Bien joué.
+            Agenda à jour : aucun RDV en attente de validation.
           </p>
         </section>
       )}
 
       <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
         {/* Sur téléphone, les cartes s'ordonnent : agenda, prochains RDV,
-            mini-calendrier, défis. Sur grand écran : 2 colonnes. */}
+            mini-calendrier. Sur grand écran : 2 colonnes. */}
         <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-6">
           <section
             aria-labelledby="agenda-periode"
@@ -443,10 +435,6 @@ export function AgendaBoard({
               month={mode === "month"}
             />
           </section>
-
-          <div className="order-4 min-w-0 xl:order-none">
-            <AgendaDefis game={game} you={you} />
-          </div>
         </div>
 
         <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-6">
@@ -486,9 +474,9 @@ export function AgendaBoard({
           </section>
           <div className="order-2 min-w-0 xl:order-none">
             <UpcomingCard
-              upcoming={game.upcoming}
-              aVenirSemaine={game.week.aVenir}
-              joursSansRdv={game.week.joursSansRdv}
+              upcoming={results.upcoming}
+              aVenirSemaine={results.week.aVenir}
+              joursSansRdv={results.week.joursSansRdv}
               nowMs={nowMs}
               selectedId={highlightId}
               showOwner={showOwner}
@@ -522,7 +510,7 @@ export function AgendaBoard({
 
       {/* Édition (depuis le détail d'un événement) */}
       <AddActivityDialog
-        defaultDate={editing ? zDayKey(editing.date) : game.todayKey}
+        defaultDate={editing ? zDayKey(editing.date) : results.todayKey}
         users={teamUsers}
         currentUserId={currentUserId}
         isAdmin={isAdmin}
@@ -568,7 +556,7 @@ function EmptyPeriod({
   todayHref: string;
 }) {
   let title = "Rien de calé pour l'instant";
-  let text = `Chaque RDV client effectué rapporte +${XP_RULES.rdvEffectue} XP. Lance une session d'appels pour remplir cette période.`;
+  let text = "Chaque appel compte, chaque RDV est une chance. Lance une session d'appels pour remplir cette période.";
   if (weekendDay) {
     title = "Week-end : recharge les batteries";
     text = "Lundi on attaque : ta session d'appels t'attend.";

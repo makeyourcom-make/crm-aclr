@@ -15,7 +15,7 @@ import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 import { createCustomProduct } from "@/app/(app)/catalogue/actions";
-import { celebrate, xpToast } from "@/components/arena/celebrate";
+import { celebrate, resultToast } from "@/components/arena/celebrate";
 import {
   createContractFromDeal,
   prepareContractEmail,
@@ -40,7 +40,7 @@ import { ProspectCombobox } from "@/components/prospects/prospect-combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatMoney } from "@/lib/format";
-import { XP_RULES } from "@/lib/gamification/rules";
+import { formatSignGain } from "@/components/pipeline/pipeline-meta";
 import { cn } from "@/lib/utils";
 
 import type { ModalitePaiement } from "@prisma/client";
@@ -380,9 +380,9 @@ export function ContractWizard({
       }
     }
 
-    const commissionTotale = assietteCommission * tauxCommission;
-    const commissionPart1 = commissionTotale / 2;
-    const commissionPart2 = commissionTotale / 2;
+    const comdayTotale = assietteCommission * tauxCommission;
+    const commissionPart1 = comdayTotale / 2;
+    const commissionPart2 = comdayTotale / 2;
     return {
       oneShot,
       mensuel,
@@ -391,7 +391,7 @@ export function ContractWizard({
       hasAdsLine,
       hasNonAdsLine,
       dureeMoisNum,
-      commissionTotale,
+      comdayTotale,
       commissionPart1,
       commissionPart2,
     };
@@ -473,12 +473,15 @@ export function ContractWizard({
         return;
       }
 
-      // Nouveau contrat = proposition envoyée par la commerciale : +60 XP.
+      // Nouveau contrat = proposition créée par la commerciale.
       if (!initial) {
-        xpToast(
-          XP_RULES.proposition,
-          "Proposition créée !",
-          res.numero ? `Contrat ${res.numero}` : undefined,
+        resultToast(
+          res.numero ? `Proposition créée · contrat ${res.numero}` : "Proposition créée",
+          mode === "sign"
+            ? "Prochaine étape : faire signer par QR code"
+            : mode === "email"
+              ? "Prochaine étape : envoyer le contrat au client"
+              : "Prochaine étape : l'envoyer au client pour signature",
         );
       }
 
@@ -491,7 +494,7 @@ export function ContractWizard({
         if (sig.ok && sig.lienSignature) {
           toast.success("Contrat prêt · QR codes de signature prêts.");
           router.push(`/contrats/${res.contractId}`);
-          // Rafraîchit aussi la coquille (pilules XP / série de la topbar).
+          // Rafraîchit aussi la coquille (objectifs du jour / série de la topbar).
           router.refresh();
           return;
         }
@@ -866,7 +869,7 @@ export function ContractWizard({
             <div className="mt-3 space-y-4">
               <RecapLine
                 label={`Commission totale (${(tauxCommission * 100).toFixed(0)} %)`}
-                value={fmt(calc.commissionTotale)}
+                value={fmt(calc.comdayTotale)}
                 big
               />
 
@@ -901,7 +904,7 @@ export function ContractWizard({
                     )
                   </li>
                   <li>
-                    Commission {fmt(calc.commissionTotale)} en{" "}
+                    Commission {fmt(calc.comdayTotale)} en{" "}
                     <strong>2 parts</strong> : {fmt(calc.commissionPart1)} à la
                     signature + {fmt(calc.commissionPart2)} étalé sur 11 mois
                   </li>
@@ -935,7 +938,7 @@ export function ContractWizard({
                     celebrate({
                       title: "Contrat signé reçu !",
                       subtitle: "Archivé, contre-signé et envoyé en validation admin",
-                      eyebrow: "Bien joué",
+                      highlight: formatSignGain(calc.mensuel, calc.oneShot) ?? undefined,
                     });
                     router.push(`/contrats/${initial.contractId}`);
                   }}
@@ -995,7 +998,7 @@ export function ContractWizard({
           onOpenChange={(o) => {
             if (!o) {
               setEmailComposer(null);
-              // Contrat déjà créé (+XP) même si l'email n'est pas envoyé.
+              // Contrat déjà créé même si l'email n'est pas envoyé.
               router.refresh();
             }
           }}

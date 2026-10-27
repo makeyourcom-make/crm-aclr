@@ -110,7 +110,7 @@ export async function getActivities(
 // ===========================================================================
 
 /**
- * Compteurs du jour (journée Europe/Zurich, comme le moteur de jeu).
+ * Compteurs du jour (journée Europe/Zurich, comme le moteur de résultats).
  *
  * Périmètre : un commercial ne compte que SES activités. Un admin compte
  * toute l'équipe par défaut, ou un seul utilisateur si `scopeUserId` est

@@ -3,8 +3,8 @@
 /**
  * Colonne du Kanban (zone de dépôt dnd-kit) : bandeau de couleur, tuile
  * d'icône, nom, nombre de deals, probabilité par défaut de l'étape, total et
- * pondéré, puis les cartes. La colonne Signé porte ses confettis et rappelle
- * la remise à zéro mensuelle.
+ * pondéré, puis les cartes. La colonne Signé rappelle la remise à zéro
+ * mensuelle.
  */
 import { useDroppable } from "@dnd-kit/core";
 import type { DealStage } from "@prisma/client";
@@ -127,7 +127,7 @@ export function PipelineColumn({
         </div>
         {signe && (
           <p className="text-xs font-bold text-win-700">
-            Trophées du mois · remise à zéro le {resetLabel}
+            Signés ce mois · remise à zéro le {resetLabel}
           </p>
         )}
       </header>

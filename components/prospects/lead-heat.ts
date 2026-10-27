@@ -1,5 +1,6 @@
 /**
- * MYC Arena · rubrique Entreprises : « chaleur » d'un lead et aides de jeu.
+ * Rubrique Entreprises : « chaleur » d'un lead (outil de priorisation) et
+ * prochaine action conseillée.
  *
  * FONCTIONS PURES (aucune requête, aucun accès à l'horloge : `nowMs` est
  * toujours passé en argument, pour un rendu serveur et une hydratation client
@@ -15,13 +16,11 @@
  * règle ici, change-la là-bas.
  */
 import type {
-  ActivityResultat,
-  ActivityStatut,
   ActivityType,
   ProspectStatut,
 } from "@prisma/client";
 
-import { XP_RULES, type Tone } from "@/lib/gamification/rules";
+import type { Tone } from "@/lib/gamification/rules";
 
 import {
   calendarDaysAgo,
@@ -47,7 +46,7 @@ export const HEAT_RULES = {
   relanceDays: 3,
 } as const;
 
-/** Fiches sorties du jeu (on n'appelle plus). */
+/** Fiches closes (on n'appelle plus). */
 export const DEAD_STATUTS: readonly ProspectStatut[] = [
   "PERDU",
   "NUMERO_INVALIDE",
@@ -114,7 +113,7 @@ export interface LeadSignals {
 }
 
 export interface LeadHeat {
-  /** `client` = signé · `out` = sorti du jeu · `lead` = en cours. */
+  /** `client` = signé · `out` = fiche close · `lead` = en cours. */
   kind: "lead" | "client" | "out";
   level: HeatLevel;
   label: string;
@@ -164,7 +163,7 @@ const STAGE_RANK: Partial<Record<ProspectStatut, number>> = {
  *              action < 7 j, ou deal ouvert avec une action < 30 j
  *  3 Tiède   : une action < 30 j, ou une fiche engagée qui s'est refroidie
  *  2 Frais   : jamais touchée (aucune action), à attaquer
- *  1 Froid   : plus de 30 j sans action, ou fiche sortie du jeu
+ *  1 Froid   : plus de 30 j sans action, ou fiche close
  */
 export function computeLeadHeat(s: LeadSignals, nowMs: number): LeadHeat {
   const last = toDate(s.derniereActionLe);
@@ -369,8 +368,8 @@ export function nextBestAction(i: NextActionInput, nowMs: number): NextAction {
   }
   if (i.statut === "NE_PAS_RAPPELER") {
     return {
-      short: "Hors jeu",
-      text: "Ne pas rappeler : la fiche est hors jeu, plus d'appel sur ce lead.",
+      short: "Ne pas rappeler",
+      text: "Ne pas rappeler : plus d'appel sur ce lead, respecte sa demande.",
       tone: "red",
       overdue: false,
     };
@@ -402,7 +401,7 @@ export function nextBestAction(i: NextActionInput, nowMs: number): NextAction {
       return {
         short: rdvType ? `${label} du ${fmtDayMonth(planned)} à valider` : `${label} en retard · ${fmtDayMonth(planned)}`,
         text: rdvType
-          ? `${label} du ${fmtDayMonth(planned)} à valider : indique s'il a eu lieu (RDV effectué +${XP_RULES.rdvEffectue} XP).`
+          ? `${label} du ${fmtDayMonth(planned)} à valider : indique s'il a eu lieu pour qu'il compte dans tes RDV effectués.`
           : `${label} prévu le ${fmtDayMonth(planned)} en retard : fais-le maintenant, la fiche n'attend que toi.`,
         tone: "red",
         overdue: true,
@@ -446,7 +445,7 @@ export function nextBestAction(i: NextActionInput, nowMs: number): NextAction {
   if (neverCalled && (i.statut === "NOUVEAU" || i.statut === "VIERGE")) {
     return {
       short: "Premier appel",
-      text: `Lead jamais appelé : premier appel +${XP_RULES.appel} XP, décroché +${XP_RULES.conversation} XP de plus. À toi de jouer.`,
+      text: "Lead jamais appelé : passe le premier appel et vise le RDV dès la première conversation.",
       tone: "coral",
       overdue: false,
     };
@@ -492,7 +491,7 @@ export function nextBestAction(i: NextActionInput, nowMs: number): NextAction {
   if (i.statut === "RDV_PRIS") {
     return {
       short: "Envoyer la proposition",
-      text: `RDV pris : cale la date dans l'agenda puis envoie ta proposition (+${XP_RULES.proposition} XP).`,
+      text: "RDV pris : cale la date dans l'agenda puis prépare et envoie ta proposition.",
       tone: "violet",
       overdue: false,
     };
@@ -500,7 +499,7 @@ export function nextBestAction(i: NextActionInput, nowMs: number): NextAction {
   if (i.statut === "QUALIFIE") {
     return {
       short: "Décrocher un RDV",
-      text: `Besoin qualifié : décroche le RDV (+${XP_RULES.rdvPris} XP), c'est le moment.`,
+      text: "Besoin qualifié : décroche le RDV, c'est le moment.",
       tone: "violet",
       overdue: false,
     };
@@ -515,49 +514,10 @@ export function nextBestAction(i: NextActionInput, nowMs: number): NextAction {
   }
   return {
     short: "Appeler",
-    text: `Appelle pour lancer la conversation (+${XP_RULES.appel} XP par appel).`,
+    text: "Appelle pour lancer la conversation et qualifier le besoin.",
     tone: "blue",
     overdue: false,
   };
-}
-
-// ---------------------------------------------------------------------------
-// XP RAPPORTÉS PAR UNE ACTIVITÉ (mêmes règles que lib/gamification/engine)
-// ---------------------------------------------------------------------------
-
-const NO_CONVERSATION: readonly ActivityResultat[] = ["COMBOX", "NE_DECROCHE_PAS", "INVALIDE"];
-
-export interface XpActivity {
-  type: ActivityType;
-  statut: ActivityStatut;
-  resultat: ActivityResultat | null;
-  date: DateInput;
-  prospectId: string | null;
-}
-
-/**
- * XP gagnés par l'auteur de l'activité (hors bonus de missions) :
- * appel passé +5, décroché +10, RDV pris +50, RDV effectué +80, email +3.
- */
-export function activityXp(a: XpActivity, nowMs: number): number {
-  let xp = 0;
-  if (a.type === "APPEL_SORTANT" && (a.statut === "FAIT" || a.statut === "EN_COURS")) {
-    xp += XP_RULES.appel;
-    if (a.resultat && !NO_CONVERSATION.includes(a.resultat)) xp += XP_RULES.conversation;
-  }
-  if (a.resultat === "RDV_PRIS") xp += XP_RULES.rdvPris;
-  const date = toDate(a.date);
-  if (
-    isRdvType(a.type) &&
-    a.prospectId &&
-    a.statut === "FAIT" &&
-    date !== null &&
-    date.getTime() <= nowMs
-  ) {
-    xp += XP_RULES.rdvEffectue;
-  }
-  if (a.type === "EMAIL_ENVOYE" && a.statut === "FAIT") xp += XP_RULES.email;
-  return xp;
 }
 
 // ---------------------------------------------------------------------------

@@ -8,8 +8,8 @@
  *   → La modale contient un formulaire compact (type, sujet, date, durée…).
  *   → À la soumission, appelle createActivity() (statut FAIT ; un RDV futur
  *     est enregistré planifié par le serveur) puis ferme la modale.
- *   → Toast XP selon le barème (appel +5, email +3, RDV effectué +80) et
- *     router.refresh() pour mettre à jour les pilules XP de la topbar.
+ *   → Toast sobre (activité + entreprise) et router.refresh() pour mettre à
+ *     jour les compteurs du jour.
  */
 import type { ActivityType } from "@prisma/client";
 import { ListChecks } from "lucide-react";
@@ -18,8 +18,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { createActivity } from "@/app/(app)/activites/actions";
-import { xpForDone } from "@/components/activities/activity-tones";
-import { xpToast } from "@/components/arena/celebrate";
+import { resultToast } from "@/components/arena/celebrate";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -86,12 +85,7 @@ export function QuickLogActivity({
         toast.error(res.error ?? "Échec de l'enregistrement.");
         return;
       }
-      const xp = xpForDone({ type, date: when, prospectId });
-      if (xp > 0) {
-        xpToast(xp, `${getActivityTypeLabel(type)} enregistré`, prospectRaisonSociale);
-      } else {
-        toast.success("Activité enregistrée.");
-      }
+      resultToast(`${getActivityTypeLabel(type)} enregistré`, prospectRaisonSociale);
       reset();
       setOpen(false);
       router.refresh();
@@ -113,8 +107,8 @@ export function QuickLogActivity({
             Logger une activité
           </DialogTitle>
           <DialogDescription className="text-sm font-medium text-muted-foreground">
-            Pour {prospectRaisonSociale}. Le compteur du jour sera incrémenté (appel +5 XP,
-            email +3 XP, RDV effectué +80 XP).
+            Pour {prospectRaisonSociale}. Les appels, emails et RDV effectués comptent dans
+            tes résultats du jour.
           </DialogDescription>
         </DialogHeader>
 

@@ -1,5 +1,5 @@
 /**
- * Présentation MYC Arena des statuts d'entreprise (pastilles colorées,
+ * Présentation des statuts d'entreprise (pastilles colorées,
  * étapes de l'entonnoir). Client-safe, sans dépendance serveur.
  *
  * Couleurs (charte §2, texte foncé sur fond clair, contraste ≥ 4.5:1) :

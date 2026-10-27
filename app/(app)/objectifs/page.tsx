@@ -2,7 +2,6 @@ import { ListChecks, Plus, Target, UserRound } from "lucide-react";
 import Link from "next/link";
 
 import { HeroPanel } from "@/components/arena/hero-panel";
-import { LevelPill } from "@/components/arena/pills";
 import { PlayerAvatar } from "@/components/arena/player-avatar";
 import { ProgressRing } from "@/components/arena/progress-ring";
 import { SectionCard } from "@/components/arena/section-card";
@@ -16,6 +15,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/db";
+import { formatCHF } from "@/lib/format";
 import { getPlayerHeader } from "@/lib/gamification";
 import { initialsOf, type PlayerHeader } from "@/lib/gamification/rules";
 import {
@@ -38,6 +38,12 @@ async function safeHeader(userId: string): Promise<PlayerHeader | null> {
     console.error("[objectifs] getPlayerHeader a échoué :", err);
     return null;
   }
+}
+
+/** « 12'400 CHF signés · 3 contrats » : résultats réels du mois (CA signé). */
+function monthResultText(h: PlayerHeader): string {
+  const n = h.month.contratsSignes;
+  return `${formatCHF(h.month.caSigne)} signés · ${n} ${n >= 2 ? "contrats" : "contrat"}`;
 }
 
 /** Métrique « vitrine » d'une ligne : CA, sinon contrats, sinon la première. */
@@ -154,7 +160,11 @@ export default async function ObjectifsPage() {
                         <a href={`#obj-${r.userId}`} className="truncate text-[15px] font-extrabold text-white hover:underline">
                           {r.name}
                         </a>
-                        {header && <LevelPill level={header.level} variant="dark" />}
+                        {header && (
+                          <span className="text-xs font-bold text-white tabular-nums">
+                            {monthResultText(header)}
+                          </span>
+                        )}
                         <span className="text-xs font-semibold text-navy-200">
                           {h ? `${h.label} · ` : ""}
                           {accel > 0 ? `${accel} à accélérer` : "dans le rythme"}
@@ -182,7 +192,11 @@ export default async function ObjectifsPage() {
               title={
                 <span className="inline-flex flex-wrap items-center gap-2">
                   {r.name}
-                  {header && <LevelPill level={header.level} />}
+                  {header && (
+                    <span className="inline-flex h-6 items-center rounded-full bg-win-50 px-2.5 text-xs font-bold text-win-700 tabular-nums">
+                      {monthResultText(header)}
+                    </span>
+                  )}
                 </span>
               }
               icon={Target}
@@ -278,7 +292,7 @@ export default async function ObjectifsPage() {
           title="Créer un objectif"
           icon={Plus}
           tone="green"
-          description="Un objectif quotidien pilote les missions du jour et la série ; un objectif mensuel pilote la progression et la projection."
+          description="Un objectif quotidien pilote les objectifs du jour et la série ; un objectif mensuel pilote la progression, la projection fin de mois et les gains."
           className={cn("scroll-mt-6")}
         >
           <ObjectiveForm users={users} defaultUserId={user.id} />

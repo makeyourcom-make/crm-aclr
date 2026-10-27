@@ -12,9 +12,8 @@ import { toast } from "sonner";
 
 import { sendContractEmailCustom } from "@/app/(app)/contrats/actions";
 import { getMyDefaultSignatureHtml } from "@/app/(app)/emails/actions";
-import { xpToast } from "@/components/arena/celebrate";
+import { resultToast } from "@/components/arena/celebrate";
 import { Button } from "@/components/ui/button";
-import { XP_RULES } from "@/lib/gamification/rules";
 import {
   Dialog,
   DialogContent,
@@ -95,8 +94,8 @@ export function ContractEmailComposer({
       if (res.dryRun) {
         toast.success("Email préparé (mode test), visible dans Emails.");
       } else {
-        // L'envoi crée une activité EMAIL_ENVOYE : +3 XP.
-        xpToast(XP_RULES.email, "Contrat envoyé au client !", to);
+        // L'envoi crée une activité EMAIL_ENVOYE (timeline du client).
+        resultToast("Contrat envoyé au client", `à ${to} · prochaine étape : relancer pour la signature`);
       }
       router.refresh();
       onOpenChange(false);

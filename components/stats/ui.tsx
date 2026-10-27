@@ -1,7 +1,7 @@
 /**
- * Petites briques de la rubrique Statistiques (MYC Arena), server-safe :
+ * Petites briques de la rubrique Statistiques, server-safe :
  *  - <Money>       : gros montant + « CHF » discret (format CRM « 13'525 ») ;
- *  - <RankBadge>   : médaille de rang (or, argent, bronze coral, neutre) ;
+ *  - <RankBadge>   : pastille de rang (or, argent, bronze coral, neutre) ;
  *  - <Eyebrow>     : libellé en majuscules 11 px ;
  *  - segmentClass  : bouton / lien d'un contrôle segmenté ;
  *  - <SegmentGroup>: conteneur accessible d'un contrôle segmenté ;

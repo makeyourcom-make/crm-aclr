@@ -6,8 +6,8 @@
  * CalDAV / Google comme depuis l'agenda) et, si la fiche est en amont,
  * la passe en « RDV pris » (updateProspectStatut).
  *
- * XP réels : le RDV effectué rapporte +80 XP une fois validé « fait » dans
- * l'agenda ; « RDV pris » (+50 XP) se marque au résultat de l'appel.
+ * Le RDV compte dans « RDV effectués » une fois validé « fait » dans
+ * l'agenda ; « RDV pris » se marque au résultat de l'appel.
  */
 import type { ActivityType, ProspectStatut } from "@prisma/client";
 import { CalendarPlus } from "lucide-react";
@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { XP_RULES } from "@/lib/gamification/rules";
 import { cn } from "@/lib/utils";
 
 const RDV_TYPES: { value: ActivityType; label: string }[] = [
@@ -152,8 +151,8 @@ export function PlanRdvDialog({
             Planifier un RDV
           </DialogTitle>
           <DialogDescription>
-            Avec {prospectRaisonSociale}. RDV effectué et validé dans l&apos;agenda :
-            +{XP_RULES.rdvEffectue} XP.
+            Avec {prospectRaisonSociale}. Il part dans ton agenda ; une fois effectué,
+            valide-le « fait » pour qu&apos;il compte dans tes RDV effectués.
           </DialogDescription>
         </DialogHeader>
 

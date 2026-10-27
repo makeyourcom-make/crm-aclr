@@ -1,5 +1,5 @@
 /**
- * Vue de la liste Entreprises (MYC Arena) : en-tête, héros, entonnoir,
+ * Vue de la liste Entreprises : en-tête, héros, entonnoir,
  * vues rapides + filtres, liste et pagination. Aucune requête ici : les
  * données viennent de `loadProspectsPage` (lib/queries/prospects-pages.ts).
  * Server-safe.
@@ -132,8 +132,8 @@ export function ProspectsListView({ data }: { data: ProspectsPageData }) {
         total={stats.total}
         totalSuffix={totalSuffix}
         overview={overview}
-        mission={player.mission}
-        xpRecordDay={player.xpRecordDay}
+        goalAppels={player.goalAppels}
+        goalRdv={player.goalRdv}
         hrefChaudes={prospectsHref(raw, (sp) => {
           sp.set("vue", "chaudes");
           sp.delete("statut");

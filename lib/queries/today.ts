@@ -8,21 +8,21 @@
  *   - les RDV passés à valider (effectué / manqué / annulé)
  *   - les relances : contrats envoyés, toujours en attente de signature
  *   - la charge de la semaine (actions par jour ouvré) et les compteurs de la
- *     semaine + ceux du jour ouvré précédent à la même heure (moteur de jeu,
- *     mêmes définitions que la topbar)
+ *     semaine + ceux du jour ouvré précédent à la même heure (mêmes
+ *     définitions que la topbar et le dashboard)
  *   - l'objectif QUOTIDIEN actif (cibles emails / RDV / signatures)
  *
  * Toutes les heures et tous les jours sont calculés en fuseau Europe/Zurich
  * (les dates sont stockées en UTC et le serveur tourne en UTC) : on passe au
  * client des libellés déjà formatés, jamais une heure à recalculer.
  *
- * Les compteurs et missions du JOUR viennent de getPlayerStats() (page).
+ * Les compteurs et objectifs du JOUR viennent de getPlayerStats() (page).
  */
 import type { ActivityResultat, ActivityStatut, ActivityType } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import { getDayCounters } from "@/lib/gamification";
-import { XP_RULES, type DayCounters } from "@/lib/gamification/rules";
+import type { DayCounters } from "@/lib/gamification/rules";
 import { addDays, isWorkingDay } from "@/lib/planning/dates";
 import { type SessionUser } from "@/lib/session";
 
@@ -148,6 +148,9 @@ const weekdayOfKey = (key: string) => keyToUtcDate(key).getUTCDay();
 
 export type TaskKind = "call" | "email" | "rdv" | "other";
 
+/** Compteurs du jour qu'une action marquée faite peut faire avancer. */
+export type DoneCounter = "appels" | "emails" | "rdvEffectues";
+
 /** Une action de la feuille de route (déjà formatée pour l'affichage). */
 export interface TodayTask {
   id: string;
@@ -175,8 +178,12 @@ export interface TodayTask {
   rdvPasse: boolean;
   /** RDV encore à venir : le serveur refuse « fait » avant l'heure. */
   rdvFutur: boolean;
-  /** XP rapportés si l'action est marquée faite (barème du moteur). */
-  xp: number;
+  /**
+   * Compteur du jour qui augmente quand l'action est marquée faite (mêmes
+   * définitions que getDayCounters), null si elle ne compte pas aujourd'hui
+   * (autre jour, appel déjà en cours, note...). Sert au toast de résultat.
+   */
+  compte: DoneCounter | null;
 }
 
 export interface TodaySections {
@@ -293,13 +300,25 @@ function kindOf(type: ActivityType): TaskKind {
   return "other";
 }
 
-/** XP gagnés en marquant l'action faite (mêmes règles que le moteur). */
-function xpWhenDone(type: ActivityType, statut: ActivityStatut, hasProspect: boolean): number {
-  // Un appel EN_COURS est déjà compté par le moteur : le clore ne rapporte rien.
-  if (type === "APPEL_SORTANT") return statut === "PLANIFIE" ? XP_RULES.appel : 0;
-  if (type === "EMAIL_ENVOYE") return XP_RULES.email;
-  if (RDV_TYPES.includes(type) && hasProspect) return XP_RULES.rdvEffectue;
-  return 0;
+/**
+ * Compteur du jour qui avance quand l'action est marquée faite (mêmes
+ * définitions que getDayCounters : les compteurs sont datés par la date de
+ * l'activité, donc seule une action prévue AUJOURD'HUI fait avancer ceux du
+ * jour).
+ */
+function counterWhenDone(
+  type: ActivityType,
+  statut: ActivityStatut,
+  hasProspect: boolean,
+  isToday: boolean,
+  passed: boolean,
+): DoneCounter | null {
+  if (!isToday) return null;
+  // Un appel EN_COURS est déjà compté : le clore ne change pas le compteur.
+  if (type === "APPEL_SORTANT") return statut === "PLANIFIE" ? "appels" : null;
+  if (type === "EMAIL_ENVOYE") return statut === "FAIT" ? null : "emails";
+  if (RDV_TYPES.includes(type) && hasProspect && passed) return "rdvEffectues";
+  return null;
 }
 
 const includeTask = {
@@ -359,7 +378,7 @@ function retardLabel(date: Date, now: Date, todayKey: string): { label: string; 
 /**
  * `late` : l'action est dans le bloc « En retard ».
  * `tomorrow` : aperçu de demain ; marquée faite d'avance, elle compte au jour
- * prévu (demain) : on n'annonce pas d'XP aujourd'hui.
+ * prévu (demain) : elle ne fait pas avancer les compteurs d'aujourd'hui.
  */
 function toTask(
   a: RawTask,
@@ -392,7 +411,9 @@ function toTask(
     retard: late ? retardLabel(a.date, now, todayKey) : null,
     rdvPasse: isRdvClient && passed,
     rdvFutur: kind === "rdv" && !passed,
-    xp: tomorrow ? 0 : xpWhenDone(a.type, a.statut, !!a.prospect),
+    compte: tomorrow
+      ? null
+      : counterWhenDone(a.type, a.statut, !!a.prospect, zParts(a.date).key === todayKey, passed),
   };
 }
 

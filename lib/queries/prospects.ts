@@ -7,7 +7,7 @@
  *
  * Pour les mutations (create/update/delete), voir app/(app)/prospects/actions.ts.
  *
- * MYC Arena : les vues rapides (« Les plus chaudes », « Jamais appelées »…)
+ * Les vues rapides (« Les plus chaudes », « Jamais appelées »…)
  * et le filtre de fraîcheur reposent sur les colonnes dénormalisées
  * (derniereActionLe, dernierAppelLe, dateRdvLe) et sur les MÊMES règles que
  * la chaleur calculée côté affichage (components/prospects/lead-heat.ts).
@@ -503,7 +503,7 @@ function buildProspectWhere(
   const actionDepuis = parseDateFilter(params.actionDepuis);
   if (actionDepuis) conditions.push({ derniereActionLe: { gte: actionDepuis } });
 
-  // Vue rapide (MYC Arena) + fraîcheur de la dernière action.
+  // Vue rapide + fraîcheur de la dernière action.
   if (extras.vue) {
     const w = vueWhere(extras.vue, now);
     if (w) conditions.push(w);

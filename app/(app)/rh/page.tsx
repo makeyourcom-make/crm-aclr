@@ -1,13 +1,12 @@
 import { ChevronRight, FileText, UserCheck, UserX, Users } from "lucide-react";
 import Link from "next/link";
 
-import { formatXp } from "@/components/arena/format";
-import { LevelPill, StatusPill, StreakPill } from "@/components/arena/pills";
+import { StatusPill, StreakPill } from "@/components/arena/pills";
 import { PlayerAvatar, toneForRole } from "@/components/arena/player-avatar";
 import { StatTile } from "@/components/arena/stat-tile";
 import type { Tone } from "@/components/arena/tones";
 import { PageHeader } from "@/components/page-header";
-import { formatCHF } from "@/lib/format";
+import { formatCHF, formatCHFCompact } from "@/lib/format";
 import { getPlayerHeader } from "@/lib/gamification";
 import { initialsOf, type PlayerHeader } from "@/lib/gamification/rules";
 import { listEmployees } from "@/lib/queries/hr";
@@ -110,10 +109,9 @@ export default async function RhPage() {
 
                   {header && (
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <LevelPill level={header.level} />
                       <StreakPill days={header.streak} />
                       <span className="text-xs font-bold text-muted-foreground tabular-nums">
-                        {formatXp(header.level.xp)}
+                        {formatCHFCompact(header.month.caSigne)} signés ce mois · {header.month.rdvPris} RDV pris
                       </span>
                     </div>
                   )}

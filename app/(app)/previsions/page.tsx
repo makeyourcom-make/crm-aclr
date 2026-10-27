@@ -1,5 +1,5 @@
 /**
- * Page /previsions : DÉPRÉCIÉE (inchangée dans MYC Arena).
+ * Page /previsions : DÉPRÉCIÉE (inchangée par la refonte).
  *
  * Les prévisions étaient redondantes avec /stats (KPIs, entonnoir, projection
  * annuelle du pilotage) et /commissions (calendrier des versements à venir).

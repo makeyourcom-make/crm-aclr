@@ -14,7 +14,6 @@ import { formatInt, plural } from "@/components/arena/format";
 import { StatusPill } from "@/components/arena/pills";
 import { SectionCard } from "@/components/arena/section-card";
 import type { Tone } from "@/components/arena/tones";
-import { XP_RULES } from "@/lib/gamification/rules";
 import { formatCHFCompact, formatMoney } from "@/lib/format";
 import type { RelanceItem } from "@/lib/queries/today";
 
@@ -57,7 +56,7 @@ export function RelancesCard({ items, total }: { items: RelanceItem[]; total: nu
           icon={FileSignature}
           tone="violet"
           title="Aucune proposition en attente"
-          description={`Une proposition envoyée rapporte +${XP_RULES.proposition} XP et compte pour ta mission du jour.`}
+          description="Chaque proposition envoyée compte pour ton objectif du jour. Après un RDV, envoie-la tant que c'est chaud."
         />
       ) : (
         <div className="flex flex-col gap-2.5">

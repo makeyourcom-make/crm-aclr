@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * CA signé sur 12 mois (valeur an 1 des contrats signés), barres cliquables :
+ * CA signé sur 12 mois (valeur 1re année des contrats signés), barres cliquables :
  * mois en cours en coral, record en or, les autres en navy. Ligne pointillée
  * de l'objectif CA mensuel UNIQUEMENT s'il existe pour le mois.
  */

@@ -8,7 +8,7 @@
  * aucun setState synchrone dans un effet, aucun décalage d'hydratation.
  *
  * Une session est valable pour la journée (Europe/Zurich) : le lendemain,
- * elle repart de zéro. Les appels, XP et résultats affichés viennent TOUJOURS
+ * elle repart de zéro. Les appels et résultats affichés viennent TOUJOURS
  * de la base (appels du jour), la session ne fait que les borner dans le temps.
  */
 import { useSyncExternalStore } from "react";

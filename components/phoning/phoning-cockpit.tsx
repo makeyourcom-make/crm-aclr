@@ -1,29 +1,29 @@
 "use client";
 
 /**
- * Cockpit /phoning : la machine de guerre des appels.
+ * Cockpit /phoning : enchaîner les appels et décrocher des RDV.
  *
- *   - Barre de session (héros) : chrono, mission appels, combo, XP.
+ *   - Barre de session (héros) : chrono, objectif d'appels du jour,
+ *     conversations et taux de conversation, RDV pris.
  *   - Prospect en cours (priorité : rappels dus, leads chauds, nouveaux) avec
  *     gros bouton Appeler → flux EXISTANT (CallSessionProvider / startCall).
  *   - Panneau de résultat intégré (même composant que la modale globale,
  *     recordCallResult côté serveur) → prospect suivant automatiquement.
- *   - Colonne : à appeler ensuite, traités en session, stats, meilleur combo.
+ *   - Colonne : à appeler ensuite, traités en session, stats de session.
  *
- * Données : file + appels du jour + agenda RDV + stats joueur, toutes réelles
+ * Données : file + appels du jour + agenda RDV + objectifs du jour, toutes réelles
  * (serveur). Le navigateur ne garde que le chrono de session et les prospects
  * « passés » (localStorage). Après chaque résultat : router.refresh().
  */
-import { PartyPopper, PhoneCall, RotateCcw, Users, Zap } from "lucide-react";
+import { CircleCheck, PhoneCall, RotateCcw, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { xpToast } from "@/components/arena/celebrate";
+import { resultToast } from "@/components/arena/celebrate";
 import { EmptyState } from "@/components/arena/empty-state";
-import { plural } from "@/components/arena/format";
-import { StatusPill } from "@/components/arena/pills";
+import { formatInt, plural } from "@/components/arena/format";
 import { CallResultPanel } from "@/components/call/call-result-panel";
 import { useCallSession } from "@/components/call/call-session-provider";
 import { useNow } from "@/components/call/clock";
@@ -32,12 +32,11 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { formatPhone, normalizePhone } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
-  COMBO_GAP_MINUTES,
   DEFAULT_DAILY_TARGETS,
+  dailyGoalsFor,
   emptyCounters,
-  missionsFor,
+  type DailyGoal,
   type DayCounters,
-  type Mission,
 } from "@/lib/gamification/rules";
 import type {
   PhoningAgendaItem,
@@ -55,21 +54,18 @@ import {
   togglePhoningPause,
   usePhoningSession,
 } from "./phoning-session-store";
-import {
-  computeCombo,
-  multLabel,
-  sessionStats,
-  type CallPoint,
-} from "./phoning-stats";
+import { sessionStats, type CallPoint } from "./phoning-stats";
 import { ProspectCard } from "./prospect-card";
-import { BestComboCard, QueuePanel, SessionStatsCard } from "./queue-panel";
+import { QueuePanel, SessionStatsCard } from "./queue-panel";
 import { SessionHero } from "./session-hero";
 
+/** Résultats du jour de l'utilisateur connecté (moteur de résultats). */
 export interface PhoningGame {
-  xpToday: number;
-  xpRecordDay: number;
-  missions: Mission[];
+  /** Objectifs du jour (appels, RDV pris, propositions) avec jauges. */
+  goals: DailyGoal[];
   today: DayCounters;
+  /** Record : meilleure journée en RDV pris (null si aucun RDV). */
+  bestDayRdvPris: number | null;
 }
 
 export interface PhoningCockpitProps {
@@ -127,7 +123,7 @@ export function PhoningCockpit({
     skipped.filter((id) => itemIds.has(id) && !hidden.includes(id)).length;
   const remaining = Math.max(visible.length, queue.counts.total - removed);
 
-  // ---- Appels du jour → combo + session -----------------------------------
+  // ---- Appels du jour → session -------------------------------------------
   const points: CallPoint[] = dayCalls.map((c) => ({
     id: c.id,
     start: new Date(c.date).getTime(),
@@ -148,7 +144,6 @@ export function PhoningCockpit({
       raisonSociale: callSession.prospectRaisonSociale,
     });
   }
-  const combo = computeCombo(points, nowMs);
   const sessionStart = phSession?.startedAt ?? null;
   const sessionPoints = sessionStart
     ? points.filter((p) => p.start >= sessionStart - SESSION_SKEW_MS)
@@ -156,53 +151,39 @@ export function PhoningCockpit({
   const stats = sessionStats(sessionPoints);
   const done = [...sessionPoints].sort((a, b) => b.start - a.start);
 
-  // ---- Missions / XP du jour (moteur), repli sur les appels du jour --------
+  // ---- Objectifs du jour (moteur), repli sur les appels du jour -------------
   const fallbackCounters: DayCounters = {
     ...emptyCounters(),
     appels: points.length,
     conversations: sessionStats(points).conversations,
     rdvPris: points.filter((p) => p.resultat === "RDV_PRIS").length,
   };
-  const missions = game?.missions ?? missionsFor(fallbackCounters, DEFAULT_DAILY_TARGETS);
-  const missionAppels = missions.find((m) => m.key === "appels") ?? null;
-  const missionRdv = missions.find((m) => m.key === "rdvPris") ?? null;
-  const xpToday = game?.xpToday ?? sessionStats(points).xp;
-  const xpRecordDay = game?.xpRecordDay ?? 0;
+  const goals = game?.goals ?? dailyGoalsFor(fallbackCounters, DEFAULT_DAILY_TARGETS);
+  const goalAppels = goals.find((g) => g.key === "appels") ?? null;
+  const goalRdv = goals.find((g) => g.key === "rdvPris") ?? null;
 
-  // ---- Célébrations sur données réelles (après refresh) --------------------
-  const doneKey = missions
-    .filter((m) => m.done)
-    .map((m) => m.key)
+  // ---- Objectif du jour atteint (données réelles, après refresh) -----------
+  const doneKey = goals
+    .filter((g) => g.done)
+    .map((g) => g.key)
     .join(",");
   const prevDone = useRef<string | null>(null);
-  const announceMissions = useEffectEvent((prev: string) => {
+  const announceGoals = useEffectEvent((prev: string) => {
     const before = new Set(prev.split(",").filter(Boolean));
-    for (const m of missions) {
-      if (m.done && !before.has(m.key)) {
-        xpToast(m.xpReward, `Mission pliée : ${m.label}`, "Bonus du jour crédité");
+    for (const g of goals) {
+      if (g.done && !before.has(g.key)) {
+        resultToast(
+          `Objectif du jour atteint : ${g.label}`,
+          `${formatInt(g.current)} / ${formatInt(g.target)} aujourd'hui`,
+        );
       }
     }
   });
   useEffect(() => {
     const prev = prevDone.current;
     prevDone.current = doneKey;
-    if (prev !== null && prev !== doneKey) announceMissions(prev);
+    if (prev !== null && prev !== doneKey) announceGoals(prev);
   }, [doneKey]);
-
-  // Combo : on ne suit le multiplicateur qu'une fois l'heure connue (sinon le
-  // premier tic d'horloge ferait croire à un palier franchi au chargement).
-  const multKey = nowMs > 0 ? combo.mult : null;
-  const prevMult = useRef<number | null>(null);
-  useEffect(() => {
-    if (multKey === null) return;
-    const prev = prevMult.current;
-    prevMult.current = multKey;
-    if (prev !== null && multKey > prev) {
-      toast.success(`Combo ${multLabel(combo.mult)} débloqué !`, {
-        description: `Tu es en feu : garde ce rythme, moins de ${COMBO_GAP_MINUTES} min entre deux appels.`,
-      });
-    }
-  }, [multKey, combo.mult]);
 
   // ---- Actions ----------------------------------------------------------
   const scrollTo = (el: HTMLElement | null) =>
@@ -260,9 +241,8 @@ export function PhoningCockpit({
 
   const handleEnd = () => {
     endPhoningSession();
-    xpToast(
-      stats.xp,
-      "Session terminée, bravo !",
+    resultToast(
+      "Session terminée",
       `${plural(stats.calls, "appel")} · ${plural(stats.conversations, "décroché")} · ${stats.rdv} RDV pris`,
     );
   };
@@ -291,11 +271,9 @@ export function PhoningCockpit({
       <SessionHero
         session={phSession}
         stats={stats}
-        combo={combo}
-        missionAppels={missionAppels}
-        missionRdv={missionRdv}
-        xpToday={xpToday}
-        xpRecordDay={xpRecordDay}
+        goalAppels={goalAppels}
+        goalRdv={goalRdv}
+        bestDayRdvPris={game?.bestDayRdvPris ?? null}
         onStart={startPhoningSession}
         onTogglePause={togglePhoningPause}
         onEnd={handleEnd}
@@ -332,10 +310,10 @@ export function PhoningCockpit({
               />
             ) : (
               <EmptyState
-                icon={PartyPopper}
-                tone="gold"
-                title="File vidée. Machine de guerre !"
-                description={`${plural(stats.calls, "appel")}, ${plural(stats.conversations, "décroché")} et ${stats.rdv} RDV pris dans cette session. +${stats.xp} XP empochés. On remet ça ?`}
+                icon={CircleCheck}
+                tone="green"
+                title="File vidée"
+                description={`${plural(stats.calls, "appel")}, ${plural(stats.conversations, "décroché")} et ${stats.rdv} RDV pris dans cette session. Recharge la file pour continuer.`}
                 action={
                   <Button variant="hero" size="xl" onClick={reloadQueue}>
                     <RotateCcw aria-hidden="true" />
@@ -362,13 +340,6 @@ export function PhoningCockpit({
                     : undefined
               }
               agenda={agenda}
-              badge={
-                combo.current > 0 ? (
-                  <StatusPill tone="gold" icon={Zap} size="md">
-                    Combo {multLabel(combo.mult)} · {plural(combo.current, "appel")}
-                  </StatusPill>
-                ) : undefined
-              }
               onRecorded={handleRecorded}
               onCancelled={() => setHangup(null)}
             />
@@ -391,7 +362,6 @@ export function PhoningCockpit({
             onRestoreSkipped={clearSkipped}
           />
           <SessionStatsCard stats={stats} today={game?.today ?? null} />
-          <BestComboCard combo={combo} />
         </aside>
       </div>
 

@@ -1,12 +1,13 @@
 /**
- * Héros de la rubrique Emails (MYC Arena) : « où j'en suis et quoi faire
+ * Héros de la rubrique Emails : « où j'en suis et quoi faire
  * maintenant » en 2 secondes.
  *
  * - Anneau « Objectif mails du jour » (mails envoyés aujourd'hui / objectif).
  * - CTA « Nouveau mail » (dégradé coral) + accès aux filtres anti-spam.
- * - 4 tuiles : réponses obtenues, délai de réponse, leads à capter, XP mails.
+ * - 4 tuiles : réponses obtenues, délai de réponse, leads à capter, mails
+ *   envoyés à des clients aujourd'hui.
  *
- * Toutes les valeurs viennent de `getMailArenaStats` (vraies données).
+ * Toutes les valeurs viennent de `getMailStats` (vraies données).
  * Server component (le bouton de rédaction est un composant client).
  */
 import Link from "next/link";
@@ -17,16 +18,15 @@ import { ProgressRing } from "@/components/arena/progress-ring";
 import { formatInt } from "@/components/arena/format";
 import { ComposeEmailButton } from "@/components/emails/compose-email-button";
 import { CAPS_CLASS, formatWait } from "@/components/emails/mail-ui";
-import { XP_RULES } from "@/lib/gamification/rules";
 import { cn } from "@/lib/utils";
 
-import type { MailArenaStats } from "@/app/(app)/emails/arena-stats";
+import type { MailStats } from "@/app/(app)/emails/mail-stats";
 
 export function EmailsHero({
   stats,
   leadsToCapture,
 }: {
-  stats: MailArenaStats;
+  stats: MailStats;
   /** Fils reçus non rattachés à une entreprise (boîte chargée). */
   leadsToCapture: number;
 }) {
@@ -34,13 +34,13 @@ export function EmailsHero({
   const rest = Math.max(0, target - sentToday);
   const title =
     rest === 0
-      ? "Objectif plié, machine de guerre !"
-      : `Encore ${rest} mail${rest > 1 ? "s" : ""} et c'est plié`;
+      ? "Objectif mails du jour atteint"
+      : `Encore ${rest} mail${rest > 1 ? "s" : ""} pour ton objectif du jour`;
   const recordLine =
     stats.sentRecordDay === 0
       ? "Ton premier mail lance le compteur."
       : sentToday > 0 && sentToday >= stats.sentRecordDay
-        ? `${formatInt(sentToday)} mail${sentToday > 1 ? "s" : ""} aujourd'hui : c'est ton record, continue !`
+        ? `${formatInt(sentToday)} mail${sentToday > 1 ? "s" : ""} aujourd'hui : tu égales ou bats ton record.`
         : `Ton record : ${formatInt(stats.sentRecordDay)} mail${stats.sentRecordDay > 1 ? "s" : ""} en un jour.`;
   const replyRate =
     stats.threads7d > 0 ? Math.round((stats.replied7d / stats.threads7d) * 100) : null;
@@ -72,8 +72,8 @@ export function EmailsHero({
             {title}
           </h2>
           <p className="text-sm leading-relaxed text-navy-200">
-            Chaque mail rattaché à un client = +{XP_RULES.email} XP. {recordLine} Attaque les
-            fils chauds juste en dessous.
+            Un mail rattaché à un client s&apos;inscrit dans sa timeline. {recordLine} Commence
+            par les fils chauds juste en dessous.
           </p>
           <div className="mt-1.5 flex flex-wrap gap-2.5">
             <ComposeEmailButton variant="hero" />
@@ -95,7 +95,7 @@ export function EmailsHero({
           sub={
             replyRate !== null
               ? `${replyRate} % des ${formatInt(stats.threads7d)} fils lancés`
-              : "Lance des fils : chaque réponse est une victoire"
+              : "Lance des fils : chaque réponse peut devenir un RDV"
           }
           subClass="text-lvl-200"
         />
@@ -123,9 +123,9 @@ export function EmailsHero({
           subClass="text-info-50"
         />
         <HeroTile
-          label="XP mails aujourd'hui"
-          value={`+${formatInt(stats.xpMailsToday)}`}
-          sub={`${formatInt(stats.xpMailsToday / XP_RULES.email)} mail${stats.xpMailsToday / XP_RULES.email > 1 ? "s" : ""} lié${stats.xpMailsToday / XP_RULES.email > 1 ? "s" : ""} à un client`}
+          label="Mails clients aujourd'hui"
+          value={formatInt(stats.clientMailsToday)}
+          sub={`mail${stats.clientMailsToday > 1 ? "s" : ""} rattaché${stats.clientMailsToday > 1 ? "s" : ""} à une fiche client`}
           subClass="text-gold-500"
         />
       </div>

@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * Boîte mail MYC Arena (« Gmail version arena ») : dossiers + liste des fils +
- * lecture, avec la couche de jeu de la rubrique Emails.
+ * Boîte mail du CRM (à la Gmail) : dossiers + liste des fils + lecture, avec
+ * les indicateurs de tri de la rubrique Emails.
  *
  * - Dossiers (à la Gmail) : Boîte de réception / Messages envoyés / Brouillons /
  *   Archivés, puis Spam et Corbeille (dossiers distincts). Pas de « Tous les
  *   messages » : ce serait l'union exacte réception + envoyés (doublon).
- * - Défi « Inbox zéro » : jauge des non lus vers 0 (même périmètre que le badge).
+ * - « Inbox zéro » : jauge des non lus vers 0 (indicateur de tri).
  * - « À traiter en priorité » : fils chauds calculés sur les vrais mails
  *   (réponse attendue, lead à capter, brouillon qui traîne, relance).
  * - Liste : fils regroupés par threadId, dernier mail en haut, entreprise liée.
@@ -16,8 +16,8 @@
  * - Répondre / Transférer (Cc / Cci), brouillon de réponse enregistrable.
  * - Spam : « Pas un spam » (→ boîte de réception + règle désactivée) ;
  *   « Spam » en sélection multiple depuis la boîte.
- * - Un envoi rattaché à un client rapporte +3 XP (activité EMAIL_ENVOYE) :
- *   toast XP puis router.refresh() pour mettre à jour la coquille.
+ * - Un envoi rattaché à un client crée l'activité EMAIL_ENVOYE (timeline de
+ *   la fiche) : toast sobre puis router.refresh() pour mettre à jour la coquille.
  */
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
@@ -84,9 +84,9 @@ import {
 import { createProspectQuick } from "@/app/(app)/prospects/actions";
 import { EmptyState } from "@/components/arena/empty-state";
 import { Meter } from "@/components/arena/meter";
-import { StatusPill, XpPill } from "@/components/arena/pills";
+import { StatusPill } from "@/components/arena/pills";
 import { TONE_CLASSES, type Tone } from "@/components/arena/tones";
-import { xpToast } from "@/components/arena/celebrate";
+import { resultToast } from "@/components/arena/celebrate";
 import {
   AttachmentPicker,
   type PickedAttachment,
@@ -106,7 +106,6 @@ import { RichTextEditor } from "@/components/emails/rich-text-editor";
 import { Button } from "@/components/ui/button";
 import { htmlToPlainText } from "@/lib/email-html";
 import { formatFileSize } from "@/lib/format";
-import { XP_RULES } from "@/lib/gamification/rules";
 import { cn } from "@/lib/utils";
 
 const STATUT_LABEL: Record<string, string> = {
@@ -247,7 +246,7 @@ interface InboxViewProps {
   nowMs: number;
   /** Non lus de la boîte (compte exact serveur, hors archivés / corbeille). */
   unreadInbox?: number;
-  /** Mails reçus lus aujourd'hui (défi Inbox zéro). */
+  /** Mails reçus lus aujourd'hui (jauge Inbox zéro). */
   treatedToday?: number;
   /** Résumé des filtres anti-spam (règles actives, mails bloqués). */
   spamSummary?: { active: number; blocked: number };
@@ -425,7 +424,7 @@ export function InboxView({
     [threads, archiveThreads, spamThreads, trashThreads, readLocal],
   );
 
-  // ---- Défi Inbox zéro (non lus → 0) ----
+  // ---- Inbox zéro (non lus → 0) ----
   const locallyRead = emails.filter(
     (m) => m.direction === "ENTRANT" && !m.lu && readLocal.has(m.id),
   ).length;
@@ -568,7 +567,7 @@ export function InboxView({
         unreadIds.forEach((id) => next.add(id));
         return next;
       });
-      // Rafraîchit ensuite : badge non lus, défi Inbox zéro, coquille.
+      // Rafraîchit ensuite : compteur non lus, jauge Inbox zéro, coquille.
       void markThreadRead(threadId).then((r) => {
         if (r.ok && (r.count ?? 0) > 0) router.refresh();
       });
@@ -683,7 +682,7 @@ export function InboxView({
     });
   };
 
-  /** Marque les fils sélectionnés comme lus (défi Inbox zéro). */
+  /** Marque les fils sélectionnés comme lus (jauge Inbox zéro). */
   const handleBulkRead = () => {
     const ids = visibleCheckedIds.map((t) => t.threadId);
     if (ids.length === 0) return;
@@ -892,7 +891,7 @@ export function InboxView({
         aria-label="Boîte mail"
         className="grid scroll-mt-4 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] xl:grid-cols-[208px_minmax(0,340px)_minmax(0,1fr)]"
       >
-        {/* Colonne dossiers + défi */}
+        {/* Colonne dossiers + jauge Inbox zéro */}
         <div className="flex min-w-0 flex-col gap-3 lg:col-span-2 lg:flex-row lg:items-stretch xl:col-span-1 xl:flex-col">
           <InboxZeroCard
             unread={unreadNow}
@@ -1216,7 +1215,7 @@ export function InboxView({
 }
 
 // ===========================================================================
-// Défi Inbox zéro, radar, dossiers, liste
+// Jauge Inbox zéro, radar, dossiers, liste
 // ===========================================================================
 
 function InboxZeroCard({
@@ -1232,10 +1231,10 @@ function InboxZeroCard({
   const max = Math.max(1, treated + unread);
   const value = done ? max : treated;
   const message = done
-    ? "Inbox zéro ! Garde-la vide jusqu'à ce soir et le badge est à toi."
+    ? "Inbox zéro : tout est trié."
     : unread <= 3
-      ? `Plus que ${unread}, tu y es presque !`
-      : `Plus que ${unread} à traiter. Badge Inbox zéro à la clé.`;
+      ? `Plus que ${unread} à trier.`
+      : `Plus que ${unread} à traiter.`;
   return (
     <div
       className={cn(
@@ -1250,19 +1249,7 @@ function InboxZeroCard({
         >
           <Inbox className="size-[18px]" />
         </span>
-        <p className={cn(CAPS_CLASS, "flex-1")}>Défi Inbox zéro</p>
-        <span
-          role="img"
-          aria-label={done ? "Badge Inbox zéro débloqué" : "Badge Inbox zéro pas encore obtenu"}
-          className={cn(
-            "flex size-[30px] items-center justify-center rounded-full border-[3px]",
-            done
-              ? "border-win-500 bg-win-50 text-win-700"
-              : "border-border-strong bg-ground text-subtle",
-          )}
-        >
-          <Check className="size-3.5" strokeWidth={3} aria-hidden="true" />
-        </span>
+        <p className={cn(CAPS_CLASS, "flex-1")}>Inbox zéro</p>
       </div>
       <p className="flex items-baseline gap-1.5">
         <span className="score-number text-[40px] text-foreground">{unread}</span>
@@ -1337,14 +1324,14 @@ function FolderEmpty({ folder, searching }: { folder: FolderType; searching: boo
     inbox: {
       icon: Inbox,
       tone: "green",
-      title: "Inbox zéro, bravo !",
+      title: "Inbox zéro",
       text: "Plus rien à traiter. Profites-en pour lancer une session de phoning.",
     },
     sent: {
       icon: Send,
       tone: "teal",
       title: "Aucun mail envoyé",
-      text: "Ton premier mail rapporte +3 XP dès qu'il est rattaché à un client.",
+      text: "Un mail rattaché à un client s'inscrit dans la timeline de sa fiche.",
     },
     draft: {
       icon: PenLine,
@@ -1731,7 +1718,7 @@ function DraftEditor({ draft }: { draft: InboxEmail }) {
         toast.success("Brouillon (dry-run, pas d'envoi réel).");
       } else if (draft.prospect) {
         // Envoi réel d'un brouillon lié à un client : activité EMAIL_ENVOYE.
-        xpToast(XP_RULES.email, "Brouillon envoyé !", `à ${draft.prospect.raisonSociale}`);
+        resultToast("Brouillon envoyé", `à ${draft.prospect.raisonSociale}`);
       } else {
         toast.success("Brouillon envoyé.");
       }
@@ -1781,9 +1768,7 @@ function DraftEditor({ draft }: { draft: InboxEmail }) {
                 : draft.destinataireEmail || "Destinataire à choisir"}
             </span>
           </span>
-          {draft.prospect ? (
-            <XpPill xp={XP_RULES.email} label="à l'envoi" />
-          ) : null}
+          {draft.prospect ? <StatusPill tone="green">Fiche client</StatusPill> : null}
         </div>
       </div>
 
@@ -1835,9 +1820,6 @@ function DraftEditor({ draft }: { draft: InboxEmail }) {
         <Button type="button" variant="hero" onClick={handleSendNow} disabled={pending}>
           <Send aria-hidden="true" />
           {pending ? "Envoi…" : "Envoyer"}
-          {draft.prospect && (
-            <XpPill xp={XP_RULES.email} variant="solid" className="text-shadow-none" />
-          )}
         </Button>
         <Button
           type="button"
@@ -2028,8 +2010,8 @@ function ThreadDetail({
     const base = thread.msgs[0]!.objet.trim();
     return /^re\s*:/i.test(base) ? base : `Re: ${base}`;
   })();
-  // Un envoi dans un fil lié à un client crée l'activité EMAIL_ENVOYE (+3 XP).
-  const linkedForXp = !!lastReal.prospect;
+  // Un envoi dans un fil lié à un client crée l'activité EMAIL_ENVOYE.
+  const linkedToClient = !!lastReal.prospect;
 
   const scrollToComposer = () =>
     requestAnimationFrame(() =>
@@ -2147,7 +2129,7 @@ function ThreadDetail({
     }
     startTransition(async () => {
       let res;
-      let earnsXp = linkedForXp;
+      let loggedOnClient = linkedToClient;
       if (editingDraftId) {
         // Brouillon repris : on enregistre les dernières modifs puis on l'envoie
         // (il reste dans le fil, In-Reply-To conservé).
@@ -2159,7 +2141,7 @@ function ThreadDetail({
         res = await sendDraft(editingDraftId);
         // sendDraft ne crée l'activité qu'en envoi réel, brouillon lié à un client.
         // (le brouillon repris EST replyDraft : c'est son client qui compte).
-        earnsXp = !res.dryRun && !!replyDraft?.prospect;
+        loggedOnClient = !res.dryRun && !!replyDraft?.prospect;
       } else {
         res = await replyToEmail(
           lastReal.id,
@@ -2175,11 +2157,10 @@ function ThreadDetail({
         toast.error(uiText(res.error, "Échec d'envoi."));
         return;
       }
-      if (earnsXp) {
-        xpToast(
-          XP_RULES.email,
-          res.dryRun ? "Réponse enregistrée (dry-run)" : "Réponse envoyée !",
-          `à ${replyName}`,
+      if (loggedOnClient) {
+        resultToast(
+          res.dryRun ? "Réponse enregistrée (dry-run)" : "Réponse envoyée",
+          `à ${replyName} · ajoutée à la fiche client`,
         );
       } else {
         toast.success(res.dryRun ? "Réponse enregistrée (dry-run)." : "Réponse envoyée.");
@@ -2222,10 +2203,9 @@ function ThreadDetail({
         toast.error(uiText(res.error, "Échec du transfert."));
         return;
       }
-      if (linkedForXp) {
-        xpToast(
-          XP_RULES.email,
-          res.dryRun ? "Transfert enregistré (dry-run)" : "Message transféré !",
+      if (linkedToClient) {
+        resultToast(
+          res.dryRun ? "Transfert enregistré (dry-run)" : "Message transféré",
           `à ${forwardTo.trim()}`,
         );
       } else {
@@ -2446,8 +2426,8 @@ function ThreadDetail({
               Lead à capter : ce mail n&apos;est rattaché à aucune entreprise
             </p>
             <p className="text-[13px] leading-snug text-muted-foreground">
-              Rattache-le : il apparaîtra sur la fiche et dans ton historique, et chaque
-              réponse rapportera +3 XP. Email de l&apos;expéditeur pré-rempli :{" "}
+              Rattache-le : il apparaîtra sur la fiche et dans ton historique, avec
+              chaque réponse. Email de l&apos;expéditeur pré-rempli :{" "}
               <strong className="font-bold text-foreground">{prefillEmail}</strong>
             </p>
             <div className="flex flex-wrap gap-2">
@@ -2585,13 +2565,13 @@ function ThreadDetail({
                   Transférer
                 </Button>
               </div>
-              {linkedForXp ? (
-                <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                  <XpPill xp={XP_RULES.email} /> à chaque mail envoyé dans ce fil
+              {linkedToClient ? (
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Chaque mail envoyé dans ce fil s&apos;inscrit sur la fiche client.
                 </p>
               ) : (
                 <p className="text-xs font-medium text-muted-foreground">
-                  Rattache ce fil à un client : chaque mail envoyé rapportera +3 XP.
+                  Rattache ce fil à un client : chaque mail envoyé s&apos;inscrira sur sa fiche.
                 </p>
               )}
             </div>
@@ -2601,7 +2581,7 @@ function ThreadDetail({
                 <h3 className="font-display text-lg font-extrabold tracking-[-0.02em] text-foreground">
                   Transférer le message
                 </h3>
-                {linkedForXp && <XpPill xp={XP_RULES.email} label="à l'envoi" />}
+                {linkedToClient && <StatusPill tone="green">Fiche client</StatusPill>}
               </div>
               <div className="space-y-1.5">
                 <label
@@ -2686,9 +2666,6 @@ function ThreadDetail({
                 <Button type="button" variant="hero" onClick={handleForward} disabled={pending}>
                   <Forward aria-hidden="true" />
                   {pending ? "Envoi…" : "Transférer"}
-                  {linkedForXp && (
-                    <XpPill xp={XP_RULES.email} variant="solid" className="text-shadow-none" />
-                  )}
                 </Button>
                 <Button
                   type="button"
@@ -2707,7 +2684,7 @@ function ThreadDetail({
                 <h3 className="font-display text-lg font-extrabold tracking-[-0.02em] text-foreground">
                   {editingDraftId ? "Brouillon de réponse" : `Répondre à ${replyName}`}
                 </h3>
-                {linkedForXp && <XpPill xp={XP_RULES.email} label="à l'envoi" />}
+                {linkedToClient && <StatusPill tone="green">Fiche client</StatusPill>}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="w-9 text-xs font-bold text-muted-foreground">À</span>
@@ -2747,7 +2724,7 @@ function ThreadDetail({
                 placeholder={`Écris ta réponse à ${replyName}…`}
                 minHeightClass="min-h-[140px]"
                 ariaLabel="Réponse"
-                variables={linkedForXp ? MAIL_VARIABLES : undefined}
+                variables={linkedToClient ? MAIL_VARIABLES : undefined}
                 footer={<SignaturePreview html={sigHtml} />}
               />
               <AttachmentPicker
@@ -2759,9 +2736,6 @@ function ThreadDetail({
                 <Button type="button" variant="hero" onClick={handleSend} disabled={pending}>
                   <Send aria-hidden="true" />
                   {pending ? "Envoi…" : "Envoyer la réponse"}
-                  {linkedForXp && (
-                    <XpPill xp={XP_RULES.email} variant="solid" className="text-shadow-none" />
-                  )}
                 </Button>
                 <Button
                   type="button"

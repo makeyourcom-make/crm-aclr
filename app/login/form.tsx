@@ -12,7 +12,7 @@ import { loginAction, type LoginActionState } from "./actions";
 const initialState: LoginActionState = { ok: false };
 
 /**
- * Formulaire de connexion (MYC Arena). Logique inchangée : Server Action
+ * Formulaire de connexion. Logique inchangée : Server Action
  * `loginAction` via useActionState, mêmes champs (email, password, totp).
  * Ajout purement visuel : bouton œil pour afficher le mot de passe.
  */

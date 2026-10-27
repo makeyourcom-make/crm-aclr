@@ -7,9 +7,9 @@
  * Fonctions conservées de l'ancienne fiche : lien vers l'entreprise, sujet,
  * description, lieu cliquable (Maps / visio / tél.), collaborateur assigné,
  * Modifier, Marquer faite, Reporter à J+1, Supprimer.
- * Nouveau : validation d'un RDV passé (effectué / manqué / annulé, +80 XP),
+ * Nouveau : validation d'un RDV passé (effectué / manqué / annulé),
  * action contextuelle (itinéraire, rejoindre la visio, appeler), compte à
- * rebours, origine phoning, prochaine marche, checklist de préparation.
+ * rebours, origine phoning, prochaine étape, checklist de préparation.
  */
 import {
   CalendarClock,
@@ -37,7 +37,6 @@ import { AdresseRdvLink } from "@/components/activities/adresse-rdv-link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { isRdvType } from "@/lib/activity-category";
 import { formatPhone, normalizePhone } from "@/lib/format";
-import { XP_RULES } from "@/lib/gamification/rules";
 import {
   countdownLabel,
   formatKeyLong,
@@ -239,7 +238,6 @@ export function RdvDetail({
                 className="flex min-h-[52px] flex-col items-center justify-center rounded-[12px] bg-win-700 px-1.5 text-white transition-colors hover:bg-win-500 disabled:opacity-50"
               >
                 <span className="text-sm font-extrabold">Effectué</span>
-                <span className="text-[11px] font-bold">+{XP_RULES.rdvEffectue} XP</span>
               </button>
               <button
                 type="button"
@@ -264,10 +262,10 @@ export function RdvDetail({
           <div className="flex flex-col gap-2 rounded-[14px] bg-win-50 p-3.5">
             <p className="flex items-center gap-1.5 text-sm font-extrabold text-win-700">
               <CircleCheck aria-hidden="true" className="size-4" />
-              RDV effectué · +{XP_RULES.rdvEffectue} XP encaissés
+              RDV effectué
             </p>
             <p className="text-[13px] leading-snug font-medium text-foreground">
-              Prochaine marche : envoie la proposition et prends +{XP_RULES.proposition} XP de plus.
+              Prochaine étape : envoie la proposition tant que le client est chaud.
             </p>
             <Link
               href="/contrats/nouveau"

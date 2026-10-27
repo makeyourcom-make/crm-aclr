@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Formulaire de template email (création / modification), charte MYC Arena.
+ * Formulaire de template email (création / modification), charte Make Your Com.
  *
  * - Identité (nom interne, type), statut actif (proposé à l'envoi ou non)
  * - Contenu (objet + corps) avec insertion de variables

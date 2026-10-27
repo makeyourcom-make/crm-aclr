@@ -438,7 +438,7 @@ export async function startCall(
  * supprime l'Activity APPEL_SORTANT créée par `startCall`, UNIQUEMENT si elle
  * est encore EN_COURS et sans résultat (un appel déjà qualifié n'est jamais
  * effacé ici). Sans ça, l'appel abandonné restait compté comme appel passé
- * (stats, XP) alors que l'interface annonçait sa suppression.
+ * (stats) alors que l'interface annonçait sa suppression.
  */
 export async function cancelCall(
   activityId: string,

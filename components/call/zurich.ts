@@ -1,5 +1,5 @@
 /**
- * Formats de date / heure MYC Arena (charte : « 27.10.2026 », « 13:00 »),
+ * Formats de date / heure (charte : « 27.10.2026 », « 13:00 »),
  * TOUJOURS en fuseau Europe/Zurich : le serveur (Vercel) tourne en UTC, le
  * navigateur en heure suisse ; un fuseau explicite donne le même texte des
  * deux côtés (pas de décalage d'hydratation, pas d'heure fausse de 1-2 h).

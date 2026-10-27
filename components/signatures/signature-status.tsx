@@ -1,5 +1,5 @@
 /**
- * Statuts de signature (MYC Arena) : libellés, teintes, pastille, mode.
+ * Statuts de signature : libellés, teintes, pastille, mode.
  * Un lien non complété dont la date est passée s'affiche « Expirée ».
  * Server-safe.
  */

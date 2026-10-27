@@ -1,8 +1,9 @@
 /**
- * Records personnels : meilleure journée, meilleure semaine, plus longue
- * série, meilleur mois de gains, plus gros contrat… avec la comparaison au
- * présent (« encore 365 XP pour l'égaler »). Données réelles fournies par la
- * page (getPlayerStats + frise des commissions). Server-safe.
+ * Records personnels exprimés en résultats : meilleur mois en CA signé,
+ * meilleur mois de commissions, plus gros contrat, meilleure journée en RDV
+ * pris, plus longue série, avec la comparaison au présent (« 1 RDV de plus et
+ * tu égales ton record »). Données réelles fournies par la page
+ * (getPlayerStats + frise des commissions). Server-safe.
  */
 import { Star } from "lucide-react";
 
@@ -33,7 +34,7 @@ export function RecordsCard({
       title="Records personnels"
       icon={Star}
       tone="gold"
-      description="Ton seul vrai adversaire, c'est toi"
+      description="Tes meilleurs résultats : à égaler, puis à battre"
       className={className}
     >
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">

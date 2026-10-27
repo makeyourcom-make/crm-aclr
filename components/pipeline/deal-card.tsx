@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * Carte deal MYC Arena.
+ * Carte deal du pipeline.
  *
  *  - <DealCardView />      présentation pure (utilisée aussi dans le DragOverlay)
  *  - <DraggableDealCard /> la même carte, déplaçable (useDraggable de dnd-kit)
  *
  * Contenu : progression d'étape, entreprise + titre, ville + offre, avatar du
  * responsable, montant + probabilité, âge et jours sans action (alerte rouge
- * au-delà de 7 jours), prochaine action réelle, statut de signature, badge
+ * au-delà de 7 jours), prochaine action réelle, statut de signature, pastille
  * « Deal chaud » ; actions : appeler, changer d'étape, supprimer, Avancer.
  *
  * Un clic sur la carte ouvre le deal (contrat lié s'il existe, sinon le
@@ -55,7 +55,6 @@ import {
   nextActionLabel,
   offerLabel,
   parseRaisonPerte,
-  signXp,
   signatureState,
   type SignatureState,
 } from "./pipeline-meta";
@@ -128,7 +127,6 @@ export function DealCardView({
   const amount = amountLine(deal);
   const sigState = signatureState(deal);
   const next = meta.next;
-  const xpNext = next === "SIGNE" ? signXp(deal) : 0;
 
   const handleRootClick = (e: MouseEvent<HTMLElement>) => {
     if (overlay || dragging) return;
@@ -222,7 +220,7 @@ export function DealCardView({
   let nextSub: string | null = null;
   let nextTone: "neutral" | "alert" = "neutral";
   if (signe) {
-    // Carte trophée : le badge de signature + le lien contrat suffisent.
+    // Deal signé : la pastille de signature + le lien contrat suffisent.
     nextText = "";
   } else if (deal.nextAction) {
     const a = deal.nextAction;
@@ -287,7 +285,7 @@ export function DealCardView({
               )}
               {signe && (
                 <StatusPill tone="gold" icon={Star} className="[&_svg]:fill-gold-500">
-                  Trophée
+                  Signé
                   {deal.closeReelLe ? ` · ${formatDayMonth(deal.closeReelLe)}` : ""}
                 </StatusPill>
               )}
@@ -412,16 +410,11 @@ export function DealCardView({
               type="button"
               size="default"
               onClick={() => onMove(deal, next)}
-              aria-label={`Avancer ${ent} en ${STAGE_META[next].label}${xpNext ? ` (+${xpNext} XP)` : ""}`}
+              aria-label={`Avancer ${ent} en ${STAGE_META[next].label}`}
               title={`Passer en ${STAGE_META[next].label}`}
               className="min-w-[8.5rem] flex-[1_1_8.5rem] rounded-[10px] px-2.5"
             >
               Avancer
-              {xpNext > 0 && (
-                <span className="rounded-full bg-gold-500 px-1.5 py-0.5 text-[11px] font-extrabold text-navy-700 tabular-nums">
-                  +{xpNext} XP
-                </span>
-              )}
             </Button>
           )}
           {signe && (

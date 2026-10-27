@@ -4,9 +4,9 @@
  * Variantes :
  *   - "full"     : wordmark horizontal image « MAKE YOUR COM » (/brand/wordmark.png)
  *   - "mark"     : logo carré navy (/brand/logo-full.png) pour les petits espaces
- *   - "wordmark" : wordmark TEXTE MYC Arena (Bricolage 800, le « C » de COM en
- *                  coral) + sous-titre optionnel « Arena ». Net à toute taille,
- *                  `tone="dark"` sur fond navy (texte blanc), `light` sinon.
+ *   - "wordmark" : logo officiel transparent, `tone="dark"` sur fond navy
+ *                  (/brand/wordmark-on-dark.png, blanc + coral), `light` sinon
+ *                  (/brand/wordmark-light.png).
  *
  * Les fichiers vivent dans /public/brand/. `size` = hauteur en pixels pour les
  * images (la largeur du wordmark image est calculée d'après son ratio réel
@@ -17,6 +17,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 const WORDMARK_RATIO = 707 / 266; // ≈ 2.658
+const LIGHT_RATIO = 627 / 214; // wordmark transparent (wordmark-light / wordmark-on-dark)
 
 interface LogoProps {
   variant?: "mark" | "full" | "wordmark";
@@ -25,7 +26,7 @@ interface LogoProps {
   className?: string;
   /** Wordmark texte : couleur du texte (dark = sur fond navy). */
   tone?: "light" | "dark";
-  /** Wordmark texte : sous-titre (« Arena » par défaut, null pour masquer). */
+  /** Sous-titre optionnel sous le logo (aucun par défaut). */
   tagline?: string | null;
 }
 
@@ -34,24 +35,23 @@ export function Logo({
   size = 40,
   className,
   tone = "light",
-  tagline = "Arena",
+  tagline = null,
 }: LogoProps) {
   if (variant === "wordmark") {
+    // Logo officiel transparent : blanc + coral sur fond navy (dark),
+    // navy + coral sur fond clair (light). `size` = hauteur en px.
+    const src = tone === "dark" ? "/brand/wordmark-on-dark.png" : "/brand/wordmark-light.png";
+    const width = Math.round(size * LIGHT_RATIO);
     return (
       <span className={cn("inline-flex flex-col gap-1", className)}>
-        <span
-          className={cn(
-            "font-display leading-none font-extrabold tracking-[-0.02em] whitespace-nowrap",
-            tone === "dark" ? "text-white" : "text-navy-700",
-          )}
-          style={{ fontSize: size }}
-        >
-          MAKE YOUR{" "}
-          <span className={tone === "dark" ? "text-coral-400" : "text-coral-600"}>
-            C
-          </span>
-          OM
-        </span>
+        <Image
+          src={src}
+          alt="Make Your Com"
+          width={width}
+          height={size}
+          style={{ height: size, width: "auto", display: "block" }}
+          priority
+        />
         {tagline && (
           <span
             className={cn(

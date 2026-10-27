@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Agenda : vue Mois (grille calendaire 6 × 7), MYC Arena.
+ * Agenda : vue Mois (grille calendaire 6 × 7).
  *
  * Chaque case = un jour : numéro, carte de chaleur des RDV clients (rose =
  * jour ouvré à remplir, or = 1 RDV, vert = 2 RDV et plus) et pastilles
@@ -42,7 +42,7 @@ interface MonthViewProps {
   nowKey: string;
   /** Lien vers la vue Jour d'une date (préserve les filtres actifs). */
   dayHref: (key: string) => string;
-  /** Libellé du joueur (« tu » ou nom), pour la phrase de projection. */
+  /** Libellé de la personne (« tu » ou nom), pour la phrase de projection. */
   you: boolean;
 }
 

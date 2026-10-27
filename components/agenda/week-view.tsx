@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Agenda : vue semaine / jour en grille horaire (MYC Arena).
+ * Agenda : vue semaine / jour en grille horaire.
  *
  *  - Gouttière d'heures collante à gauche + 1 (jour) ou 7 colonnes (semaine)
  *  - Événements positionnés par heure de début (heure suisse) et dimensionnés
@@ -44,7 +44,7 @@ import { toast } from "sonner";
 
 import { updateActivity } from "@/app/(app)/activites/actions";
 import { activityCategory, defaultDureeByType } from "@/lib/activity-category";
-import { initialsOf, XP_RULES } from "@/lib/gamification/rules";
+import { initialsOf } from "@/lib/gamification/rules";
 import {
   dowOfKey,
   formatKeyLong,
@@ -615,8 +615,8 @@ function ValidateBar({
           type="button"
           disabled={busy}
           onClick={onOk}
-          aria-label={`Valider comme effectué (+${XP_RULES.rdvEffectue} XP)`}
-          title={`Effectué · +${XP_RULES.rdvEffectue} XP`}
+          aria-label="Valider comme effectué"
+          title="Valider comme effectué"
           className="flex size-[30px] shrink-0 items-center justify-center rounded-[8px] bg-win-700 text-white transition-colors hover:bg-win-500 disabled:opacity-50"
         >
           <Check aria-hidden="true" className="size-4" strokeWidth={3} />

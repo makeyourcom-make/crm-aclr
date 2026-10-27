@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Temps au téléphone par jour (recharts), aux couleurs MYC Arena :
+ * Temps au téléphone par jour (recharts), aux couleurs du CRM :
  * aire coral, grille #E5E8F0, axes #5B6478, infobulle navy.
  */
 import {

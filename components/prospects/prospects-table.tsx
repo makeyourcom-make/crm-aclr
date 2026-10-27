@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Liste des entreprises (MYC Arena) : tableau sur grand écran, cartes sur
+ * Liste des entreprises : tableau sur grand écran, cartes sur
  * téléphone. Pastille de statut colorée, chaleur du lead (flamme + jauge),
  * dernière action avec point de fraîcheur, prochaine action (planifiée ou
  * conseillée), coordonnées cliquables et bouton « Appeler » (suivi d'appel

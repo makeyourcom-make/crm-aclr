@@ -1,13 +1,14 @@
 /**
- * Requêtes pour le Dashboard (étape 16) + couche de jeu MYC Arena
- * (prochains RDV, fil +XP, activité par période, calendrier du mois).
+ * Requêtes pour le Dashboard (étape 16) + résultats commerciaux (prochains
+ * RDV avec la valeur du deal ouvert, fil des derniers résultats, activité par
+ * période, calendrier du mois). Données réelles uniquement.
  */
-import type { ActivityResultat, ActivityStatut, ActivityType } from "@prisma/client";
+import type { ActivityStatut, ActivityType } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import { getDayCounters } from "@/lib/gamification";
-import { XP_RULES, type DayCounters } from "@/lib/gamification/rules";
-import { getActivityResultatLabel, getActivityTypeLabel } from "@/lib/labels";
+import type { DayCounters } from "@/lib/gamification/rules";
+import { getActivityTypeLabel } from "@/lib/labels";
 import { addDays, daysInMonth, isWorkingDay } from "@/lib/planning/dates";
 import { type SessionUser } from "@/lib/session";
 
@@ -93,7 +94,7 @@ export interface DashboardData {
     numero: string;
     raisonSociale: string;
     valeurAn1: number;
-    /** Mensuel du contrat (XP de signature affichés à la validation). */
+    /** Mensuel du contrat (montant affiché sur la carte de signature). */
     montantMensuel: number;
     commercialeName: string;
     contreSigneLe: Date | null;
@@ -571,7 +572,7 @@ async function computeMonthlyProgressPartial(
 }
 
 // ===========================================================================
-// MYC ARENA : couche de jeu du Dashboard (données réelles uniquement)
+// Résultats commerciaux du Dashboard (données réelles uniquement)
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
@@ -652,8 +653,6 @@ function zMidnight(key: string): Date {
 const RDV_TYPES: ActivityType[] = ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"];
 /** Statuts d'un RDV encore « en attente » (même liste que rdv-a-valider.ts). */
 const RDV_EN_ATTENTE: ActivityStatut[] = ["PLANIFIE", "EN_COURS", "REPLANIFIE"];
-/** Résultats d'appel qui ne sont PAS une conversation (même règle que le moteur de jeu). */
-const NON_CONVERSATION: ActivityResultat[] = ["COMBOX", "NE_DECROCHE_PAS", "INVALIDE"];
 /** Contrats pas encore signés (exclus des signatures, comme stats.ts / le moteur). */
 const STATUTS_NON_SIGNES = ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"] as const;
 
@@ -745,7 +744,7 @@ export interface ActivityPeriod {
 }
 
 /**
- * Compteurs de jeu de l'utilisateur (mêmes définitions que le moteur) sur
+ * Compteurs de l'utilisateur (mêmes définitions que lib/gamification) sur
  * le jour, la semaine ISO et le mois en cours, comparés à la période
  * précédente « à date équivalente » (veille ouvrée à la même heure, même
  * moment la semaine passée, même jour du mois précédent). 6 petites requêtes
@@ -849,13 +848,18 @@ export interface UpcomingRdv {
   prospectId: string | null;
   raisonSociale: string | null;
   lieu: string | null;
+  /**
+   * Valeur du deal ouvert du client (montant prévu sur 1 an, CHF), la plus
+   * élevée s'il y en a plusieurs. null si aucun deal ouvert : jamais inventée.
+   */
+  valeurDeal: number | null;
 }
 
 /**
  * Prochains RDV client de l'utilisateur (à venir, encore planifiés), +
- * nombre de RDV restants d'ici dimanche soir (chacun +80 XP s'il est
- * effectué). Mêmes critères que les RDV « effectués » du moteur de jeu :
- * rattachés à un client.
+ * nombre de RDV restants d'ici dimanche soir. Mêmes critères que les RDV
+ * « effectués » de lib/gamification : rattachés à un client. Chaque RDV porte
+ * la valeur du deal ouvert du client quand elle existe.
  */
 export async function getUpcomingRdv(
   userId: string,
@@ -894,6 +898,23 @@ export async function getUpcomingRdv(
     }),
   ]);
 
+  // Valeur du deal ouvert (hors Signé / Perdu) de chaque client listé.
+  const prospectIds = [
+    ...new Set(rows.map((r) => r.prospectId).filter((id): id is string => id !== null)),
+  ];
+  const deals =
+    prospectIds.length > 0
+      ? await prisma.deal.findMany({
+          where: { prospectId: { in: prospectIds }, stage: { notIn: ["SIGNE", "PERDU"] } },
+          select: { prospectId: true, montantPrevu: true },
+        })
+      : [];
+  const valeurParClient = new Map<string, number>();
+  for (const d of deals) {
+    const v = Number(d.montantPrevu) || 0;
+    if (v > (valeurParClient.get(d.prospectId) ?? 0)) valeurParClient.set(d.prospectId, v);
+  }
+
   return {
     rdvs: rows.map((r) => ({
       id: r.id,
@@ -904,50 +925,44 @@ export async function getUpcomingRdv(
       prospectId: r.prospectId,
       raisonSociale: r.prospect?.raisonSociale ?? null,
       lieu: lieuRdv(r.type, r.adresseRdv, r.prospect?.ville),
+      valeurDeal: r.prospectId ? (valeurParClient.get(r.prospectId) ?? null) : null,
     })),
     restantsSemaine,
   };
 }
 
+
 // ---------------------------------------------------------------------------
-// Fil d'activité +XP (dernières actions qui rapportent des XP)
+// Derniers résultats (RDV pris, RDV effectués, propositions, signatures)
 // ---------------------------------------------------------------------------
 
-export type XpFeedKind =
-  | "appel"
-  | "conversation"
-  | "rdvPris"
-  | "rdvEffectue"
-  | "email"
-  | "proposition"
-  | "signature";
+export type ResultFeedKind = "rdvPris" | "rdvEffectue" | "proposition" | "signature";
 
-export interface XpFeedItem {
+export interface ResultFeedItem {
   id: string;
   /** ISO */
   at: string;
-  kind: XpFeedKind;
-  xp: number;
+  kind: ResultFeedKind;
   title: string;
   detail: string | null;
   href: string | null;
+  /** Montants du contrat (propositions / signatures), null sinon. */
+  montant: { mensuel: number; oneShot: number } | null;
 }
 
-const FEED_DAYS = 7;
+const FEED_DAYS = 30;
 
 /**
- * Dernières actions de l'utilisateur qui rapportent des XP (7 derniers
- * jours), avec les XP de chaque action selon le barème (XP_RULES) et les
- * MÊMES critères que le moteur de jeu :
- *  - appel passé (FAIT / EN_COURS) +5, +10 s'il y a eu conversation ;
- *  - résultat RDV_PRIS +50 ;
- *  - RDV client effectué (FAIT, date passée) +80 ;
- *  - email envoyé (FAIT) +3 ;
- *  - contrat créé (proposition, hors imports a posteriori) +60 ;
- *  - contrat signé +200 + 1 XP par tranche de 10 CHF mensuels.
- * Le bonus des missions du jour n'a pas d'horodatage : il n'est pas listé.
+ * Derniers résultats de l'utilisateur (30 derniers jours), mêmes critères
+ * que lib/gamification :
+ *  - RDV pris (résultat RDV_PRIS) ;
+ *  - RDV client effectué (FAIT, date passée) ;
+ *  - proposition (contrat créé, hors imports a posteriori) ;
+ *  - contrat signé, avec ses montants (CHF / mois et one-shot).
+ * Les appels et emails n'y figurent pas : ce sont des actions, pas des
+ * résultats (ils restent dans « Ton activité »).
  */
-export async function getXpFeed(userId: string, limit = 8): Promise<XpFeedItem[]> {
+export async function getResultsFeed(userId: string, limit = 8): Promise<ResultFeedItem[]> {
   const now = new Date();
   const since = new Date(now.getTime() - FEED_DAYS * 86_400_000);
 
@@ -957,10 +972,8 @@ export async function getXpFeed(userId: string, limit = 8): Promise<XpFeedItem[]
         userId,
         date: { gte: since, lte: now },
         OR: [
-          { type: "APPEL_SORTANT", statut: { in: ["FAIT", "EN_COURS"] } },
           { resultat: "RDV_PRIS" },
           { type: { in: RDV_TYPES }, prospectId: { not: null }, statut: "FAIT" },
-          { type: "EMAIL_ENVOYE", statut: "FAIT" },
         ],
       },
       select: {
@@ -994,71 +1007,57 @@ export async function getXpFeed(userId: string, limit = 8): Promise<XpFeedItem[]
         dateSignature: true,
         statut: true,
         montantMensuel: true,
+        montantOneShot: true,
         prospect: { select: { raisonSociale: true } },
       },
-      // Pas de `take` : la fenêtre de 7 jours borne déjà le volume, et un
+      // Pas de `take` : la fenêtre de 30 jours borne déjà le volume, et un
       // tri sur updatedAt pouvait écarter une signature récente.
       orderBy: { createdAt: "desc" },
     }),
   ]);
 
-  const items: XpFeedItem[] = [];
+  const items: ResultFeedItem[] = [];
 
   for (const a of activities) {
     const qui = a.prospect?.raisonSociale ?? null;
     const href = a.prospectId ? `/prospects/${a.prospectId}` : null;
-    const isAppel =
-      a.type === "APPEL_SORTANT" && (a.statut === "FAIT" || a.statut === "EN_COURS");
-    const isConversation =
-      isAppel && a.resultat !== null && !NON_CONVERSATION.includes(a.resultat);
-    const isRdvPris = a.resultat === "RDV_PRIS";
     const isRdvEffectue =
       RDV_TYPES.includes(a.type) && a.prospectId !== null && a.statut === "FAIT";
-    const isEmail = a.type === "EMAIL_ENVOYE" && a.statut === "FAIT";
-
-    let xp = 0;
-    if (isAppel) xp += XP_RULES.appel;
-    if (isConversation) xp += XP_RULES.conversation;
-    if (isRdvPris) xp += XP_RULES.rdvPris;
-    if (isRdvEffectue) xp += XP_RULES.rdvEffectue;
-    if (isEmail) xp += XP_RULES.email;
-    if (xp <= 0) continue;
-
-    let kind: XpFeedKind;
-    let title: string;
-    let detail: string | null;
     if (isRdvEffectue) {
-      kind = "rdvEffectue";
-      title = qui ? `RDV effectué avec ${qui}` : "RDV effectué";
-      detail = getActivityTypeLabel(a.type);
-    } else if (isRdvPris) {
-      kind = "rdvPris";
-      title = qui ? `RDV pris avec ${qui}` : "RDV pris";
-      detail =
-        a.type === "APPEL_SORTANT" || a.type === "APPEL_ENTRANT"
-          ? "Décroché au téléphone"
-          : cleanText(a.sujet) || "Rendez-vous décroché";
-    } else if (isEmail) {
-      kind = "email";
-      title = qui ? `Email envoyé à ${qui}` : "Email envoyé";
-      detail = cleanText(a.sujet) || null;
-    } else if (isConversation) {
-      kind = "conversation";
-      title = qui ? `Conversation avec ${qui}` : "Conversation";
-      detail = a.resultat ? getActivityResultatLabel(a.resultat) : null;
-    } else {
-      kind = "appel";
-      title = qui ? `Appel passé · ${qui}` : "Appel passé";
-      detail = a.resultat ? getActivityResultatLabel(a.resultat) : "Sans résultat saisi";
+      items.push({
+        id: a.id,
+        at: a.date.toISOString(),
+        kind: "rdvEffectue",
+        title: qui ? `RDV effectué avec ${qui}` : "RDV effectué",
+        detail: getActivityTypeLabel(a.type),
+        href,
+        montant: null,
+      });
+    } else if (a.resultat === "RDV_PRIS") {
+      items.push({
+        id: a.id,
+        at: a.date.toISOString(),
+        kind: "rdvPris",
+        title: qui ? `RDV pris avec ${qui}` : "RDV pris",
+        detail:
+          a.type === "APPEL_SORTANT" || a.type === "APPEL_ENTRANT"
+            ? "Décroché au téléphone"
+            : cleanText(a.sujet) || null,
+        href,
+        montant: null,
+      });
     }
-    items.push({ id: a.id, at: a.date.toISOString(), kind, xp, title, detail, href });
   }
 
   for (const c of contracts) {
     const qui = c.prospect.raisonSociale;
     const href = `/contrats/${c.id}`;
+    const montant = {
+      mensuel: Math.max(0, Number(c.montantMensuel) || 0),
+      oneShot: Math.max(0, Number(c.montantOneShot) || 0),
+    };
     // Contrats importés a posteriori (signés bien avant leur saisie) : pas une
-    // proposition du jour (même exclusion que le moteur de jeu).
+    // proposition récente (même exclusion que lib/gamification).
     const importe =
       c.dateSignature !== null &&
       c.dateSignature.getTime() < c.createdAt.getTime() - 7 * 86_400_000;
@@ -1067,25 +1066,22 @@ export async function getXpFeed(userId: string, limit = 8): Promise<XpFeedItem[]
         id: `${c.id}-proposition`,
         at: c.createdAt.toISOString(),
         kind: "proposition",
-        xp: XP_RULES.proposition,
         title: `Proposition créée · ${qui}`,
         detail: c.numero,
         href,
+        montant,
       });
     }
     const signe = !(STATUTS_NON_SIGNES as readonly string[]).includes(c.statut);
     if (signe && c.dateSignature && c.dateSignature >= since && c.dateSignature <= now) {
-      const mensuel = Math.max(0, Number(c.montantMensuel) || 0);
       items.push({
         id: `${c.id}-signature`,
         at: c.dateSignature.toISOString(),
         kind: "signature",
-        xp:
-          XP_RULES.signature +
-          Math.floor(mensuel / 10) * XP_RULES.signatureParTranche10ChfMensuel,
         title: `Contrat signé · ${qui}`,
         detail: c.numero,
         href,
+        montant,
       });
     }
   }

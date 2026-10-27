@@ -11,9 +11,8 @@
 import { ArrowRight, Clock, Flame, Star, Trophy, Zap } from "lucide-react";
 import Link from "next/link";
 
-import { HeroPanel, Meter, ProgressRing, XpPill } from "@/components/arena";
+import { HeroPanel, Meter, ProgressRing } from "@/components/arena";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { XP_RULES } from "@/lib/gamification/rules";
 import { formatCHFCompact } from "@/lib/format";
 import type { PipelineDeal, PipelineScoreboard } from "@/lib/queries/deals";
 import { cn } from "@/lib/utils";
@@ -27,12 +26,12 @@ import {
   isHot,
   nextActionLabel,
   offerLabel,
+  dealSignGain,
   pluralize,
-  signXp,
 } from "./pipeline-meta";
 
 export interface HeroViewText {
-  /** « Ton tableau de chasse », « Tableau de chasse de Lucille »... */
+  /** « Tes résultats », « Résultats de Lucille »... */
   eyebrow: string;
   /** « ton objectif », « l'objectif de Lucille », « l'objectif de l'équipe ». */
   objPhrase: string;
@@ -89,9 +88,9 @@ export function PipelineHero({
   if (caObj == null) {
     coach = isAdmin
       ? "Aucun objectif de CA fixé pour ce mois sur cette vue : fixe-le pour suivre le reste à signer."
-      : "Pas encore d'objectif de CA ce mois : chaque signature compte quand même, fonce.";
+      : "Pas encore d'objectif de CA ce mois : chaque signature rapporte quand même.";
   } else if (!reste) {
-    coach = "Machine de guerre : objectif atteint, tout ce que tu signes maintenant, c'est du bonus.";
+    coach = "Objectif atteint : tout ce que tu signes maintenant passe au-dessus de l'objectif.";
   } else if (dealDuJour && dealDuJour.montant >= reste) {
     coach = `${dealDuJour.prospect.raisonSociale} suffit à boucler ${view.objPhrase}. Une signature et c'est plié.`;
   } else {
@@ -179,7 +178,11 @@ export function PipelineHero({
             </span>
           </div>
         )}
-        <XpPill xp={XP_RULES.signature} variant="solid" label="par signature" />
+        {scoreboard.mrrSigne > 0 && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-navy-500 px-2.5 py-1 text-xs font-bold text-white tabular-nums">
+            MRR signé · {formatCHFCompact(scoreboard.mrrSigne)} / mois
+          </span>
+        )}
       </div>
 
       {/* Deal du jour */}
@@ -220,7 +223,7 @@ function DealDuJour({
 }) {
   const meta = STAGE_META[deal.stage];
   const negociation = deal.stage === "NEGOCIATION";
-  const xp = signXp(deal);
+  const gain = dealSignGain(deal);
   const offer = offerLabel(deal);
   const ligne = [
     `${meta.label} · proba ${deal.probabilite} %`,
@@ -275,14 +278,14 @@ function DealDuJour({
         onClick={() => (negociation ? onOpenDeal(deal) : onAdvanceDeal(deal))}
         aria-label={
           negociation
-            ? `Faire signer ${deal.prospect.raisonSociale} (+${xp} XP à la signature)`
+            ? `Faire signer ${deal.prospect.raisonSociale}${gain ? ` (${gain} à la signature)` : ""}`
             : `Passer ${deal.prospect.raisonSociale} en ${STAGE_META.NEGOCIATION.label}`
         }
       >
         {ctaText}
-        {negociation && (
+        {negociation && gain && (
           <span className="rounded-full bg-navy-700 px-2 py-0.5 text-xs font-extrabold text-gold-500 [text-shadow:none] tabular-nums">
-            +{xp} XP
+            {gain}
           </span>
         )}
       </Button>

@@ -3,7 +3,7 @@
 /**
  * Sélecteur de pièces jointes pour les formulaires email.
  *
- * - Bouton "Joindre un fichier" + zone de dépôt (charte MYC Arena)
+ * - Bouton "Joindre un fichier" + zone de dépôt (charte Make Your Com)
  * - Upload vers Vercel Blob via uploadEmailAttachment()
  * - État local de la liste pour affichage / retrait
  * - Notifie le parent via onChange à chaque mise à jour

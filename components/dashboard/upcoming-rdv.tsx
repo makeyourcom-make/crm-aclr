@@ -1,14 +1,15 @@
 /**
- * Prochains RDV client (agenda de l'utilisateur), avec les XP en jeu
- * (+80 XP par RDV effectué). Server-safe.
+ * Prochains RDV client (agenda de l'utilisateur), avec la valeur du deal
+ * ouvert du client quand elle existe (« ce RDV peut valoir ... »).
+ * Server-safe.
  */
 import { ArrowRight, Calendar, CalendarDays } from "lucide-react";
 import Link from "next/link";
 
-import { formatInt, plural } from "@/components/arena/format";
+import { plural } from "@/components/arena/format";
 import { EmptyState } from "@/components/arena/empty-state";
 import { SectionCard } from "@/components/arena/section-card";
-import { XP_RULES } from "@/lib/gamification/rules";
+import { formatCHFCompact } from "@/lib/format";
 import type { UpcomingRdv } from "@/lib/queries/dashboard";
 import { cn } from "@/lib/utils";
 
@@ -32,17 +33,31 @@ export function UpcomingRdvSection({
   today: string;
   className?: string;
 }) {
+  // Valeur des deals ouverts des RDV listés (un client compté une fois).
+  const parClient = new Map<string, number>();
+  for (const r of rdvs) {
+    if (r.prospectId && r.valeurDeal && r.valeurDeal > 0) parClient.set(r.prospectId, r.valeurDeal);
+  }
+  const valeurOuverte = [...parClient.values()].reduce((s, v) => s + v, 0);
+
+  const semaine =
+    restantsSemaine > 0
+      ? `${plural(restantsSemaine, "RDV", "RDV")} d'ici dimanche`
+      : rdvs.length > 0
+        ? "Plus de RDV cette semaine · voici les suivants"
+        : null;
   const description =
-    restantsSemaine > 0 ? (
+    semaine || valeurOuverte > 0 ? (
       <>
-        {plural(restantsSemaine, "RDV")} d&apos;ici dimanche · jusqu&apos;à{" "}
-        <strong className="text-gold-700">
-          +{formatInt(restantsSemaine * XP_RULES.rdvEffectue)} XP
-        </strong>{" "}
-        s&apos;ils sont effectués
+        {semaine}
+        {semaine && valeurOuverte > 0 ? " · " : ""}
+        {valeurOuverte > 0 && (
+          <>
+            <strong className="text-win-700">{formatCHFCompact(valeurOuverte)}</strong> de deals ouverts
+            sur ces clients
+          </>
+        )}
       </>
-    ) : rdvs.length > 0 ? (
-      "Plus de RDV cette semaine · voici les suivants"
     ) : undefined;
 
   return (
@@ -67,7 +82,7 @@ export function UpcomingRdvSection({
           icon={CalendarDays}
           tone="gold"
           title="Aucun RDV à venir"
-          description={`Un appel bien mené et le prochain s'affiche ici : +${XP_RULES.rdvPris} XP le RDV pris, +${XP_RULES.rdvEffectue} XP une fois effectué.`}
+          description="Chaque RDV est une chance : le prochain décroché au téléphone s'affiche ici."
           action={
             <Link
               href="/phoning"
@@ -132,6 +147,11 @@ export function UpcomingRdvSection({
                       </span>
                     )}
                   </div>
+                  {r.valeurDeal !== null && r.valeurDeal > 0 && (
+                    <span className="text-xs font-bold text-win-700">
+                      Ce RDV peut valoir {formatCHFCompact(r.valeurDeal)} (deal ouvert, valeur 1 an)
+                    </span>
+                  )}
                 </div>
               </li>
             );

@@ -1,11 +1,11 @@
 /**
  * Une action de la frise « Ta journée heure par heure ».
  *
- * Heure à gauche, point de frise, carte avec type, retard, XP en jeu,
- * entreprise (lien vers la fiche), sujet ; actions à droite :
+ * Heure à gauche, point de frise, carte avec type, retard, entreprise (lien
+ * vers la fiche), sujet ; actions à droite :
  *   - appel avec numéro → Appeler (click-to-call existant, suivi d'appel)
  *   - RDV client → Voir RDV (fiche entreprise)
- *   - toujours → Marquer fait (markActivityDone + toast XP + refresh)
+ *   - toujours → Marquer fait (markActivityDone + toast de résultat + refresh)
  *
  * Server-safe : seuls ClickToCall et DoneButton sont des îlots client.
  */
@@ -18,16 +18,19 @@ import { cn } from "@/lib/utils";
 
 import { CallButton } from "./call-button";
 import { DoneButton } from "./done-button";
-import { TASK_TYPE_META, TONE_BORDER_L, TONE_DOT } from "./task-meta";
+import { doneToastFor, TASK_TYPE_META, TONE_BORDER_L, TONE_DOT, type DayProgress } from "./task-meta";
 
 interface TodayItemProps {
   task: TodayTask;
   /** L'action est dans le bloc « En retard » (fond rouge clair). */
   overdue?: boolean;
+  /** Compteurs + objectifs du jour (détail du toast), null si indisponibles. */
+  progress: DayProgress | null;
 }
 
-export function TodayItem({ task: t, overdue = false }: TodayItemProps) {
+export function TodayItem({ task: t, overdue = false, progress }: TodayItemProps) {
   const meta = TASK_TYPE_META[t.type];
+  const done = doneToastFor(t, progress);
   const late = overdue && !!t.retard;
   const name = t.prospect?.raisonSociale ?? t.sujet;
   const canCall = t.kind === "call" && !!t.prospect && !!t.prospect.telephone;
@@ -77,9 +80,6 @@ export function TodayItem({ task: t, overdue = false }: TodayItemProps) {
             ) : (
               late && <StatusPill tone="red">En retard · {t.retard!.label}</StatusPill>
             )}
-            {t.xp > 0 && (
-              <span className="ml-auto text-xs font-bold text-gold-700">+{t.xp} XP</span>
-            )}
           </div>
           <div className="mt-1.5 text-[15px] leading-snug font-bold break-words">
             {t.prospect ? (
@@ -121,9 +121,8 @@ export function TodayItem({ task: t, overdue = false }: TodayItemProps) {
           <DoneButton
             activityId={t.id}
             context={`${meta.label} ${name}`}
-            xp={t.xp}
-            xpLabel={meta.xpLabel}
-            xpSub={t.prospect?.raisonSociale}
+            toastMessage={done.message}
+            toastDetail={done.detail}
             future={t.rdvFutur}
           />
         </div>

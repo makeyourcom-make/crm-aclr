@@ -1,12 +1,12 @@
 /**
- * Requêtes pour l'Agenda (vues jour / semaine / mois) et sa couche de jeu
- * MYC Arena (héros « RDV de la semaine », RDV à valider, défis).
+ * Requêtes pour l'Agenda (vues jour / semaine / mois) et ses résultats RDV
+ * (héros « RDV de la semaine », objectifs, record, RDV à valider).
  *
  * Deux périmètres coexistent, volontairement :
  *  - la GRILLE affiche les activités de l'agenda (créées par l'utilisateur OU
  *    rattachées à un prospect qui lui est assigné), comme historiquement ;
- *  - les COMPTEURS du jeu suivent les mêmes règles que le moteur d'XP
- *    (lib/gamification) : RDV client = type RDV_*, rattaché à un prospect,
+ *  - les COMPTEURS de résultats suivent les mêmes règles que les compteurs
+ *    commerciaux (lib/gamification) : RDV client = type RDV_*, rattaché à un prospect,
  *    porté par l'utilisateur (`userId`). Les événements synchronisés sans
  *    client (Google / Infomaniak) ne comptent pas.
  *
@@ -147,7 +147,7 @@ export function resolveAgendaSubject(
   return { userIds: [u.id], kind: u.id === user.id ? "self" : "user", name: u.name };
 }
 
-export interface AgendaGame {
+export interface AgendaResults {
   todayKey: string;
   week: {
     startKey: string;
@@ -158,7 +158,6 @@ export interface AgendaGame {
     /** Effectués (FAIT, heure passée). */
     fait: number;
     manque: number;
-    visio: number;
     /** Encore à venir d'ici dimanche. */
     aVenir: number;
     /** RDV pris au phoning cette semaine (résultat d'appel RDV_PRIS). */
@@ -198,11 +197,11 @@ function dureeMinutes(a: { duree: number | null }): number {
 }
 
 /**
- * Données du héros et des défis : semaine ISO en cours (lundi → dimanche,
+ * Données du héros : semaine ISO en cours (lundi → dimanche,
  * heure suisse), record, objectifs, RDV à valider et prochains RDV.
  * Requêtes légères (agrégats ou quelques lignes), lancées en parallèle.
  */
-export async function getAgendaGame(subject: AgendaSubject): Promise<AgendaGame> {
+export async function getAgendaResults(subject: AgendaSubject): Promise<AgendaResults> {
   const now = new Date();
   const todayKey = zDayKey(now);
   const weekStartKey = mondayOfKey(todayKey);
@@ -223,7 +222,7 @@ export async function getAgendaGame(subject: AgendaSubject): Promise<AgendaGame>
           prospectId: { not: null },
           date: { gte: weekStart, lt: weekEnd },
         },
-        select: { type: true, statut: true, date: true, duree: true },
+        select: { statut: true, date: true, duree: true },
       }),
       prisma.$queryRaw<Array<{ n: number }>>`
         SELECT COUNT(*)::int AS n
@@ -307,14 +306,12 @@ export async function getAgendaGame(subject: AgendaSubject): Promise<AgendaGame>
   let total = 0;
   let fait = 0;
   let manque = 0;
-  let visio = 0;
   let aVenir = 0;
   const daysWithRdv = new Set<string>();
   for (const r of weekRows) {
     if (r.statut === "ANNULE") continue;
     total += 1;
     daysWithRdv.add(zDayKey(r.date));
-    if (r.type === "RDV_VISIO") visio += 1;
     if (r.statut === "FAIT" && r.date.getTime() <= nowMs) fait += 1;
     if (r.statut === "MANQUE") manque += 1;
     if (RDV_OPEN_STATUTS.includes(r.statut) && r.date.getTime() > nowMs) aVenir += 1;
@@ -361,7 +358,6 @@ export async function getAgendaGame(subject: AgendaSubject): Promise<AgendaGame>
       total,
       fait,
       manque,
-      visio,
       aVenir,
       rdvPrisPhoning,
       joursOuvresEcoules,

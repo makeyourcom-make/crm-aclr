@@ -14,7 +14,7 @@
  * SIGNEE_CLIENT, prêt pour la contre-signature ACLR.
  *
  * Style : bouton primaire navy (l'ancien `bg-accent` est devenu rose pâle
- * avec la charte MYC Arena et rendait le bouton illisible).
+ * avec la charte Make Your Com et rendait le bouton illisible).
  */
 import { LoaderCircle, PenTool } from "lucide-react";
 import { useTransition } from "react";

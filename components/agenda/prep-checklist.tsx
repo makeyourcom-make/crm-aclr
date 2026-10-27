@@ -102,7 +102,7 @@ export function PrepChecklist({ activityId, type }: { activityId: string; type: 
           <h3 className="text-[15px] font-extrabold text-foreground">Préparer le RDV</h3>
           <p className="text-xs font-semibold text-muted-foreground">
             {rest === 0
-              ? "Tout est prêt : va le plier."
+              ? "Tout est prêt : va chercher la signature."
               : `Encore ${rest} point${rest > 1 ? "s" : ""} et tu arrives au top.`}
           </p>
         </div>

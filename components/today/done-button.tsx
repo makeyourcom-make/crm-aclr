@@ -5,10 +5,9 @@
  *
  * - Appelle l'action serveur `markActivityDone` (droits vérifiés côté
  *   serveur : assertCanEditActivity, garde-fou RDV avant l'heure).
- * - Succès : toast XP du barème (appel +5, email +3, RDV effectué +80) ou
- *   simple confirmation si l'action ne rapporte pas d'XP, puis
- *   router.refresh() pour mettre à jour la liste ET les pilules XP / série
- *   de la topbar.
+ * - Succès : toast de résultat sobre (« Appel enregistré » · « Garage du
+ *   Chablais · 29 / 40 appels aujourd'hui »), puis router.refresh() pour
+ *   mettre à jour la liste, les compteurs et la topbar.
  * - `data-done-button` : cible du raccourci clavier Espace (TodayShortcuts).
  */
 import { Check, Loader2 } from "lucide-react";
@@ -17,19 +16,17 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { markActivityDone } from "@/app/(app)/activites/actions";
-import { xpToast } from "@/components/arena/celebrate";
+import { resultToast } from "@/components/arena/celebrate";
 import { cn } from "@/lib/utils";
 
 interface DoneButtonProps {
   activityId: string;
   /** Contexte lu par les lecteurs d'écran (« Appel sortant Garage du Chablais »). */
   context: string;
-  /** XP rapportés (0 = simple confirmation). */
-  xp: number;
-  /** Libellé du toast XP (« Appel passé »). */
-  xpLabel: string;
-  /** Sous-titre du toast (entreprise). */
-  xpSub?: string;
+  /** Message du toast de résultat (« Appel enregistré »). */
+  toastMessage: string;
+  /** Détail du toast (entreprise, progression du jour, prochaine étape). */
+  toastDetail?: string;
   /** RDV encore à venir : exclu du raccourci clavier. */
   future?: boolean;
   /** Bouton icône seul (aperçu de demain). */
@@ -40,9 +37,8 @@ interface DoneButtonProps {
 export function DoneButton({
   activityId,
   context,
-  xp,
-  xpLabel,
-  xpSub,
+  toastMessage,
+  toastDetail,
   future = false,
   compact = false,
   className,
@@ -59,8 +55,7 @@ export function DoneButton({
         return;
       }
       setDone(true);
-      if (xp > 0) xpToast(xp, xpLabel, xpSub);
-      else toast.success("Marquée comme faite.");
+      resultToast(toastMessage, toastDetail);
       router.refresh();
     });
   };

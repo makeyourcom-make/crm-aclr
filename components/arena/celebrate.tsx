@@ -1,12 +1,14 @@
 "use client";
 
 /**
- * Célébrations MYC Arena.
+ * Célébration de signature + toasts de résultat.
  *
  *   celebrate()                       rafale de confettis plein écran
  *   celebrate({ title: "Contrat signé !", subtitle: "Camping le Rys · Google Ads",
- *               xp: 215, eyebrow: "Bravo Lucille" })   + carte de victoire
- *   xpToast(50, "RDV pris !")         toast navy « RDV pris ! · +50 XP »
+ *               highlight: "+269.90 CHF / mois", eyebrow: "Bravo Lucille" })
+ *                                     + carte de victoire
+ *   resultToast("RDV pris avec Camping le Rys", "Prochaine étape : préparer la proposition")
+ *                                     toast navy sobre, sans points
  *
  * Fonctionnement : `celebrate()` alimente un petit store module (hors React)
  * et `<CelebrationHost />` (monté UNE fois dans le layout) le lit via
@@ -15,16 +17,16 @@
  * sont tirées au moment de l'appel (pas pendant le rendu).
  *
  * Mouvement réduit : aucun confetti, la carte s'affiche sans animation.
- * Confettis = UNIQUEMENT pour un contrat signé (charte : rare et mérité).
+ * Confettis = UNIQUEMENT pour un contrat signé (deal passé en Signé, contrat
+ * signé / validé). Jamais pour un RDV, une facture payée ou un objectif du jour.
  */
-import { PartyPopper, X, Zap } from "lucide-react";
+import { Check, PartyPopper, X } from "lucide-react";
 import { Fragment, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 
-import { formatSignedXp } from "./format";
 import { CONFETTI_COLORS } from "./tones";
 
 // ---------------------------------------------------------------------------
@@ -51,7 +53,8 @@ interface ConfettiPiece {
 interface CelebrationCard {
   title: string;
   subtitle?: string;
-  xp?: number;
+  /** Montant / résultat mis en avant (« +269.90 CHF / mois »). */
+  highlight?: string;
   eyebrow?: string;
 }
 
@@ -122,7 +125,9 @@ export interface CelebrateOptions {
   /** Titre de la carte de victoire (sans titre : confettis seuls). */
   title?: string;
   subtitle?: string;
-  /** XP gagnés affichés dans la carte. */
+  /** Montant ou résultat mis en avant dans la carte (« +269.90 CHF / mois »). */
+  highlight?: string;
+  /** @deprecated Ignoré : plus aucun XP affiché. Utiliser `highlight`. */
   xp?: number;
   /** Petit sur-titre (« Bravo Lucille »). */
   eyebrow?: string;
@@ -141,7 +146,7 @@ export function celebrate(options: CelebrateOptions = {}): void {
     ? {
         title: options.title,
         subtitle: options.subtitle,
-        xp: options.xp,
+        highlight: options.highlight,
         eyebrow: options.eyebrow,
       }
     : null;
@@ -179,7 +184,7 @@ export function CelebrationHost() {
 }
 
 function announceText(card: CelebrationCard): string {
-  return [card.eyebrow, card.title, card.subtitle, card.xp ? formatSignedXp(card.xp) : undefined]
+  return [card.eyebrow, card.title, card.subtitle, card.highlight]
     .filter(Boolean)
     .join(" · ");
 }
@@ -282,9 +287,9 @@ function VictoryCard({
       {card.subtitle && (
         <p className="text-sm text-muted-foreground">{card.subtitle}</p>
       )}
-      {card.xp !== undefined && card.xp > 0 && (
-        <span className="mt-1 rounded-full bg-gold-500 px-4 py-1.5 font-display text-2xl font-extrabold text-navy-700 tabular-nums">
-          {formatSignedXp(card.xp)}
+      {card.highlight && (
+        <span className="mt-1 rounded-full bg-win-50 px-4 py-1.5 font-display text-2xl font-extrabold text-win-700 tabular-nums">
+          {card.highlight}
         </span>
       )}
     </div>
@@ -292,47 +297,52 @@ function VictoryCard({
 }
 
 // ---------------------------------------------------------------------------
-// Toast XP
+// Toast de résultat
 // ---------------------------------------------------------------------------
 
 /**
- * Toast navy discret (2.5 s, non bloquant) : « RDV pris ! » + pastille or
- * « +50 XP ». `sub` optionnel : détail (entreprise, date…).
+ * Toast navy sobre (2.5 s, non bloquant), jamais de points :
+ *   resultToast("Appel enregistré", "28 / 40 aujourd'hui")
+ *   resultToast("Contrat signé", "+269.90 CHF / mois")
+ * `detail` optionnel : prochaine étape, progression, montant...
  */
-export function xpToast(xp: number, label: string, sub?: string): void {
+export function resultToast(message: string, detail?: string): void {
   toast.custom(
     (id) => (
-      <XpToastCard xp={xp} label={label} sub={sub} onClose={() => toast.dismiss(id)} />
+      <ResultToastCard message={message} detail={detail} onClose={() => toast.dismiss(id)} />
     ),
     { duration: 2500 },
   );
 }
 
-function XpToastCard({
-  xp,
-  label,
-  sub,
+/**
+ * @deprecated Utiliser `resultToast(message, detail)`. Le nombre d'XP est
+ * IGNORÉ (plus aucun « +N XP » affiché) : seul le libellé (et `sub`) apparaît.
+ */
+export function xpToast(_xp: number, label: string, sub?: string): void {
+  resultToast(label, sub);
+}
+
+function ResultToastCard({
+  message,
+  detail,
   onClose,
 }: {
-  xp: number;
-  label: string;
-  sub?: string;
+  message: string;
+  detail?: string;
   onClose: () => void;
 }) {
   return (
     <div className="flex w-full items-center gap-3 rounded-[14px] bg-navy-700 py-3 pr-2 pl-3 text-white shadow-arena-lg sm:w-[356px]">
       <span
         aria-hidden="true"
-        className="flex size-9 shrink-0 items-center justify-center rounded-[12px] bg-navy-600 text-gold-500"
+        className="flex size-9 shrink-0 items-center justify-center rounded-[12px] bg-navy-600 text-coral-400"
       >
-        <Zap className="size-[18px] fill-gold-500" />
+        <Check className="size-[18px]" strokeWidth={2.6} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm font-extrabold">{label}</span>
-        {sub && <span className="truncate text-xs text-navy-300">{sub}</span>}
-      </span>
-      <span className="shrink-0 rounded-full bg-gold-500 px-2.5 py-1 text-[13px] font-extrabold whitespace-nowrap text-navy-700 tabular-nums">
-        {formatSignedXp(xp)}
+        <span className="truncate text-sm font-extrabold">{message}</span>
+        {detail && <span className="truncate text-xs text-navy-300">{detail}</span>}
       </span>
       <button
         type="button"

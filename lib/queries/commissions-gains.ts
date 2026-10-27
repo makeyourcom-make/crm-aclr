@@ -1,20 +1,18 @@
 /**
  * « Objectifs & gains » de la commerciale (SERVEUR) : tout ce qu'il faut pour
- * la vue gamifiée de /commissions, à partir des données réelles du CRM.
+ * la vue /commissions (gains en CHF, objectifs, records), à partir des
+ * données réelles du CRM.
  *
  *  - commissions : cockpit existant (getCommissionsCockpit) + frise mois par
  *    mois (historique + versements à venir) + détail du mois en cours ;
  *  - taux réels de la commerciale (User.tauxCommissionSignature /
  *    tauxCommissionRenouvellement) pour le simulateur ;
  *  - objectif MENSUEL + réalisé + projection (objectifs-progress) ;
- *  - quelques compteurs pour les badges et les défis (appels de la semaine,
- *    mails non lus, prochains RDV) ;
+ *  - prochains RDV (phrase coach, CTA agenda) ;
  *  - offres types du catalogue (produits actifs les plus vendus).
  */
 import { ADS_CATEGORIES } from "@/lib/commissions";
 import { prisma } from "@/lib/db";
-import { getDayCounters } from "@/lib/gamification";
-import { addDays, todayZurich } from "@/lib/planning/dates";
 import { type SessionUser } from "@/lib/session";
 
 import {
@@ -93,8 +91,6 @@ export interface GainsData {
   upcomingRdvs: UpcomingRdv[];
   upcomingRdvCount: number;
   presets: SimPreset[];
-  weekAppels: number;
-  unreadInbox: number;
 }
 
 const RDV_TYPES = ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"] as const;
@@ -113,7 +109,7 @@ function emptyRealised(commission: number): MonthRealised {
   };
 }
 
-/** Donnée d'agrément (défis, offres types) : en cas d'échec, valeur neutre. */
+/** Donnée d'agrément (RDV, offres types) : en cas d'échec, valeur neutre. */
 function soft<T>(p: Promise<T>, fallback: T, label: string): Promise<T> {
   return p.catch((err) => {
     console.error(`[gains] ${label} a échoué :`, err);
@@ -124,9 +120,6 @@ function soft<T>(p: Promise<T>, fallback: T, label: string): Promise<T> {
 export async function getGainsData(user: SessionUser): Promise<GainsData> {
   const w = currentMonthWindow();
   const now = new Date();
-  const today = todayZurich();
-  const monday = addDays(today, -((today.getUTCDay() || 7) - 1));
-  const weekStart = zurichMidnight(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate());
   const in7Days = new Date(now.getTime() + 7 * 86_400_000);
   const historyStart = zurichMidnight(w.year, w.month - 11, 1);
 
@@ -138,8 +131,6 @@ export async function getGainsData(user: SessionUser): Promise<GainsData> {
     upcoming,
     upcomingCount,
     presetsRaw,
-    weekCounters,
-    unreadInbox,
   ] = await Promise.all([
     getCommissionsCockpit(user),
     prisma.user.findUnique({
@@ -212,20 +203,6 @@ export async function getGainsData(user: SessionUser): Promise<GainsData> {
       orderBy: [{ contracts: { _count: "desc" } }, { nom: "asc" }],
       take: 4,
     }), [], "offres types"),
-    soft(getDayCounters(user.id, weekStart, now), null, "appels de la semaine"),
-    soft(
-      prisma.email.count({
-        where: {
-          userId: user.id,
-          direction: "ENTRANT",
-          lu: false,
-          archive: false,
-          supprime: false,
-        },
-      }),
-      0,
-      "mails non lus",
-    ),
   ]);
 
   // ---- Frise (6 mois passés → 12 mois à venir) ----
@@ -349,7 +326,5 @@ export async function getGainsData(user: SessionUser): Promise<GainsData> {
       duree: p.engagementMois && p.engagementMois > 0 ? p.engagementMois : 12,
       ads: ADS_CATEGORIES.has(p.categorie),
     })),
-    weekAppels: weekCounters?.appels ?? 0,
-    unreadInbox,
   };
 }

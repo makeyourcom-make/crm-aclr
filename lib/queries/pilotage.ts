@@ -1,16 +1,17 @@
 /**
- * Pilotage de direction (rubrique Statistiques, MYC Arena).
+ * Pilotage de direction (rubrique Statistiques).
  *
  * SERVEUR UNIQUEMENT (prisma). Regroupe les requêtes du tableau de bord
  * d'Arthur en tête de /stats :
  *   - fenêtres de période (jours en fuseau Europe/Zurich, dates stockées UTC) ;
- *   - compteurs d'activité d'une période (mêmes définitions que le moteur de
- *     jeu `lib/gamification/engine.ts`, donc cohérents avec les XP) ;
+ *   - compteurs d'activité d'une période (mêmes définitions que
+ *     `lib/gamification/engine.ts`, donc cohérents avec la topbar) ;
  *   - contrats et CA signés du mois / de l'année vs objectifs (modèle
  *     Objective MENSUEL / ANNUEL) ;
  *   - MRR (contrats ACTIF) vs charges mensuelles récurrentes (Expense +
  *     ExpenseRecurrence) et marge récurrente ;
- *   - activité de l'équipe jour / semaine / mois par collaborateur, avec XP ;
+ *   - activité de l'équipe jour / semaine / mois par collaborateur (CA signé,
+ *     RDV pris, appels) ;
  *   - historique 12 mois (MRR reconstitué, charges, CA signé).
  *
  * Règle produit : un objectif absent n'est JAMAIS inventé. Les champs
@@ -19,11 +20,10 @@
 import { Prisma, type ActivityType, type ContractStatut } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
+import { formatCHFCompact } from "@/lib/format";
 import {
   firstNameOf,
   initialsOf,
-  missionsFor,
-  xpForDay,
   DEFAULT_DAILY_TARGETS,
   type DailyTargets,
   type DayCounters,
@@ -306,7 +306,7 @@ const ZERO_COUNTERS: PeriodCounters = {
 /**
  * Compteurs sur [start, end] (bornes incluses). `userId` null = toute
  * l'équipe (tous les utilisateurs, comme la vue « Toute l'équipe » de /stats).
- * Définitions identiques au moteur de jeu (appels FAIT/EN_COURS, conversations
+ * Définitions identiques à `lib/gamification/engine.ts` (appels FAIT/EN_COURS, conversations
  * hors COMBOX / NE_DECROCHE_PAS / INVALIDE, RDV pris = résultat RDV_PRIS,
  * RDV effectués = RDV clients FAIT déjà passés, propositions = contrats créés
  * hors imports a posteriori, signatures = contrats réellement signés).
@@ -804,10 +804,10 @@ export async function getDirectionDashboard(): Promise<DirectionDashboard> {
 }
 
 // ---------------------------------------------------------------------------
-// SAISON D'UN COLLABORATEUR (héros commerciale)
+// MOIS D'UNE COMMERCIALE (héros de /stats côté commerciale)
 // ---------------------------------------------------------------------------
 
-export interface PlayerMonth {
+export interface CommercialMonth {
   monthLabel: string;
   monthName: string;
   workingDaysLeft: number;
@@ -817,7 +817,7 @@ export interface PlayerMonth {
 }
 
 /** Mois en cours d'un collaborateur : compteurs + objectif MENSUEL (s'il existe). */
-export async function getPlayerMonth(userId: string): Promise<PlayerMonth> {
+export async function getCommercialMonth(userId: string): Promise<CommercialMonth> {
   const now = new Date();
   const todayKey = zurichDayKey(now);
   const month = monthKeyOf(todayKey);
@@ -839,7 +839,7 @@ export async function getPlayerMonth(userId: string): Promise<PlayerMonth> {
 }
 
 // ---------------------------------------------------------------------------
-// ACTIVITÉ DE L'ÉQUIPE (jour / semaine / mois) AVEC XP
+// ACTIVITÉ DE L'ÉQUIPE (jour / semaine / mois) : CA signé, RDV pris, appels
 // ---------------------------------------------------------------------------
 
 export type TeamPeriodKey = "jour" | "semaine" | "mois";
@@ -851,14 +851,15 @@ export interface TeamRow {
   initials: string;
   role: string;
   counters: DayCounters;
+  /** CA signé de la période (CHF, valeur 1re année `valeurAn1`, comme /stats). */
   caSigne: number;
-  xp: number;
+  /** Rang : CA signé, puis RDV pris, puis appels (ex aequo si les trois sont égaux). */
   rank: number;
   /** Objectif QUOTIDIEN réellement défini pour aujourd'hui (null sinon). */
   objAppelsJour: number | null;
   objRdvJour: number | null;
-  /** Cibles des missions du jour (objectif défini, sinon valeurs par défaut du jeu). */
-  missionTargets: DailyTargets;
+  /** Cibles des objectifs du jour (objectif défini, sinon valeurs par défaut). */
+  dailyTargets: DailyTargets;
 }
 
 export interface TeamPeriod {
@@ -867,13 +868,13 @@ export interface TeamPeriod {
   title: string;
   message: string;
   rows: TeamRow[];
-  total: DayCounters & { caSigne: number; xp: number };
+  total: DayCounters & { caSigne: number };
 }
 
 export interface TeamBoard {
   periods: Record<TeamPeriodKey, TeamPeriod>;
-  /** Défi d'équipe du mois : CA signé ensemble vs objectif CA mensuel société. */
-  defi: {
+  /** CA signé par l'équipe ce mois (valeur 1re année) vs objectif CA mensuel société. */
+  caMois: {
     monthName: string;
     total: number;
     objectif: number | null;
@@ -891,7 +892,6 @@ interface TeamDayRow {
   emails: number;
   propositions: number;
   signatures: number;
-  mensuel: number;
   ca: number;
 }
 
@@ -942,8 +942,8 @@ function addCounters(a: DayCounters, b: DayCounters): DayCounters {
 
 /**
  * Activité par collaborateur actif sur aujourd'hui, la semaine ISO en cours et
- * le mois en cours, avec les XP calculés EXACTEMENT comme le moteur de jeu
- * (XP des actions + bonus des missions remplies, jour par jour).
+ * le mois en cours : compteurs réels et CA signé (valeur 1re année), classés
+ * par CA signé puis RDV pris puis appels.
  */
 export async function getTeamBoard(): Promise<TeamBoard> {
   const now = new Date();
@@ -983,7 +983,6 @@ export async function getTeamBoard(): Promise<TeamBoard> {
         SUM(t.emails)::int AS emails,
         SUM(t.propositions)::int AS propositions,
         SUM(t.signatures)::int AS signatures,
-        COALESCE(SUM(t.mensuel), 0)::float8 AS mensuel,
         COALESCE(SUM(t.ca), 0)::float8 AS ca
       FROM (
         SELECT a."userId" AS uid, ${zDay('a."date"')} AS d,
@@ -1007,7 +1006,6 @@ export async function getTeamBoard(): Promise<TeamBoard> {
           ) AS emails,
           0::bigint AS propositions,
           0::bigint AS signatures,
-          0::numeric AS mensuel,
           0::numeric AS ca
         FROM activities a
         WHERE a."userId" IN (SELECT u.id FROM users u WHERE u."isActive")
@@ -1020,7 +1018,7 @@ export async function getTeamBoard(): Promise<TeamBoard> {
         SELECT c."assigneAId" AS uid, ${zDay('c."createdAt"')} AS d,
           0, 0, 0, 0, 0,
           COUNT(*) AS propositions,
-          0, 0, 0
+          0, 0
         FROM contracts c
         WHERE c."assigneAId" IN (SELECT u.id FROM users u WHERE u."isActive")
           AND c."createdAt" >= ${ts(from)}
@@ -1033,7 +1031,6 @@ export async function getTeamBoard(): Promise<TeamBoard> {
         SELECT c."assigneAId" AS uid, ${zDay('c."dateSignature"')} AS d,
           0, 0, 0, 0, 0, 0,
           COUNT(*) AS signatures,
-          SUM(c."montantMensuel") AS mensuel,
           SUM(c."valeurAn1") AS ca
         FROM contracts c
         WHERE c."assigneAId" IN (SELECT u.id FROM users u WHERE u."isActive")
@@ -1069,9 +1066,8 @@ export async function getTeamBoard(): Promise<TeamBoard> {
   interface Acc {
     c: DayCounters;
     ca: number;
-    xp: number;
   }
-  const blank = (): Acc => ({ c: emptyDay(), ca: 0, xp: 0 });
+  const blank = (): Acc => ({ c: emptyDay(), ca: 0 });
   const acc: Record<TeamPeriodKey, Map<string, Acc>> = {
     jour: new Map(),
     semaine: new Map(),
@@ -1088,7 +1084,6 @@ export async function getTeamBoard(): Promise<TeamBoard> {
       signatures: r.signatures,
       emails: r.emails,
     };
-    const xp = xpForDay(c, Number(r.mensuel) || 0, targetsFor(objByUser.get(r.uid) ?? [], r.d));
     const ca = Number(r.ca) || 0;
     const buckets: TeamPeriodKey[] = [];
     if (r.d === todayKey) buckets.push("jour");
@@ -1098,7 +1093,6 @@ export async function getTeamBoard(): Promise<TeamBoard> {
       const cur = acc[b].get(r.uid) ?? blank();
       cur.c = addCounters(cur.c, c);
       cur.ca += ca;
-      cur.xp += xp;
       acc[b].set(r.uid, cur);
     }
   }
@@ -1120,19 +1114,23 @@ export async function getTeamBoard(): Promise<TeamBoard> {
         role: u.role,
         counters: a.c,
         caSigne: a.ca,
-        xp: a.xp,
         rank: 0,
         objAppelsJour: positive(todayObj?.appels, 0) || null,
         objRdvJour: positive(todayObj?.rdvPris, 0) || null,
-        missionTargets: targetsFor(objByUser.get(u.id) ?? [], todayKey),
+        dailyTargets: targetsFor(objByUser.get(u.id) ?? [], todayKey),
       };
     });
-    list.sort((a, b) => b.xp - a.xp || a.name.localeCompare(b.name, "fr"));
-    let prevXp: number | null = null;
+    // Classement : CA signé, puis RDV pris, puis appels.
+    const cmp = (a: TeamRow, b: TeamRow) =>
+      b.caSigne - a.caSigne ||
+      b.counters.rdvPris - a.counters.rdvPris ||
+      b.counters.appels - a.counters.appels;
+    list.sort((a, b) => cmp(a, b) || a.name.localeCompare(b.name, "fr"));
+    let prev: TeamRow | null = null;
     let prevRank = 0;
     return list.map((r, i) => {
-      const rank = prevXp !== null && r.xp === prevXp ? prevRank : i + 1;
-      prevXp = r.xp;
+      const rank = prev !== null && cmp(prev, r) === 0 ? prevRank : i + 1;
+      prev = r;
       prevRank = rank;
       return { ...r, rank };
     });
@@ -1140,8 +1138,8 @@ export async function getTeamBoard(): Promise<TeamBoard> {
 
   const totalOf = (rows: TeamRow[]) =>
     rows.reduce(
-      (t, r) => ({ ...addCounters(t, r.counters), caSigne: t.caSigne + r.caSigne, xp: t.xp + r.xp }),
-      { ...emptyDay(), caSigne: 0, xp: 0 },
+      (t, r) => ({ ...addCounters(t, r.counters), caSigne: t.caSigne + r.caSigne }),
+      { ...emptyDay(), caSigne: 0 },
     );
 
   const jourRows = buildRows("jour");
@@ -1149,48 +1147,67 @@ export async function getTeamBoard(): Promise<TeamBoard> {
   const moisRows = buildRows("mois");
   const moisTotal = totalOf(moisRows);
 
-  // Messages « coach » à partir des vraies données.
+  // Messages « coach » à partir des vraies données (résultats et argent).
+  const nb = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
+  const hasActivity = (r: TeamRow | undefined): r is TeamRow =>
+    !!r && (r.caSigne > 0 || r.counters.rdvPris > 0 || r.counters.appels > 0);
+  const jourTotal = totalOf(jourRows);
+
   const jourMessage = (() => {
     const leader = jourRows[0];
-    if (!leader || leader.xp === 0) {
-      return "La journée commence : premier appel, premiers XP. On lance la machine.";
+    if (!hasActivity(leader)) {
+      return "Aucun appel enregistré aujourd'hui pour l'instant. Chaque appel compte.";
     }
     const commerciale = jourRows.find((r) => r.role !== "ADMIN") ?? leader;
-    const restAppels = Math.max(0, commerciale.missionTargets.appels - commerciale.counters.appels);
-    const restRdv = Math.max(0, commerciale.missionTargets.rdvPris - commerciale.counters.rdvPris);
-    const parts: string[] = [];
-    parts.push(
+    const restAppels = Math.max(0, commerciale.dailyTargets.appels - commerciale.counters.appels);
+    const restRdv = Math.max(0, commerciale.dailyTargets.rdvPris - commerciale.counters.rdvPris);
+    const objectifs = [
       restAppels > 0
-        ? `${commerciale.firstName} est à ${restAppels} appel${restAppels > 1 ? "s" : ""} de sa mission du jour`
-        : `${commerciale.firstName} a plié sa mission appels du jour`,
-    );
-    parts.push(
-      restRdv > 0 ? `à ${restRdv} RDV de la mission RDV` : "la mission RDV est remplie",
-    );
-    return `${parts.join(" et ")}. ${leader.firstName} mène la journée avec ${leader.xp} XP.`;
+        ? `Encore ${nb(restAppels, "appel", "appels")} pour l'objectif du jour de ${commerciale.firstName}`
+        : `${commerciale.firstName} a atteint son objectif d'appels du jour`,
+      restRdv > 0 ? `${restRdv} RDV à décrocher` : "objectif RDV atteint",
+    ].join(", ");
+    const bilan =
+      jourTotal.caSigne > 0
+        ? `Équipe : ${formatCHFCompact(jourTotal.caSigne)} signés, ${jourTotal.rdvPris} RDV pris, ${nb(jourTotal.appels, "appel", "appels")}.`
+        : `Équipe : ${jourTotal.rdvPris} RDV pris, ${nb(jourTotal.appels, "appel", "appels")}.`;
+    return `${objectifs}. ${bilan}`;
   })();
 
   const semaineMessage = (() => {
     const [first, second] = semaineRows;
-    if (!first || first.xp === 0) return "Nouvelle semaine, compteurs à zéro : le premier qui décroche prend la tête.";
-    if (second && second.xp > 0) {
-      return `${first.firstName} mène la semaine avec ${first.xp} XP, ${second.firstName} suit à ${second.xp} XP. Écart : ${first.xp - second.xp} XP.`;
+    if (!hasActivity(first)) {
+      return "Nouvelle semaine : aucun résultat enregistré pour l'instant. Chaque RDV est une chance.";
     }
-    return `${first.firstName} mène la semaine avec ${first.xp} XP.`;
+    const resume = (r: TeamRow) =>
+      r.caSigne > 0
+        ? `${formatCHFCompact(r.caSigne)} signés et ${r.counters.rdvPris} RDV pris`
+        : `${r.counters.rdvPris} RDV pris et ${nb(r.counters.appels, "appel", "appels")}`;
+    if (hasActivity(second)) {
+      return `${first.firstName} mène la semaine avec ${resume(first)}, ${second.firstName} suit avec ${resume(second)}.`;
+    }
+    return `${first.firstName} mène la semaine avec ${resume(first)}.`;
   })();
 
   const moisMessage = (() => {
     const n = moisTotal.signatures;
-    const sig = `${n} signature${n > 1 ? "s" : ""}`;
-    const jours = `${workingLeft} jour${workingLeft > 1 ? "s" : ""} ouvré${workingLeft > 1 ? "s" : ""}`;
+    const sig = nb(n, "signature", "signatures");
+    const jours = nb(workingLeft, "jour ouvré", "jours ouvrés");
     const label = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+    const ca = formatCHFCompact(moisTotal.caSigne);
+    if (objMois.ca != null) {
+      const manque = Math.max(0, objMois.ca - moisTotal.caSigne);
+      return manque > 0
+        ? `${label} : ${ca} signés sur ${formatCHFCompact(objMois.ca)} (${sig}). Il manque ${formatCHFCompact(manque)} pour l'objectif du mois et il reste ${jours}.`
+        : `${label} : ${ca} signés, objectif de ${formatCHFCompact(objMois.ca)} atteint (${sig}). Il reste ${jours}.`;
+    }
     if (objMois.signatures != null) {
       const manque = Math.max(0, objMois.signatures - n);
       return manque > 0
-        ? `${label} : ${sig} sur ${objMois.signatures}. Il en manque ${manque} et il reste ${jours}, chaque RDV compte.`
-        : `${label} : ${sig} sur ${objMois.signatures}, objectif plié. Il reste ${jours} pour faire exploser le compteur.`;
+        ? `${label} : ${sig} sur ${objMois.signatures} (${ca}). Il en manque ${manque} et il reste ${jours}.`
+        : `${label} : ${sig} sur ${objMois.signatures}, objectif atteint (${ca}). Il reste ${jours}.`;
     }
-    return `${label} : ${sig} pour l'équipe. Il reste ${jours} pour en ajouter.`;
+    return `${label} : ${sig} pour l'équipe, ${ca} signés. Il reste ${jours}.`;
   })();
 
   const todayLabel = `${weekdayFmt.format(todayUtc)} ${keyLabel(todayKey)}`;
@@ -1204,7 +1221,7 @@ export async function getTeamBoard(): Promise<TeamBoard> {
         title: `Aujourd'hui · ${todayLabel}`,
         message: jourMessage,
         rows: jourRows,
-        total: totalOf(jourRows),
+        total: jourTotal,
       },
       semaine: {
         key: "semaine",
@@ -1223,7 +1240,7 @@ export async function getTeamBoard(): Promise<TeamBoard> {
         total: moisTotal,
       },
     },
-    defi: {
+    caMois: {
       monthName,
       total: moisTotal.caSigne,
       objectif: objMois.ca,
@@ -1233,11 +1250,6 @@ export async function getTeamBoard(): Promise<TeamBoard> {
         .map((r) => ({ userId: r.userId, name: r.name, firstName: r.firstName, ca: r.caSigne })),
     },
   };
-}
-
-/** Missions remplies (0-3) d'une ligne d'équipe pour aujourd'hui. */
-export function missionsDoneToday(row: TeamRow): number {
-  return missionsFor(row.counters, row.missionTargets).filter((m) => m.done).length;
 }
 
 // ---------------------------------------------------------------------------
@@ -1252,7 +1264,7 @@ export interface MonthPoint {
   mrr: number;
   /** Total des charges du mois (toutes, TTC, hors remboursées). */
   charges: number;
-  /** CA signé (valeur an 1) des contrats signés dans le mois. */
+  /** CA signé (valeur 1re année) des contrats signés dans le mois. */
   caSigne: number;
   nbSignatures: number;
   /** Somme des objectifs CA MENSUEL couvrant ce mois (null si aucun). */

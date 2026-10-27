@@ -1,23 +1,24 @@
 "use client";
 
 /**
- * Barre de session (zone héros navy) : chrono, mission appels du jour,
- * combo en cours, XP de la session vs score et record du jour.
+ * Barre de session (zone héros navy) : chrono, objectif d'appels du jour,
+ * conversations et taux de conversation, RDV pris (session, jour, record).
+ * Uniquement des chiffres réels (appels du jour en base, objectifs du jour).
  */
-import { Flag, Pause, Play, Zap } from "lucide-react";
+import { CalendarCheck, Flag, Pause, Phone, Play } from "lucide-react";
 
-import { formatInt, pctOf, plural } from "@/components/arena/format";
+import { formatInt, plural } from "@/components/arena/format";
 import { HeroPanel } from "@/components/arena/hero-panel";
 import { Meter } from "@/components/arena/meter";
-import { missionCoach } from "@/components/arena/mission-card";
+import { goalCoach } from "@/components/arena/mission-card";
 import { ProgressRing } from "@/components/arena/progress-ring";
 import { useNow } from "@/components/call/clock";
 import { zDuration, zTime } from "@/components/call/zurich";
-import { COMBO_GAP_MINUTES, COMBO_STEPS, XP_RULES, type Mission } from "@/lib/gamification/rules";
+import type { DailyGoal } from "@/lib/gamification/rules";
 import { cn } from "@/lib/utils";
 
 import { activeDurationMs, type PhoningSession } from "./phoning-session-store";
-import { multLabel, type ComboState, type SessionStats } from "./phoning-stats";
+import type { SessionStats } from "./phoning-stats";
 
 const TILE =
   "flex min-w-0 flex-col gap-2 rounded-[16px] border border-white/12 bg-white/[0.06] p-3.5 sm:p-4";
@@ -26,41 +27,44 @@ const EYEBROW = "text-[11px] font-bold tracking-[0.08em] text-navy-200 uppercase
 export interface SessionHeroProps {
   session: PhoningSession | null;
   stats: SessionStats;
-  combo: ComboState;
-  missionAppels: Mission | null;
-  missionRdv: Mission | null;
-  xpToday: number;
-  xpRecordDay: number;
+  /** Objectif d'appels du jour (compteurs réels du jour). */
+  goalAppels: DailyGoal | null;
+  /** Objectif de RDV pris du jour. */
+  goalRdv: DailyGoal | null;
+  /** Record : meilleure journée en RDV pris (null si inconnu). */
+  bestDayRdvPris: number | null;
   onStart: () => void;
   onTogglePause: () => void;
   onEnd: () => void;
 }
 
+/** Phrase « record » orientée résultat, uniquement sur données réelles. */
+function rdvRecordLine(rdvToday: number, best: number | null): string | null {
+  if (best === null || best <= 0) return null;
+  if (rdvToday > best) return `Nouveau record : ${formatInt(rdvToday)} RDV aujourd'hui`;
+  if (rdvToday === best) return `Tu égales ton record de ${formatInt(best)} RDV en une journée`;
+  const left = best - rdvToday;
+  return left === 1
+    ? "1 RDV de plus et tu égales ton record"
+    : `Encore ${formatInt(left)} RDV pour égaler ton record (${formatInt(best)})`;
+}
+
 export function SessionHero({
   session,
   stats,
-  combo,
-  missionAppels,
-  missionRdv,
-  xpToday,
-  xpRecordDay,
+  goalAppels,
+  goalRdv,
+  bestDayRdvPris,
   onStart,
   onTogglePause,
   onEnd,
 }: SessionHeroProps) {
   const started = !!session?.startedAt;
   const paused = !!session?.pausedAt;
-  const appelsCur = missionAppels?.current ?? 0;
-  const appelsTarget = missionAppels?.target ?? 40;
-  const comboSpan = combo.next ? combo.next.minCalls - combo.floor : 1;
-  const comboPct = combo.next ? pctOf(combo.current - combo.floor, comboSpan) : 100;
-  const recordPct = xpRecordDay > 0 ? pctOf(xpToday, xpRecordDay) : xpToday > 0 ? 100 : 0;
-  const recordLabel =
-    xpRecordDay <= 0
-      ? "ton premier record se joue aujourd'hui"
-      : xpToday >= xpRecordDay
-        ? `record de ${formatInt(xpRecordDay)} XP battu !`
-        : `record ${formatInt(xpRecordDay)} XP, plus que ${formatInt(xpRecordDay - xpToday)}`;
+  const appelsCur = goalAppels?.current ?? 0;
+  const appelsTarget = goalAppels?.target ?? 40;
+  const rdvToday = goalRdv?.current ?? stats.rdv;
+  const recordLine = rdvRecordLine(rdvToday, bestDayRdvPris);
 
   return (
     <HeroPanel aria-label="Session de phoning" className="flex flex-col gap-4 p-4 sm:p-5">
@@ -92,7 +96,7 @@ export function SessionHero({
           </p>
         </div>
 
-        {/* Mission appels (pleine largeur sur téléphone) */}
+        {/* Objectif d'appels du jour (pleine largeur sur téléphone) */}
         <div className={cn(TILE, "order-first col-span-2 flex-row items-center gap-4 sm:order-none sm:col-span-1")}>
           <ProgressRing
             value={appelsCur}
@@ -101,7 +105,7 @@ export function SessionHero({
             stroke={9}
             tone="coral"
             trackColor="rgba(255,255,255,0.18)"
-            label={`Mission appels : ${formatInt(appelsCur)} sur ${formatInt(appelsTarget)}`}
+            label={`Objectif d'appels du jour : ${formatInt(appelsCur)} sur ${formatInt(appelsTarget)}`}
           >
             <span className="score-number text-2xl text-white">{formatInt(appelsCur)}</span>
             <span className="mt-0.5 text-xs font-bold text-navy-200">
@@ -109,86 +113,76 @@ export function SessionHero({
             </span>
           </ProgressRing>
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <span className={EYEBROW}>Mission · {formatInt(appelsTarget)} appels</span>
+            <span className={EYEBROW}>Objectif du jour · {plural(appelsTarget, "appel")}</span>
             <span className="text-sm leading-snug font-bold text-white sm:text-[15px]">
-              {missionAppels ? missionCoach(missionAppels) : "Lance la machine."}
+              {goalAppels ? goalCoach(goalAppels) : "Le premier appel lance la journée."}
             </span>
-            {missionRdv && (
+            {goalRdv && (
               <Meter
-                value={missionRdv.current}
-                max={missionRdv.target}
+                value={goalRdv.current}
+                max={goalRdv.target}
                 tone="green"
                 size="sm"
                 onDark
-                label="RDV"
-                valueLabel={`${formatInt(missionRdv.current)} / ${formatInt(missionRdv.target)}`}
+                label="RDV du jour"
+                valueLabel={`${formatInt(goalRdv.current)} / ${formatInt(goalRdv.target)}`}
               />
             )}
           </div>
         </div>
 
-        {/* Combo */}
+        {/* Conversations */}
         <div className={TILE}>
-          <span className={EYEBROW}>Combo actuel</span>
+          <span className={cn(EYEBROW, "flex items-center gap-1.5")}>
+            <Phone aria-hidden="true" className="size-3.5" />
+            Conversations
+          </span>
           <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-            <span className="score-number text-[36px] text-gold-500 sm:text-5xl">
-              {multLabel(combo.mult)}
+            <span className="score-number text-[36px] text-white sm:text-5xl">
+              {formatInt(stats.conversations)}
             </span>
-            <span className="text-xs font-semibold text-white sm:text-[13px]">
-              {plural(combo.current, "appel enchaîné", "appels enchaînés")}
+            <span className="text-xs font-semibold text-navy-200 sm:text-[13px]">
+              sur {plural(stats.calls, "appel")}
             </span>
           </div>
           <div
             role="progressbar"
-            aria-label="Progression du combo"
+            aria-label="Taux de conversation de la session"
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-valuenow={comboPct}
-            aria-valuetext={
-              combo.next
-                ? `${combo.next.minCalls - combo.current} appels avant ${multLabel(combo.next.mult)}`
-                : "Combo maximum"
-            }
+            aria-valuenow={stats.taux}
+            aria-valuetext={`${formatInt(stats.taux)} % des appels décrochés`}
             className="h-2.5 overflow-hidden rounded-full bg-white/15"
           >
             <div
               className="h-full rounded-full bg-gradient-coral transition-[width] duration-700"
-              style={{ width: `${comboPct}%` }}
+              style={{ width: `${stats.taux}%` }}
             />
           </div>
-          <div className="flex flex-wrap justify-between gap-x-2 gap-y-0.5 text-xs font-semibold text-navy-200">
-            <span className="text-white">
-              {combo.next
-                ? `${plural(combo.next.minCalls - combo.current, "appel")} avant ${multLabel(combo.next.mult)}`
-                : `Combo max ${multLabel(COMBO_STEPS[COMBO_STEPS.length - 1]?.mult ?? 1)}, garde le rythme`}
-            </span>
-            <span className="hidden sm:inline">moins de {COMBO_GAP_MINUTES} min entre 2 appels</span>
-          </div>
+          <p className="text-xs font-semibold text-navy-200">
+            Taux de conversation <strong className="text-white">{formatInt(stats.taux)} %</strong>
+          </p>
         </div>
 
-        {/* XP session */}
+        {/* RDV pris */}
         <div className={cn(TILE, "col-span-2 sm:col-span-1")}>
-          <span className={EYEBROW}>XP gagnés en session</span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="score-number text-[36px] text-gold-500 sm:text-5xl">
-              +{formatInt(stats.xp)}
+          <span className={cn(EYEBROW, "flex items-center gap-1.5")}>
+            <CalendarCheck aria-hidden="true" className="size-3.5" />
+            RDV pris en session
+          </span>
+          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+            <span className="score-number text-[36px] text-win-500 sm:text-5xl">
+              {formatInt(stats.rdv)}
             </span>
-            <span className="text-[15px] font-extrabold text-gold-500">XP</span>
-          </div>
-          <div
-            role="progressbar"
-            aria-label="Score du jour par rapport au record"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={recordPct}
-            aria-valuetext={`Score du jour ${formatInt(xpToday)} XP, ${recordLabel}`}
-            className="h-1.5 overflow-hidden rounded-full bg-white/15"
-          >
-            <div className="h-full rounded-full bg-gold-500" style={{ width: `${recordPct}%` }} />
+            <span className="text-xs font-semibold text-navy-200 sm:text-[13px]">
+              {formatInt(rdvToday)} aujourd&apos;hui
+            </span>
           </div>
           <p className="text-xs font-semibold text-navy-200">
-            Jour <strong className="text-white">{formatInt(xpToday)} XP</strong>
-            <span className="hidden sm:inline"> · {recordLabel}</span>
+            {recordLine ??
+              (rdvToday > 0
+                ? "Chaque RDV est une chance de signer."
+                : "Le premier RDV du jour est au bout du fil.")}
           </p>
         </div>
       </div>
@@ -200,7 +194,7 @@ export function SessionHero({
             onClick={onStart}
             className="inline-flex h-11 items-center gap-2 rounded-[12px] bg-gradient-coral px-4 text-lg font-extrabold text-white shadow-cta text-shadow-[0_1px_1px_rgba(120,20,26,0.35)] transition-[filter] hover:brightness-105"
           >
-            <Zap aria-hidden="true" className="size-5 fill-white" />
+            <Play aria-hidden="true" className="size-5 fill-white" />
             Démarrer la session
           </button>
         ) : (
@@ -230,7 +224,7 @@ export function SessionHero({
         <span className="ml-auto text-xs font-semibold text-navy-200">
           {started
             ? `${formatInt(stats.conversations)} décroché${stats.conversations > 1 ? "s" : ""} · ${formatInt(stats.rdv)} RDV pris en session`
-            : `Chaque appel compte : +${XP_RULES.appel} XP, +${XP_RULES.conversation} si ça décroche, +${XP_RULES.rdvPris} le RDV.`}
+            : "Chaque appel compte. Chaque RDV est une chance."}
         </span>
       </div>
     </HeroPanel>

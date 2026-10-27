@@ -1,5 +1,5 @@
 /**
- * Héros finance MYC Arena (Contrats · Factures clients · Signatures).
+ * Héros finance (Contrats · Factures clients · Signatures).
  *
  * Bandeau navy : « où en est la caisse et quoi faire maintenant ».
  *   - à gauche : sur-titre, titre coach, sous-titre et CTA ;

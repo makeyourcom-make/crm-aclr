@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Filtres de la liste d'activités (MYC Arena) : recherche (debounce 300 ms),
+ * Filtres de la liste d'activités : recherche (debounce 300 ms),
  * période en pastilles, type et statut en listes. Tout passe par l'URL
  * (searchParams) ; la page serveur applique le périmètre RLS.
  */

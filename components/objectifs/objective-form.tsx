@@ -223,10 +223,10 @@ export function ObjectiveForm({ users, defaultUserId }: ObjectiveFormProps) {
           Cibles chiffrées (laisser vide = non suivie)
         </legend>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <NumField id="obj-appels" icon={Phone} tone="text-coral-600 bg-coral-50" label="Nb appels" hint={daily ? "Mission du jour et série" : undefined} value={nbAppels} onChange={setNbAppels} />
+          <NumField id="obj-appels" icon={Phone} tone="text-coral-600 bg-coral-50" label="Nb appels" hint={daily ? "Objectif du jour et série" : undefined} value={nbAppels} onChange={setNbAppels} />
           <NumField id="obj-emails" icon={Mail} tone="text-mail-700 bg-mail-50" label="Nb emails" hint={daily ? undefined : "Comptés avec LinkedIn et SMS"} value={nbEmails} onChange={setNbEmails} />
-          <NumField id="obj-rdv" icon={CalendarCheck} tone="text-gold-700 bg-gold-50" label="Nb RDV" hint={daily ? "RDV pris (mission du jour)" : "RDV effectués"} value={nbRdv} onChange={setNbRdv} />
-          <NumField id="obj-prop" icon={Send} tone="text-lvl-700 bg-lvl-50" label="Nb propositions" hint={daily ? "Mission du jour" : undefined} value={nbPropositions} onChange={setNbPropositions} />
+          <NumField id="obj-rdv" icon={CalendarCheck} tone="text-gold-700 bg-gold-50" label="Nb RDV" hint={daily ? "RDV pris (objectif du jour)" : "RDV effectués"} value={nbRdv} onChange={setNbRdv} />
+          <NumField id="obj-prop" icon={Send} tone="text-lvl-700 bg-lvl-50" label="Nb propositions" hint={daily ? "Objectif du jour" : undefined} value={nbPropositions} onChange={setNbPropositions} />
           <NumField id="obj-sig" icon={FileCheck} tone="text-navy-700 bg-navy-100" label="Nb signatures" value={nbSignatures} onChange={setNbSignatures} />
           <NumField id="obj-ca" icon={Trophy} tone="text-win-700 bg-win-50" label="CA visé (CHF)" value={ca} onChange={setCa} />
           <NumField

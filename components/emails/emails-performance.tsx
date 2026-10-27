@@ -1,12 +1,12 @@
 /**
- * Bas de page de la rubrique Emails (MYC Arena) : performance des mails.
+ * Bas de page de la rubrique Emails : performance des mails.
  *
  * - Classement mails · 7 jours (boîtes privées : seuls les chiffres sont
  *   partagés) + comparaison au record hebdomadaire.
  * - Livraison de tes envois sur 7 jours (rebonds à corriger, avec lien).
  * - Résumé des filtres anti-spam (règles les plus efficaces) + lien de gestion.
  *
- * Données réelles uniquement (`getMailArenaStats`, règles anti-spam).
+ * Données réelles uniquement (`getMailStats`, règles anti-spam).
  * Server component.
  */
 import Link from "next/link";
@@ -19,7 +19,7 @@ import { StatusPill } from "@/components/arena/pills";
 import { SectionCard } from "@/components/arena/section-card";
 import { cn } from "@/lib/utils";
 
-import type { MailArenaStats } from "@/app/(app)/emails/arena-stats";
+import type { MailStats } from "@/app/(app)/emails/mail-stats";
 
 const RULE_TYPE_LABEL: Record<string, string> = {
   SENDER: "Expéditeur",
@@ -38,7 +38,7 @@ export function EmailsPerformance({
   stats,
   spam,
 }: {
-  stats: MailArenaStats;
+  stats: MailStats;
   spam: SpamOverview;
 }) {
   const maxSent = Math.max(1, ...stats.leaderboard.map((e) => e.sent));

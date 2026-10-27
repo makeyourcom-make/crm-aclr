@@ -9,7 +9,7 @@
  *   - Les résultats d'une commerciale
  *
  * Matrice « Arthur regarde la commerciale » demandée par l'utilisateur.
- * Contrôle segmenté MYC Arena (aria-pressed), la vue vit dans l'URL (?user=).
+ * Contrôle segmenté (aria-pressed), la vue vit dans l'URL (?user=).
  */
 import { useRouter, useSearchParams } from "next/navigation";
 

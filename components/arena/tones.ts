@@ -1,5 +1,5 @@
 /**
- * Teintes MYC Arena (charte §2) : une teinte = un fond clair, un texte foncé,
+ * Teintes Make Your Com (charte §2) : une teinte = un fond clair, un texte foncé,
  * une couleur vive pour les barres / anneaux.
  *
  * Toutes les classes sont écrites EN ENTIER (pas de concaténation) pour que

@@ -23,7 +23,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { PlayerAvatar, celebrate, xpToast } from "@/components/arena";
+import { PlayerAvatar, celebrate, resultToast } from "@/components/arena";
 import { ContractDeviseSwitch } from "@/components/contrats/contract-devise-switch";
 import { UploadSignedPdfButton } from "@/components/contrats/upload-signed-pdf-button";
 import { SignDealInPersonButton } from "@/components/pipeline/sign-deal-in-person-button";
@@ -36,12 +36,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { XP_RULES, firstNameOf, initialsOf } from "@/lib/gamification/rules";
+import { firstNameOf, initialsOf } from "@/lib/gamification/rules";
 import { formatCHF, formatDateLong } from "@/lib/format";
 import { getDealStageLabel } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
-import { formatDayMonthYear } from "./pipeline-meta";
+import { formatDayMonthYear, formatSignGain, signedToastLabel } from "./pipeline-meta";
 
 interface DealDetailLite {
   id: string;
@@ -88,7 +88,7 @@ interface DealDetailSheetProps {
   dealId: string | null;
   onClose: () => void;
   isAdmin: boolean;
-  /** Pour n'afficher le toast XP qu'à la commerciale qui gagne les XP. */
+  /** Pour n'afficher le toast de signature qu'à la commerciale du deal. */
   currentUserId?: string;
 }
 
@@ -142,9 +142,12 @@ export function DealDetailSheet({
   const mensuel = deal
     ? deal.productsProposes.reduce((s, p) => s + (p.prixMensuel ? Number(p.prixMensuel) : 0), 0)
     : 0;
-  const xpSignature =
-    XP_RULES.signature +
-    Math.floor(mensuel / 10) * XP_RULES.signatureParTranche10ChfMensuel;
+  const oneShot = deal
+    ? deal.productsProposes.reduce((s, p) => s + (p.prixOneShot ? Number(p.prixOneShot) : 0), 0)
+    : 0;
+  // Ce que rapporte la signature (CHF réels des produits proposés).
+  const signGain = formatSignGain(mensuel, oneShot);
+  const weighted = deal ? (Number(deal.montantPrevu) * deal.probabilite) / 100 : 0;
   const isMine = !!deal?.assigneA && deal.assigneA.id === currentUserId;
   const assigneeFirst = deal?.assigneA ? firstNameOf(deal.assigneA.name) : null;
 
@@ -154,15 +157,17 @@ export function DealDetailSheet({
   };
 
   // PDF signé joint : signature complétée, le deal passe en « Signé » et le
-  // contrat part en validation admin (les XP tombent à la validation).
+  // contrat part en validation admin.
   const onSignedPdf = () => {
     celebrate({
       eyebrow: assigneeFirst ? `Bravo ${assigneeFirst}` : undefined,
       title: "Contrat signé !",
       subtitle: deal ? `${deal.prospect.raisonSociale} · part en validation` : undefined,
-      xp: xpSignature,
+      highlight: signGain ?? undefined,
     });
-    if (isMine) xpToast(xpSignature, "Contrat signé !", "XP crédités à la validation d'Arthur");
+    if (isMine) {
+      resultToast(signedToastLabel(mensuel, oneShot), "Prochaine étape : validation d'Arthur");
+    }
     refreshAll();
   };
 
@@ -172,9 +177,11 @@ export function DealDetailSheet({
       eyebrow: assigneeFirst ? `Bravo ${assigneeFirst}` : undefined,
       title: "Contrat validé !",
       subtitle: deal?.prospect.raisonSociale,
-      xp: xpSignature,
+      highlight: signGain ?? undefined,
     });
-    if (isMine) xpToast(xpSignature, "Contrat validé !", deal?.prospect.raisonSociale);
+    if (isMine) {
+      resultToast(signedToastLabel(mensuel, oneShot, "Contrat validé"), deal?.prospect.raisonSociale);
+    }
     refreshAll();
   };
 
@@ -241,9 +248,16 @@ export function DealDetailSheet({
                 </p>
               )}
               {deal.stage !== "SIGNE" && deal.stage !== "PERDU" && (
-                <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-navy-700/70 px-2.5 py-1 text-xs font-extrabold text-gold-500">
-                  +{xpSignature} XP à la signature
-                </p>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <p className="inline-flex items-center gap-1.5 rounded-full bg-navy-700/70 px-2.5 py-1 text-xs font-extrabold text-white tabular-nums">
+                    Pondéré · {formatCHF(weighted)}
+                  </p>
+                  {signGain && (
+                    <p className="inline-flex items-center gap-1.5 rounded-full bg-navy-700/70 px-2.5 py-1 text-xs font-extrabold text-gold-500 tabular-nums">
+                      {signGain} à la signature
+                    </p>
+                  )}
+                </div>
               )}
             </div>
 
@@ -462,7 +476,7 @@ export function DealDetailSheet({
                       </div>
                     ) : (
                       <div className="mt-3 space-y-2">
-                        <SignDealInPersonButton dealId={deal.id} rewardXp={isMine} />
+                        <SignDealInPersonButton dealId={deal.id} />
                         <Link
                           href={`/contrats/nouveau?dealId=${deal.id}`}
                           className={cn(buttonVariants({ variant: "outline", size: "lg" }), "w-full whitespace-normal")}

@@ -5,8 +5,8 @@
  * à qualifier effectué / manqué / annulé avec l'action serveur existante
  * `validerRdv` (droits + garde-fou « pas avant l'heure » côté serveur).
  *
- * Effectué → toast +80 XP (barème du moteur) ; puis router.refresh() pour
- * la liste, les compteurs et les pilules XP de la topbar.
+ * Effectué → toast de résultat avec la prochaine étape (proposition) ; puis
+ * router.refresh() pour la liste, les compteurs et la topbar.
  */
 import { CalendarCheck, Check, MapPin } from "lucide-react";
 import Link from "next/link";
@@ -15,10 +15,9 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { validerRdv } from "@/app/(app)/activites/actions";
-import { xpToast } from "@/components/arena/celebrate";
+import { resultToast } from "@/components/arena/celebrate";
 import { StatusPill } from "@/components/arena/pills";
 import { SectionCard } from "@/components/arena/section-card";
-import { XP_RULES } from "@/lib/gamification/rules";
 import type { RdvAValiderItem } from "@/lib/queries/today";
 import { cn } from "@/lib/utils";
 
@@ -46,9 +45,13 @@ export function RdvValidation({ items }: { items: RdvAValiderItem[] }) {
         return;
       }
       setHandled((h) => [...h, item.id]);
-      if (statut === "FAIT") xpToast(XP_RULES.rdvEffectue, "RDV effectué !", item.raisonSociale);
-      else if (statut === "MANQUE") toast.success("RDV noté comme manqué. Pense à le replanifier.");
-      else toast.success("RDV noté comme annulé.");
+      if (statut === "FAIT") {
+        resultToast(`RDV effectué avec ${item.raisonSociale}`, "Prochaine étape : envoyer la proposition");
+      } else if (statut === "MANQUE") {
+        resultToast("RDV noté comme manqué", `${item.raisonSociale} · pense à le replanifier`);
+      } else {
+        resultToast("RDV noté comme annulé", item.raisonSociale);
+      }
       router.refresh();
     });
   };
@@ -135,14 +138,11 @@ export function RdvValidation({ items }: { items: RdvAValiderItem[] }) {
                       type="button"
                       disabled={pending}
                       onClick={() => valider(r, "FAIT")}
-                      aria-label={`RDV effectué : ${r.raisonSociale}, +${XP_RULES.rdvEffectue} XP`}
+                      aria-label={`RDV effectué : ${r.raisonSociale}`}
                       className="inline-flex h-11 flex-[1_1_100%] items-center justify-center gap-2 rounded-[12px] bg-win-700 px-4 text-sm font-extrabold text-white transition-colors hover:bg-win-700/90 disabled:opacity-60"
                     >
                       <Check aria-hidden="true" className="size-4" strokeWidth={3} />
                       {busy ? "Validation..." : "RDV effectué"}
-                      <span className="rounded-full bg-gold-50 px-2 py-0.5 text-xs font-extrabold text-gold-700">
-                        +{XP_RULES.rdvEffectue} XP
-                      </span>
                     </button>
                     <button
                       type="button"
@@ -173,7 +173,7 @@ export function RdvValidation({ items }: { items: RdvAValiderItem[] }) {
         )}
         <p className="text-xs leading-relaxed text-muted-foreground">
           Un RDV ne peut pas être validé avant son heure : les prochains arriveront ici une fois
-          passés. Chaque RDV effectué rapporte +{XP_RULES.rdvEffectue} XP.
+          passés. Un RDV effectué se transforme en proposition : envoie-la tant que c&apos;est chaud.
         </p>
       </div>
     </SectionCard>

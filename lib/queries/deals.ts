@@ -1,7 +1,7 @@
 /**
  * Requêtes de lecture pour le module Deals (Pipeline).
  *
- * MYC Arena : le Kanban reçoit des objets SIMPLES (nombres, dates, chaînes)
+ * Pipeline : le Kanban reçoit des objets SIMPLES (nombres, dates, chaînes)
  * prêts à passer à un composant client, enrichis de la vraie activité du
  * prospect (dernière action faite, prochaine action planifiée) pour afficher
  * l'âge du deal, les jours sans action et la prochaine étape sur chaque carte.
@@ -33,8 +33,8 @@ const KANBAN_INCLUDE = {
     },
   },
   assigneA: { select: { id: true, name: true, role: true } },
-  // Produits proposés : libellé de l'offre + part mensuelle (bonus XP de
-  // signature : +1 XP par tranche de 10 CHF mensuels).
+  // Produits proposés : libellé de l'offre + parts one-shot et mensuelle
+  // (montant réel affiché à la signature : « +X CHF / mois »).
   productsProposes: {
     select: { id: true, nom: true, prixOneShot: true, prixMensuel: true },
   },
@@ -421,7 +421,7 @@ function toPipelineDeal(d: DealForKanban, activity: ProspectActivity): PipelineD
 }
 
 // ---------------------------------------------------------------------------
-// TABLEAU DE CHASSE DU MOIS (en-tête du pipeline)
+// CHIFFRES DU MOIS (en-tête du pipeline)
 // ---------------------------------------------------------------------------
 
 /** Statuts d'un contrat RÉELLEMENT signé (même définition que le dashboard). */
@@ -437,6 +437,8 @@ export interface PipelineScoreboard {
   } | null;
   /** CA signé ce mois : contrats validés, valeur TOTALE (one-shot + mensuel × durée). */
   caSigne: number;
+  /** Part mensuelle (MRR) des contrats validés ce mois, en CHF / mois. */
+  mrrSigne: number;
   /** Nombre de contrats validés ce mois. */
   nbSignes: number;
   /** Deals passés en Signé ce mois (taux de transformation). */
@@ -529,6 +531,7 @@ export async function getPipelineScoreboard(
     scope: targetUserId ? "user" : "team",
     objective,
     caSigne,
+    mrrSigne: contracts.reduce((s, c) => s + Number(c.montantMensuel), 0),
     nbSignes: contracts.length,
     dealsSignes: count("SIGNE"),
     dealsPerdus: count("PERDU"),

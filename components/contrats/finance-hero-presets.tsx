@@ -11,7 +11,6 @@ import type { ReactNode } from "react";
 
 import { formatInt } from "@/components/arena/format";
 import { buttonVariants } from "@/components/ui/button";
-import { XP_RULES } from "@/lib/gamification/rules";
 import { cn } from "@/lib/utils";
 
 import type { FinancePulse } from "@/lib/queries/contracts";
@@ -22,11 +21,26 @@ import { FinanceHero, type HeroTile } from "./finance-hero";
 export const HERO_GHOST_LINK =
   "inline-flex h-12 shrink-0 items-center gap-2 rounded-[12px] border border-white/30 bg-white/[0.06] px-4 text-sm font-bold whitespace-nowrap text-white transition-colors hover:bg-white/[0.12]";
 
-/** Barème réel de la signature (XP_RULES), jamais écrit en dur. */
-const SIGNATURE_XP_COPY = `Chaque signature validée rapporte +${XP_RULES.signature} XP, plus ${XP_RULES.signatureParTranche10ChfMensuel} XP par tranche de 10 CHF de mensuel.`;
-
 function pl(n: number, one: string, many: string): string {
   return `${formatInt(n)} ${n > 1 ? many : one}`;
+}
+
+/**
+ * Ligne argent du mois (chiffres réels du pulse) : CA signé, MRR ajouté et,
+ * si un objectif de CA existe, ce qu'il manque pour l'atteindre.
+ */
+function moneyCopy(p: FinancePulse): string {
+  const parts = [`CA signé ce mois : ${formatInt(p.signedValue)} CHF`];
+  if (p.signedMensuel > 0) parts.push(`+${formatInt(p.signedMensuel)} CHF / mois de MRR`);
+  let line = `${parts.join(" · ")}.`;
+  if (p.caTarget != null && p.caTarget > 0) {
+    const reste = Math.max(0, p.caTarget - p.signedValue);
+    line +=
+      reste > 0
+        ? ` Il te manque ${formatInt(reste)} CHF pour l'objectif du mois.`
+        : " Objectif du mois atteint.";
+  }
+  return line;
 }
 
 export function adminHeroCopy(p: FinancePulse): { title: string; subtitle: string } {
@@ -49,7 +63,7 @@ export function adminHeroCopy(p: FinancePulse): { title: string; subtitle: strin
           n === 1
             ? "le contrat qui attend ton feu vert"
             : `les ${formatInt(n)} contrats qui attendent ton feu vert`
-        }. Machine de guerre.`
+        }.`
       : "Tous les contrats sont validés. Garde le rythme : chaque facture envoyée, c'est du cash qui rentre.";
   return { title, subtitle };
 }
@@ -60,14 +74,14 @@ export function commercialHeroCopy(p: FinancePulse): { title: string; subtitle: 
   if (pending > 0) {
     title = `${pl(pending, "signature", "signatures")} à aller chercher.`;
   } else if (p.signedCount > 0) {
-    title = `${pl(p.signedCount, "contrat signé", "contrats signés")} ce mois. Continue !`;
+    title = `${pl(p.signedCount, "contrat signé", "contrats signés")} ce mois.`;
   } else {
     title = "Le prochain contrat t'attend.";
   }
   const subtitle =
     p.aValider > 0
-      ? `${pl(p.aValider, "contrat attend", "contrats attendent")} la validation admin. ${SIGNATURE_XP_COPY}`
-      : SIGNATURE_XP_COPY;
+      ? `${pl(p.aValider, "contrat attend", "contrats attendent")} la validation admin. ${moneyCopy(p)}`
+      : moneyCopy(p);
   return { title, subtitle };
 }
 
@@ -83,7 +97,7 @@ function signedTile(p: FinancePulse): HeroTile {
       reste === null
         ? `${formatInt(p.signedValue)} CHF an 1 signés · pas d'objectif fixé`
         : reste === 0
-          ? "Objectif atteint, record en vue"
+          ? "Objectif atteint"
           : `Encore ${formatInt(reste)} pour l'objectif${p.aValider > 0 ? ` · ${formatInt(p.aValider)} à valider maintenant` : ""}`,
   };
 }

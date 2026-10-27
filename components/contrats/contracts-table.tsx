@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Liste des contrats (MYC Arena) : cartes sur téléphone, tableau triable sur
+ * Liste des contrats : cartes sur téléphone, tableau triable sur
  * ordinateur (en-têtes cliquables → ?sortBy / ?sortDir, ligne cliquable vers
  * la fiche contrat).
  */

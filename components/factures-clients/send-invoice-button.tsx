@@ -3,7 +3,7 @@
 /**
  * Envoi (ou renvoi) d'une facture client par email : sujet / corps éditables,
  * PDF (facture + QR-bill + CGV) joint automatiquement, justificatifs en plus.
- * Chaque envoi crée une activité EMAIL_ENVOYE (+3 XP) : toast XP et
+ * Chaque envoi crée une activité EMAIL_ENVOYE : toast sobre et
  * rafraîchissement de la page et de la coquille après succès.
  */
 import { LoaderCircle, RotateCw, Send } from "lucide-react";
@@ -15,7 +15,7 @@ import {
   getInvoiceEmailDefaults,
   sendClientInvoiceByEmail,
 } from "@/app/(app)/factures-clients/actions";
-import { xpToast } from "@/components/arena/celebrate";
+import { resultToast } from "@/components/arena/celebrate";
 import {
   AttachmentPicker,
   type PickedAttachment,
@@ -32,7 +32,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { XP_RULES } from "@/lib/gamification/rules";
 import { cn } from "@/lib/utils";
 
 interface SendInvoiceButtonProps {
@@ -121,9 +120,8 @@ export function SendInvoiceButton({
           `Facture ${invoiceNumero} simulée (dry-run, pas d'envoi réel).`,
         );
       } else {
-        xpToast(
-          XP_RULES.email,
-          alreadySent ? "Facture renvoyée !" : "Facture envoyée !",
+        resultToast(
+          alreadySent ? "Facture renvoyée" : "Facture envoyée",
           `${invoiceNumero} · ${res.recipient ?? recipient}`,
         );
       }

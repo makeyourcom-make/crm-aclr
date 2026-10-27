@@ -5,7 +5,7 @@ import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register"
 import { cn } from "@/lib/utils";
 
 /**
- * Polices MYC Arena (auto-hébergées par next/font, aucune requête vers
+ * Polices Make Your Com (auto-hébergées par next/font, aucune requête vers
  * Google côté navigateur) :
  *   - Plus Jakarta Sans → texte courant / UI  (`--font-sans`, classe font-sans)
  *   - Bricolage Grotesque → titres et gros chiffres (`--font-display`,

@@ -7,7 +7,6 @@
  */
 import { Check, CircleAlert, X } from "lucide-react";
 
-import { XP_RULES } from "@/lib/gamification/rules";
 import {
   JOURS_ABBR,
   dowOfKey,
@@ -63,8 +62,8 @@ export function PendingBanner({
             {n === 1 ? "1 RDV à valider" : `${n} RDV à valider`}
           </h2>
           <p className="mt-0.5 text-[13px] leading-snug font-medium text-muted-foreground">
-            {n === 1 ? "Il est passé" : "Ils sont passés"} : dis comment ça s&apos;est passé
-            et encaisse +{XP_RULES.rdvEffectue} XP par RDV effectué.
+            {n === 1 ? "Il est passé" : "Ils sont passés"} : dis comment ça s&apos;est passé,
+            puis enchaîne sur la proposition.
           </p>
         </div>
       </div>
@@ -115,9 +114,6 @@ export function PendingBanner({
                   <span className="inline-flex items-center gap-1.5 text-sm font-extrabold">
                     <Check aria-hidden="true" className="size-[18px]" strokeWidth={2.6} />
                     Effectué
-                  </span>
-                  <span className="text-[11px] font-bold sm:text-sm sm:font-extrabold">
-                    <span aria-hidden="true" className="hidden sm:inline">· </span>+{XP_RULES.rdvEffectue} XP
                   </span>
                 </button>
                 <button

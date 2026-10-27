@@ -96,9 +96,12 @@ export function TomorrowPreview({ items }: { items: TodayTask[] }) {
                   <DoneButton
                     activityId={t.id}
                     context={`${meta.label} ${name}, demain ${t.heure}`}
-                    xp={t.xp}
-                    xpLabel={meta.xpLabel}
-                    xpSub={t.prospect?.raisonSociale}
+                    toastMessage={meta.doneLabel}
+                    toastDetail={
+                      t.prospect
+                        ? `${t.prospect.raisonSociale} · compte pour demain`
+                        : "Compte pour demain"
+                    }
                     future={t.rdvFutur}
                     compact
                   />

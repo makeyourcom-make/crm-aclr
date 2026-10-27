@@ -16,12 +16,12 @@ import { prisma } from "@/lib/db";
 import { getProspectStatutLabel } from "@/lib/labels";
 import { requireUser } from "@/lib/session";
 
-import { getMailArenaStats, type MailArenaStats } from "./arena-stats";
+import { getMailStats, type MailStats } from "./mail-stats";
 
 export const metadata = { title: "Emails" };
 export const dynamic = "force-dynamic";
 
-/** Teinte MYC Arena de chaque statut d'entreprise (pastilles de la boîte). */
+/** Teinte de chaque statut d'entreprise (pastilles de la boîte). */
 const STATUT_TONE: Record<ProspectStatut, Tone> = {
   NOUVEAU: "blue",
   VIERGE: "navy",
@@ -87,7 +87,7 @@ export default async function EmailsPage() {
         take: 80,
       }),
       // Si les chiffres du jeu échouent, la boîte reste pleinement utilisable.
-      getMailArenaStats(user.id).catch((err): MailArenaStats | null => {
+      getMailStats(user.id).catch((err): MailStats | null => {
         console.error("[emails] chiffres du jeu indisponibles :", err);
         return null;
       }),

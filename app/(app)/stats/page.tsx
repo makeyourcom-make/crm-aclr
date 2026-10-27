@@ -25,9 +25,9 @@ import { ConquestFunnel } from "@/components/stats/conquest-funnel";
 import { DirectionHero } from "@/components/stats/direction-hero";
 import { MrrChart } from "@/components/stats/mrr-chart";
 import { PhoneProductivity } from "@/components/stats/phone-productivity";
-import { PlayerHero } from "@/components/stats/player-hero";
 import { RankingsTabs } from "@/components/stats/rankings-tabs";
 import { RentabiliteTop } from "@/components/stats/rentabilite-top";
+import { ResultsHero } from "@/components/stats/results-hero";
 import { StatsViewSwitcher } from "@/components/stats/stats-view-switcher";
 import { TeamActivityBoard } from "@/components/stats/team-activity-board";
 import { Money, SegmentGroup, segmentClass } from "@/components/stats/ui";
@@ -39,8 +39,8 @@ import {
   STATS_RANGES,
   getDirectionDashboard,
   getMonthlyHistory,
+  getCommercialMonth,
   getPeriodCounters,
-  getPlayerMonth,
   getTeamBoard,
   nowLabel,
   resolveStatsWindow,
@@ -64,7 +64,7 @@ interface PageProps {
 }
 
 /**
- * Les blocs « bonus » (pilotage, équipe, historique, jeu) ne doivent jamais
+ * Les blocs « bonus » (pilotage, équipe, historique, résultats) ne doivent jamais
  * empêcher l'affichage des statistiques de base : en cas d'échec, on log et
  * on masque le bloc.
  */
@@ -108,8 +108,8 @@ export default async function StatsPage({ searchParams }: PageProps) {
     team,
     history,
     rentaData,
-    player,
-    playerMonth,
+    myStats,
+    myMonth,
   ] = await Promise.all([
     getStats(user, win, viewAsUserId),
     safe("compteurs période précédente", getPeriodCounters(scopeUserId, win.prevStart, win.prevEnd)),
@@ -130,8 +130,8 @@ export default async function StatsPage({ searchParams }: PageProps) {
     isAdmin
       ? safe("rentabilité", getRentabilite({ from: renta.from, to: renta.to }))
       : Promise.resolve(null),
-    !isAdmin ? safe("joueur", getPlayerStats(user.id)) : Promise.resolve(null),
-    !isAdmin ? safe("mois joueur", getPlayerMonth(user.id)) : Promise.resolve(null),
+    !isAdmin ? safe("résultats commerciale", getPlayerStats(user.id)) : Promise.resolve(null),
+    !isAdmin ? safe("mois commerciale", getCommercialMonth(user.id)) : Promise.resolve(null),
   ]);
 
   // Libellé descriptif de la vue active
@@ -178,9 +178,9 @@ export default async function StatsPage({ searchParams }: PageProps) {
         }
       />
 
-      {/* Héros : pilotage de direction (admin) ou saison de la commerciale */}
+      {/* Héros : pilotage de direction (admin) ou mois de la commerciale (CHF) */}
       {isAdmin && direction && <DirectionHero data={direction} />}
-      {!isAdmin && player && playerMonth && <PlayerHero player={player} month={playerMonth} />}
+      {!isAdmin && myStats && myMonth && <ResultsHero stats={myStats} month={myMonth} />}
 
       {/* Performance de la période */}
       <section id="performance" aria-labelledby="perf-titre" className="flex scroll-mt-24 flex-col gap-4">
@@ -271,7 +271,7 @@ export default async function StatsPage({ searchParams }: PageProps) {
             value={data.nbSignatures}
             trend={trend(data.nbSignatures, "signatures")}
             trendLabel="vs préc."
-            sub={`${formatCHFCompact(data.caSigne)} signés · valeur an 1`}
+            sub={`${formatCHFCompact(data.caSigne)} signés · valeur 1re année`}
             className="border-2 border-win-500 shadow-[0_8px_24px_rgba(18,161,80,0.12)]"
           />
           <StatTile
@@ -299,7 +299,7 @@ export default async function StatsPage({ searchParams }: PageProps) {
           title="Activité de l'équipe"
           icon={Users}
           tone="coral"
-          description="Par collaborateur, classé par XP · aujourd'hui, cette semaine ou ce mois"
+          description="Par collaborateur, classé par CA signé puis RDV pris · aujourd'hui, cette semaine ou ce mois"
         >
           <TeamActivityBoard board={team} range={win.key} currentUserId={user.id} />
         </SectionCard>
@@ -308,7 +308,7 @@ export default async function StatsPage({ searchParams }: PageProps) {
       {/* Entonnoir + classements */}
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <SectionCard
-          title="Parcours de conquête"
+          title="Entonnoir commercial"
           icon={ChartColumn}
           tone="green"
           description={`Entonnoir de la période · ${viewLabel} · ${win.label}`}
@@ -369,7 +369,7 @@ export default async function StatsPage({ searchParams }: PageProps) {
             title="CA signé · 12 mois"
             icon={ChartColumn}
             tone="green"
-            description="Société · valeur an 1 des contrats signés"
+            description="Société · valeur 1re année des contrats signés"
           >
             <CaBars points={history} />
           </SectionCard>

@@ -1,5 +1,5 @@
 /**
- * Statuts des factures clients (MYC Arena) : libellés, teintes et pastille.
+ * Statuts des factures clients : libellés, teintes et pastille.
  *
  * « En retard » visuel = statut EN_RETARD, ou ENVOYEE dont l'échéance est
  * passée (le cron nocturne les bascule ensuite en EN_RETARD).

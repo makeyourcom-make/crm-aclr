@@ -16,20 +16,25 @@ import { formatInt, plural } from "@/components/arena/format";
 import { StatusPill } from "@/components/arena/pills";
 import { SectionCard } from "@/components/arena/section-card";
 import { buttonVariants } from "@/components/ui/button";
-import { XP_RULES } from "@/lib/gamification/rules";
 import type { TodaySections, TodayTask } from "@/lib/queries/today";
 import { cn } from "@/lib/utils";
 
 import { CallButton } from "./call-button";
 import { DoneButton } from "./done-button";
-import { CHALEUR_INCONNUE, RESULTAT_META, TASK_TYPE_META } from "./task-meta";
+import { CHALEUR_INCONNUE, doneToastFor, RESULTAT_META, type DayProgress } from "./task-meta";
 
 const MAX_SHOWN = 8;
 
 const chaleur = (t: TodayTask) =>
   t.dernierResultat ? RESULTAT_META[t.dernierResultat].chaleur : CHALEUR_INCONNUE;
 
-export function CallQueue({ sections }: { sections: TodaySections }) {
+interface CallQueueProps {
+  sections: TodaySections;
+  /** Compteurs + objectifs du jour (description et toasts), null si indisponibles. */
+  progress: DayProgress | null;
+}
+
+export function CallQueue({ sections, progress }: CallQueueProps) {
   const isCall = (t: TodayTask) => t.kind === "call";
   // Tri stable : à chaleur égale, l'ordre chronologique est conservé.
   const late = sections.enRetard.filter(isCall).sort((a, b) => chaleur(b) - chaleur(a));
@@ -42,6 +47,9 @@ export function CallQueue({ sections }: { sections: TodaySections }) {
   const all = [...late, ...next];
   const shown = all.slice(0, MAX_SHOWN);
   const hidden = all.length - shown.length;
+  const appelsTxt = progress
+    ? ` · ${formatInt(progress.today.appels)} / ${plural(progress.targets.appels, "appel")} aujourd'hui`
+    : "";
 
   return (
     <SectionCard
@@ -53,7 +61,7 @@ export function CallQueue({ sections }: { sections: TodaySections }) {
       description={
         all.length === 0
           ? "Aucun rappel planifié aujourd'hui"
-          : `${plural(all.length, "prospect")} à rappeler · retards et plus chauds en premier · +${XP_RULES.appel} XP l'appel, +${XP_RULES.conversation} XP s'il décroche`
+          : `${plural(all.length, "prospect")} à rappeler · retards et plus chauds en premier${appelsTxt}`
       }
       action={
         all.length > 0 ? (
@@ -69,7 +77,11 @@ export function CallQueue({ sections }: { sections: TodaySections }) {
           icon={PhoneCall}
           tone="coral"
           title="File de rappels vide"
-          description={`Va chercher de nouvelles conversations : chaque appel rapporte +${XP_RULES.appel} XP.`}
+          description={
+            progress && progress.today.appels < progress.targets.appels
+              ? `Encore ${plural(progress.targets.appels - progress.today.appels, "appel")} pour ton objectif du jour : va chercher de nouvelles conversations en phoning.`
+              : "Va chercher de nouvelles conversations en phoning : chaque appel peut devenir un RDV."
+          }
           action={
             <Link href="/phoning" className={buttonVariants({ variant: "default", size: "lg" })}>
               Lancer le phoning
@@ -80,7 +92,7 @@ export function CallQueue({ sections }: { sections: TodaySections }) {
         <>
           <ol className="flex flex-col gap-2">
             {shown.map((t, i) => (
-              <CallRow key={t.id} task={t} rank={i + 1} late={!!t.retard} />
+              <CallRow key={t.id} task={t} rank={i + 1} late={!!t.retard} progress={progress} />
             ))}
           </ol>
           {hidden > 0 && (
@@ -97,7 +109,18 @@ export function CallQueue({ sections }: { sections: TodaySections }) {
   );
 }
 
-function CallRow({ task: t, rank, late }: { task: TodayTask; rank: number; late: boolean }) {
+function CallRow({
+  task: t,
+  rank,
+  late,
+  progress,
+}: {
+  task: TodayTask;
+  rank: number;
+  late: boolean;
+  progress: DayProgress | null;
+}) {
+  const done = doneToastFor(t, progress);
   const res = t.dernierResultat ? RESULTAT_META[t.dernierResultat] : null;
   const name = t.prospect?.raisonSociale ?? t.sujet;
   const note = t.dernierNote ?? t.sujet;
@@ -177,9 +200,8 @@ function CallRow({ task: t, rank, late }: { task: TodayTask; rank: number; late:
         <DoneButton
           activityId={t.id}
           context={`rappel ${name}`}
-          xp={t.xp}
-          xpLabel={TASK_TYPE_META[t.type].xpLabel}
-          xpSub={t.prospect?.raisonSociale}
+          toastMessage={done.message}
+          toastDetail={done.detail}
         />
       </div>
     </li>

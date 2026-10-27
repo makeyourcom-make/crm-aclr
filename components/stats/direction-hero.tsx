@@ -2,9 +2,9 @@
  * Héros « Pilotage direction » (admin) en tête de /stats.
  *
  * Gauche (navy) : contrats signés du mois vs objectif, CA signé du mois vs
- * objectif, CA annuel vs objectif annuel, projection au rythme actuel.
- * Droite (carte blanche) : « Machine récurrente » MRR vs charges mensuelles
- * récurrentes, marge récurrente, détail des charges et plan d'attaque.
+ * objectif (valeur 1re année des contrats, `valeurAn1`), CA annuel vs objectif annuel, projection au rythme actuel.
+ * Droite (carte blanche) : « Revenu récurrent » MRR vs charges mensuelles
+ * récurrentes, marge récurrente, détail des charges et plan d'action.
  *
  * Un objectif absent n'est jamais inventé : la tuile affiche la valeur seule
  * et propose de définir l'objectif. Server-safe.
@@ -63,12 +63,12 @@ export function DirectionHero({ data }: { data: DirectionDashboard }) {
   if (resteContrats === null && resteCa === null) {
     headline = `${cap(mois)} : ${plural(contratsMois.value, "contrat signé", "contrats signés")} pour ${formatCHFCompact(caMois.value)}`;
   } else if ((resteContrats ?? 0) === 0 && (resteCa ?? 0) === 0) {
-    headline = `${cap(mois)} est plié : objectifs atteints, on fait exploser le compteur`;
+    headline = `${cap(mois)} : objectifs atteints, ${formatCHFCompact(caMois.value)} signés`;
   } else {
     const bits: string[] = [];
     if (resteContrats) bits.push(plural(resteContrats, "contrat", "contrats"));
     if (resteCa) bits.push(formatCHFCompact(resteCa));
-    headline = `Encore ${bits.join(" et ")} pour plier ${mois}`;
+    headline = `Encore ${bits.join(" et ")} pour l'objectif de ${mois}`;
   }
 
   const phrases: string[] = [];
@@ -85,7 +85,7 @@ export function DirectionHero({ data }: { data: DirectionDashboard }) {
   if (caAnnee.objectif != null && caAnnee.besoinParMois != null) {
     projection +=
       caAnnee.besoinParMois > 0
-        ? ` : il faut ${formatCHFCompact(caAnnee.besoinParMois)} par mois d'ici décembre (mois en cours compris) pour taper les ${formatCHFCompact(caAnnee.objectif)}.`
+        ? ` : il faut ${formatCHFCompact(caAnnee.besoinParMois)} par mois d'ici décembre (mois en cours compris) pour atteindre les ${formatCHFCompact(caAnnee.objectif)}.`
         : `, objectif annuel de ${formatCHFCompact(caAnnee.objectif)} déjà atteint.`;
   } else {
     projection += ".";
@@ -144,7 +144,7 @@ export function DirectionHero({ data }: { data: DirectionDashboard }) {
               resteContrats != null
                 ? resteContrats > 0
                   ? `${plural(resteContrats, "contrat", "contrats")} à signer d'ici le ${data.lastWorkingDayLabel}`
-                  : "Objectif atteint, bravo"
+                  : "Objectif atteint"
                 : null
             }
           />
@@ -167,9 +167,9 @@ export function DirectionHero({ data }: { data: DirectionDashboard }) {
             line2={
               resteCa != null
                 ? resteCa > 0
-                  ? `Manque ${formatCHFCompact(resteCa)}`
-                  : "Objectif atteint, bravo"
-                : "Valeur an 1 des contrats signés"
+                  ? `Il manque ${formatCHFCompact(resteCa)}`
+                  : "Objectif atteint"
+                : "Valeur 1re année des contrats signés"
             }
           />
           <HeroGoal
@@ -222,7 +222,7 @@ export function DirectionHero({ data }: { data: DirectionDashboard }) {
         </div>
       </div>
 
-      <RecurringMachine data={data} />
+      <RecurringRevenue data={data} />
     </HeroPanel>
   );
 }
@@ -293,7 +293,7 @@ function HeroGoal({
   );
 }
 
-function RecurringMachine({ data }: { data: DirectionDashboard }) {
+function RecurringRevenue({ data }: { data: DirectionDashboard }) {
   const mrr = data.mrr.value;
   const charges = data.charges.total;
   const marge = data.margeRecurrente;
@@ -348,7 +348,7 @@ function RecurringMachine({ data }: { data: DirectionDashboard }) {
   return (
     <div className="flex min-w-0 flex-col gap-4 rounded-[20px] bg-card p-5 text-foreground shadow-arena-lg xl:w-[400px] xl:flex-none">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Eyebrow>Machine récurrente</Eyebrow>
+        <Eyebrow>Revenu récurrent</Eyebrow>
         {couverturePill}
       </div>
 
@@ -454,7 +454,7 @@ function RecurringMachine({ data }: { data: DirectionDashboard }) {
       </details>
 
       <div className="flex flex-col gap-2">
-        <Eyebrow>Plan d&apos;attaque</Eyebrow>
+        <Eyebrow>Plan d&apos;action</Eyebrow>
         {actions.map((a) => {
           const t = TONE_CLASSES[a.tone];
           const Icon = a.icon;

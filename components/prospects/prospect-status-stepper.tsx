@@ -6,8 +6,8 @@
  * (pour revenir à Nouveau / Vierge). Même action serveur que le sélecteur
  * historique : updateProspectStatut (droits vérifiés côté serveur).
  *
- * Changer un statut ne rapporte pas d'XP en soi : les XP viennent des
- * actions réelles (appel, RDV, proposition, signature). Pas de faux gain.
+ * Changer un statut ne compte pas comme un résultat en soi : les résultats
+ * viennent des actions réelles (appel, RDV, proposition, signature).
  */
 import type { ProspectStatut } from "@prisma/client";
 import { useRouter } from "next/navigation";

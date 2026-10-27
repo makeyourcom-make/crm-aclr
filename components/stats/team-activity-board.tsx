@@ -2,17 +2,19 @@
 
 /**
  * Activité de l'équipe (admin) : tableau par collaborateur sur aujourd'hui,
- * la semaine ou le mois, classé par XP (calculés comme la topbar), avec les
- * objectifs du jour quand ils existent, la ligne « Total équipe » et le défi
- * d'équipe du mois (CA signé ensemble vs objectif mensuel société).
+ * la semaine ou le mois, classé par CA signé puis RDV pris puis appels, avec
+ * les objectifs du jour quand ils existent, la ligne « Total équipe » et le CA
+ * signé de l'équipe sur le mois vs objectif mensuel société.
+ *
+ * CA signé = valeur 1re année des contrats signés (`valeurAn1`), comme le
+ * reste de /stats.
  */
-import { Flame, Zap } from "lucide-react";
+import { Target } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
-import { formatInt, formatXp, pctOf } from "@/components/arena/format";
+import { formatInt, pctOf } from "@/components/arena/format";
 import { PlayerAvatar } from "@/components/arena/player-avatar";
-import { XP_RULES } from "@/lib/gamification/rules";
 import { formatCHFCompact } from "@/lib/format";
 import type { TeamBoard, TeamPeriodKey, TeamRow } from "@/lib/queries/pilotage";
 import { cn } from "@/lib/utils";
@@ -56,7 +58,7 @@ export function TeamActivityBoard({
       </div>
 
       <div className="flex items-start gap-2.5 rounded-[14px] bg-gold-50 px-3.5 py-3">
-        <Flame aria-hidden="true" className="mt-0.5 size-[18px] shrink-0 text-gold-700" />
+        <Target aria-hidden="true" className="mt-0.5 size-[18px] shrink-0 text-gold-700" />
         <span className="text-sm font-semibold text-gold-700">{sel.message}</span>
       </div>
 
@@ -73,7 +75,7 @@ export function TeamActivityBoard({
               <Th>Emails</Th>
               <Th>Propositions</Th>
               <Th>Signatures</Th>
-              <Th className="pr-3.5">XP</Th>
+              <Th className="pr-3.5">CA signé</Th>
             </tr>
           </thead>
           <tbody>
@@ -93,15 +95,15 @@ export function TeamActivityBoard({
               <Num strong className="text-win-700">
                 {sel.total.signatures}
               </Num>
-              <td className="px-3.5 py-3.5 text-right text-sm font-extrabold whitespace-nowrap text-gold-700 tabular-nums">
-                {formatXp(sel.total.xp)}
+              <td className="px-3.5 py-3.5 text-right text-sm font-extrabold whitespace-nowrap text-win-700 tabular-nums">
+                {formatCHFCompact(sel.total.caSigne)}
               </td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <Defi board={board} />
+      <CaMoisEquipe board={board} />
     </div>
   );
 }
@@ -220,21 +222,25 @@ function Row({
         {r.counters.signatures}
       </Num>
       <td className="px-3.5 py-3.5 text-right">
-        <span className="inline-flex items-center gap-1 rounded-full bg-gold-50 px-2.5 py-1 text-[13px] font-extrabold whitespace-nowrap text-gold-700 tabular-nums">
-          <Zap aria-hidden="true" className="size-3.5 fill-current" />
-          {formatXp(r.xp)}
+        <span
+          className={cn(
+            "inline-flex items-center rounded-full px-2.5 py-1 text-[13px] font-extrabold whitespace-nowrap tabular-nums",
+            r.caSigne > 0 ? "bg-win-50 text-win-700" : "text-muted-foreground",
+          )}
+        >
+          {formatCHFCompact(r.caSigne)}
         </span>
       </td>
     </tr>
   );
 }
 
-function Defi({ board }: { board: TeamBoard }) {
-  const { defi } = board;
-  const base = Math.max(defi.objectif ?? 0, defi.total, 1);
-  const reste = defi.objectif != null ? Math.max(0, defi.objectif - defi.total) : null;
+function CaMoisEquipe({ board }: { board: TeamBoard }) {
+  const { caMois } = board;
+  const base = Math.max(caMois.objectif ?? 0, caMois.total, 1);
+  const reste = caMois.objectif != null ? Math.max(0, caMois.objectif - caMois.total) : null;
   const aria = [
-    ...defi.contributions.map((c) => `${c.firstName} ${formatCHFCompact(c.ca)}`),
+    ...caMois.contributions.map((c) => `${c.firstName} ${formatCHFCompact(c.ca)}`),
     reste != null && reste > 0 ? `reste ${formatCHFCompact(reste)}` : null,
   ]
     .filter(Boolean)
@@ -243,20 +249,21 @@ function Defi({ board }: { board: TeamBoard }) {
     <div className="flex flex-wrap items-center gap-5 rounded-[14px] border border-dashed border-border-strong p-4">
       <div className="flex min-w-0 flex-[1_1_260px] flex-col gap-1">
         <span className="text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase">
-          Défi d&apos;équipe · {defi.monthName}
+          CA signé de l&apos;équipe · {caMois.monthName}
         </span>
         <span className="text-base font-extrabold">
-          {defi.objectif != null
-            ? `${formatCHFCompact(defi.total)} / ${formatCHFCompact(defi.objectif)} signés ensemble`
-            : `${formatCHFCompact(defi.total)} signés ensemble`}
+          {caMois.objectif != null
+            ? `${formatCHFCompact(caMois.total)} / ${formatCHFCompact(caMois.objectif)} signés`
+            : `${formatCHFCompact(caMois.total)} signés`}
         </span>
         <span className="text-xs text-muted-foreground">
-          Barème XP : appel +{XP_RULES.appel} · conversation +{XP_RULES.conversation} · email +{XP_RULES.email} ·
-          RDV pris +{XP_RULES.rdvPris} · RDV effectué +{XP_RULES.rdvEffectue} · proposition +
-          {XP_RULES.proposition} · signature +{XP_RULES.signature} (+1 XP par 10 CHF mensuels) · mission du jour +
-          {XP_RULES.missionDuJour}
+          {caMois.objectif != null
+            ? reste != null && reste > 0
+              ? `Il manque ${formatCHFCompact(reste)} pour l'objectif du mois · valeur 1re année des contrats signés`
+              : "Objectif du mois atteint · valeur 1re année des contrats signés"
+            : "Valeur 1re année des contrats signés"}
         </span>
-        {defi.objectif == null && (
+        {caMois.objectif == null && (
           <Link href="/objectifs" className="text-xs font-bold text-info-700 hover:underline">
             Aucun objectif CA mensuel défini · le fixer
           </Link>
@@ -265,10 +272,10 @@ function Defi({ board }: { board: TeamBoard }) {
       <div className="flex min-w-0 flex-[2_1_320px] flex-col gap-2">
         <div
           role="img"
-          aria-label={`Contribution au défi : ${aria || "aucune signature ce mois"}`}
+          aria-label={`CA signé par collaborateur : ${aria || "aucune signature ce mois"}`}
           className="flex h-4 overflow-hidden rounded-full bg-navy-50"
         >
-          {defi.contributions.map((c, i) => (
+          {caMois.contributions.map((c, i) => (
             <div
               key={c.userId}
               style={{
@@ -279,7 +286,7 @@ function Defi({ board }: { board: TeamBoard }) {
           ))}
         </div>
         <div className="flex flex-wrap gap-4 text-xs font-semibold text-muted-foreground">
-          {defi.contributions.map((c, i) => (
+          {caMois.contributions.map((c, i) => (
             <span key={c.userId} className="flex items-center gap-1.5">
               <span
                 aria-hidden="true"
@@ -295,7 +302,7 @@ function Defi({ board }: { board: TeamBoard }) {
               Reste {formatCHFCompact(reste)}
             </span>
           )}
-          {defi.contributions.length === 0 && <span>Aucune signature ce mois pour l&apos;instant.</span>}
+          {caMois.contributions.length === 0 && <span>Aucune signature ce mois pour l&apos;instant.</span>}
         </div>
       </div>
     </div>

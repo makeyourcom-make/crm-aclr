@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 
 import { TONE_HEX } from "./tones";
 
+/** @deprecated Plus de badges. */
 export const BADGE_ICONS: Record<BadgeState["key"], LucideIcon> = {
   "premier-sang": FileCheck,
   sniper: Crosshair,
@@ -58,6 +59,7 @@ export interface BadgeMedalProps {
   className?: string;
 }
 
+/** @deprecated Plus de badges dans l'interface. */
 export function BadgeMedal({
   badge,
   size = "md",

@@ -1,9 +1,8 @@
 /**
- * Pastilles MYC Arena (12 px 700, rayon 999, fond clair + texte foncé).
+ * Pastilles (12 px 700, rayon 999, fond clair + texte foncé).
  *
- *   <LevelPill level={LevelInfo} />   « Niv. 3 · Closer » (violet)
+ *   <LevelPill />, <XpPill />          dépréciés (plus de niveaux ni d'XP)
  *   <StreakPill days={6} />           flamme coral + « 6 jours »
- *   <XpPill xp={50} />                « +50 XP » (or)
  *   <StatusPill tone="green">Signé</StatusPill>  point de couleur + libellé
  *
  * Variantes `dark` pour les fonds navy (héros, sidebar). Server-safe.
@@ -49,6 +48,7 @@ export interface LevelPillProps {
   className?: string;
 }
 
+/** @deprecated Plus de niveaux dans l'interface. */
 export function LevelPill({
   level,
   size = "sm",
@@ -148,6 +148,7 @@ export interface XpPillProps {
   className?: string;
 }
 
+/** @deprecated Plus d'XP dans l'interface. */
 export function XpPill({
   xp,
   label,

@@ -7,7 +7,7 @@
  * getProspects / getProspectById / getProspectActivities…).
  */
 import { getPlayerStats } from "@/lib/gamification";
-import type { Mission } from "@/lib/gamification/rules";
+import type { DailyGoal } from "@/lib/gamification/rules";
 import { prisma } from "@/lib/db";
 import { getProspectActivities } from "@/lib/queries/activities";
 import { getDossiersForProspect } from "@/lib/queries/dossiers";
@@ -26,19 +26,19 @@ import {
 
 type RawParams = Record<string, string | string[] | undefined>;
 
-/** Mission « appels » du joueur : la couche de jeu ne doit jamais casser la liste. */
+/** Objectifs du jour (appels, RDV pris) : ne doivent jamais casser la liste. */
 async function loadPlayer(
   userId: string,
-): Promise<{ mission: Mission | null; xpRecordDay: number | null }> {
+): Promise<{ goalAppels: DailyGoal | null; goalRdv: DailyGoal | null }> {
   try {
     const stats = await getPlayerStats(userId);
     return {
-      mission: stats.missions.find((m) => m.key === "appels") ?? null,
-      xpRecordDay: stats.xpRecordDay > 0 ? stats.xpRecordDay : null,
+      goalAppels: stats.dailyGoals.find((g) => g.key === "appels") ?? null,
+      goalRdv: stats.dailyGoals.find((g) => g.key === "rdvPris") ?? null,
     };
   } catch (err) {
-    console.error("[gamification] getPlayerStats a échoué :", err);
-    return { mission: null, xpRecordDay: null };
+    console.error("[resultats] getPlayerStats a échoué :", err);
+    return { goalAppels: null, goalRdv: null };
   }
 }
 
@@ -50,7 +50,7 @@ export async function loadProspectsPage(
 ) {
   // Parse + valeurs par défaut. Ignore les params inconnus / mal formés.
   const params = ProspectListParamsSchema.parse(raw);
-  // Vues rapides et fraîcheur (MYC Arena) : paramètres en plus du schéma.
+  // Vues rapides et fraîcheur : paramètres en plus du schéma.
   const vue = parseVue(raw.vue);
   const fraicheur = parseFraicheur(raw.fraicheur);
 

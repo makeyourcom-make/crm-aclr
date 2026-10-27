@@ -1,5 +1,5 @@
 /**
- * Agenda MYC Arena : couleurs et icônes par type d'activité et par statut.
+ * Agenda : couleurs et icônes par type d'activité et par statut.
  *
  * Un RDV se reconnaît à sa TEINTE (physique = or, visio = violet,
  * téléphonique = bleu) ET à son ICÔNE (épingle, caméra, combiné) : la couleur
@@ -30,7 +30,7 @@ import { TONE_HEX, type Tone } from "@/components/arena/tones";
 import { isRdvType, type ActivityCategory } from "@/lib/activity-category";
 
 /**
- * Teintes de l'agenda : celles de MYC Arena, sauf le fond coral passé au
+ * Teintes de l'agenda : celles du kit d'interface, sauf le fond coral passé au
  * coral 50 (#FFF1F1) pour que le texte coral 600 y tienne 4.5:1 en 11-13 px.
  */
 export const AGENDA_HEX: Record<Tone, { soft: string; solid: string; text: string }> = {
@@ -83,7 +83,7 @@ export const CATEGORY_META: Record<
   autre: { icon: MessageSquare, tone: "navy", label: "Autres" },
 };
 
-/** État « jeu » d'une activité à l'instant `nowMs`. */
+/** État d'affichage d'une activité à l'instant `nowMs`. */
 export type AgendaState =
   | "a-valider"
   | "en-cours"
@@ -104,7 +104,7 @@ export interface StateInput {
   duree: number | null;
 }
 
-/** Vrai pour un RDV client (compte dans le jeu : +80 XP une fois effectué). */
+/** Vrai pour un RDV client (compte dans les résultats RDV une fois effectué). */
 export function isClientRdv(a: { type: ActivityType; prospectId: string | null }): boolean {
   return isRdvType(a.type) && !!a.prospectId;
 }

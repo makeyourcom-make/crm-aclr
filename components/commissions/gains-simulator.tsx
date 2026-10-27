@@ -9,16 +9,14 @@
  *  - versée 50 % à la signature + 50 % étalés sur 11 mois ;
  *  - puis renouvellement dès l'an 2 : taux renouvellement × mensuel, chaque mois.
  *
- * `<GainsSimulatorProvider>` porte l'état ; `<GainsSimulator />` (la carte)
- * et `<SimulationXpBox />` (encadré du parcours de niveaux) le lisent.
+ * Tout est exprimé en CHF : aucun point, aucun niveau.
  */
 import { Calculator, Minus, Plus, RotateCcw } from "lucide-react";
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { useState } from "react";
 
 import { formatInt } from "@/components/arena/format";
 import { Button } from "@/components/ui/button";
 import { formatCHF, formatNumber } from "@/lib/format";
-import { levelFor, XP_RULES, type LevelInfo } from "@/lib/gamification/rules";
 import type { SimPreset } from "@/lib/queries/commissions-gains";
 import { formatPercentRate } from "@/lib/queries/objectifs-pace";
 import { cn } from "@/lib/utils";
@@ -38,7 +36,6 @@ export interface SimBase {
   caTarget: number | null;
   signatures: number;
   sigTarget: number | null;
-  level: LevelInfo | null;
   presets: SimPreset[];
   defaultN: number;
   closing: { signatures: number; rdv: number; commissionSigned: number } | null;
@@ -83,18 +80,6 @@ function compute(base: SimBase, s: SimState) {
   const valeurTotale = s.oneShot + s.mensuel * s.duree;
   const caNew = base.ca + s.n * valeurTotale;
   const sigNew = base.signatures + s.n;
-  const xpAdd =
-    s.n * XP_RULES.signature +
-    Math.floor((s.n * s.mensuel) / 10) * XP_RULES.signatureParTranche10ChfMensuel;
-  const xpNew = base.level ? base.level.xp + xpAdd : xpAdd;
-  const newLevel = base.level ? levelFor(xpNew) : null;
-  let xpMsg = "";
-  if (base.level && newLevel) {
-    if (newLevel.level > base.level.level) xpMsg = `Tu passes ${newLevel.name}, niveau ${newLevel.level} !`;
-    else if (newLevel.nextXp != null && newLevel.nextName)
-      xpMsg = `Encore ${formatInt(newLevel.nextXp - xpNew)} XP avant ${newLevel.nextName}`;
-    else xpMsg = "Niveau maximum : Légende";
-  }
   return {
     months,
     assiette,
@@ -106,9 +91,6 @@ function compute(base: SimBase, s: SimState) {
     moisNew,
     caNew,
     sigNew,
-    xpAdd,
-    xpNew,
-    xpMsg,
   };
 }
 
@@ -118,40 +100,14 @@ function amount(n: number): string {
   return Number.isInteger(r) ? formatNumber(r) : formatCHF(r).replace(/^CHF\s*/, "");
 }
 
-interface Ctx {
-  base: SimBase;
-  state: SimState;
-  setState: (s: SimState) => void;
-  result: ReturnType<typeof compute>;
-  reset: () => void;
-}
-
-const SimContext = createContext<Ctx | null>(null);
-
-export function GainsSimulatorProvider({ base, children }: { base: SimBase; children: ReactNode }) {
-  const [state, setState] = useState<SimState>(() => initialState(base));
-  const result = compute(base, state);
-  return (
-    <SimContext.Provider
-      value={{ base, state, setState, result, reset: () => setState(initialState(base)) }}
-    >
-      {children}
-    </SimContext.Provider>
-  );
-}
-
-function useSim(): Ctx | null {
-  return useContext(SimContext);
-}
-
 // ---------------------------------------------------------------------------
 // Carte simulateur
 // ---------------------------------------------------------------------------
 
-export function GainsSimulator({ className }: { className?: string }) {
-  const ctx = useSim();
-  if (!ctx) return null;
-  const { base, state: s, setState, result: r, reset } = ctx;
+export function GainsSimulator({ base, className }: { base: SimBase; className?: string }) {
+  const [s, setState] = useState<SimState>(() => initialState(base));
+  const r = compute(base, s);
+  const reset = () => setState(initialState(base));
 
   const maxMensuel = Math.max(1000, ...base.presets.map((p) => Math.ceil(p.mensuel / 100) * 100));
   const maxOneShot = Math.max(5000, ...base.presets.map((p) => Math.ceil(p.oneShot / 500) * 500));
@@ -190,7 +146,7 @@ export function GainsSimulator({ className }: { className?: string }) {
             Simulateur de gains
           </h2>
           <p className="mt-0.5 text-[13px] font-medium text-muted-foreground">
-            Joue avec les chiffres : combien te rapporte ta prochaine signature ?
+            Fais le calcul avec tes taux réels : combien te rapporte ta prochaine signature ?
           </p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={reset}>
@@ -325,7 +281,7 @@ export function GainsSimulator({ className }: { className?: string }) {
 
       <div
         aria-live="polite"
-        className="relative flex flex-wrap items-center gap-4 overflow-hidden rounded-[16px] border border-win-500 bg-win-50 px-5 py-[18px]"
+        className="flex flex-wrap items-center gap-4 rounded-[16px] border border-win-500 bg-win-50 px-5 py-[18px]"
       >
         <p className="min-w-0 flex-[1_1_260px] text-base leading-normal text-foreground">
           Si tu signes encore <strong>{s.n} {contratsMot}</strong> à{" "}
@@ -343,29 +299,6 @@ export function GainsSimulator({ className }: { className?: string }) {
           </div>
           <div className="mt-1 text-[13px] font-bold text-win-700">sur les 12 prochains mois</div>
         </div>
-        {goalOk && (
-          <span aria-hidden="true" className="pointer-events-none absolute inset-0">
-            {[
-              { l: "44%", c: "#F47174", d: "0s", r: true },
-              { l: "52%", c: "#F5A524", d: "0.4s", r: false },
-              { l: "60%", c: "#7C5CFC", d: "0.8s", r: true },
-              { l: "68%", c: "#3B6FF6", d: "1.2s", r: false },
-            ].map((p) => (
-              <span
-                key={p.l}
-                className="absolute top-1 motion-safe:animate-[myc-confetti_1.6s_ease-out_infinite]"
-                style={{
-                  left: p.l,
-                  width: p.r ? 8 : 6,
-                  height: p.r ? 4 : 6,
-                  borderRadius: p.r ? 2 : 999,
-                  background: p.c,
-                  animationDelay: p.d,
-                }}
-              />
-            ))}
-          </span>
-        )}
       </div>
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
@@ -382,9 +315,6 @@ export function GainsSimulator({ className }: { className?: string }) {
           sub={`au lieu de ${amount(base.monthTotal)} CHF`}
           tone="text-win-700"
         />
-        {base.level && (
-          <SimTile label="XP gagnés" value={`+${formatInt(r.xpAdd)} XP`} sub={r.xpMsg} tone="text-lvl-700" />
-        )}
       </div>
 
       {goal && (
@@ -401,7 +331,7 @@ export function GainsSimulator({ className }: { className?: string }) {
                 goalOk ? "bg-win-50 text-win-700" : "bg-alert-50 text-alert-700",
               )}
             >
-              {goalOk ? "Objectif plié" : `Encore ${fmtGoal(goal.target - goal.sim)}`}
+              {goalOk ? "Objectif atteint" : `Encore ${fmtGoal(goal.target - goal.sim)}`}
             </span>
           </div>
           <div
@@ -472,25 +402,6 @@ function SimTile({
         {value}
       </div>
       <div className="text-xs text-muted-foreground">{sub}</div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Encadré « Avec ta simulation » (parcours de niveaux)
-// ---------------------------------------------------------------------------
-
-export function SimulationXpBox() {
-  const ctx = useSim();
-  if (!ctx || !ctx.base.level) return null;
-  const { result: r } = ctx;
-  return (
-    <div aria-live="polite" className="flex flex-col gap-1 rounded-[14px] bg-lvl-50 px-4 py-3.5">
-      <div className="text-xs font-bold text-lvl-700">Avec ta simulation</div>
-      <div className="score-number text-[22px] text-foreground">
-        +{formatInt(r.xpAdd)} XP → {formatInt(r.xpNew)} XP
-      </div>
-      <div className="text-[13px] font-semibold text-foreground">{r.xpMsg}</div>
     </div>
   );
 }

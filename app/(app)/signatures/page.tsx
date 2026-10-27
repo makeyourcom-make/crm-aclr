@@ -71,6 +71,9 @@ export default async function SignaturesPage() {
   }
   live.sort((a, b) => a.expireA.getTime() - b.expireA.getTime());
 
+  // Valeur an 1 des contrats dont le lien de signature est actif (CHF réels).
+  const liveValue = live.reduce((s, r) => s + Number(r.contract.valeurAn1 ?? 0), 0);
+
   const expiringSoon = live.filter((r) => r.expireA.getTime() - nowMs <= 7 * DAY).length;
   const expiredCount = overview.rows.filter(
     (r) =>
@@ -108,7 +111,11 @@ export default async function SignaturesPage() {
         <StatTile
           label="En attente client"
           value={pulse.enAttenteSignature}
-          sub="contrats à faire signer (lien actif ou expiré)"
+          sub={
+            liveValue > 0
+              ? `contrats à faire signer · ${formatInt(liveValue)} CHF an 1 sur les liens actifs`
+              : "contrats à faire signer (lien actif ou expiré)"
+          }
           icon={Hourglass}
           tone="blue"
         />

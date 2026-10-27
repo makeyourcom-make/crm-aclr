@@ -1,17 +1,14 @@
 /**
- * Métadonnées des résultats d'appel pour l'UI MYC Arena (boutons colorés,
- * familles, raccourcis clavier, XP, rappel auto).
- *
- * Les XP affichés suivent EXACTEMENT le barème du moteur (lib/gamification) :
- * un appel passé rapporte +5, un appel décroché (conversation : résultat
- * hors Combox / Ne décroche pas / Numéro invalide) +10 de plus, un RDV pris
- * +50 de plus. Aucun multiplicateur n'est crédité côté serveur.
+ * Métadonnées des résultats d'appel (boutons colorés, familles, raccourcis
+ * clavier, rappel auto) et règle de « conversation » : un appel décroché =
+ * résultat hors Combox / Ne décroche pas / Numéro invalide (même règle que
+ * les compteurs du jour de lib/gamification).
  *
  * Client-safe (aucune ressource serveur).
  */
 import type { ActivityResultat } from "@prisma/client";
 
-import { XP_RULES, type Tone } from "@/lib/gamification/rules";
+import type { Tone } from "@/lib/gamification/rules";
 import type { RappelDelai } from "@/lib/schemas/activity";
 
 export type ResultFamily = "gagne" | "relance" | "clos";
@@ -107,19 +104,11 @@ export const RAPPEL_RESULTATS: ActivityResultat[] = [
   "INTERESSE_PAS_PRET",
 ];
 
-/** Résultats NON comptés comme conversation par le moteur de jeu. */
+/** Résultats NON comptés comme conversation dans les compteurs du jour. */
 const NON_CONVERSATION: ActivityResultat[] = ["COMBOX", "NE_DECROCHE_PAS", "INVALIDE"];
 
 export function isConversation(r: ActivityResultat | null | undefined): boolean {
   return !!r && !NON_CONVERSATION.includes(r);
-}
-
-/** XP rapportés par un appel selon son résultat (null = appel en cours). */
-export function xpForCall(r: ActivityResultat | null | undefined): number {
-  let xp: number = XP_RULES.appel;
-  if (isConversation(r)) xp += XP_RULES.conversation;
-  if (r === "RDV_PRIS") xp += XP_RULES.rdvPris;
-  return xp;
 }
 
 /** Choix de rappel dans l'UI : « auto », un délai, une date libre ou aucun. */

@@ -1,5 +1,5 @@
 /**
- * Avatar joueur rond à initiales (charte : LB coral, AC navy).
+ * Avatar rond à initiales (charte : LB coral, AC navy).
  *
  * Décoratif par défaut (aria-hidden : le nom est affiché à côté). Passer
  * `label` pour en faire une image nommée. Server-safe.

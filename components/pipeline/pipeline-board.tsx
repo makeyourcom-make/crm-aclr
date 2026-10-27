@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Pipeline MYC Arena : héros, indicateurs, filtres, Kanban (glisser-déposer)
+ * Pipeline : héros, indicateurs, filtres, Kanban (glisser-déposer)
  * et « Leçons du mois », sur un état partagé.
  *
  * Architecture @dnd-kit :
@@ -16,9 +16,10 @@
  *
  * Optimistic UI (useOptimistic) : la carte change de colonne immédiatement,
  * puis moveDealStage tourne en arrière-plan. En cas d'échec : toast d'erreur
- * et retour à l'état serveur. Passage en Signé : confettis + toast XP.
+ * et retour à l'état serveur. Passage en Signé : confettis + carte avec le
+ * montant réel signé (CHF / mois) et toast « Contrat signé · +X CHF / mois ».
  * Après chaque succès : router.refresh() pour mettre à jour la coquille
- * (pilules XP et série de la barre du haut).
+ * (objectifs du jour et série de la barre du haut).
  */
 import {
   DndContext,
@@ -38,9 +39,9 @@ import { useMemo, useOptimistic, useState, useTransition, type ReactNode } from 
 import { toast } from "sonner";
 
 import { moveDealStage, type DealActionResult } from "@/app/(app)/pipeline/actions";
-import { celebrate, xpToast } from "@/components/arena";
+import { celebrate, resultToast } from "@/components/arena";
 import { DealDetailSheet } from "@/components/pipeline/deal-detail-sheet";
-import { XP_RULES, firstNameOf } from "@/lib/gamification/rules";
+import { firstNameOf } from "@/lib/gamification/rules";
 import { DEAL_STAGE_PROBA_DEFAUT } from "@/lib/labels";
 import type { PipelineData, PipelineDeal, PipelineScoreboard } from "@/lib/queries/deals";
 import { cn } from "@/lib/utils";
@@ -58,7 +59,10 @@ import {
   isActiveStage,
   isDormant,
   isHot,
-  signXp,
+  dealMensuel,
+  dealOneShot,
+  dealSignGain,
+  signedToastLabel,
 } from "./pipeline-meta";
 
 type QuickFilter = "tous" | "chauds" | "relancer";
@@ -185,20 +189,20 @@ export function PipelineBoard({
         return;
       }
       if (stage === "SIGNE") {
-        const xp = signXp(deal);
         const first = firstNameOf(deal.assigneA.name);
         celebrate({
           eyebrow: `Bravo ${first}`,
-          title: "Deal gagné !",
+          title: "Contrat signé !",
           subtitle: `${deal.prospect.raisonSociale} passe en Signé`,
-          xp,
+          highlight: dealSignGain(deal) ?? undefined,
         });
-        xpToast(
-          xp,
-          "Deal signé !",
+        resultToast(
+          signedToastLabel(dealMensuel(deal), dealOneShot(deal)),
           deal.assigneA.id === currentUserId
-            ? "XP crédités à la signature du contrat"
-            : `Pour ${first} · XP crédités à la signature du contrat`,
+            ? deal.contract
+              ? deal.prospect.raisonSociale
+              : `${deal.prospect.raisonSociale} · prochaine étape : créer le contrat`
+            : `${deal.prospect.raisonSociale} · deal de ${first}`,
         );
       } else {
         toast.success(`Déplacé vers « ${STAGE_META[stage].label} »`);
@@ -382,20 +386,16 @@ export function PipelineBoard({
           />
         </div>
         <p className="flex basis-full flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-border pt-2.5 text-xs font-semibold text-muted-foreground">
-          <span className="font-extrabold text-foreground">Barème pipeline</span>
-          <span>
-            Proposition envoyée <span className="font-extrabold text-gold-700">+{XP_RULES.proposition} XP</span>
-          </span>
-          <span>
-            RDV effectué <span className="font-extrabold text-gold-700">+{XP_RULES.rdvEffectue} XP</span>
-          </span>
-          <span>
-            Contrat signé <span className="font-extrabold text-gold-700">+{XP_RULES.signature} XP</span> (+1 XP
-            par 10 CHF mensuels)
-          </span>
-          <span>
-            Mission du jour <span className="font-extrabold text-gold-700">+{XP_RULES.missionDuJour} XP</span>
-          </span>
+          <span className="font-extrabold text-foreground">Probabilité par étape</span>
+          {BOARD_STAGES.filter((st) => st !== "SIGNE").map((st) => (
+            <span key={st}>
+              {STAGE_META[st].label}{" "}
+              <span className="font-extrabold text-foreground tabular-nums">
+                {DEAL_STAGE_PROBA_DEFAUT[st]} %
+              </span>
+            </span>
+          ))}
+          <span>pipeline pondéré = valeur an 1 × probabilité</span>
           <span className="lg:ml-auto">
             Glisse une carte ou clique sur « Avancer » · la probabilité suit l&apos;étape · alerte
             rouge après 7 jours sans action

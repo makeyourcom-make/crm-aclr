@@ -47,7 +47,7 @@ export interface RouteDef {
 }
 
 export const ROUTE_GROUPS: { id: RouteGroup; label: string }[] = [
-  { id: "jouer", label: "Jouer" },
+  { id: "jouer", label: "Prospecter" },
   { id: "vendre", label: "Vendre" },
   { id: "livrer", label: "Livrer" },
   { id: "gagner", label: "Gagner" },

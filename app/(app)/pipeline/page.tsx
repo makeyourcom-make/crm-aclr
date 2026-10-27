@@ -68,22 +68,22 @@ export default async function PipelinePage({ searchParams }: PageProps) {
   if (isAdmin && !effectiveAssigneAId) {
     viewLabel = "Toute l'équipe";
     view = {
-      eyebrow: "Tableau de chasse de l'équipe",
+      eyebrow: "Résultats de l'équipe",
       objPhrase: "l'objectif de l'équipe",
     };
   } else if (viewedUser) {
     const first = firstNameOf(viewedUser.name);
     viewLabel = `Pipeline de ${viewedUser.name}`;
     view = {
-      eyebrow: `Tableau de chasse de ${first}`,
+      eyebrow: `Résultats de ${first}`,
       objPhrase: `l'objectif de ${first}`,
     };
   } else if (isAdmin && effectiveAssigneAId && effectiveAssigneAId !== user.id) {
     viewLabel = "Pipeline d'un collaborateur";
-    view = { eyebrow: "Tableau de chasse", objPhrase: "l'objectif" };
+    view = { eyebrow: "Résultats", objPhrase: "l'objectif" };
   } else {
     viewLabel = "Mon pipeline";
-    view = { eyebrow: "Ton tableau de chasse", objPhrase: "ton objectif" };
+    view = { eyebrow: "Tes résultats", objPhrase: "ton objectif" };
   }
 
   // Mois courant et remise à zéro des colonnes Signé / Perdu (le 1er).

@@ -1,5 +1,5 @@
 /**
- * Pastille de statut d'entreprise (MYC Arena) : 12 px 700, rayon 999,
+ * Pastille de statut d'entreprise : 12 px 700, rayon 999,
  * fond clair + texte foncé de la teinte du statut (voir statut-meta.ts).
  * « Vierge » s'affiche « À attaquer » (bord pointillé coral), comme dans la
  * maquette validée. Server-safe.

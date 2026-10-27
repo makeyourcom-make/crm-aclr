@@ -27,7 +27,7 @@ import {
   sendSignatureByEmail,
   signDealInPerson,
 } from "@/app/(app)/contrats/actions";
-import { xpToast } from "@/components/arena";
+import { resultToast } from "@/components/arena";
 import { Icon } from "@/components/icon";
 import {
   Dialog,
@@ -41,16 +41,10 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { XP_RULES } from "@/lib/gamification/rules";
 
 interface SignDealInPersonButtonProps {
   dealId: string;
   hasExistingContract?: boolean;
-  /**
-   * La personne connectée est la commerciale du deal : la création du
-   * contrat (proposition) lui rapporte des XP → toast XP.
-   */
-  rewardXp?: boolean;
 }
 
 const MODALITES = [
@@ -64,7 +58,6 @@ type Action = "sign-now" | "email" | "download" | null;
 export function SignDealInPersonButton({
   dealId,
   hasExistingContract,
-  rewardXp = false,
 }: SignDealInPersonButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -103,17 +96,13 @@ export function SignDealInPersonButton({
         toast.error(res.error ?? "Impossible de générer la signature.");
         return;
       }
-      toast.success(
-        res.numero
-          ? `Contrat ${res.numero} créé · QR codes de signature prêts.`
-          : "QR codes de signature prêts.",
+      resultToast(
+        res.numero ? `Contrat ${res.numero} créé` : "Contrat créé",
+        "Prochaine étape : faire scanner les QR codes de signature",
       );
-      if (rewardXp) {
-        xpToast(XP_RULES.proposition, "Proposition envoyée !", res.numero ?? undefined);
-      }
       setOpen(false);
       router.push(`/contrats/${res.contractId}`);
-      // Coquille (pilules XP / série) à jour après la création du contrat.
+      // Coquille (objectifs du jour / série) à jour après la création du contrat.
       router.refresh();
     });
   };
@@ -128,18 +117,12 @@ export function SignDealInPersonButton({
         toast.error(res.error ?? "Échec de l'envoi.");
         return;
       }
-      toast.success(
-        res.dryRun
-          ? `[Dry-run] Mail simulé vers ${res.emailDest}.`
-          : `Mail envoyé à ${res.emailDest}.`,
+      resultToast(
+        res.dryRun ? "[Dry-run] Mail simulé" : "Proposition envoyée",
+        res.emailDest
+          ? `à ${res.emailDest} · prochaine étape : relancer pour la signature`
+          : "Prochaine étape : relancer pour la signature",
       );
-      if (rewardXp) {
-        xpToast(
-          XP_RULES.proposition + XP_RULES.email,
-          "Proposition envoyée !",
-          res.emailDest ? `Par email à ${res.emailDest}` : undefined,
-        );
-      }
       setOpen(false);
       router.refresh();
     });
@@ -155,10 +138,9 @@ export function SignDealInPersonButton({
         toast.error(res.error ?? "Impossible de générer le contrat.");
         return;
       }
-      toast.success(
-        res.numero
-          ? `Contrat ${res.numero} prêt · téléchargement en cours.`
-          : "PDF en cours de téléchargement.",
+      resultToast(
+        res.numero ? `Contrat ${res.numero} prêt` : "Contrat prêt",
+        "Téléchargement du PDF en cours",
       );
       // Ouvre le PDF dans un nouvel onglet (le navigateur déclenche le DL)
       window.open(
@@ -166,9 +148,6 @@ export function SignDealInPersonButton({
         "_blank",
         "noopener",
       );
-      if (rewardXp) {
-        xpToast(XP_RULES.proposition, "Proposition prête !", res.numero ?? undefined);
-      }
       setOpen(false);
       router.refresh();
     });

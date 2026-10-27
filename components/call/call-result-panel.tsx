@@ -10,11 +10,12 @@
  *   - createActivity (RDV calé dans la foulée, optionnel),
  *   - cancelCall via le provider (« Annuler sans enregistrer »).
  *
- * Familles de résultats (charte MYC Arena) : Gagné (vert), À relancer (or /
- * bleu, rappel auto), Clos (gris / rouge). Raccourcis clavier 1-9, 0, A.
- * Refus ferme : confirmation obligatoire (le prospect passe en « Ne pas
- * rappeler »). Après succès : toast XP (+5 appel, +10 conversation, +50 RDV
- * pris + confettis), puis router.refresh() pour mettre à jour la topbar.
+ * Familles de résultats : Gagné (vert), À relancer (or / bleu, rappel auto),
+ * Clos (gris / rouge). Raccourcis clavier 1-9, 0, A. Refus ferme :
+ * confirmation obligatoire (le prospect passe en « Ne pas rappeler »).
+ * Après succès : toast sobre (résultat + prochaine étape / rappel), puis
+ * router.refresh() pour mettre à jour les compteurs du jour. Pas de
+ * confettis ici : ils sont réservés à la signature d'un contrat.
  */
 import type { ActivityResultat, ActivityType } from "@prisma/client";
 import {
@@ -38,8 +39,7 @@ import {
 import { toast } from "sonner";
 
 import { createActivity, recordCallResult } from "@/app/(app)/activites/actions";
-import { celebrate, xpToast } from "@/components/arena/celebrate";
-import { XpPill } from "@/components/arena/pills";
+import { resultToast } from "@/components/arena/celebrate";
 import { TONE_CLASSES, TONE_HEX } from "@/components/arena/tones";
 import {
   AUTO_RAPPEL_AIDE,
@@ -47,9 +47,7 @@ import {
   RESULT_META,
   RESULT_ORDER,
   delaiFor,
-  isConversation,
   previewRappelDate,
-  xpForCall,
   type RappelChoice,
 } from "@/components/call/call-results";
 import { useCallSession } from "@/components/call/call-session-provider";
@@ -89,16 +87,12 @@ export interface CallResultPanelProps {
   agenda?: CallResultAgendaItem[];
   /** En-tête personnalisé ; `null` = aucun (la modale a son DialogTitle). */
   header?: ReactNode;
-  /** Pastille à droite du titre (ex. combo en cours). */
+  /** Pastille à droite du titre (optionnelle). */
   badge?: ReactNode;
   /** Raccourcis clavier actifs (défaut : true). */
   shortcuts?: boolean;
   /** Appelé après un enregistrement réussi. */
-  onRecorded?: (info: {
-    prospectId: string;
-    resultat: ActivityResultat;
-    xp: number;
-  }) => void;
+  onRecorded?: (info: { prospectId: string; resultat: ActivityResultat }) => void;
   /** Appelé après « Annuler sans enregistrer ». */
   onCancelled?: () => void;
   className?: string;
@@ -241,23 +235,19 @@ export function CallResultPanel({
         }
       }
 
-      const xp = xpForCall(resultat);
-      const label = getActivityResultatLabel(resultat);
-      const sub =
-        rdvLine ??
-        (res.prochainActivityId && rappelDate
-          ? `Rappel auto le ${zWeekdayShort(rappelDate)} · ${s.prospectRaisonSociale}`
-          : resultat === "REFUS_FERME"
-            ? `${s.prospectRaisonSociale} passe en « Ne pas rappeler »`
-            : s.prospectRaisonSociale);
-
       if (resultat === "RDV_PRIS") {
-        xpToast(xp, "RDV pris ! Énorme", sub);
-        celebrate({ pieces: 80 });
-      } else if (isConversation(resultat)) {
-        xpToast(xp, `${label} · conversation`, sub);
+        resultToast(
+          `RDV pris avec ${s.prospectRaisonSociale}`,
+          rdvLine ?? "Prochaine étape : caler la date puis préparer la proposition",
+        );
       } else {
-        xpToast(xp, `${label} · appel compté`, sub);
+        const sub =
+          res.prochainActivityId && rappelDate
+            ? `Rappel auto le ${zWeekdayShort(rappelDate)} · ${s.prospectRaisonSociale}`
+            : resultat === "REFUS_FERME"
+              ? `${s.prospectRaisonSociale} passe en « Ne pas rappeler »`
+              : s.prospectRaisonSociale;
+        resultToast(`Appel enregistré · ${getActivityResultatLabel(resultat)}`, sub);
       }
       if (resultat === "INVALIDE") {
         const pid = s.prospectId;
@@ -272,7 +262,7 @@ export function CallResultPanel({
       }
 
       resetForm();
-      onRecorded?.({ prospectId: s.prospectId, resultat, xp });
+      onRecorded?.({ prospectId: s.prospectId, resultat });
       endCallSession();
       router.refresh();
     });
@@ -370,8 +360,8 @@ export function CallResultPanel({
         {headerNode}
         <p className="rounded-[14px] bg-ground px-4 py-3 text-[13px] font-medium text-muted-foreground">
           Les boutons de résultat (RDV pris, À rappeler, Combox, Refus…) s&apos;activent dès
-          que tu lances l&apos;appel. Un clic = appel enregistré, XP crédités, statut mis à
-          jour et prospect suivant.
+          que tu lances l&apos;appel. Un clic = appel enregistré, statut mis à jour, rappel
+          planifié si besoin et prospect suivant.
         </p>
       </section>
     );
@@ -395,7 +385,6 @@ export function CallResultPanel({
 
   const agendaDay = (agenda ?? []).filter((a) => zDayKey(a.date) === rdvDate);
   const rdvDateObj = new Date(`${rdvDate}T12:00`);
-  const rdvXp = xpForCall("RDV_PRIS");
   const contact = rdvDefaults?.contact?.trim() || session.prospectRaisonSociale;
 
   return (
@@ -453,7 +442,6 @@ export function CallResultPanel({
                 Ouvre la prise de RDV · touche 1
               </span>
             </span>
-            <XpPill xp={rdvXp} variant="solid" size="md" />
           </button>
           <ResultButton
             code="INTERESSE_PAS_PRET"
@@ -468,7 +456,7 @@ export function CallResultPanel({
           <div className="flex flex-col gap-4 rounded-[16px] border border-win-500 bg-win-50 p-4 sm:p-5">
             <div>
               <p className="font-display text-xl leading-tight font-extrabold text-win-700">
-                Énorme ! On cale le RDV avec {contact}
+                On cale le RDV avec {contact}
               </p>
               <p className="mt-1 text-[13px] font-medium text-foreground">
                 Il part direct dans ton agenda (et ton agenda Google s&apos;il est connecté).
@@ -566,7 +554,7 @@ export function CallResultPanel({
                 disabled={busy || !rdvDate}
               >
                 <CalendarPlus aria-hidden="true" />
-                {pending ? "Enregistrement…" : `Valider le RDV · +${rdvXp} XP`}
+                {pending ? "Enregistrement…" : "Valider le RDV"}
               </Button>
               <Button
                 variant="outline"
@@ -705,8 +693,8 @@ export function CallResultPanel({
         <p className="flex min-w-0 flex-[1_1_240px] items-start gap-2 text-xs font-medium text-muted-foreground">
           <Keyboard aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-subtle" />
           <span>
-            Raccourcis 1 à 9, 0 et A · chaque résultat enregistre l&apos;appel, crédite tes XP et
-            enchaîne.
+            Raccourcis 1 à 9, 0 et A · chaque résultat enregistre l&apos;appel et enchaîne sur
+            le prospect suivant.
           </span>
         </p>
         <Button variant="ghost" size="sm" onClick={cancel} disabled={busy}>
@@ -771,7 +759,6 @@ function ResultButton({
 }) {
   const meta = RESULT_META[code];
   const t = TONE_CLASSES[meta.tone];
-  const xp = xpForCall(code);
   return (
     <button
       type="button"
@@ -810,7 +797,6 @@ function ResultButton({
         </span>
         {aide && <span className={cn("text-xs font-semibold", t.text)}>{aide}</span>}
       </span>
-      <XpPill xp={xp} />
     </button>
   );
 }

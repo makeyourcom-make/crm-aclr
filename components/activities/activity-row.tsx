@@ -8,8 +8,8 @@ import { toast } from "sonner";
 
 import { markActivityDone } from "@/app/(app)/activites/actions";
 import { ActivityIcon } from "@/components/activities/activity-icon";
-import { ACTIVITY_STATUT_TONE, xpForDone } from "@/components/activities/activity-tones";
-import { xpToast } from "@/components/arena/celebrate";
+import { ACTIVITY_STATUT_TONE } from "@/components/activities/activity-tones";
+import { resultToast } from "@/components/arena/celebrate";
 import { StatusPill } from "@/components/arena/pills";
 import { RESULT_META } from "@/components/call/call-results";
 import { zDate, zTime } from "@/components/call/zurich";
@@ -62,12 +62,10 @@ export function ActivityRow({
         toast.error(res.error ?? "Échec.");
         return;
       }
-      const xp = xpForDone(a);
-      if (xp > 0) {
-        xpToast(xp, "Marquée comme faite", a.prospect?.raisonSociale ?? a.sujet);
-      } else {
-        toast.success("Marquée comme faite.");
-      }
+      resultToast(
+        `${getActivityTypeLabel(a.type)} marqué comme fait`,
+        a.prospect?.raisonSociale ?? a.sujet,
+      );
       router.refresh();
     });
   };

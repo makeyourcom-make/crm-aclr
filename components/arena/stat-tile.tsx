@@ -2,7 +2,7 @@
  * Tuile de statistique : tuile d'icône + libellé, GROS chiffre (Bricolage),
  * tendance (+46 / = / -3) et sous-texte. Cliquable si `href`.
  *
- *   <StatTile label="Appels" value={27} sub="+5 XP chacun" tone="coral"
+ *   <StatTile label="Appels" value={27} sub="objectif 40" tone="coral"
  *             icon={Phone} trend={46} trendLabel="vs hier" href="/activites" />
  *
  * Server-safe.

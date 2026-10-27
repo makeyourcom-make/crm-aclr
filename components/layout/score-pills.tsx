@@ -1,12 +1,12 @@
 /**
- * Pilules de la barre du haut : « XP du jour » (éclair or) + « série »
- * (flamme coral). Un seul lien vers l'écran du jour (Ma journée pour la
- * commerciale, Dashboard pour l'admin).
+ * Pilules de la barre du haut : « Aujourd'hui : N appels · N RDV » (avec
+ * l'objectif d'appels du jour) + « série » (flamme coral). Un seul lien vers
+ * l'écran du jour (Ma journée pour la commerciale, Dashboard pour l'admin).
  *
  * Compactes sur téléphone (chiffres seuls, libellés lus par les lecteurs
  * d'écran), complètes sur grand écran.
  */
-import { Flame, Zap } from "lucide-react";
+import { CalendarCheck, Flame, Phone } from "lucide-react";
 import Link from "next/link";
 
 import { formatInt } from "@/components/arena/format";
@@ -18,34 +18,45 @@ import type { Role } from "@prisma/client";
 const PILL =
   "flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3 text-foreground shadow-[0_1px_2px_rgba(14,25,54,0.04)] transition-colors group-hover:border-border-strong sm:h-11 sm:gap-2 sm:px-3.5";
 
-export function ScorePills({
-  player,
-  role,
-}: {
-  player: PlayerHeader;
-  role: Role;
-}) {
+const safe = (n: number) => (Number.isFinite(n) ? Math.max(0, n) : 0);
+
+export function ScorePills({ player, role }: { player: PlayerHeader; role: Role }) {
   const href = role === "COMMERCIAL" ? "/aujourd-hui" : "/";
-  const xp = Number.isFinite(player.xpToday) ? Math.max(0, player.xpToday) : 0;
-  const streak = Number.isFinite(player.streak) ? Math.max(0, player.streak) : 0;
+  const appels = safe(player.today.appels);
+  const rdv = safe(player.today.rdvPris);
+  const target = safe(player.dailyTargets.appels);
+  const streak = safe(player.streak);
 
   return (
     <Link
       href={href}
       className="group flex shrink-0 items-center gap-1.5 rounded-full sm:gap-2"
-      title="Score du jour et série en cours"
+      title={`Aujourd'hui : ${formatInt(appels)} appel${appels >= 2 ? "s" : ""} sur ${formatInt(target)} · ${formatInt(rdv)} RDV pris · série en cours`}
     >
       <span className={PILL}>
-        <Zap
-          aria-hidden="true"
-          className="size-4 fill-gold-500 text-gold-500 sm:size-[18px]"
-        />
-        <span className="text-sm font-extrabold tabular-nums sm:text-[15px]">
-          <span className="sr-only">Score du jour : </span>
-          {formatInt(xp)} XP
+        <span className="sr-only">Aujourd&apos;hui : </span>
+        <span aria-hidden="true" className="hidden text-xs font-semibold text-muted-foreground xl:inline">
+          Aujourd&apos;hui
         </span>
-        <span className="hidden text-xs font-medium text-muted-foreground xl:inline">
-          aujourd&apos;hui
+        <span className="flex items-center gap-1 text-sm font-extrabold tabular-nums sm:text-[15px]">
+          <Phone aria-hidden="true" className="size-4 text-coral-500 sm:size-[17px]" />
+          {formatInt(appels)}
+          <span className="hidden font-semibold text-muted-foreground lg:inline">
+            {" "}
+            / {formatInt(target)}
+          </span>
+          <span className="sr-only lg:not-sr-only lg:font-semibold lg:text-muted-foreground">
+            {" "}
+            appel{appels >= 2 ? "s" : ""}
+          </span>
+        </span>
+        <span aria-hidden="true" className="text-muted-foreground">
+          ·
+        </span>
+        <span className="flex items-center gap-1 text-sm font-extrabold tabular-nums sm:text-[15px]">
+          <CalendarCheck aria-hidden="true" className="size-4 text-gold-700 sm:size-[17px]" />
+          {formatInt(rdv)}
+          <span className="sr-only lg:not-sr-only lg:font-semibold lg:text-muted-foreground"> RDV</span>
         </span>
       </span>
       <span className={PILL}>
@@ -59,10 +70,7 @@ export function ScorePills({
         <span className="text-sm font-extrabold tabular-nums sm:text-[15px]">
           <span className="sr-only">Série : </span>
           {formatInt(streak)}
-          <span className="sr-only sm:not-sr-only">
-            {" "}
-            {streak >= 2 ? "jours" : "jour"}
-          </span>
+          <span className="sr-only sm:not-sr-only"> {streak >= 2 ? "jours" : "jour"}</span>
         </span>
       </span>
     </Link>

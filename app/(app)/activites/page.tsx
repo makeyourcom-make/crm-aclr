@@ -11,7 +11,6 @@ import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
 import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/db";
-import { XP_RULES } from "@/lib/gamification/rules";
 import {
   getActivities,
   getTodayCallStats,
@@ -123,7 +122,7 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
           <StatTile
             label="Appels sortants"
             value={todayStats.appelsSortants}
-            sub={teamView ? "équipe" : `+${XP_RULES.appel} XP chacun`}
+            sub={teamView ? "équipe" : "ouvrir le phoning"}
             tone="coral"
             icon={PhoneOutgoing}
             href="/phoning"
@@ -131,7 +130,7 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
           <StatTile
             label="RDV faits"
             value={todayStats.rdvFaits}
-            sub={teamView ? "équipe" : `+${XP_RULES.rdvEffectue} XP chacun`}
+            sub={teamView ? "équipe" : "voir l'agenda"}
             tone="gold"
             icon={CalendarCheck}
             href="/agenda"
@@ -139,7 +138,7 @@ export default async function ActivitiesPage({ searchParams }: PageProps) {
           <StatTile
             label="Emails envoyés"
             value={todayStats.emailsEnvoyes}
-            sub={teamView ? "équipe" : `+${XP_RULES.email} XP chacun`}
+            sub={teamView ? "équipe" : "voir les emails"}
             tone="teal"
             icon={Send}
             href="/emails"

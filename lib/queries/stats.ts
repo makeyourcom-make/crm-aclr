@@ -1,9 +1,9 @@
 /**
- * Requêtes pour le module Statistiques (étape 21, version MYC Arena).
+ * Requêtes pour le module Statistiques (étape 21).
  *
  * Fenêtres de période en fuseau Europe/Zurich (cf. lib/queries/pilotage.ts).
- * Les compteurs d'activité reprennent les définitions du moteur de jeu
- * (`getPeriodCounters`) : les chiffres de /stats et les XP restent cohérents.
+ * Les compteurs d'activité reprennent les définitions de `getPeriodCounters`
+ * (identiques à lib/gamification/engine.ts) : /stats et la topbar restent cohérents.
  */
 import { prisma } from "@/lib/db";
 import {
@@ -474,7 +474,7 @@ export async function getStats(
     dealsOuverts,
     caRecurrent,
   ] = await Promise.all([
-    // Activité de la période, mêmes définitions que le moteur de jeu :
+    // Activité de la période, mêmes définitions que getPeriodCounters :
     //  - appels FAIT / EN_COURS ; emails envoyés FAIT ;
     //  - RDV honorés = RDV rattachés à un client, FAIT, déjà passés (exclut
     //    le phoning et les points internes enregistrés avec un type RDV) ;

@@ -42,7 +42,7 @@ export default async function CommissionsPage({ searchParams }: PageProps) {
   const isAdmin = user.role === "ADMIN";
 
   // ------------------------------------------------------------------
-  // COMMERCIALE : « Objectifs & gains » (gains réels + couche de jeu)
+  // COMMERCIALE : « Objectifs & gains » (commissions réelles en CHF, objectifs, records)
   // ------------------------------------------------------------------
   if (!isAdmin) {
     const [gains, stats] = await Promise.all([getGainsData(user), safeStats(user.id)]);

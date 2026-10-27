@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
-import { xpToast } from "@/components/arena";
+import { resultToast } from "@/components/arena";
 import { useCallSession } from "@/components/call/call-session-provider";
 import {
   DropdownMenu,
@@ -25,7 +25,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatPhone, normalizePhone } from "@/lib/format";
-import { XP_RULES } from "@/lib/gamification/rules";
 import type { PipelineDeal } from "@/lib/queries/deals";
 import { cn } from "@/lib/utils";
 
@@ -42,12 +41,13 @@ export function CallDealButton({ deal }: { deal: PipelineDeal }) {
   const waiting = useRef(false);
 
   // Session démarrée pour CE prospect après NOTRE clic : l'appel EN_COURS
-  // compte déjà dans le score du jour → toast XP + rafraîchissement de la
-  // coquille (pilules XP / série), comme le bouton Appeler des Entreprises.
+  // compte déjà dans les appels du jour → toast sobre + rafraîchissement de
+  // la coquille (objectifs du jour / série), comme le bouton Appeler des
+  // Entreprises.
   useEffect(() => {
     if (!waiting.current || !inThisCall) return;
     waiting.current = false;
-    xpToast(XP_RULES.appel, "Appel lancé", raisonSociale);
+    resultToast("Appel lancé", raisonSociale);
     router.refresh();
   }, [inThisCall, raisonSociale, router]);
 

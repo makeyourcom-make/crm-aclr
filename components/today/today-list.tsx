@@ -3,8 +3,9 @@
  *
  * Ordre : En retard (jours précédents + créneaux du jour passés) → Maintenant
  * → Ce matin → Cet après-midi → Ce soir. Seuls les blocs non vides sont
- * affichés. État vide contextuel selon les missions du jour (moteur de jeu) :
- * la journée n'est « terminée » que si les 3 missions sont pliées.
+ * affichés. État vide contextuel selon les objectifs du jour : la journée
+ * n'est « terminée » que si les 3 objectifs (appels, RDV, propositions) sont
+ * atteints.
  *
  * Server-safe.
  */
@@ -16,18 +17,21 @@ import { formatInt, plural } from "@/components/arena/format";
 import { StatusPill } from "@/components/arena/pills";
 import { SectionCard } from "@/components/arena/section-card";
 import { buttonVariants } from "@/components/ui/button";
-import type { DayCounters, Mission } from "@/lib/gamification/rules";
+import type { DailyGoal, DayCounters } from "@/lib/gamification/rules";
 import type { TodaySections, TodayTask } from "@/lib/queries/today";
 import { cn } from "@/lib/utils";
 
+import type { DayProgress } from "./task-meta";
 import { TodayItem } from "./today-item";
 
 interface TodayListProps {
   sections: TodaySections;
-  /** Missions du jour (moteur) ; null si le moteur est indisponible. */
-  missions: Mission[] | null;
-  /** Compteurs du jour (moteur) pour le bilan « déjà fait ». */
+  /** Objectifs du jour ; null si les compteurs sont indisponibles. */
+  goals: DailyGoal[] | null;
+  /** Compteurs du jour pour le bilan « déjà au compteur ». */
   today: DayCounters | null;
+  /** Compteurs + objectifs du jour (détail des toasts), null si indisponibles. */
+  progress: DayProgress | null;
 }
 
 type GroupKey = "enRetard" | "maintenant" | "ceMatin" | "cetApresMidi" | "ceSoir";
@@ -40,14 +44,14 @@ const GROUPS: { key: GroupKey; title: string; sub: string; titleClass: string }[
   { key: "ceSoir", title: "Ce soir", sub: "Après 18 h", titleClass: "text-foreground" },
 ];
 
-function missingLabel(m: Mission): string {
-  const left = Math.max(0, Math.ceil(m.target - m.current));
+function missingLabel(m: DailyGoal): string {
+  const left = m.remaining;
   if (m.key === "appels") return plural(left, "appel");
   if (m.key === "rdvPris") return `${formatInt(left)} RDV`;
   return plural(left, "proposition");
 }
 
-export function TodayList({ sections, missions, today }: TodayListProps) {
+export function TodayList({ sections, goals, today, progress }: TodayListProps) {
   const retards = sections.enRetard.length;
   const aFaire =
     retards +
@@ -57,8 +61,8 @@ export function TodayList({ sections, missions, today }: TodayListProps) {
     sections.ceSoir.length;
   const hasAnyToday = aFaire - retards > 0;
 
-  const allMissionsDone = missions ? missions.every((m) => m.done) : false;
-  const manques = missions ? missions.filter((m) => !m.done).map(missingLabel) : [];
+  const allGoalsDone = goals ? goals.every((m) => m.done) : false;
+  const manques = goals ? goals.filter((m) => !m.done).map(missingLabel) : [];
 
   return (
     <SectionCard
@@ -79,7 +83,7 @@ export function TodayList({ sections, missions, today }: TodayListProps) {
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-[14px] bg-alert-50 px-3.5 py-3">
             <div className="min-w-0">
               <div className="text-[11px] font-bold tracking-[0.08em] text-alert-700 uppercase">
-                Retards à abattre
+                Retards à traiter
               </div>
               <div className="text-xs font-semibold text-alert-700">
                 Ramène le compteur à zéro avant d&apos;attaquer le phoning
@@ -99,7 +103,7 @@ export function TodayList({ sections, missions, today }: TodayListProps) {
                 <Check className="size-4" strokeWidth={3} />
               </span>
               <div>
-                <div className="text-sm font-extrabold text-win-700">Zéro retard · bien joué</div>
+                <div className="text-sm font-extrabold text-win-700">Zéro retard</div>
                 <div className="text-xs text-win-700">Ardoise propre. Place au phoning.</div>
               </div>
             </div>
@@ -123,43 +127,48 @@ export function TodayList({ sections, missions, today }: TodayListProps) {
                 <span aria-hidden="true" className="h-px flex-1 bg-border" />
                 <StatusPill tone={g.key === "enRetard" ? "red" : "navy"} dot={false}>
                   {g.key === "enRetard"
-                    ? `${formatInt(items.length)} à abattre`
+                    ? `${formatInt(items.length)} à traiter`
                     : `${formatInt(items.length)} à faire`}
                 </StatusPill>
               </div>
               <ol className="flex flex-col">
                 {items.map((t) => (
-                  <TodayItem key={t.id} task={t} overdue={g.key === "enRetard"} />
+                  <TodayItem
+                    key={t.id}
+                    task={t}
+                    overdue={g.key === "enRetard"}
+                    progress={progress}
+                  />
                 ))}
               </ol>
             </section>
           );
         })}
 
-        {/* État vide de la journée : contextuel selon les missions */}
+        {/* État vide de la journée : contextuel selon les objectifs du jour */}
         {!hasAnyToday &&
           retards === 0 &&
-          (allMissionsDone ? (
+          (allGoalsDone ? (
             <EmptyState
               icon={Trophy}
               tone="green"
               title="Journée terminée"
-              description="Toutes tes missions sont pliées. Repose-toi ou prends de l'avance sur demain."
+              description="Tes 3 objectifs du jour sont atteints. Prends de l'avance sur demain : chaque appel de plus peut devenir un RDV."
             />
           ) : (
             <EmptyState
               icon={PhoneCall}
               tone="gold"
               title={
-                missions
-                  ? "Plus rien de planifié, mais des missions à plier"
+                goals
+                  ? "Plus rien de planifié, mais des objectifs à atteindre"
                   : "Plus rien de planifié aujourd'hui"
               }
               description={
                 <>
                   {manques.length > 0 && (
                     <>
-                      Il te reste {manques.join(" · ")} pour plier ta journée.
+                      Il te reste {manques.join(" · ")} pour tes objectifs du jour.
                       <br />
                     </>
                   )}
@@ -175,8 +184,10 @@ export function TodayList({ sections, missions, today }: TodayListProps) {
             />
           ))}
 
-        {/* Bilan : ce qui est déjà au compteur aujourd'hui (moteur de jeu) */}
-        {today && today.appels + today.emails + today.rdvPris + today.rdvEffectues > 0 && (
+        {/* Bilan : ce qui est déjà au compteur aujourd'hui */}
+        {today &&
+          today.appels + today.emails + today.rdvPris + today.rdvEffectues + today.propositions >
+            0 && (
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-[14px] bg-ground px-3.5 py-3">
             <span
               aria-hidden="true"
@@ -192,6 +203,9 @@ export function TodayList({ sections, missions, today }: TodayListProps) {
                 `${formatInt(today.rdvPris)} RDV pris`,
                 today.rdvEffectues > 0
                   ? `${formatInt(today.rdvEffectues)} RDV ${today.rdvEffectues > 1 ? "effectués" : "effectué"}`
+                  : null,
+                today.propositions > 0
+                  ? plural(today.propositions, "proposition envoyée", "propositions envoyées")
                   : null,
                 plural(today.emails, "email"),
               ]

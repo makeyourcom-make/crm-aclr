@@ -12,7 +12,6 @@ import { HeroPanel } from "@/components/arena/hero-panel";
 import { Meter } from "@/components/arena/meter";
 import { RubriqueIcon } from "@/components/arena/rubrique-icon";
 import { Button } from "@/components/ui/button";
-import { XP_RULES } from "@/lib/gamification/rules";
 import {
   countdownLabel,
   formatKeyDate,
@@ -25,7 +24,7 @@ import { cn } from "@/lib/utils";
 
 import { TYPE_META } from "./agenda-style";
 
-import type { AgendaActivity, AgendaGame } from "@/lib/queries/agenda";
+import type { AgendaActivity, AgendaResults } from "@/lib/queries/agenda";
 
 export interface HeroSubject {
   kind: "self" | "user" | "team";
@@ -33,7 +32,7 @@ export interface HeroSubject {
 }
 
 interface AgendaHeroProps {
-  game: AgendaGame;
+  results: AgendaResults;
   subject: HeroSubject;
   nowMs: number;
   onPrepare: (a: AgendaActivity) => void;
@@ -42,8 +41,8 @@ interface AgendaHeroProps {
 
 const DARK_CHIP = "bg-navy-700/70 ring-1 ring-inset ring-white/10";
 
-export function AgendaHero({ game, subject, nowMs, onPrepare, onNewRdv }: AgendaHeroProps) {
-  const { week, record, objectives } = game;
+export function AgendaHero({ results, subject, nowMs, onPrepare, onNewRdv }: AgendaHeroProps) {
+  const { week, record, objectives } = results;
   const you = subject.kind === "self";
   const team = subject.kind === "team";
   const n = week.total;
@@ -61,22 +60,22 @@ export function AgendaHero({ game, subject, nowMs, onPrepare, onNewRdv }: Agenda
   const segCount = Math.max(goal, n);
   const useSegments = segCount > 0 && segCount <= 20;
 
-  const copy = heroCopy({ n, weekly, record, ton, you });
+  const copy = heroCopy({ n, weekly, record, ton });
   const libres =
     week.joursSansRdv > 0
       ? ` ${week.joursSansRdv === 1 ? "Il reste 1 jour ouvré" : `Il reste ${week.joursSansRdv} jours ouvrés`} sans RDV : de quoi caler du monde.`
       : "";
 
-  const nPending = game.pending.length;
-  const firstPending = game.pending[0];
-  const presenceBase = game.month.fait + game.month.manque;
-  const presence = presenceBase > 0 ? Math.round((game.month.fait / presenceBase) * 100) : null;
+  const nPending = results.pending.length;
+  const firstPending = results.pending[0];
+  const presenceBase = results.month.fait + results.month.manque;
+  const presence = presenceBase > 0 ? Math.round((results.month.fait / presenceBase) * 100) : null;
 
-  const next = game.upcoming[0] ?? null;
+  const next = results.upcoming[0] ?? null;
 
   return (
     <HeroPanel aria-labelledby="agenda-hero-titre" className="flex flex-wrap items-stretch gap-5 sm:gap-6">
-      {/* Score de la semaine */}
+      {/* RDV de la semaine */}
       <div className="flex min-w-0 flex-[1.4_1_320px] flex-col gap-3.5">
         <div className="flex flex-wrap items-center gap-2.5">
           <RubriqueIcon rubrique="agenda" size={36} />
@@ -167,7 +166,7 @@ export function AgendaHero({ game, subject, nowMs, onPrepare, onNewRdv }: Agenda
 
         {objectives.monthly !== null && (
           <Meter
-            value={game.month.fait}
+            value={results.month.fait}
             max={objectives.monthly}
             onDark
             tone="gold"
@@ -195,7 +194,7 @@ export function AgendaHero({ game, subject, nowMs, onPrepare, onNewRdv }: Agenda
           label="Effectués"
           value={week.fait}
           valueClass="text-win-500"
-          sub={`+${XP_RULES.rdvEffectue} XP chacun`}
+          sub={week.fait > 0 ? "à transformer en propositions" : "cette semaine"}
         />
         <HeroTile
           label="Présence"
@@ -203,7 +202,7 @@ export function AgendaHero({ game, subject, nowMs, onPrepare, onNewRdv }: Agenda
           valueClass="text-gold-500"
           sub={
             presence !== null
-              ? `ce mois · ${game.month.fait} sur ${presenceBase}`
+              ? `ce mois · ${results.month.fait} sur ${presenceBase}`
               : "aucun RDV validé ce mois"
           }
         />
@@ -229,7 +228,7 @@ export function AgendaHero({ game, subject, nowMs, onPrepare, onNewRdv }: Agenda
                 {next.prospect?.raisonSociale ?? next.sujet}
               </p>
               <p className="text-[13px] font-medium text-navy-200">
-                {relativeDayLabel(zDayKey(next.date), game.todayKey)} {zTime(next.date)} ·{" "}
+                {relativeDayLabel(zDayKey(next.date), results.todayKey)} {zTime(next.date)} ·{" "}
                 {TYPE_META[next.type].short}
                 {next.prospect?.ville ? ` · ${next.prospect.ville}` : ""}
                 {team && next.user ? ` · ${next.user.name.split(" ")[0]}` : ""}
@@ -256,7 +255,7 @@ export function AgendaHero({ game, subject, nowMs, onPrepare, onNewRdv }: Agenda
             Nouveau RDV
           </Button>
           <p className="text-center text-xs font-semibold text-navy-200">
-            +{XP_RULES.rdvEffectue} XP par RDV client effectué et validé
+            Chaque RDV est une chance de signer
           </p>
         </div>
       </div>
@@ -293,28 +292,25 @@ function heroCopy({
   weekly,
   record,
   ton,
-  you,
 }: {
   n: number;
   weekly: number | null;
   record: number;
   ton: string;
-  you: boolean;
 }): string {
-  const machine = you ? "Machine de guerre." : "Belle semaine.";
   if (weekly !== null) {
     if (n < weekly) {
-      const beat = record >= weekly ? `, ${record + 1 - n} pour faire tomber ${ton} record` : "";
+      const beat = record >= weekly ? `, ${record + 1 - n} pour battre ${ton} record` : "";
       return `Encore ${weekly - n} RDV pour atteindre l'objectif${beat}.`;
     }
-    if (n <= record) return `Objectif atteint ! Encore ${record + 1 - n} RDV et ${ton} record de ${record} tombe.`;
-    return `Objectif atteint et nouveau record : ${n} RDV. ${machine}`;
+    if (n <= record) return `Objectif atteint. Encore ${record + 1 - n} RDV et ${ton} record de ${record} est battu.`;
+    return `Objectif atteint et nouveau record : ${n} RDV. Transforme-les en propositions.`;
   }
   if (record === 0) {
     return n === 0
       ? "Aucun RDV client calé pour l'instant. Une session de phoning et la semaine démarre."
-      : `Première semaine au compteur : chaque RDV effectué rapporte +${XP_RULES.rdvEffectue} XP.`;
+      : `${n} RDV calé${n > 1 ? "s" : ""} : prépare chaque rendez-vous pour en sortir une proposition.`;
   }
-  if (n <= record) return `Encore ${record + 1 - n} RDV et ${ton} record de ${record} tombe.`;
-  return `Nouveau record : ${n} RDV cette semaine. ${machine}`;
+  if (n <= record) return `Encore ${record + 1 - n} RDV et ${ton} record de ${record} est battu.`;
+  return `Nouveau record : ${n} RDV cette semaine. Chaque RDV est une chance de signer.`;
 }

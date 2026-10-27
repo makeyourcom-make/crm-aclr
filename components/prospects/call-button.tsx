@@ -1,16 +1,16 @@
 "use client";
 
 /**
- * Bouton « Appeler » MYC Arena de la rubrique Entreprises.
+ * Bouton « Appeler » de la rubrique Entreprises.
  *
  * MÊME mécanique que <ClickToCall /> (components/call) : un clic démarre le
  * SUIVI d'appel du CRM (activité EN_COURS + widget flottant avec chrono) via
  * useCallSession ; la commerciale compose elle-même sur son téléphone, puis
  * « J'ai raccroché » ouvre la modale de résultat. Pas de dialer natif (tel:).
  *
- * Couche de jeu : dès que la session démarre pour CETTE fiche, toast
- * « Appel lancé · +5 XP » (l'appel en cours compte déjà dans le score du
- * jour) et rafraîchissement de la coquille (pilules XP / série).
+ * Dès que la session démarre pour CETTE fiche : toast sobre « Appel lancé »
+ * (l'appel en cours compte déjà dans les appels du jour) et rafraîchissement
+ * de la coquille (compteurs du jour, série).
  *
  * Variantes :
  *   cta    gros bouton coral (fiche)        tile  tuile « Fixe · appeler »
@@ -21,10 +21,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
-import { xpToast } from "@/components/arena/celebrate";
+import { resultToast } from "@/components/arena/celebrate";
 import { useCallSession } from "@/components/call/call-session-provider";
 import { formatPhone, normalizePhone } from "@/lib/format";
-import { XP_RULES } from "@/lib/gamification/rules";
 import { cn } from "@/lib/utils";
 
 export interface CallButtonProps {
@@ -36,7 +35,7 @@ export interface CallButtonProps {
   label?: string;
   /** Liste : lead chaud → bouton coral plein. */
   hot?: boolean;
-  /** Lead sorti du jeu → bouton neutre. */
+  /** Lead clos (ne pas rappeler, perdu...) → bouton neutre. */
   muted?: boolean;
   className?: string;
 }
@@ -58,11 +57,14 @@ export function CallButton({
   const inThisCall = session?.prospectId === prospectId;
   const waiting = useRef(false);
 
-  // Session démarrée pour cette fiche après NOTRE clic → récompense + refresh.
+  // Session démarrée pour cette fiche après NOTRE clic → toast + refresh.
   useEffect(() => {
     if (!waiting.current || !inThisCall) return;
     waiting.current = false;
-    xpToast(XP_RULES.appel, "Appel lancé", prospectRaisonSociale);
+    resultToast(
+      `Appel lancé · ${prospectRaisonSociale}`,
+      "« J'ai raccroché » à la fin pour enregistrer le résultat",
+    );
     router.refresh();
   }, [inThisCall, prospectRaisonSociale, router]);
 
@@ -184,11 +186,6 @@ export function CallButton({
       <span className="rounded-full bg-navy-700/30 px-2.5 py-1 text-[13px] font-extrabold tabular-nums">
         {display}
       </span>
-      {!inThisCall && (
-        <span className="rounded-full bg-navy-700/30 px-2.5 py-1 text-xs font-extrabold tabular-nums">
-          +{XP_RULES.appel} XP
-        </span>
-      )}
     </button>
   );
 }

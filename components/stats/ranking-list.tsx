@@ -1,5 +1,5 @@
 /**
- * Liste classée MYC Arena : médaille de rang + barre de progression + part.
+ * Liste classée : pastille de rang + barre de progression + part.
  *
  * Utilisée pour les tops : produits, secteurs B2B, cantons.
  * La longueur de barre est relative au LEADER de la liste (barre 100 % =

@@ -1,5 +1,5 @@
 /**
- * Pipeline MYC Arena : métadonnées des étapes et petites règles PURES
+ * Pipeline : métadonnées des étapes et petites règles PURES
  * (client-safe : aucune dépendance serveur, imports de types uniquement).
  */
 import type { ActivityType, DealStage } from "@prisma/client";
@@ -12,7 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { XP_RULES } from "@/lib/gamification/rules";
+import { formatCHF } from "@/lib/format";
 import { getActivityTypeLabel, getDealStageLabel } from "@/lib/labels";
 import type { PipelineDeal } from "@/lib/queries/deals";
 
@@ -86,7 +86,7 @@ export const STAGE_META: Record<DealStage, StageMeta> = {
     tile: "bg-gold-50 text-gold-700",
     column: "bg-win-50 border-[#B5E5C8]",
     next: null,
-    empty: "Pas encore de trophée ce mois. Le premier vaut +200 XP.",
+    empty: "Pas encore de contrat signé ce mois. Le prochain se joue en Négociation.",
   },
   PERDU: {
     label: getDealStageLabel("PERDU"),
@@ -149,7 +149,7 @@ export function isCloseOverdue(d: PipelineDeal, nowMs: number): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Montants et XP
+// Montants
 // ---------------------------------------------------------------------------
 
 export function dealMensuel(d: PipelineDeal): number {
@@ -160,12 +160,30 @@ export function dealOneShot(d: PipelineDeal): number {
   return d.products.reduce((s, p) => s + p.oneShot, 0);
 }
 
-/** XP d'une signature : 200 + 1 XP par tranche de 10 CHF mensuels. */
-export function signXp(d: PipelineDeal): number {
-  return (
-    XP_RULES.signature +
-    Math.floor(dealMensuel(d) / 10) * XP_RULES.signatureParTranche10ChfMensuel
-  );
+/** Montant sans devise, 2 décimales, convention suisse (« 2'500.50 »). */
+function amount2(n: number): string {
+  return formatCHF(n).replace(/^CHF\s*/, "");
+}
+
+/**
+ * Ce que rapporte une signature, en CHF réels : « +269.90 CHF / mois »
+ * (part mensuelle), sinon « +1'200.00 CHF » (one-shot seul), sinon null.
+ */
+export function formatSignGain(mensuel: number, oneShot = 0): string | null {
+  if (Number.isFinite(mensuel) && mensuel > 0) return `+${amount2(mensuel)} CHF / mois`;
+  if (Number.isFinite(oneShot) && oneShot > 0) return `+${amount2(oneShot)} CHF`;
+  return null;
+}
+
+/** Libellé du toast de signature : « Contrat signé · +269.90 CHF / mois ». */
+export function signedToastLabel(mensuel: number, oneShot = 0, title = "Contrat signé"): string {
+  const gain = formatSignGain(mensuel, oneShot);
+  return gain ? `${title} · ${gain}` : title;
+}
+
+/** Gain de signature d'un deal (parts mensuelle et one-shot de ses produits). */
+export function dealSignGain(d: PipelineDeal): string | null {
+  return formatSignGain(dealMensuel(d), dealOneShot(d));
 }
 
 /** Libellé court de l'offre (« Google Ads + 1 »), null sans produit. */

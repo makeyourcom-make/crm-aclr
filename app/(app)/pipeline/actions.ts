@@ -122,7 +122,7 @@ export async function moveDealStage(
   const parsed = DealMoveStageSchema.safeParse(input);
   if (!parsed.success) return zodErrorToResult(parsed.error);
 
-  // Raison de la perte (MYC Arena, « Leçons du mois ») : champ optionnel,
+  // Raison de la perte (« Leçons du mois ») : champ optionnel,
   // lu à part pour ne pas toucher au schéma partagé. Enregistrée uniquement
   // lors d'un passage en PERDU.
   const raisonPerte = readRaisonPerte(input);

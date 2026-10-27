@@ -9,21 +9,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import {
-  HeroPanel,
-  LevelPill,
-  PlayerAvatar,
-  StreakPill,
-  XpBar,
-  XpPill,
-  formatInt,
-} from "@/components/arena";
+import { HeroPanel, PlayerAvatar, StreakPill, formatInt } from "@/components/arena";
 import { TONE_CLASSES, type Tone } from "@/components/arena/tones";
 import { IconPageHeader } from "@/components/common/icon-page-header";
 import { PageShell } from "@/components/common/page-shell";
 import { ProfileForm } from "@/components/parametres/profile-form";
 import { SettingsForm } from "@/components/parametres/settings-form";
 import { prisma } from "@/lib/db";
+import { formatCHFCompact } from "@/lib/format";
 import { getPlayerHeader } from "@/lib/gamification";
 import type { PlayerHeader } from "@/lib/gamification/rules";
 import { requireUser } from "@/lib/session";
@@ -32,8 +25,8 @@ import { cn } from "@/lib/utils";
 export const metadata = { title: "Paramètres" };
 export const dynamic = "force-dynamic";
 
-/** En-tête joueur (dédupliqué avec celui du layout via React cache). */
-async function loadPlayer(userId: string): Promise<PlayerHeader | null> {
+/** Résultats du collaborateur (dédupliqués avec ceux du layout via React cache). */
+async function loadResults(userId: string): Promise<PlayerHeader | null> {
   try {
     return await getPlayerHeader(userId);
   } catch {
@@ -73,7 +66,7 @@ const SHORTCUTS: {
 
 export default async function ParametresPage() {
   const user = await requireUser();
-  const [setting, userFull, player] = await Promise.all([
+  const [setting, userFull, results] = await Promise.all([
     prisma.setting.findFirst(),
     prisma.user.findUnique({
       where: { id: user.id },
@@ -85,7 +78,7 @@ export default async function ParametresPage() {
         adresse: true,
       },
     }),
-    loadPlayer(user.id),
+    loadResults(user.id),
   ]);
 
   return (
@@ -101,49 +94,37 @@ export default async function ParametresPage() {
         }
       />
 
-      {/* Carte joueur (données réelles du moteur de jeu) */}
-      {player && (
-        <HeroPanel aria-label="Ta carte joueur" className="mb-6">
+      {/* Carte résultats (données réelles : série, mois en cours) */}
+      {results && (
+        <HeroPanel aria-label="Tes résultats" className="mb-6">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
             <div className="flex min-w-0 flex-[1_1_260px] items-center gap-4">
               <PlayerAvatar
-                initials={player.initials}
+                initials={results.initials}
                 tone={user.role === "ADMIN" ? "navy" : "coral"}
                 size="lg"
               />
               <div className="min-w-0">
                 <p className="truncate font-display text-xl font-extrabold tracking-[-0.02em]">
-                  {player.name}
+                  {results.name}
                 </p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  <LevelPill level={player.level} variant="dark" />
-                  <StreakPill days={player.streak} variant="dark" />
-                  <XpPill xp={player.xpToday} label="aujourd'hui" variant="dark" />
+                  <StreakPill days={results.streak} variant="dark" />
+                  <span className="text-xs font-semibold text-navy-200 tabular-nums">
+                    {formatInt(results.today.appels)} / {formatInt(results.dailyTargets.appels)} appels aujourd&apos;hui
+                  </span>
                 </div>
               </div>
             </div>
             <div className="min-w-0 flex-[1_1_240px]">
-              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                <span className="text-[11px] font-bold tracking-[0.08em] text-navy-300 uppercase">
-                  Progression
-                </span>
-                <span className="text-[13px] font-semibold text-navy-200 tabular-nums">
-                  <strong className="font-display text-base font-extrabold text-white">
-                    {formatInt(player.level.xp)}
-                  </strong>
-                  {player.level.nextXp !== null && ` / ${formatInt(player.level.nextXp)}`} XP
-                </span>
-              </div>
-              <XpBar
-                pct={player.level.pct}
-                className="h-2.5 bg-navy-500"
-                label={`Progression vers le niveau suivant : ${player.level.pct} %`}
-              />
-              <p className="mt-2 text-xs font-semibold text-navy-200">
-                {player.level.xpToNext !== null && player.level.nextName
-                  ? `${formatInt(player.level.xpToNext)} XP avant ${player.level.nextName}`
-                  : "Niveau maximum atteint : Légende"}
-              </p>
+              <span className="text-[11px] font-bold tracking-[0.08em] text-navy-300 uppercase">
+                Ce mois
+              </span>
+              <dl className="mt-2 grid grid-cols-3 gap-3">
+                <MonthStat label="CA signé" value={formatCHFCompact(results.month.caSigne)} />
+                <MonthStat label="Contrats" value={formatInt(results.month.contratsSignes)} />
+                <MonthStat label="RDV pris" value={formatInt(results.month.rdvPris)} />
+              </dl>
             </div>
           </div>
         </HeroPanel>
@@ -203,5 +184,14 @@ export default async function ParametresPage() {
         </>
       )}
     </PageShell>
+  );
+}
+
+function MonthStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs font-semibold text-navy-200">{label}</dt>
+      <dd className="truncate font-display text-base font-extrabold text-white tabular-nums">{value}</dd>
+    </div>
   );
 }

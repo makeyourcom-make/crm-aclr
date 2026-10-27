@@ -1,5 +1,5 @@
 /**
- * MYC Arena - chiffres de la rubrique Emails (SERVEUR uniquement, lecture seule).
+ * Chiffres de la rubrique Emails (SERVEUR uniquement, lecture seule).
  *
  * Tout est recalculé à partir de la table `emails` (aucune donnée inventée) :
  *  - mails envoyés      : SORTANT hors vrais brouillons (label « draft ») et
@@ -9,7 +9,7 @@
  *  - temps de réponse   : délai entre un mail reçu et ma première réponse
  *                         dans le même fil
  *  - inbox zéro         : non lus de la boîte (hors archivés / corbeille, même
- *                         périmètre que le badge « Inbox zéro » du moteur) et
+ *                         périmètre que la jauge « Inbox zéro ») et
  *                         mails reçus lus aujourd'hui (`luALe`)
  * Jours découpés en fuseau Europe/Zurich (dates stockées en UTC).
  *
@@ -19,7 +19,7 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import { getDayCounters } from "@/lib/gamification";
-import { initialsOf, XP_RULES } from "@/lib/gamification/rules";
+import { initialsOf } from "@/lib/gamification/rules";
 import { isoWeekKey } from "@/lib/planning/dates";
 
 const TZ = "Europe/Zurich";
@@ -107,13 +107,13 @@ export interface MailBounce {
   statut: "REBOND" | "ERREUR";
 }
 
-export interface MailArenaStats {
+export interface MailStats {
   target: number;
   sentToday: number;
   /** Record de mails envoyés en un jour (tout l'historique). */
   sentRecordDay: number;
-  /** XP gagnés aujourd'hui grâce aux mails (activités EMAIL_ENVOYE). */
-  xpMailsToday: number;
+  /** Mails rattachés à un client envoyés aujourd'hui (activités EMAIL_ENVOYE). */
+  clientMailsToday: number;
   sent7d: number;
   sentPrev7d: number;
   /** Record de mails envoyés sur une semaine ISO. */
@@ -161,7 +161,7 @@ const isRealInbound = (m: LiteMail) =>
 // Requête principale
 // ---------------------------------------------------------------------------
 
-export async function getMailArenaStats(userId: string): Promise<MailArenaStats> {
+export async function getMailStats(userId: string): Promise<MailStats> {
   const now = new Date();
   const nowMs = now.getTime();
   const todayKey = zurichDayKey(now);
@@ -195,7 +195,7 @@ export async function getMailArenaStats(userId: string): Promise<MailArenaStats>
         select: { id: true, name: true },
         orderBy: { name: "asc" },
       }),
-      // 14 derniers jours, tous les joueurs actifs (classement + délais).
+      // 14 derniers jours, tous les collaborateurs actifs (classement + délais).
       prisma.email.findMany({
         where: {
           createdAt: { gte: start14 },
@@ -314,7 +314,7 @@ export async function getMailArenaStats(userId: string): Promise<MailArenaStats>
   }
   for (const list of byOwnerThread.values()) list.sort((a, b) => at(a) - at(b));
 
-  /** Réponses obtenues (fils) et fils lancés sur 7 jours pour un joueur. */
+  /** Réponses obtenues (fils) et fils lancés sur 7 jours pour un collaborateur. */
   const repliesFor = (uid: string) => {
     let threads = 0;
     let replied = 0;
@@ -402,7 +402,7 @@ export async function getMailArenaStats(userId: string): Promise<MailArenaStats>
     target,
     sentToday,
     sentRecordDay,
-    xpMailsToday: (counters?.emails ?? 0) * XP_RULES.email,
+    clientMailsToday: counters?.emails ?? 0,
     sent7d,
     sentPrev7d,
     bestWeekSent,

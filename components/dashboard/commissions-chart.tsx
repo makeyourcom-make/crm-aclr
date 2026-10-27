@@ -19,7 +19,7 @@ interface CommissionsChartProps {
 }
 
 /**
- * Courbe MYC Arena : trait navy, remplissage coral léger (charte : graphiques
+ * Courbe du CRM : trait navy, remplissage coral léger (charte : graphiques
  * navy / coral), grille #E5E8F0, axes en texte secondaire #5B6478.
  */
 export function CommissionsChart({

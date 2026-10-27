@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * Sidebar MYC Arena (navy) : logo « MAKE YOUR COM · Arena », groupes Jouer /
- * Vendre / Livrer / Gagner (+ Finance, Administration, Configuration pour
- * l'admin), bouton d'installation PWA et carte joueur en bas.
+ * Sidebar navy : logo Make Your Com + devise, groupes de navigation
+ * (lib/routes : Prospecter / Vendre / Livrer / Gagner, + Finance,
+ * Administration, Configuration pour l'admin), bouton d'installation PWA et
+ * carte « résultats du mois » en bas.
  *
  * Utilisée à la fois dans l'aside desktop (repliable) et dans le tiroir
  * mobile (MobileNav / BottomTabBar) : `onNavigate` ferme le tiroir au clic,
@@ -12,6 +13,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { Logo } from "@/components/brand/logo";
 import { Icon } from "@/components/icon";
 import { PlayerCard } from "@/components/layout/player-card";
 import { InstallAppButton } from "@/components/pwa/install-app-button";
@@ -36,7 +38,7 @@ interface SidebarProps {
   badges?: {
     emails?: number;
   };
-  /** Carte joueur (null si le moteur de jeu est indisponible). */
+  /** Carte résultats (null si les résultats sont indisponibles). */
   player?: PlayerHeader | null;
 }
 
@@ -60,19 +62,21 @@ export function Sidebar({
       }}
       aria-label="Navigation principale"
     >
-      {/* Marque : wordmark texte net, le « C » de COM en coral. */}
+      {/* Marque : logo officiel Make Your Com (blanc + coral sur navy) et devise. */}
       <div className="flex shrink-0 items-start justify-between gap-2 px-3.5 pb-4">
         <Link
           href="/"
           onClick={onNavigate}
-          className="flex flex-col gap-0.5 rounded-[12px] px-2.5 pt-1 pb-1.5"
-          aria-label="Make Your Com Arena - Accueil"
+          className="flex flex-col gap-2.5 rounded-[12px] px-2.5 pt-1 pb-1.5"
+          aria-label="Make Your Com - Accueil"
         >
-          <span className="font-display text-[20px] leading-none font-extrabold tracking-[-0.02em] text-white">
-            MAKE YOUR <span className="text-coral-400">C</span>OM
-          </span>
-          <span className="text-[11px] font-semibold tracking-[0.08em] text-navy-300">
-            Arena
+          <Logo variant="wordmark" tone="dark" size={40} />
+          <span className="text-[11px] leading-snug font-semibold text-navy-300">
+            Chaque appel compte.
+            <br />
+            Chaque RDV est une chance.
+            <br />
+            Chaque signature rapporte.
           </span>
         </Link>
         {onClose && (
@@ -87,7 +91,7 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Liens groupés : seule cette zone défile, la carte joueur reste visible. */}
+      {/* Liens groupés : seule cette zone défile, la carte résultats reste visible. */}
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-3.5 pb-3 [scrollbar-color:#2F4470_transparent] [scrollbar-width:thin]">
         {ROUTE_GROUPS.map((group) => {
           const items = visible.filter((r) => r.group === group.id);
@@ -117,7 +121,7 @@ export function Sidebar({
         <InstallAppButton />
       </div>
 
-      {/* Carte joueur épinglée en bas */}
+      {/* Carte résultats épinglée en bas */}
       {player && (
         <div className="shrink-0 border-t border-white/[0.06] px-3.5 pt-3">
           <PlayerCard player={player} role={role} />

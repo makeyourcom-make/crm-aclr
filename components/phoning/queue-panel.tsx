@@ -2,23 +2,23 @@
 
 /**
  * Colonne droite du cockpit : « À appeler ensuite » (file ordonnée), les
- * prospects traités pendant la session, les stats de session et le meilleur
- * combo du jour. Tout vient des données réelles (file + appels du jour).
+ * prospects traités pendant la session et les stats de session (appels,
+ * conversations, taux de conversation, RDV pris). Tout vient des données
+ * réelles (file + appels du jour).
  */
-import { BarChart3, Check, Flame, ListOrdered, Star } from "lucide-react";
+import { BarChart3, Check, Flame, ListOrdered } from "lucide-react";
 
 import { formatInt, pctOf, plural } from "@/components/arena/format";
 import { SectionCard } from "@/components/arena/section-card";
 import { TONE_CLASSES } from "@/components/arena/tones";
-import { RESULT_META, xpForCall } from "@/components/call/call-results";
-import { zTime } from "@/components/call/zurich";
-import { COMBO_GAP_MINUTES, COMBO_STEPS, XP_RULES } from "@/lib/gamification/rules";
+import { RESULT_META } from "@/components/call/call-results";
+import { zDuration } from "@/components/call/zurich";
 import { getActivityResultatLabel } from "@/lib/labels";
 import type { PhoningQueueItem } from "@/lib/queries/phoning";
 import { cn } from "@/lib/utils";
 
 import { heatOf, reasonPill } from "./phoning-labels";
-import { multLabel, type CallPoint, type ComboState, type SessionStats } from "./phoning-stats";
+import type { CallPoint, SessionStats } from "./phoning-stats";
 
 // ---------------------------------------------------------------------------
 // File
@@ -159,8 +159,13 @@ export function QueuePanel({
                         ? getActivityResultatLabel(d.resultat)
                         : "Sans résultat"}
                   </span>
-                  <span className="w-[52px] shrink-0 text-right text-xs font-extrabold text-gold-700 tabular-nums">
-                    +{xpForCall(d.resultat)} XP
+                  <span className="w-[44px] shrink-0 text-right text-xs font-bold text-muted-foreground tabular-nums">
+                    {!d.ongoing && d.duree2 != null ? (
+                      <>
+                        <span className="sr-only">Durée </span>
+                        {zDuration(d.duree2)}
+                      </>
+                    ) : null}
                   </span>
                 </li>
               );
@@ -244,67 +249,5 @@ function MiniStat({ value, label, green }: { value: string; label: string; green
         {label}
       </span>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Meilleur combo du jour
-// ---------------------------------------------------------------------------
-
-export function BestComboCard({ combo }: { combo: ComboState }) {
-  const best = combo.best;
-  const pct = best > 0 ? pctOf(combo.current, best) : 0;
-  const message =
-    best === 0
-      ? `Enchaîne tes appels à moins de ${COMBO_GAP_MINUTES} min d'écart pour lancer ton premier combo.`
-      : combo.current >= best && combo.current > 0
-        ? "Record du jour en cours : chaque appel le repousse."
-        : `Encore ${plural(best - combo.current + 1, "appel enchaîné", "appels enchaînés")} pour battre ton record du jour.`;
-  return (
-    <SectionCard
-      title="Meilleur combo du jour"
-      icon={Star}
-      tone="gold"
-      contentClassName="flex flex-col gap-3.5"
-    >
-      <div className="flex items-baseline gap-2">
-        <span className="score-number text-[40px] text-foreground">{formatInt(best)}</span>
-        <span className="text-[13px] font-semibold text-muted-foreground">
-          {best > 1 ? "appels enchaînés" : "appel"}
-          {combo.bestAt ? ` · fini à ${zTime(combo.bestAt)}` : ""}
-        </span>
-      </div>
-      <div
-        role="progressbar"
-        aria-label="Combo actuel par rapport au meilleur combo du jour"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={pct}
-        aria-valuetext={`Combo actuel ${formatInt(combo.current)} sur un meilleur de ${formatInt(best)}`}
-        className="h-2.5 overflow-hidden rounded-full bg-navy-50"
-      >
-        <div className="h-full rounded-full bg-gradient-coral" style={{ width: `${pct}%` }} />
-      </div>
-      <p className="text-[13px] font-bold text-foreground">{message}</p>
-      <ul className="grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-border pt-3 text-xs font-semibold text-muted-foreground">
-        <li>
-          Appel passé <strong className="text-gold-700">+{XP_RULES.appel}</strong>
-        </li>
-        <li>
-          Conversation <strong className="text-gold-700">+{XP_RULES.conversation}</strong>
-        </li>
-        <li>
-          RDV pris <strong className="text-gold-700">+{XP_RULES.rdvPris}</strong>
-        </li>
-        <li>
-          Mission du jour <strong className="text-gold-700">+{XP_RULES.missionDuJour}</strong>
-        </li>
-        <li className="col-span-2">
-          {COMBO_STEPS.filter((st) => st.minCalls > 0)
-            .map((st, i) => `${i === 0 ? "Combo " : ""}${multLabel(st.mult)} dès ${st.minCalls}${i === 0 ? " appels" : ""}`)
-            .join(" · ")}
-        </li>
-      </ul>
-    </SectionCard>
   );
 }

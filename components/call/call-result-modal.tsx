@@ -45,7 +45,7 @@ export function CallResultModal() {
           </DialogTitle>
           <DialogDescription className="text-sm font-medium text-muted-foreground">
             Avec {session.prospectRaisonSociale} · {zDuration(elapsedSeconds)} · un clic sur le
-            résultat enregistre l&apos;appel et crédite tes XP.
+            résultat enregistre l&apos;appel.
           </DialogDescription>
         </DialogHeader>
         <CallResultPanel

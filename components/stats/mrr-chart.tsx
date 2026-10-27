@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * MRR vs charges sur 12 mois (recharts, couleurs MYC Arena).
+ * MRR vs charges sur 12 mois (recharts, couleurs du CRM).
  *  - aire navy : MRR en fin de mois (reconstitué pour les mois passés) ;
  *  - ligne rouge pointillée : total des charges saisies dans le mois ;
  *  - sélecteur de mois (boutons) + tuiles de détail du mois choisi.

@@ -1,68 +1,68 @@
 /**
- * Fil d'activité +XP : dernières actions qui rapportent des XP (appels,
- * conversations, RDV, emails, propositions, signatures), 7 derniers jours.
- * Données : getXpFeed (barème XP_RULES, mêmes critères que le moteur).
+ * Derniers résultats : RDV pris, RDV effectués, propositions et contrats
+ * signés (avec leurs montants en CHF), 30 derniers jours.
+ * Données : getResultsFeed (mêmes critères que lib/gamification).
  * Server-safe.
  */
 import {
   CalendarCheck,
   CalendarPlus,
   FileSignature,
-  Mail,
-  MessageCircle,
-  Phone,
   Send,
-  Zap,
+  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 
 import { EmptyState } from "@/components/arena/empty-state";
-import { XpPill } from "@/components/arena/pills";
 import { SectionCard } from "@/components/arena/section-card";
 import { TONE_CLASSES, type Tone } from "@/components/arena/tones";
-import type { XpFeedItem, XpFeedKind } from "@/lib/queries/dashboard";
+import { formatCHF } from "@/lib/format";
+import type { ResultFeedItem, ResultFeedKind } from "@/lib/queries/dashboard";
 import { cn } from "@/lib/utils";
 
 import { relativeDay, zTime } from "./dates";
 
-const KIND_META: Record<XpFeedKind, { icon: LucideIcon; tone: Tone }> = {
-  appel: { icon: Phone, tone: "coral" },
-  conversation: { icon: MessageCircle, tone: "blue" },
+const KIND_META: Record<ResultFeedKind, { icon: LucideIcon; tone: Tone }> = {
   rdvPris: { icon: CalendarPlus, tone: "gold" },
-  rdvEffectue: { icon: CalendarCheck, tone: "green" },
-  email: { icon: Mail, tone: "teal" },
+  rdvEffectue: { icon: CalendarCheck, tone: "blue" },
   proposition: { icon: Send, tone: "violet" },
   signature: { icon: FileSignature, tone: "green" },
 };
 
-export function XpFeed({
+/** « CHF 269.90 / mois + CHF 1'500.00 » (rien si aucun montant). */
+function montantTexte(m: ResultFeedItem["montant"]): string | null {
+  if (!m) return null;
+  const parts: string[] = [];
+  if (m.mensuel > 0) parts.push(`${formatCHF(m.mensuel)} / mois`);
+  if (m.oneShot > 0) parts.push(formatCHF(m.oneShot));
+  return parts.length > 0 ? parts.join(" + ") : null;
+}
+
+export function ResultsFeed({
   items,
-  xpToday,
   today,
   className,
 }: {
-  items: XpFeedItem[];
-  xpToday: number;
+  items: ResultFeedItem[];
   /** Clé « AAAA-MM-JJ » du jour (Europe/Zurich). */
   today: string;
   className?: string;
 }) {
   return (
     <SectionCard
-      title="Fil d'activité"
-      icon={Zap}
-      tone="gold"
+      title="Derniers résultats"
+      icon={TrendingUp}
+      tone="green"
       className={className}
-      description="Tes dernières actions et leurs XP"
-      action={<XpPill xp={Math.max(0, xpToday)} label="aujourd'hui" />}
+      description="RDV pris, RDV effectués, propositions et signatures · 30 derniers jours"
     >
       {items.length === 0 ? (
         <EmptyState
-          icon={Zap}
+          icon={CalendarPlus}
           tone="gold"
-          title="Ton fil est encore vide"
-          description="Chaque appel, mail ou RDV apparaîtra ici avec ses XP."
+          title="Aucun résultat sur 30 jours"
+          description="Le prochain RDV pris au téléphone apparaîtra ici, puis la proposition et la signature."
           action={
             <Link
               href="/phoning"
@@ -81,6 +81,8 @@ export function XpFeed({
             const Icon = meta.icon;
             const rel = relativeDay(f.at, today);
             const quand = rel === "Aujourd'hui" ? zTime(f.at) : `${rel} ${zTime(f.at)}`;
+            const montant = montantTexte(f.montant);
+            const signe = f.kind === "signature";
             return (
               <li
                 key={f.id}
@@ -114,7 +116,17 @@ export function XpFeed({
                     {f.detail ? ` · ${f.detail}` : ""}
                   </span>
                 </div>
-                <XpPill xp={f.xp} />
+                {montant && (
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full px-2 py-0.5 text-xs font-extrabold whitespace-nowrap tabular-nums",
+                      signe ? "bg-win-50 text-win-700" : "bg-navy-50 text-foreground",
+                    )}
+                  >
+                    {signe ? "+" : ""}
+                    {montant}
+                  </span>
+                )}
               </li>
             );
           })}

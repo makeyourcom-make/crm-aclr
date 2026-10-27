@@ -1,7 +1,7 @@
 /**
- * Vue de la fiche entreprise (MYC Arena) : identité + score de chaleur,
+ * Vue de la fiche entreprise : identité + score de chaleur (priorisation),
  * appel en un clic, email / RDV / deal, étapes du statut, prochaine meilleure
- * action, coordonnées éditables, historique avec XP, deals et contrats,
+ * action, coordonnées éditables, historique, deals et contrats,
  * notes, factures, projets, méta et outils RGPD (admin).
  * Aucune requête ici : données de `loadProspectFiche`. Server-safe.
  */
@@ -26,7 +26,7 @@ import Link from "next/link";
 
 import type { ClientInvoiceStatut, ClientInvoiceType } from "@prisma/client";
 
-import { Meter, ProgressRing, SectionCard, XpPill, formatInt } from "@/components/arena";
+import { Meter, ProgressRing, SectionCard, formatInt } from "@/components/arena";
 import { QuickLogActivity } from "@/components/activities/quick-log-activity";
 import { DocumentPreviewButton } from "@/components/common/document-preview-button";
 import { ContractStatutBadge } from "@/components/contrats/contract-statut-badge";
@@ -37,7 +37,6 @@ import { GdprTools } from "@/components/prospects/gdpr-tools";
 import { InlineEditField } from "@/components/prospects/inline-edit-field";
 import {
   OPEN_DEAL_STAGES,
-  activityXp,
   companyInitials,
   computeLeadHeat,
   ficheCompleteness,
@@ -60,7 +59,7 @@ import {
   getProspectSecteurLabel,
   getProspectSourceLabel,
 } from "@/lib/labels";
-import { XP_RULES, type Tone } from "@/lib/gamification/rules";
+import type { Tone } from "@/lib/gamification/rules";
 import type { ProspectFicheData } from "@/lib/queries/prospects-pages";
 import { cn } from "@/lib/utils";
 
@@ -162,7 +161,7 @@ export function ProspectFicheView({
   const prochaineEcheance =
     echeances.sort((a, b) => a.date.getTime() - b.date.getTime())[0] ?? null;
 
-  // ---- Couche de jeu (données réelles) ------------------------------------
+  // ---- Chaleur et prochaine action (données réelles) ----------------------
   const hasOpenDeal = deals.some((d) =>
     (OPEN_DEAL_STAGES as readonly string[]).includes(d.stage),
   );
@@ -194,7 +193,6 @@ export function ProspectFicheView({
     nowMs,
   );
   const completeness = ficheCompleteness(prospect);
-  const ficheXp = activities.reduce((sum, a) => sum + activityXp(a, nowMs), 0);
 
   const contactName = [prospect.contactPrenom, prospect.contactNom]
     .filter(Boolean)
@@ -461,7 +459,7 @@ export function ProspectFicheView({
                     field="email"
                     label="email"
                     value={prospect.email}
-                    placeholder={`Ajouter l'email (+${XP_RULES.email} XP par email envoyé)`}
+                    placeholder="Ajouter l'email (pour envoyer offre et proposition)"
                     openHref={prospect.email ? `mailto:${prospect.email}` : null}
                     openIcon="Mail"
                   />
@@ -640,15 +638,7 @@ export function ProspectFicheView({
             title={`Historique · ${formatInt(prospect._count.activities)} activité${prospect._count.activities > 1 ? "s" : ""}`}
             icon={History}
             tone="coral"
-            description={
-              ficheXp > 0 ? (
-                <span className="inline-flex flex-wrap items-center gap-1.5">
-                  Cette fiche a déjà rapporté <XpPill xp={ficheXp} />
-                </span>
-              ) : (
-                "Chaque action rapporte des XP : appel +5, décroché +10, RDV pris +50."
-              )
-            }
+            description="Appels, emails, RDV et notes de cette entreprise"
             action={
               <div className="[&>button]:h-9 [&>button]:rounded-[10px] [&>button]:border-transparent [&>button]:bg-navy-700 [&>button]:px-3 [&>button]:text-xs [&>button]:font-bold [&>button]:text-white [&>button]:hover:bg-navy-600">
                 <QuickLogActivity
@@ -660,8 +650,8 @@ export function ProspectFicheView({
           >
             {activities.length === 0 ? (
               <p className="rounded-[14px] border border-dashed border-coral-400 bg-coral-50 px-4 py-3.5 text-[13px] leading-relaxed font-bold text-coral-600">
-                Aucune activité pour l&apos;instant. Ce lead est vierge : premier appel = +
-                {XP_RULES.appel} XP, premier RDV = +{XP_RULES.rdvPris} XP. À toi de jouer.
+                Aucune activité pour l&apos;instant. Ce lead est vierge : passe le premier
+                appel et vise le RDV dès la première conversation.
               </p>
             ) : (
               <>
@@ -702,8 +692,7 @@ export function ProspectFicheView({
             {deals.length === 0 && contracts.length === 0 ? (
               <p className="rounded-[14px] border border-dashed border-border-strong px-4 py-3 text-[13px] leading-relaxed font-semibold text-muted-foreground">
                 Pas encore de deal ni de contrat. Qualifie le besoin puis lance ton premier deal :
-                une proposition envoyée rapporte +{XP_RULES.proposition} XP, un contrat signé +
-                {XP_RULES.signature} XP.
+                proposition envoyée, puis signature. Chaque signature rapporte.
               </p>
             ) : (
               <div className="flex flex-col gap-2.5">

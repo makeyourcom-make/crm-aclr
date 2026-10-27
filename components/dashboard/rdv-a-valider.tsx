@@ -4,9 +4,9 @@
  * Rappel de fin de journée : RDV passés à valider (effectué / manqué / annulé).
  * Un RDV n'est compté « effectué » qu'une fois validé ici ou dans l'agenda.
  *
- * MYC Arena : carte bleue (rouge si des RDV des jours précédents traînent),
- * gros boutons 44 px, « Effectué » rapporte +80 XP (toast XP + rafraîchissement
- * de la coquille pour mettre à jour les pilules XP / série).
+ * Carte bleue (rouge si des RDV des jours précédents traînent), gros boutons
+ * 44 px. « Effectué » : toast sobre avec la prochaine étape (la proposition)
+ * et rafraîchissement de la coquille (compteurs RDV effectués du mois).
  */
 import { useState, useTransition } from "react";
 import Link from "next/link";
@@ -15,10 +15,8 @@ import { CalendarCheck, CalendarClock, Check, CircleCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { validerRdv } from "@/app/(app)/activites/actions";
-import { xpToast } from "@/components/arena/celebrate";
-import { XpPill } from "@/components/arena/pills";
+import { resultToast } from "@/components/arena/celebrate";
 import { Button } from "@/components/ui/button";
-import { XP_RULES } from "@/lib/gamification/rules";
 import type { RdvAValider } from "@/lib/queries/rdv-a-valider";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +33,7 @@ interface Traite {
   id: string;
   statut: Statut;
   nom: string;
-  /** RDV d'un jour précédent : ses XP comptent pour ce jour-là, pas pour aujourd'hui. */
+  /** RDV d'un jour précédent : il compte pour ce jour-là, pas pour aujourd'hui. */
   ancien: boolean;
 }
 
@@ -73,11 +71,11 @@ export function RdvAValiderBanner({
       const ancien = zDayKey(r.date) < today;
       setTraites((t) => [...t, { id: r.id, statut, nom, ancien }]);
       if (statut === "FAIT") {
-        xpToast(XP_RULES.rdvEffectue, "RDV effectué !", nom);
+        resultToast(`RDV effectué avec ${nom}`, "Prochaine étape : préparer la proposition");
       } else {
         toast.success(TOAST[statut]);
       }
-      // Met à jour le dashboard ET la coquille (pilules XP / série).
+      // Met à jour le dashboard ET la coquille (résultats du jour / du mois).
       router.refresh();
     });
 
@@ -187,7 +185,6 @@ export function RdvAValiderBanner({
                     >
                       <Check aria-hidden="true" strokeWidth={2.6} />
                       Effectué
-                      <XpPill xp={XP_RULES.rdvEffectue} variant="solid" />
                     </Button>
                     <Button
                       type="button"
@@ -222,12 +219,12 @@ export function RdvAValiderBanner({
 function Confirmation({ traite, compact }: { traite: Traite; compact: boolean }) {
   const fait = traite.statut === "FAIT";
   const titre = fait
-    ? "Bien joué : RDV effectué !"
+    ? "RDV effectué"
     : traite.statut === "MANQUE"
       ? "RDV noté comme manqué"
       : "RDV noté comme annulé";
   const texte = fait
-    ? `${traite.nom} passe en Fait · +${XP_RULES.rdvEffectue} XP ajoutés ${traite.ancien ? "à ton total (comptés le jour du RDV)" : "à ton score du jour"}.`
+    ? `${traite.nom} passe en Fait${traite.ancien ? " (compté le jour du RDV)" : ""} · prochaine étape : préparer la proposition.`
     : traite.statut === "MANQUE"
       ? `${traite.nom} · propose vite un nouveau créneau pour garder le lead chaud.`
       : `${traite.nom} sort de ta liste à valider.`;

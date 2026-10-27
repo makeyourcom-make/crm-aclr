@@ -1,5 +1,5 @@
 /**
- * Pastille de statut d'un contrat (MYC Arena : fond clair + texte foncé de la
+ * Pastille de statut d'un contrat (fond clair + texte foncé de la
  * teinte, point de couleur). Même API qu'avant (`statut`), utilisée aussi par
  * la fiche entreprise.
  */

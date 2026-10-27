@@ -5,8 +5,8 @@
  * Transition : ATTENTE_VALIDATION_ADMIN → ACTIF.
  *
  * Affiché uniquement aux ADMIN (fiche contrat, file « À traiter », dashboard).
- * Succès : confettis + carte « Contrat signé ! » (XP de signature crédités à
- * la commerciale assignée) puis rafraîchissement de la page et de la coquille.
+ * Succès : confettis + carte « Contrat signé ! » avec le montant réel
+ * (« +269.90 CHF / mois ») puis rafraîchissement de la page et de la coquille.
  */
 import { CircleCheck, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -16,15 +16,15 @@ import { toast } from "sonner";
 import { validateContract } from "@/app/(app)/contrats/actions";
 import { celebrate } from "@/components/arena/celebrate";
 import { Button } from "@/components/ui/button";
-import { XP_RULES } from "@/lib/gamification/rules";
+import { formatSignGain } from "@/components/pipeline/pipeline-meta";
 
 interface ValidateContractButtonProps {
   contractId: string;
-  /** Raison sociale du client (carte de victoire). */
+  /** Raison sociale du client (carte de signature). */
   clientName?: string;
-  /** Mensuel du contrat : sert à afficher les XP de signature. */
+  /** Mensuel du contrat : montant mis en avant dans la carte de signature. */
   montantMensuel?: number;
-  /** Commerciale assignée (prénom dans la carte de victoire). */
+  /** Commerciale assignée (prénom dans la carte de signature). */
   assigneeName?: string;
   variant?: "default" | "hero";
   size?: "sm" | "default" | "lg";
@@ -57,19 +57,14 @@ export function ValidateContractButton({
         toast.error(res.error ?? "Erreur lors de la validation.");
         return;
       }
-      const xp =
-        montantMensuel !== undefined
-          ? XP_RULES.signature +
-            Math.floor(Math.max(0, montantMensuel) / 10) *
-              XP_RULES.signatureParTranche10ChfMensuel
-          : undefined;
       const firstName = assigneeName?.trim().split(/\s+/)[0];
       celebrate({
         title: "Contrat signé !",
         subtitle: clientName
           ? `${clientName} passe Actif · factures lancées`
           : "Le contrat passe Actif · factures lancées",
-        xp,
+        highlight:
+          montantMensuel !== undefined ? (formatSignGain(montantMensuel) ?? undefined) : undefined,
         eyebrow: firstName ? `Bravo ${firstName}` : "Validé",
       });
       router.refresh();

@@ -1,5 +1,5 @@
 /**
- * Fiche contrat MYC Arena : cycle de vie (Créé → Signé client → Contre-signé
+ * Fiche contrat cycle de vie (Créé → Signé client → Contre-signé
  * → Validé → 1er paiement) et pastilles de commission, calculés sur les
  * données réelles du contrat. Server-safe.
  */

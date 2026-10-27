@@ -1,6 +1,6 @@
 /**
- * « Compteurs du jour » : les 6 compteurs du moteur de jeu (mêmes chiffres
- * que la topbar et le dashboard) face à leurs objectifs du jour, avec la
+ * « Compteurs du jour » : les 6 compteurs réels du jour (mêmes chiffres que
+ * la topbar et le dashboard) face à leurs objectifs du jour, avec la
  * comparaison au jour ouvré précédent à la même heure.
  *
  * Couleur des jauges (règle historique de la page) : rouge < 50 % ≤ or < 80 %
@@ -22,15 +22,9 @@ import { TONE_CLASSES, type Tone } from "@/components/arena/tones";
 import type { DayCounters } from "@/lib/gamification/rules";
 import { cn } from "@/lib/utils";
 
-import { toneForPct } from "./task-meta";
+import { toneForPct, type DayTargets } from "./task-meta";
 
-export interface DayTargets {
-  appels: number;
-  rdvPris: number;
-  rdvEffectues: number;
-  propositions: number;
-  emails: number;
-}
+export type { DayTargets };
 
 interface DayCountersProps {
   today: DayCounters;

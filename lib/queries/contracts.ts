@@ -234,7 +234,7 @@ function buildWhere(
 }
 
 // ===========================================================================
-// MYC ARENA : POULS FINANCE (héros Contrats / Factures / Signatures)
+// POULS FINANCE (héros Contrats / Factures / Signatures)
 // ===========================================================================
 //
 // Lecture seule. Mêmes définitions que le reste du CRM :

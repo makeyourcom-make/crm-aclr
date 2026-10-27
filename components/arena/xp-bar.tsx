@@ -20,6 +20,7 @@ export interface XpBarProps {
   shine?: boolean;
 }
 
+/** @deprecated Plus de barre XP / niveau : utiliser Meter ou ProgressRing. */
 export function XpBar({ pct, className, label, shine = false }: XpBarProps) {
   const p = Number.isFinite(pct) ? Math.min(Math.max(Math.round(pct), 0), 100) : 0;
   return (

@@ -14,13 +14,14 @@ interface TopbarProps {
     role: Role;
   };
   badges?: { emails?: number };
-  /** Données de jeu (XP du jour, série) ; null si indisponibles. */
+  /** Résultats du jour (appels, RDV) et série ; null si indisponibles. */
   player?: PlayerHeader | null;
 }
 
 /**
- * Barre du haut MYC Arena : burger (mobile) / repli sidebar (desktop),
- * recherche globale, pilule « XP du jour », pilule série, menu utilisateur.
+ * Barre du haut : burger (mobile) / repli sidebar (desktop), recherche
+ * globale, pilule « Aujourd'hui : N appels · N RDV », pilule série, menu
+ * utilisateur.
  * Reste collée en haut, sous l'encoche en mode app (safe-area).
  */
 export function Topbar({ user, badges, player }: TopbarProps) {
@@ -44,7 +45,7 @@ export function Topbar({ user, badges, player }: TopbarProps) {
 
       <div className="min-w-0 flex-1" />
 
-      {/* Score du jour + série */}
+      {/* Appels / RDV du jour + série */}
       {player && <ScorePills player={player} role={user.role} />}
 
       {/* Menu utilisateur */}

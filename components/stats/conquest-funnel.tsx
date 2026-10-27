@@ -1,5 +1,5 @@
 /**
- * « Parcours de conquête » : entonnoir de la période
+ * « Entonnoir commercial » : entonnoir de la période
  * appels → conversations → RDV pris → RDV effectués → propositions → signés,
  * avec le taux de chaque transition comparé à la moyenne des 12 mois
  * précédents (données réelles, pas de cible inventée) et le « levier n°1 ».
@@ -280,7 +280,7 @@ function LevierBox({
               sur la période. C&apos;est là que tout se joue.
             </>
           ) : (
-            "Chaque étape est au-dessus de ta moyenne des 12 derniers mois. Prochain défi : battre ton record."
+            "Chaque étape est au-dessus de ta moyenne des 12 derniers mois."
           )}
         </span>
       </div>

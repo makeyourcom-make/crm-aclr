@@ -469,13 +469,13 @@ export async function getPhoningQueue(
 }
 
 // ---------------------------------------------------------------------------
-// APPELS DU JOUR (session, combo, stats) - de l'utilisateur connecté
+// APPELS DU JOUR (session, stats) - de l'utilisateur connecté
 // ---------------------------------------------------------------------------
 
 /**
  * Appels sortants passés aujourd'hui par l'utilisateur (même définition que le
- * moteur de jeu : APPEL_SORTANT au statut FAIT ou EN_COURS), du plus ancien au
- * plus récent. Sert au chrono de session, au combo et aux stats de session.
+ * moteur de résultats : APPEL_SORTANT au statut FAIT ou EN_COURS), du plus ancien au
+ * plus récent. Sert au chrono de session et aux stats de session.
  */
 export async function getPhoningDayCalls(userId: string): Promise<PhoningDayCall[]> {
   const { start, end } = zurichDayBounds();

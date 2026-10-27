@@ -6,7 +6,7 @@
  * (récupérable via « Pas un spam »). À la création d'une règle, les mails
  * déjà reçus qui la matchent sont déplacés à la corbeille (récupérables).
  *
- * MYC Arena : tuiles de synthèse (règles actives, mails bloqués), recherche
+ * tuiles de synthèse (règles actives, mails bloqués), recherche
  * dans les règles, lignes à pastilles.
  */
 import { useMemo, useState, useTransition } from "react";

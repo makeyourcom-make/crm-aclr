@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 
-import { LevelPill } from "@/components/arena/pills";
 import { PlayerAvatar, toneForRole } from "@/components/arena/player-avatar";
 import {
   DropdownMenu,
@@ -59,9 +58,6 @@ export function UserMenu({ user, player }: UserMenuProps) {
             <span className="text-xs font-normal text-muted-foreground">
               {user.email}
             </span>
-            {player && (
-              <LevelPill level={player.level} className="mt-1 self-start" />
-            )}
           </DropdownMenuLabel>
         </DropdownMenuGroup>
 

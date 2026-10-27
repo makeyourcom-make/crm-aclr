@@ -7,7 +7,8 @@
  *   - crée un Payment ENCAISSE couvrant le montant total de la facture
  *   - marque la ClientInvoice PAYEE
  *   - déclenche la commission SIGNATURE si c'est le 1er paiement encaissé
- * Succès : confettis « Facture payée ! » et rafraîchissement de la page.
+ * Succès : toast sobre « Facture payée · +montant » et rafraîchissement de
+ * la page (pas de confettis : réservés à la signature d'un contrat).
  */
 import { Check, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -15,7 +16,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { markClientInvoicePaid } from "@/app/(app)/paiements/actions";
-import { celebrate } from "@/components/arena/celebrate";
+import { resultToast } from "@/components/arena/celebrate";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -79,17 +80,12 @@ export function MarkInvoicePaidButton({
         return;
       }
       setOpen(false);
-      celebrate({
-        title: "Facture payée !",
-        subtitle: [
-          clientName,
-          total !== undefined ? `+${formatMoney(total, devise)}` : undefined,
-        ]
-          .filter(Boolean)
-          .join(" · ") || "Cash encaissé, commission débloquée",
-        eyebrow: "Cash encaissé",
-        pieces: 60,
-      });
+      resultToast(
+        total !== undefined
+          ? `Facture payée · +${formatMoney(total, devise)} encaissés`
+          : "Facture payée",
+        clientName ?? "Encaissement enregistré",
+      );
       router.refresh();
     });
   };

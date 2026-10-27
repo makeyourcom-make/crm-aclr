@@ -23,15 +23,14 @@ interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-/** Stats joueur (missions, XP du jour, record) ; le cockpit reste utilisable sans. */
+/** Objectifs du jour, compteurs du jour et record de RDV ; le cockpit reste utilisable sans. */
 async function loadGame(userId: string): Promise<PhoningGame | null> {
   try {
     const s = await getPlayerStats(userId);
     return {
-      xpToday: s.xpToday,
-      xpRecordDay: s.xpRecordDay,
-      missions: s.missions,
+      goals: s.dailyGoals,
       today: s.today,
+      bestDayRdvPris: s.records.bestDayRdvPris > 0 ? s.records.bestDayRdvPris : null,
     };
   } catch (err) {
     console.error("[phoning] getPlayerStats a échoué :", err);

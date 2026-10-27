@@ -1,5 +1,5 @@
 /**
- * Lignes et cartes de factures clients (MYC Arena), réutilisées par chaque
+ * Lignes et cartes de factures clients, réutilisées par chaque
  * section de /factures-clients (brouillons, zone rouge, envoyées, payées) et
  * par la vue tableau triable. Server component : les actions sont les
  * boutons client existants (aperçu, envoyer / renvoyer, marquer payée,

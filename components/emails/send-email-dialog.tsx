@@ -7,8 +7,8 @@
  * - Variables substituées côté serveur ({{prenomContact}}, {{raisonSociale}}, …)
  * - Envoi réel via Resend si EMAIL_MODE=live, sinon dry-run (enregistré en
  *   base avec statut BROUILLON sans envoi réseau)
- * - MYC Arena : l'envoi crée l'activité EMAIL_ENVOYE → toast « +3 XP » puis
- *   rafraîchissement de la coquille (pilules XP / série).
+ * - L'envoi crée l'activité EMAIL_ENVOYE → toast sobre puis
+ *   rafraîchissement de la coquille (objectifs du jour / série).
  */
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -16,8 +16,7 @@ import { toast } from "sonner";
 import { Mail, Save, Send } from "lucide-react";
 
 import { saveEmailDraft, sendEmailToProspect } from "@/app/(app)/emails/actions";
-import { xpToast } from "@/components/arena/celebrate";
-import { XpPill } from "@/components/arena/pills";
+import { resultToast } from "@/components/arena/celebrate";
 import {
   AttachmentPicker,
   type PickedAttachment,
@@ -37,7 +36,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { htmlToPlainText } from "@/lib/email-html";
-import { XP_RULES } from "@/lib/gamification/rules";
 import { cn } from "@/lib/utils";
 
 interface TemplateOption {
@@ -143,10 +141,9 @@ export function SendEmailDialog({
         return;
       }
       // Activité EMAIL_ENVOYE créée à chaque envoi (même en dry-run).
-      xpToast(
-        XP_RULES.email,
-        res.dryRun ? "Email enregistré (dry-run)" : "Mail envoyé !",
-        `à ${prospectName}`,
+      resultToast(
+        res.dryRun ? "Email enregistré (dry-run)" : "Mail envoyé",
+        `à ${prospectName} · ajouté à la fiche client`,
       );
       resetAndClose();
     });
@@ -337,7 +334,6 @@ export function SendEmailDialog({
             <Button type="submit" variant="hero" disabled={pending || !prospectEmail}>
               <Send aria-hidden="true" />
               {pending ? "Envoi…" : "Envoyer l'email"}
-              <XpPill xp={XP_RULES.email} variant="solid" className="text-shadow-none" />
             </Button>
             <Button
               type="button"

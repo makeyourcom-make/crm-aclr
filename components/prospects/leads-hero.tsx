@@ -1,16 +1,16 @@
 /**
  * Héros de la liste Entreprises : « où j'en suis et quoi faire maintenant ».
- * Taille du portefeuille, leads chauds, jamais appelés, CTA Phoning, mission
- * « appels » du jour (données réelles du moteur de jeu) et trois tuiles :
+ * Taille du portefeuille, leads chauds, jamais appelés, CTA Phoning, objectif
+ * d'appels du jour (compteurs réels du jour) et trois tuiles :
  * entreprises appelées sur 7 jours, RDV à venir, signés ce mois-ci.
  * Server-safe.
  */
 import { Flame, Phone, Plus } from "lucide-react";
 import Link from "next/link";
 
-import { HeroPanel, ProgressRing, XpPill, formatInt } from "@/components/arena";
+import { HeroPanel, ProgressRing, formatInt } from "@/components/arena";
 import { formatCHFCompact } from "@/lib/format";
-import { XP_RULES, type Mission } from "@/lib/gamification/rules";
+import type { DailyGoal } from "@/lib/gamification/rules";
 import { cn } from "@/lib/utils";
 
 import type { LeadsOverview } from "@/lib/queries/prospects";
@@ -24,10 +24,10 @@ export interface LeadsHeroProps {
   /** « dans ton secteur », « dans la base », « attribuées à Lucille Bouin ». */
   totalSuffix: string;
   overview: LeadsOverview;
-  /** Mission « appels » du joueur connecté (null si le moteur est indisponible). */
-  mission: Mission | null;
-  /** Record journalier d'XP du joueur. */
-  xpRecordDay: number | null;
+  /** Objectif d'appels du jour de l'utilisateur connecté (null si indisponible). */
+  goalAppels: DailyGoal | null;
+  /** Objectif de RDV pris du jour (null si indisponible). */
+  goalRdv: DailyGoal | null;
   /** Liens vers les vues rapides. */
   hrefChaudes: string;
   hrefJamais: string;
@@ -39,14 +39,14 @@ export function LeadsHero({
   total,
   totalSuffix,
   overview,
-  mission,
-  xpRecordDay,
+  goalAppels: goal,
+  goalRdv,
   hrefChaudes,
   hrefJamais,
   nowMs,
 }: LeadsHeroProps) {
   const { vues, rdv, called, signed } = overview;
-  const restants = mission ? Math.max(0, mission.target - mission.current) : 0;
+  const restants = goal ? Math.max(0, goal.target - goal.current) : 0;
   const calledTrend =
     called.prev7 > 0 ? Math.round(((called.last7 - called.prev7) / called.prev7) * 100) : null;
 
@@ -95,21 +95,18 @@ export function LeadsHero({
             {vues.chaudes > 0
               ? `${formatInt(vues.chaudes)} lead${vues.chaudes > 1 ? "s" : ""} chaud${vues.chaudes > 1 ? "s" : ""} t'attend${vues.chaudes > 1 ? "ent" : ""}. `
               : "Pas encore de lead chaud : chaque appel réchauffe ta base. "}
-            {mission && !mission.done && (
+            {goal && !goal.done && (
               <>
-                Attaque par le haut : encore{" "}
+                Commence par le haut : encore{" "}
                 <strong className="text-white">
                   {formatInt(restants)} appel{restants > 1 ? "s" : ""}
                 </strong>{" "}
-                et la mission du jour est pliée.
+                pour ton objectif du jour.
               </>
             )}
-            {mission?.done && (
+            {goal?.done && (
               <>
-                Mission « {mission.label} » pliée
-                {xpRecordDay
-                  ? ` : chaque appel en plus te rapproche de ton record de ${formatInt(xpRecordDay)} XP.`
-                  : " : machine de guerre."}
+                Objectif « {goal.label} » atteint : chaque appel en plus peut devenir un RDV.
               </>
             )}
           </p>
@@ -121,13 +118,6 @@ export function LeadsHero({
             >
               <Phone aria-hidden="true" className="size-5" />
               Lancer le phoning
-              {mission && !mission.done && (
-                <XpPill
-                  xp={mission.xpReward}
-                  label="mission"
-                  className="text-shadow-none"
-                />
-              )}
             </Link>
             <Link
               href="/prospects/nouveau"
@@ -139,36 +129,37 @@ export function LeadsHero({
           </div>
         </div>
 
-        {/* Colonne droite : mission + tuiles */}
+        {/* Colonne droite : objectif du jour + tuiles */}
         <div className="flex min-w-0 flex-[2_1_320px] flex-col gap-3">
-          {mission && (
+          {goal && (
             <div className="flex items-center gap-4 rounded-[14px] bg-white/8 px-4 py-3.5">
               <ProgressRing
-                value={mission.current}
-                max={mission.target}
+                value={goal.current}
+                max={goal.target}
                 size={84}
                 stroke={9}
                 tone="coral"
                 trackColor="#2F4470"
-                label={`Mission appels : ${formatInt(mission.current)} sur ${formatInt(mission.target)}`}
+                label={`Objectif d'appels du jour : ${formatInt(goal.current)} sur ${formatInt(goal.target)}`}
               >
-                <span className="score-number text-xl text-white">{formatInt(mission.current)}</span>
+                <span className="score-number text-xl text-white">{formatInt(goal.current)}</span>
                 <span className="mt-1 text-[11px] font-bold text-navy-200">
-                  sur {formatInt(mission.target)}
+                  sur {formatInt(goal.target)}
                 </span>
               </ProgressRing>
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-bold tracking-[0.08em] text-navy-200 uppercase">
-                  Mission · {mission.label}
+                  Objectif du jour · {goal.label}
                 </p>
                 <p className="mt-0.5 font-display text-xl font-extrabold">
-                  {mission.done
-                    ? "Mission pliée"
-                    : `${mission.pct} % · encore ${formatInt(restants)} appel${restants > 1 ? "s" : ""}`}
+                  {goal.done
+                    ? "Objectif atteint"
+                    : `${goal.pct} % · encore ${formatInt(restants)} appel${restants > 1 ? "s" : ""}`}
                 </p>
                 <p className="mt-1 text-xs text-navy-200">
-                  Chaque appel +{XP_RULES.appel} XP · décroché +{XP_RULES.conversation} XP · RDV
-                  pris +{XP_RULES.rdvPris} XP
+                  {goalRdv
+                    ? `RDV pris aujourd'hui : ${formatInt(goalRdv.current)} / ${formatInt(goalRdv.target)}`
+                    : "Chaque appel compte. Chaque RDV est une chance."}
                 </p>
               </div>
             </div>

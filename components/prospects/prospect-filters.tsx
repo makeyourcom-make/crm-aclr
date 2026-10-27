@@ -38,7 +38,7 @@ interface ProspectFiltersProps {
   tags?: Array<{ id: string; nom: string }>;
   /** Produits présents dans des contrats → filtre « Produit » (clients signés). */
   products?: Array<{ id: string; nom: string }>;
-  /** Filtre de fraîcheur de la dernière action (MYC Arena). */
+  /** Filtre de fraîcheur de la dernière action. */
   fraicheur?: ProspectFraicheur;
 }
 

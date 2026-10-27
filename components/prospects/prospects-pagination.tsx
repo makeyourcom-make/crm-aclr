@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Pagination MYC Arena de la liste Entreprises (mêmes fonctions que la
+ * Pagination de la liste Entreprises (mêmes fonctions que la
  * pagination commune : taille de page 50 → 1000 ou « Tout », pages
  * numérotées, précédente / suivante), liée aux paramètres d'URL.
  */

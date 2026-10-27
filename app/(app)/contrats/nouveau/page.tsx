@@ -61,7 +61,7 @@ export default async function NewContractPage() {
       <PageHeader
         rubrique="finance"
         title="Nouveau contrat"
-        description="Prospect, lignes, modalités, récap : la proposition rapporte +60 XP dès sa création."
+        description="Prospect, lignes, modalités, récap : enregistre, envoie par mail ou fais signer en direct."
         breadcrumb={
           <Link
             href="/contrats"

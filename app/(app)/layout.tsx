@@ -16,7 +16,7 @@ import type { PlayerHeader } from "@/lib/gamification/rules";
 import { requireUser } from "@/lib/session";
 
 /**
- * Layout des pages authentifiées (sidebar navy + topbar MYC Arena).
+ * Layout des pages authentifiées (sidebar navy + topbar).
  *
  * Toutes les routes sous (app)/ partagent ce shell.
  * Le route group `(app)` n'apparaît PAS dans l'URL : par ex.
@@ -29,15 +29,16 @@ import { requireUser } from "@/lib/session";
  * navigations internes (la commerciale peut continuer à naviguer pendant
  * que l'appel est en cours).
  *
- * Couche de jeu : `getPlayerHeader` (léger) alimente la carte joueur de la
- * sidebar et les pilules XP / série de la topbar. Si le moteur de jeu échoue,
- * le CRM reste pleinement utilisable (player = null → pas de carte joueur).
+ * Résultats : `getPlayerHeader` (léger) alimente la carte « résultats du
+ * mois » de la sidebar (CA signé, RDV pris, série) et les pilules de la
+ * topbar (appels / RDV du jour, série). En cas d'échec, le CRM reste
+ * pleinement utilisable (player = null → pas de carte ni de pilules).
  */
 async function loadPlayer(userId: string): Promise<PlayerHeader | null> {
   try {
     return await getPlayerHeader(userId);
   } catch (err) {
-    console.error("[gamification] getPlayerHeader a échoué :", err);
+    console.error("[resultats] getPlayerHeader a échoué :", err);
     return null;
   }
 }
@@ -51,7 +52,7 @@ export default async function AppLayout({
 
   // Badge non-lus : strictement scopé à l'utilisateur connecté (mailbox privée).
   // Exclut les archivés (qui ne sont plus dans l'inbox active).
-  // En parallèle : l'en-tête joueur (XP total, XP du jour, série).
+  // En parallèle : l'en-tête résultats (jour, mois, série).
   const [unreadEmails, player] = await Promise.all([
     prisma.email.count({
       where: {
@@ -110,7 +111,7 @@ export default async function AppLayout({
 
         <Toaster richColors position="top-right" />
 
-        {/* Confettis MYC Arena (portail, monté une seule fois) */}
+        {/* Confettis de signature (portail, monté une seule fois) */}
         <CelebrationHost />
       </CallSessionProvider>
     </TooltipProvider>

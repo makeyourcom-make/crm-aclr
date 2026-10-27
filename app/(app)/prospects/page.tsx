@@ -10,7 +10,7 @@ interface PageProps {
 }
 
 /**
- * Liste des entreprises (MYC Arena). Données : loadProspectsPage (RLS par
+ * Liste des entreprises. Données : loadProspectsPage (RLS par
  * rôle dans chaque requête) ; présentation : ProspectsListView.
  */
 export default async function ProspectsPage({ searchParams }: PageProps) {

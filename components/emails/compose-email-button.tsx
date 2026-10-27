@@ -8,9 +8,9 @@
  *  2. Sélection prospect → bascule sur le formulaire de rédaction
  *  3. Envoi via sendEmailToProspect() (client) ou sendFreeFormEmail()
  *
- * MYC Arena : variante `hero` (CTA dégradé coral du bandeau). Un mail envoyé à
- * un client crée l'activité EMAIL_ENVOYE → toast « +3 XP » puis rafraîchissement
- * de la coquille (pilules XP / série).
+ * Variante `hero` (CTA dégradé coral du bandeau). Un mail envoyé à un client
+ * crée l'activité EMAIL_ENVOYE → toast sobre puis rafraîchissement de la
+ * coquille (objectifs du jour / série).
  */
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -24,8 +24,7 @@ import {
   sendEmailToProspect,
   sendFreeFormEmail,
 } from "@/app/(app)/emails/actions";
-import { xpToast } from "@/components/arena/celebrate";
-import { XpPill } from "@/components/arena/pills";
+import { resultToast } from "@/components/arena/celebrate";
 import {
   AttachmentPicker,
   type PickedAttachment,
@@ -45,7 +44,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { htmlToPlainText } from "@/lib/email-html";
-import { XP_RULES } from "@/lib/gamification/rules";
 import { cn } from "@/lib/utils";
 
 interface ProspectOption {
@@ -242,17 +240,16 @@ export function ComposeEmailButton({
           : freeEmail.trim();
       if (mode === "client" && selected) {
         // Mail à un client : activité EMAIL_ENVOYE créée (même en dry-run).
-        xpToast(
-          XP_RULES.email,
-          res.dryRun ? "Email enregistré (dry-run)" : "Mail envoyé !",
-          `à ${recipientLabel}`,
+        resultToast(
+          res.dryRun ? "Email enregistré (dry-run)" : "Mail envoyé",
+          `à ${recipientLabel} · ajouté à la fiche client`,
         );
       } else if (res.dryRun) {
         toast.success("Email enregistré (mode dry-run, pas d'envoi réel).");
       } else {
         toast.success(`Email envoyé à ${recipientLabel}.`, {
           description:
-            "S'il correspond à une de tes entreprises, il est rattaché à sa fiche et rapporte +3 XP.",
+            "S'il correspond à une de tes entreprises, il est rattaché à sa fiche.",
         });
       }
       reset();
@@ -595,9 +592,6 @@ export function ComposeEmailButton({
               <Button type="submit" variant="hero" disabled={pending}>
                 <Send aria-hidden="true" />
                 {pending ? "Envoi…" : "Envoyer"}
-                {mode === "client" && (
-                  <XpPill xp={XP_RULES.email} variant="solid" className="text-shadow-none" />
-                )}
               </Button>
               <Button
                 type="button"

@@ -1,6 +1,6 @@
 /**
  * Dates du Dashboard, toujours vues de Suisse (Europe/Zurich), au format de
- * la charte MYC Arena : « 27.10.2026 », « 15:40 », « Mar 27.10 ».
+ * la charte du CRM : « 27.10.2026 », « 15:40 », « Mar 27.10 ».
  *
  * Pur (aucune dépendance serveur) : importable côté client comme côté serveur.
  * Les dates sont stockées en UTC : sans fuseau explicite, un serveur en UTC
@@ -119,6 +119,14 @@ export function zMonthLabel(d: Date | string): string {
   const p = zParts(d);
   const name = MONTHS[p.m - 1] ?? "";
   return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${p.y}`;
+}
+
+/** Clé de mois « AAAA-MM » → « octobre 2026 » (chaîne vide si invalide). */
+export function monthKeyLabel(key: string | null | undefined): string {
+  const m = key ? /^(\d{4})-(\d{2})/.exec(key) : null;
+  if (!m) return "";
+  const name = MONTHS[Number(m[2]) - 1];
+  return name ? `${name} ${m[1]}` : "";
 }
 
 /** Nom de jour d'une clé « AAAA-MM-JJ » (« vendredi »). */

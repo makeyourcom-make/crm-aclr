@@ -5,8 +5,8 @@
  *
  * Affiche le corps HTML/texte, les pièces jointes téléchargeables, et
  * propose les actions Archiver / Désarchiver / Corbeille / Répondre.
- * Une réponse dans un fil lié à un client rapporte +3 XP (activité
- * EMAIL_ENVOYE) : toast XP + rafraîchissement de la coquille.
+ * Une réponse dans un fil lié à un client crée l'activité EMAIL_ENVOYE :
+ * toast sobre + rafraîchissement de la coquille.
  */
 import { useState, useTransition } from "react";
 import Link from "next/link";
@@ -31,8 +31,8 @@ import {
   replyToEmail,
   setEmailArchive,
 } from "@/app/(app)/emails/actions";
-import { xpToast } from "@/components/arena/celebrate";
-import { StatusPill, XpPill } from "@/components/arena/pills";
+import { resultToast } from "@/components/arena/celebrate";
+import { StatusPill } from "@/components/arena/pills";
 import type { Tone } from "@/components/arena/tones";
 import {
   AttachmentPicker,
@@ -48,7 +48,6 @@ import {
 import { RecipientInput } from "@/components/emails/recipient-input";
 import { Button } from "@/components/ui/button";
 import { formatFileSize } from "@/lib/format";
-import { XP_RULES } from "@/lib/gamification/rules";
 
 interface EmailAttachment {
   id: string;
@@ -176,10 +175,9 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
         return;
       }
       if (email.prospect) {
-        xpToast(
-          XP_RULES.email,
-          res.dryRun ? "Réponse enregistrée (dry-run)" : "Réponse envoyée !",
-          `à ${email.prospect.raisonSociale}`,
+        resultToast(
+          res.dryRun ? "Réponse enregistrée (dry-run)" : "Réponse envoyée",
+          `à ${email.prospect.raisonSociale} · ajoutée à la fiche client`,
         );
       } else {
         toast.success(res.dryRun ? "Réponse enregistrée (dry-run)." : "Réponse envoyée.");
@@ -394,8 +392,8 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
               Répondre
             </Button>
             {email.prospect && (
-              <p className="flex items-center justify-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                <XpPill xp={XP_RULES.email} /> à l&apos;envoi de ta réponse
+              <p className="text-center text-xs font-semibold text-muted-foreground">
+                Ta réponse s&apos;inscrira sur la fiche client
               </p>
             )}
           </div>
@@ -405,7 +403,7 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
               <h2 className="font-display text-lg font-extrabold tracking-[-0.02em] text-foreground">
                 Répondre à {replyTarget}
               </h2>
-              {email.prospect && <XpPill xp={XP_RULES.email} label="à l'envoi" />}
+              {email.prospect && <StatusPill tone="green">Fiche client</StatusPill>}
             </div>
             {!showReplyCc ? (
               <button
@@ -459,9 +457,6 @@ export function EmailDetailView({ email }: { email: EmailDetail }) {
               <Button type="button" variant="hero" onClick={handleReply} disabled={pending}>
                 <Send aria-hidden="true" />
                 {pending ? "Envoi…" : "Envoyer la réponse"}
-                {email.prospect && (
-                  <XpPill xp={XP_RULES.email} variant="solid" className="text-shadow-none" />
-                )}
               </Button>
               <Button
                 type="button"

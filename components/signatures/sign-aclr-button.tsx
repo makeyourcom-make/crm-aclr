@@ -2,7 +2,7 @@
 
 /**
  * Contre-signature vendeur (admin ou commerciale assignée) depuis le CRM.
- * Succès : toast, rafraîchissement de la page (statut contrat, coquille XP)
+ * Succès : toast, rafraîchissement de la page (statut contrat, coquille)
  * puis `onSuccess` éventuel (confettis du pipeline…).
  */
 import { LoaderCircle, PenLine } from "lucide-react";

@@ -12,7 +12,7 @@ import { AGENDA_DEFAULT_VIEW } from "@/lib/agenda-view";
 import { prisma } from "@/lib/db";
 import { firstNameOf } from "@/lib/gamification/rules";
 import {
-  getAgendaGame,
+  getAgendaResults,
   getAgendaRange,
   getPhoningOrigins,
   getRdvDayCounts,
@@ -132,9 +132,9 @@ export default async function AgendaPage({ searchParams }: PageProps) {
 
   // Le sélecteur de client du dialogue d'activité fait sa recherche côté
   // serveur (ProspectCombobox) : aucune liste de prospects préchargée ici.
-  const [allActivities, game, dayCounts] = await Promise.all([
+  const [allActivities, results, dayCounts] = await Promise.all([
     getAgendaRange(user, rangeStart, rangeEnd, hideDone, view),
-    getAgendaGame(subject),
+    getAgendaResults(subject),
     getRdvDayCounts(subject, miniStart, miniEnd),
   ]);
   const activeCatSet = new Set(activeCats);
@@ -150,8 +150,8 @@ export default async function AgendaPage({ searchParams }: PageProps) {
 
   const phoning = await getPhoningOrigins([
     ...activities,
-    ...game.pending,
-    ...game.upcoming,
+    ...results.pending,
+    ...results.upcoming,
   ]);
 
   // Description dynamique selon la vue active
@@ -195,7 +195,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         activeCats={activeCats}
         catCounts={catCounts}
         activities={activities}
-        game={game}
+        results={results}
         dayCounts={dayCounts}
         phoning={phoning}
         subject={{

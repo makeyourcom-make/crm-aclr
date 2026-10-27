@@ -191,6 +191,13 @@ function capitalizeFirst(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
+/** Clé « AAAA-MM » → « Octobre 2026 » (chaîne vide si absente ou invalide). */
+export function formatMonthKey(key: string | null | undefined): string {
+  const m = key ? /^(\d{4})-(\d{2})$/.exec(key) : null;
+  if (!m) return "";
+  return capitalizeFirst(longMonthFmt.format(new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, 1))));
+}
+
 export interface TimelineMonth {
   /** « AAAA-MM » */
   key: string;

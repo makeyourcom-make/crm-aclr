@@ -23,9 +23,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { sendClientInvoiceByEmail } from "@/app/(app)/factures-clients/actions";
-import { xpToast } from "@/components/arena/celebrate";
+import { resultToast } from "@/components/arena/celebrate";
 import { Button } from "@/components/ui/button";
-import { XP_RULES } from "@/lib/gamification/rules";
 import {
   Dialog,
   DialogContent,
@@ -113,10 +112,9 @@ export function SendAllDraftsButton({
 
       if (failures.length === 0) {
         if (sent > 0) {
-          // Chaque envoi crée une activité EMAIL_ENVOYE : +3 XP par facture.
-          xpToast(
-            sent * XP_RULES.email,
-            `${sent} facture${sent > 1 ? "s" : ""} envoyée${sent > 1 ? "s" : ""} !`,
+          // Chaque envoi crée une activité EMAIL_ENVOYE (timeline du client).
+          resultToast(
+            `${sent} facture${sent > 1 ? "s" : ""} envoyée${sent > 1 ? "s" : ""}`,
             skipped.length
               ? `${skipped.length} ignorée(s), sans email client`
               : totalsByDevise.join(" + "),
@@ -168,7 +166,7 @@ export function SendAllDraftsButton({
             </p>
             <p className="mt-1 text-[13px] font-semibold text-gold-700">
               Chaque client reçoit son PDF avec QR-bill, avec une copie archivée
-              dans sa timeline. +{XP_RULES.email} XP par envoi.
+              dans sa timeline.
             </p>
           </div>
 

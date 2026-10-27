@@ -6,7 +6,7 @@ import { ACTIVITY_TYPE_ICONS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
 /**
- * Teinte MYC Arena par type d'activité (couleurs de rubrique de la charte) :
+ * Teinte par type d'activité (couleurs de rubrique de la charte) :
  * appels = coral, emails = teal, RDV = or (agenda), SMS = violet,
  * LinkedIn = bleu, note = navy.
  */
@@ -32,7 +32,7 @@ interface ActivityIconProps {
 
 /**
  * Tuile d'icône colorée du type d'activité (fond clair + icône foncée).
- * Rayon proportionnel (tuile arrondie MYC Arena, ronde en très petit) ;
+ * Rayon proportionnel (tuile arrondie, ronde en très petit) ;
  * l'icône suit la taille du contenant (lisible de 12 à 44 px).
  */
 export function ActivityIcon({ type, className, size = 36 }: ActivityIconProps) {
