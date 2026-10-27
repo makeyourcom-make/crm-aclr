@@ -12,6 +12,7 @@ import { Document, Image, Page, Text, View, StyleSheet } from "@react-pdf/render
 
 import { CGV_VERSION } from "@/lib/cgv";
 import { formatMoney, formatDateLong } from "@/lib/format";
+import { clientFacingDescription } from "@/lib/presta-description";
 import { CgvPages } from "@/lib/pdf/cgv-pages";
 
 export interface ContractPdfData {
@@ -378,16 +379,8 @@ const MODALITE_LABELS: Record<string, string> = {
     "Frais unique réglé à la signature, puis abonnement facturé chaque mois",
 };
 
-/**
- * Masque les descriptions auto-générées non destinées au client
- * (ex. « [Custom] Produit sur-mesure créé depuis un deal. »).
- */
-function cleanPrestaDescription(desc?: string | null): string {
-  if (!desc) return "";
-  const t = desc.trim();
-  if (t.startsWith("[Custom]")) return "";
-  return t;
-}
+/** Description client d'une prestation (sans le marqueur interne « [Custom] »). */
+const cleanPrestaDescription = clientFacingDescription;
 
 /**
  * Libellé prix d'une ligne de prestation : frais unique et/ou mensuel.

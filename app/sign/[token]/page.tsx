@@ -11,6 +11,7 @@ import { Logo } from "@/components/brand/logo";
 import { CGV_ARTICLES, CGV_TITLE, CGV_VERSION } from "@/lib/cgv";
 import { prisma } from "@/lib/db";
 import { formatDateLong, formatMoney } from "@/lib/format";
+import { clientFacingDescription } from "@/lib/presta-description";
 
 export const dynamic = "force-dynamic";
 
@@ -120,7 +121,6 @@ export default async function SignPage({ params }: PageProps) {
         : meta?.remiseType === "MONTANT" && meta?.remiseValeur
           ? `−${money(meta.remiseValeur)}`
           : null;
-    const desc = (p.description ?? "").trim();
 
     const lines: Array<{
       label: string;
@@ -154,7 +154,8 @@ export default async function SignPage({ params }: PageProps) {
     }
     return {
       nom: p.nom,
-      description: desc.startsWith("[Custom]") ? "" : desc,
+      // Détail saisi sur la ligne (sans le marqueur interne « [Custom] »).
+      description: clientFacingDescription(p.description),
       lines,
     };
   });
@@ -225,7 +226,7 @@ export default async function SignPage({ params }: PageProps) {
                   <div key={i} className="p-3">
                     <p className="font-medium text-foreground">{p.nom}</p>
                     {p.description && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">
+                      <p className="mt-0.5 whitespace-pre-line text-xs text-muted-foreground">
                         {p.description}
                       </p>
                     )}
@@ -272,6 +273,16 @@ export default async function SignPage({ params }: PageProps) {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Note du contrat (comme sous les prestations du PDF) */}
+          {sig.contract.note && sig.contract.note.trim() !== "" && (
+            <div className="mt-6">
+              <h2 className="text-sm font-semibold text-foreground">Note</h2>
+              <p className="mt-2 whitespace-pre-line rounded-lg border border-border bg-muted/30 p-3 text-sm text-slate-700">
+                {sig.contract.note.trim()}
+              </p>
             </div>
           )}
 
