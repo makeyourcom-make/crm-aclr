@@ -19,6 +19,8 @@ const ACTIONS: Record<DailyGoal["key"], { href: string; label: (g: DailyGoal) =>
     label: (g) => (g.current > 0 ? "Reprendre le phoning" : "Lancer le phoning"),
   },
   rdvPris: { href: "/phoning", label: () => "Décrocher un RDV" },
+  rdvEffectues: { href: "/agenda", label: () => "Voir l'agenda" },
+  signatures: { href: "/contrats/nouveau", label: () => "Préparer un contrat" },
   propositions: { href: "/pipeline", label: () => "Ouvrir le pipeline" },
 };
 
@@ -31,7 +33,7 @@ export function DailyGoalsSection({ goals }: { goals: DailyGoal[] }) {
       title={DAILY_GOALS_TITLE}
       icon={Target}
       tone="coral"
-      description={`${done} / ${goals.length} atteints · l'objectif d'appels atteint prolonge ta série`}
+      description={`${done} / ${goals.length} atteints aujourd’hui`}
       action={
         left === 0 ? (
           <StatusPill tone="green" icon={Check} size="md">

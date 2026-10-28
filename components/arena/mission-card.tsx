@@ -7,7 +7,7 @@
  *
  * Server-safe.
  */
-import { CalendarPlus, Check, Phone, Send, type LucideIcon } from "lucide-react";
+import { CalendarCheck, CalendarPlus, Check, FileSignature, Phone, Send, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { DailyGoal } from "@/lib/gamification/rules";
@@ -24,6 +24,8 @@ export type GoalLike = Pick<DailyGoal, "key" | "label" | "current" | "target" | 
 export const GOAL_META: Record<DailyGoal["key"], { tone: Tone; icon: LucideIcon }> = {
   appels: { tone: "coral", icon: Phone },
   rdvPris: { tone: "gold", icon: CalendarPlus },
+  rdvEffectues: { tone: "blue", icon: CalendarCheck },
+  signatures: { tone: "green", icon: FileSignature },
   propositions: { tone: "violet", icon: Send },
 };
 
@@ -40,6 +42,14 @@ export function goalCoach(m: GoalLike): string {
       return left === 1
         ? "Plus qu'un RDV pour ton objectif"
         : `Encore ${formatInt(left)} RDV à décrocher`;
+    case "rdvEffectues":
+      return left === 1
+        ? "Plus qu'un RDV à honorer aujourd'hui"
+        : `Encore ${formatInt(left)} RDV à effectuer`;
+    case "signatures":
+      return left === 1
+        ? "Une signature et l'objectif est atteint"
+        : `Encore ${formatInt(left)} contrats à signer`;
     case "propositions":
       return `Encore ${plural(left, "proposition")} à envoyer`;
     default:

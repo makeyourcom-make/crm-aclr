@@ -42,12 +42,14 @@ export interface DayCounters {
 export interface DailyTargets {
   appels: number;
   rdvPris: number;
+  rdvEffectues: number;
+  signatures: number;
   propositions: number;
 }
 
 /** Un objectif du jour (appels, RDV pris, propositions) avec sa jauge. */
 export interface DailyGoal {
-  key: "appels" | "rdvPris" | "propositions";
+  key: "appels" | "rdvPris" | "rdvEffectues" | "signatures" | "propositions";
   /** Ex. « Passer 40 appels ». */
   label: string;
   current: number;
@@ -184,7 +186,7 @@ export interface LeaderboardEntry {
 /** Titre de la section des objectifs quotidiens. */
 export const DAILY_GOALS_TITLE = "Objectifs du jour";
 
-export const DEFAULT_DAILY_TARGETS: DailyTargets = { appels: 40, rdvPris: 3, propositions: 1 };
+export const DEFAULT_DAILY_TARGETS: DailyTargets = { appels: 40, rdvPris: 4, rdvEffectues: 3, signatures: 1, propositions: 1 };
 
 // ---------------------------------------------------------------------------
 // FONCTIONS PURES
@@ -221,41 +223,47 @@ function plural(n: number, singular: string, pluralForm: string): string {
 }
 
 /** Les 3 objectifs du jour à partir des compteurs et des objectifs quotidiens. */
-export function dailyGoalsFor(c: DayCounters, targets: DailyTargets): DailyGoal[] {
-  const build = (
-    key: DailyGoal["key"],
-    label: string,
-    current: number,
-    target: number,
-  ): DailyGoal => {
-    const t = Math.max(1, target);
-    const done = current >= t;
-    return {
-      key,
-      label,
-      current,
-      target: t,
-      // Jamais 100 % tant que l'objectif n'est pas atteint (ex. 39 / 40).
-      pct: done ? 100 : Math.min(99, Math.max(0, Math.round((current / t) * 100))),
-      done,
-      remaining: Math.max(0, t - current),
-    };
+function buildGoal(
+  key: DailyGoal["key"],
+  label: string,
+  current: number,
+  target: number,
+): DailyGoal {
+  const t = Math.max(1, target);
+  const done = current >= t;
+  return {
+    key,
+    label,
+    current,
+    target: t,
+    // Jamais 100 % tant que l'objectif n'est pas atteint (ex. 3 / 4).
+    pct: done ? 100 : Math.min(99, Math.max(0, Math.round((current / t) * 100))),
+    done,
+    remaining: Math.max(0, t - current),
   };
+}
+
+/**
+ * Les 3 objectifs du jour affichés (décision Arthur 28.10.2026) :
+ * décrocher N RDV, effectuer N RDV, signer N contrat(s).
+ * L'objectif d'appels reste géré à part (série, phoning) via `appelsGoalFor`.
+ */
+export function dailyGoalsFor(c: DayCounters, targets: DailyTargets): DailyGoal[] {
   return [
-    build(
-      "appels",
-      `Passer ${targets.appels} ${plural(targets.appels, "appel", "appels")}`,
-      c.appels,
-      targets.appels,
-    ),
-    build("rdvPris", `Décrocher ${targets.rdvPris} RDV`, c.rdvPris, targets.rdvPris),
-    build(
-      "propositions",
-      `Envoyer ${targets.propositions} ${plural(targets.propositions, "proposition", "propositions")}`,
-      c.propositions,
-      targets.propositions,
+    buildGoal("rdvPris", `Décrocher ${targets.rdvPris} RDV`, c.rdvPris, targets.rdvPris),
+    buildGoal("rdvEffectues", `Effectuer ${targets.rdvEffectues} RDV`, c.rdvEffectues, targets.rdvEffectues),
+    buildGoal(
+      "signatures",
+      `Signer ${targets.signatures} ${plural(targets.signatures, "contrat", "contrats")}`,
+      c.signatures,
+      targets.signatures,
     ),
   ];
+}
+
+/** Objectif d'appels du jour (séparé des 3 cartes : série, phoning). */
+export function appelsGoalFor(c: DayCounters, targets: DailyTargets): DailyGoal {
+  return buildGoal("appels", `Passer ${targets.appels} ${plural(targets.appels, "appel", "appels")}`, c.appels, targets.appels);
 }
 
 /** Prénom (premier mot du nom). */

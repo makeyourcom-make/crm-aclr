@@ -123,7 +123,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const firstName = user.name.split(" ")[0];
 
   const dailyTarget = (key: "appels" | "rdvPris" | "propositions") =>
-    stats?.dailyGoals.find((g) => g.key === key)?.target ?? null;
+    stats?.dailyTargets[key] ?? null;
   const hasLeaderboard = weekly !== null || monthly !== null;
 
   return (
@@ -146,7 +146,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             isAdmin
               ? null
               : {
-                  commissions: data.commissionsAcquisesMois,
+                  commissions: data.commissionsEstimeesMois,
+                  versees: data.commissionsAcquisesMois,
                   salairePrevu: data.salairePrevuMois,
                   garantieActive: data.garantieActiveMois,
                 }
@@ -169,9 +170,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             href="/contrats"
           />
           <MoneyStat
-            label="Commissions acquises"
-            amount={data.commissionsAcquisesMois}
-            sub="versées via ton salaire mensuel"
+            label={`Commissions du mois · ${calendar.mois}`}
+            amount={data.commissionsEstimeesMois}
+            sub={`25 % de ce que tu signes · ${formatCHFCompact(data.commissionsAcquisesMois)} déjà versées`}
             icon={Wallet}
             tone="green"
           />

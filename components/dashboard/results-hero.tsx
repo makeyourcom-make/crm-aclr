@@ -41,8 +41,10 @@ import type { Role } from "@prisma/client";
 export const DEVISE = "Chaque appel compte. Chaque RDV est une chance. Chaque signature rapporte.";
 
 export interface HeroMoney {
-  /** Commissions acquises (versées) ce mois. */
+  /** Commissions générées sur les contrats signés ce mois (25 % de la valeur 1re année). */
   commissions: number;
+  /** Déjà versées ce mois. */
+  versees: number;
   salairePrevu: number;
   garantieActive: boolean;
 }
@@ -143,8 +145,7 @@ export function ResultsHero({
   pendingCount = 0,
 }: ResultsHeroProps) {
   const isAdmin = role === "ADMIN";
-  const appelsGoal = stats.dailyGoals.find((g) => g.key === "appels");
-  const appelsTarget = appelsGoal?.target ?? stats.dailyCallTarget;
+  const appelsTarget = stats.dailyTargets.appels || stats.dailyCallTarget;
   const appelsLeft = Math.max(0, appelsTarget - stats.today.appels);
 
   const month = stats.month;
@@ -452,9 +453,9 @@ export function ResultsHero({
 
           {money && (
             <HeroTile
-              label={`Commissions acquises · ${mois}`}
+              label={`Commissions du mois · ${mois}`}
               icon={Wallet}
-              sub={`Salaire prévu ${formatCHFCompact(money.salairePrevu)} · ${money.garantieActive ? "garantie active" : "performance pure"}`}
+              sub={`25 % de ce que tu signes · ${formatCHFCompact(money.versees)} déjà versées`}
             >
               <HeroChf value={money.commissions} />
             </HeroTile>

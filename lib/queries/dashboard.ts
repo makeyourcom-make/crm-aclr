@@ -33,6 +33,8 @@ export interface DashboardData {
   // KPI du mois
   signaturesMois: { count: number; montant: number };
   commissionsAcquisesMois: number;
+  /** Commissions générées sur les contrats signés ce mois (25 % de la valeur 1re année). */
+  commissionsEstimeesMois: number;
   /** = MAX(commissions du mois, garantie) + frais */
   salairePrevuMois: number;
   garantieActiveMois: boolean;
@@ -252,8 +254,29 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     forfaitFrais = Number(userSettings.forfaitFrais);
   }
   const comMois = Number(comAcquisesMois._sum.montant ?? 0);
-  const salairePrevuMois = Math.max(comMois, garantieMensuelle) + forfaitFrais;
-  const garantieActiveMois = comMois < garantieMensuelle;
+  // Commissions GÉNÉRÉES sur les contrats signés ce mois (25 % de la valeur 1re
+  // année, frais compris), qu'elles soient déjà versées ou à venir. Les commerciales
+  // voient ce montant ; l'« acquis » (versé) reste disponible à part.
+  const commissionsEstimeesMois =
+    user.role === "ADMIN"
+      ? 0
+      : Number(
+          (
+            await prisma.commission.aggregate({
+              where: {
+                userId: user.id,
+                contract: {
+                  statut: { in: [...STATUTS_SIGNES] },
+                  dateSignature: { gte: startMonth, lte: endMonth },
+                },
+              },
+              _sum: { montantTotal: true },
+            })
+          )._sum.montantTotal ?? 0,
+        );
+  // Rémunération prévue du mois : commissions générées (ou garantie) + frais.
+  const salairePrevuMois = Math.max(commissionsEstimeesMois, garantieMensuelle) + forfaitFrais;
+  const garantieActiveMois = commissionsEstimeesMois < garantieMensuelle;
 
   // Signatures du mois : count + valeur TOTALE (one-shot + mensuel × durée).
   const signaturesMoisCount = signaturesMoisRaw.length;
@@ -469,6 +492,7 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
       montant: signaturesMoisMontant,
     },
     commissionsAcquisesMois: comMois,
+    commissionsEstimeesMois,
     salairePrevuMois,
     garantieActiveMois,
     monthlyProgress,

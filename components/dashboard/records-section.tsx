@@ -103,13 +103,13 @@ export function RecordsSection({
     },
     {
       key: "contrat",
-      label: "Plus gros contrat",
+      label: "Plus gros revenu mensuel",
       icon: FileSignature,
       tone: "violet",
       value: r.biggestContractMensuel > 0 ? `${formatCHF(r.biggestContractMensuel)} / mois` : "Aucun",
       coach:
         r.biggestContractMensuel > 0
-          ? "Montant mensuel du plus gros contrat signé"
+          ? "Ton plus gros contrat te rapporte ça chaque mois"
           : "Pas encore de contrat mensuel signé",
     },
     {

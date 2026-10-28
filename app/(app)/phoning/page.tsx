@@ -30,6 +30,7 @@ async function loadGame(userId: string): Promise<PhoningGame | null> {
     return {
       goals: s.dailyGoals,
       today: s.today,
+      appelsTarget: s.dailyTargets.appels,
       bestDayRdvPris: s.records.bestDayRdvPris > 0 ? s.records.bestDayRdvPris : null,
     };
   } catch (err) {

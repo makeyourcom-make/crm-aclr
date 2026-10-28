@@ -325,6 +325,7 @@ interface DailyObjective {
   endKey: string;
   appels: number | null;
   rdvPris: number | null;
+  signatures: number | null;
   propositions: number | null;
 }
 
@@ -341,6 +342,7 @@ async function loadDailyObjectives(userId: string | null): Promise<DailyObjectiv
       dateFin: true,
       nbAppelsObjectif: true,
       nbRdvObjectif: true,
+      nbSignaturesObjectif: true,
       nbPropositionsObjectif: true,
     },
     // Le plus récent d'abord (même règle que getTeamActivityOverview).
@@ -352,6 +354,7 @@ async function loadDailyObjectives(userId: string | null): Promise<DailyObjectiv
     endKey: zurichDayKey(o.dateFin),
     appels: o.nbAppelsObjectif,
     rdvPris: o.nbRdvObjectif,
+    signatures: o.nbSignaturesObjectif,
     propositions: o.nbPropositionsObjectif,
   }));
 }
@@ -371,6 +374,9 @@ function targetsFor(objectives: DailyObjective[], key: string): DailyTargets {
   return {
     appels: positive(o?.appels, DEFAULT_DAILY_TARGETS.appels),
     rdvPris: positive(o?.rdvPris, DEFAULT_DAILY_TARGETS.rdvPris),
+    // Pas de champ « RDV effectués » en base : objectif par défaut (3/jour).
+    rdvEffectues: DEFAULT_DAILY_TARGETS.rdvEffectues,
+    signatures: positive(o?.signatures, DEFAULT_DAILY_TARGETS.signatures),
     propositions: positive(o?.propositions, DEFAULT_DAILY_TARGETS.propositions),
   };
 }

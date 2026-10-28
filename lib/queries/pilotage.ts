@@ -912,6 +912,8 @@ function targetsFor(objectives: DailyObjective[], key: string): DailyTargets {
   return {
     appels: positive(o?.appels, DEFAULT_DAILY_TARGETS.appels),
     rdvPris: positive(o?.rdvPris, DEFAULT_DAILY_TARGETS.rdvPris),
+    rdvEffectues: DEFAULT_DAILY_TARGETS.rdvEffectues,
+    signatures: DEFAULT_DAILY_TARGETS.signatures,
     propositions: positive(o?.propositions, DEFAULT_DAILY_TARGETS.propositions),
   };
 }

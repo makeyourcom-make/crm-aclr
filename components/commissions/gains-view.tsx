@@ -243,9 +243,9 @@ export function GainsView({ gains: g, stats }: { gains: GainsData; stats: Player
   if (stats && stats.records.biggestContractMensuel > 0) {
     const next = g.upcomingRdvs[0];
     records.push({
-      label: "Plus gros contrat",
+      label: "Plus gros revenu mensuel",
       value: `${formatCHFCompact(stats.records.biggestContractMensuel)} / mois`,
-      context: "Mensuel d'un contrat signé",
+      context: "Ton plus gros contrat signé",
       challenge: next
         ? `${next.client ?? "Ton prochain RDV"} le ${formatDayMonthCH(next.date)} à ${formatTimeCH(next.date)} : de quoi le battre ?`
         : "Ton prochain RDV peut le battre.",

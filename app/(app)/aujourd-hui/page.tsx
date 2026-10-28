@@ -48,7 +48,7 @@ export default async function AujourdhuiPage() {
 
   // Cibles du jour : objectifs du jour (objectif QUOTIDIEN actif, sinon
   // 40 appels / 3 RDV / 1 proposition), emails depuis l'objectif quotidien.
-  const goalTarget = (key: "appels" | "rdvPris" | "propositions") =>
+  const goalTarget = (key: "appels" | "rdvPris" | "rdvEffectues" | "propositions") =>
     stats?.dailyTargets[key] ?? DEFAULT_DAILY_TARGETS[key];
   const objEmails = cockpit.objectif?.emails;
   const objSignatures = cockpit.objectif?.signatures;
@@ -56,7 +56,7 @@ export default async function AujourdhuiPage() {
   const dayTargets: DayTargets = {
     appels: goalTarget("appels"),
     rdvPris: goalTarget("rdvPris"),
-    rdvEffectues: goalTarget("rdvPris"),
+    rdvEffectues: goalTarget("rdvEffectues"),
     propositions: goalTarget("propositions"),
     emails: emailsTarget,
   };

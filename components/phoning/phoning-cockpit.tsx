@@ -32,6 +32,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { formatPhone, normalizePhone } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  appelsGoalFor,
   DEFAULT_DAILY_TARGETS,
   dailyGoalsFor,
   emptyCounters,
@@ -64,6 +65,8 @@ export interface PhoningGame {
   /** Objectifs du jour (appels, RDV pris, propositions) avec jauges. */
   goals: DailyGoal[];
   today: DayCounters;
+  /** Objectif d'appels du jour (séparé des 3 cartes d'objectifs). */
+  appelsTarget: number;
   /** Record : meilleure journée en RDV pris (null si aucun RDV). */
   bestDayRdvPris: number | null;
 }
@@ -159,7 +162,9 @@ export function PhoningCockpit({
     rdvPris: points.filter((p) => p.resultat === "RDV_PRIS").length,
   };
   const goals = game?.goals ?? dailyGoalsFor(fallbackCounters, DEFAULT_DAILY_TARGETS);
-  const goalAppels = goals.find((g) => g.key === "appels") ?? null;
+  const appelsTarget = game?.appelsTarget ?? DEFAULT_DAILY_TARGETS.appels;
+  const appelsCounters = game?.today ?? fallbackCounters;
+  const goalAppels = appelsGoalFor(appelsCounters, { ...DEFAULT_DAILY_TARGETS, appels: appelsTarget });
   const goalRdv = goals.find((g) => g.key === "rdvPris") ?? null;
 
   // ---- Objectif du jour atteint (données réelles, après refresh) -----------

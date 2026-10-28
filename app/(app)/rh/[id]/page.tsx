@@ -157,7 +157,7 @@ export default async function EmployeeFichePage({ params }: PageProps) {
                   sub={`${formatInt(stats.month.rdvEffectues)} effectué${stats.month.rdvEffectues > 1 ? "s" : ""} · ${formatInt(stats.month.appels)} appels`}
                 />
                 <HeroStat
-                  label="Plus gros contrat"
+                  label="Plus gros revenu mensuel"
                   value={stats.records.biggestContractMensuel > 0 ? formatCHF(stats.records.biggestContractMensuel) : "Aucun"}
                   sub="montant mensuel"
                 />

@@ -159,7 +159,7 @@ export function ResultsHero({ stats, month }: { stats: PlayerStats; month: Comme
         />
         <RecordItem
           icon={<Trophy aria-hidden="true" className="size-4 text-gold-500" />}
-          label="Plus gros contrat"
+          label="Plus gros revenu mensuel"
           value={r.biggestContractMensuel > 0 ? `${formatCHF(r.biggestContractMensuel)} / mois` : "Aucun"}
           sub="Montant mensuel signé"
         />
