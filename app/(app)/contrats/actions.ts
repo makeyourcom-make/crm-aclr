@@ -327,6 +327,7 @@ export async function createContractFromDeal(
   const plan = buildSignaturePaymentPlan({
     valeurAn1Cents: assietteCommissionCents,
     taux: tauxCommission,
+    dureeMois: parsed.data.dureeMois,
     dateSignature: parsed.data.dateSignature,
   });
 
@@ -600,6 +601,7 @@ export async function updateContract(
     const plan = buildSignaturePaymentPlan({
       valeurAn1Cents: assietteCommissionCents,
       taux: tauxCommission,
+      dureeMois: parsed.data.dureeMois,
       dateSignature: parsed.data.dateSignature,
     });
     await prisma.$transaction(

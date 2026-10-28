@@ -22,7 +22,6 @@
  */
 
 import {
-  COMMISSION_SIGNATURE_NB_MOIS_ETALEMENT,
   COMMISSION_SIGNATURE_PART_INITIALE_DENOMINATEUR,
   FORFAIT_FRAIS_MENSUEL_DEFAULT_CHF,
   GARANTIE_MENSUELLE_DEFAULT_CHF,
@@ -61,6 +60,12 @@ export interface CommissionSignatureInput {
   valeurAn1Cents: Cents;
   /** Taux de commission (0.25 par défaut) */
   taux?: number;
+  /**
+   * Durée du contrat en mois. L'étalement de la moitié « étalée » se fait sur
+   * (durée - 1) mois (6 mois → 5 étalements ; 12 mois → 11). Défaut 12 pour la
+   * compat (ancien comportement = 11 étalements).
+   */
+  dureeMois?: number;
 }
 
 export interface CommissionSignatureResult {
@@ -106,10 +111,20 @@ export function computeCommissionSignature(
   const partSignatureCents = Math.floor(
     totalCents / COMMISSION_SIGNATURE_PART_INITIALE_DENOMINATEUR,
   );
+  // Étalement sur (durée - 1) mois. Si le contrat ne dure qu'un mois, il n'y a
+  // pas d'étalement : toute la commission est versée à la signature.
+  const dureeMois = input.dureeMois ?? 12;
+  const n = Math.max(0, Math.round(dureeMois) - 1);
+  if (n === 0) {
+    return {
+      totalCents,
+      partSignatureCents: totalCents,
+      totalEtalementsCents: 0,
+      etalementsCents: [],
+    };
+  }
   const totalEtalementsCents = totalCents - partSignatureCents;
-
-  // Répartit totalEtalementsCents en 11 parts égales ; le dernier mois absorbe le reste.
-  const n = COMMISSION_SIGNATURE_NB_MOIS_ETALEMENT;
+  // Répartit totalEtalementsCents en n parts égales ; le dernier mois absorbe le reste.
   const partBase = Math.floor(totalEtalementsCents / n);
   const etalementsCents: Cents[] = Array(n).fill(partBase);
   const reste = totalEtalementsCents - partBase * n;
@@ -364,11 +379,12 @@ export function computeValeurAn1(input: ValeurAn1Input): Cents {
  * contrat ne dure que 3 mois — elle doit toucher sa part sur ce qu'ACLR
  * encaisse VRAIMENT pendant la durée du contrat.
  *
- * = oneShot + mensuel × dureeMois (sans cap)
+ * = oneShot (création, 100 %) + 30 % du budget mensuel × dureeMois.
+ * (Le budget pub part chez Google/Meta ; ACLR ne commissionne que sa marge.)
  *
- * Exemples :
- *   - 3 mois @ 349 setup + 600/mois (Budget 5'000+) → 2 149 CHF
- *   - 6 mois @ 349 setup + 125/mois (Budget 500)   → 1 099 CHF
+ * Exemples (marge 30 %) :
+ *   - 3 mois @ 349 création + budget 600/mois → 349 + 0.30×600×3 = 889 CHF
+ *   - 6 mois @ 349 création + budget 125/mois → 349 + 0.30×125×6 = 574 CHF
  */
 export function computeAssietteCommissionAds(
   input: ValeurAn1Input & { dureeMois: number },
@@ -377,7 +393,11 @@ export function computeAssietteCommissionAds(
   if (input.mensuelCents < 0) throw new RangeError("mensuelCents ≥ 0");
   if (!Number.isFinite(input.dureeMois) || input.dureeMois <= 0)
     throw new RangeError(`dureeMois doit être > 0 (reçu ${input.dureeMois})`);
-  return input.oneShotCents + input.mensuelCents * input.dureeMois;
+  // Le mensuel ADS = budget publicitaire (part client qui finance Google/Meta).
+  // ACLR ne garde que sa marge (MARGE_ACLR_BUDGET_ADS) ; la commission ne porte
+  // que sur cette marge. Le one-shot (création de campagne) compte à 100 %.
+  const budgetCommissionnableCents = Math.round(input.mensuelCents * MARGE_ACLR_BUDGET_ADS);
+  return input.oneShotCents + budgetCommissionnableCents * input.dureeMois;
 }
 
 /**
@@ -385,6 +405,9 @@ export function computeAssietteCommissionAds(
  * spéciale. Aujourd'hui : enum Prisma `ProductCategorie.ADS` (regroupe
  * Google Ads + Meta Ads).
  */
+/** Marge ACLR sur le budget publicitaire ADS (le reste finance Google/Meta). */
+export const MARGE_ACLR_BUDGET_ADS = 0.3;
+
 export const ADS_CATEGORIES = new Set<string>(["ADS"]);
 
 /**
