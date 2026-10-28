@@ -299,31 +299,35 @@ export function ResultsHero({
 
         {/* CTA */}
         <div className="flex w-full min-w-0 flex-col gap-3 sm:w-auto sm:flex-[0_1_300px]">
-          <Link
-            href="/phoning"
-            className="group flex min-h-[72px] items-center gap-3.5 rounded-[18px] bg-gradient-coral py-3.5 pr-5 pl-3.5 text-white shadow-[0_12px_28px_rgba(233,82,86,0.45)] transition-[transform,filter] hover:brightness-[1.04] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-white active:translate-y-px"
-          >
-            <span
-              aria-hidden="true"
-              className="flex size-11 shrink-0 items-center justify-center rounded-[14px] bg-white text-coral-600"
-            >
-              <Phone className="size-[22px]" strokeWidth={2.2} />
-            </span>
-            <span className="flex-1 font-display text-[22px] font-extrabold tracking-[-0.01em] [text-shadow:0_1px_2px_rgba(14,25,54,0.35)]">
-              Lancer le phoning
-            </span>
-            <ArrowRight
-              aria-hidden="true"
-              className="size-[22px] transition-transform group-hover:translate-x-0.5"
-              strokeWidth={2.4}
-            />
-          </Link>
-          <p className="text-center text-[13px] font-semibold text-navy-200">
-            <span className="tabular-nums">
-              {formatInt(stats.today.rdvPris)} / {formatInt(rdvJourTarget)}
-            </span>{" "}
-            RDV pris aujourd&apos;hui · {plural(stats.today.appels, "appel")}
-          </p>
+          {!isAdmin && (
+            <>
+              <Link
+                href="/phoning"
+                className="group flex min-h-[72px] items-center gap-3.5 rounded-[18px] bg-gradient-coral py-3.5 pr-5 pl-3.5 text-white shadow-[0_12px_28px_rgba(233,82,86,0.45)] transition-[transform,filter] hover:brightness-[1.04] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-white active:translate-y-px"
+              >
+                <span
+                  aria-hidden="true"
+                  className="flex size-11 shrink-0 items-center justify-center rounded-[14px] bg-white text-coral-600"
+                >
+                  <Phone className="size-[22px]" strokeWidth={2.2} />
+                </span>
+                <span className="flex-1 font-display text-[22px] font-extrabold tracking-[-0.01em] [text-shadow:0_1px_2px_rgba(14,25,54,0.35)]">
+                  Lancer le phoning
+                </span>
+                <ArrowRight
+                  aria-hidden="true"
+                  className="size-[22px] transition-transform group-hover:translate-x-0.5"
+                  strokeWidth={2.4}
+                />
+              </Link>
+              <p className="text-center text-[13px] font-semibold text-navy-200">
+                <span className="tabular-nums">
+                  {formatInt(stats.today.rdvPris)} / {formatInt(rdvJourTarget)}
+                </span>{" "}
+                RDV pris aujourd&apos;hui · {plural(stats.today.appels, "appel")}
+              </p>
+            </>
+          )}
           {isAdmin ? (
             <Link
               href="/stats"

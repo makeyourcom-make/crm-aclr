@@ -20,6 +20,7 @@ const PILL =
 const safe = (n: number) => (Number.isFinite(n) ? Math.max(0, n) : 0);
 
 export function ScorePills({ player, role }: { player: PlayerHeader; role: Role }) {
+  if (role === "ADMIN") return null;
   const href = role === "COMMERCIAL" ? "/aujourd-hui" : "/";
   const appels = safe(player.today.appels);
   const rdv = safe(player.today.rdvPris);
