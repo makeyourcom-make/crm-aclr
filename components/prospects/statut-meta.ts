@@ -3,8 +3,8 @@
  * étapes de l'entonnoir). Client-safe, sans dépendance serveur.
  *
  * Couleurs (charte §2, texte foncé sur fond clair, contraste ≥ 4.5:1) :
- * Nouveau navy · À attaquer coral pointillé · Contacté bleu · Qualifié teal ·
- * RDV pris violet · Proposition or · Signé vert · Perdu gris (point gris) ·
+ * Nouveau navy · À attaquer coral pointillé · Contacté violet · Qualifié teal ·
+ * RDV pris rose · Proposition or · Signé vert · Perdu gris (point gris) ·
  * Numéro invalide gris pointillé (point or) · Ne pas rappeler gris (point rouge).
  */
 import type { ProspectStatut } from "@prisma/client";
@@ -45,10 +45,10 @@ export const STATUT_META: Record<ProspectStatut, StatutMeta> = {
   CONTACTE: {
     label: "Contacté",
     short: "Contacté",
-    tone: "blue",
-    pill: "bg-info-50 text-info-700 border-info-50",
-    solid: "bg-info-500",
-    text: "text-info-700",
+    tone: "violet",
+    pill: "bg-lvl-50 text-lvl-700 border-lvl-50",
+    solid: "bg-lvl-500",
+    text: "text-lvl-700",
   },
   QUALIFIE: {
     label: "Qualifié",
@@ -61,10 +61,12 @@ export const STATUT_META: Record<ProspectStatut, StatutMeta> = {
   RDV_PRIS: {
     label: "RDV pris",
     short: "RDV pris",
-    tone: "violet",
-    pill: "bg-lvl-50 text-lvl-700 border-lvl-50",
-    solid: "bg-lvl-500",
-    text: "text-lvl-700",
+    // Rose : pas de teinte « rose » dans les tokens, classes écrites en entier
+    // (Tailwind v4 les scanne). `tone` n'est pas utilisé pour l'affichage.
+    tone: "coral",
+    pill: "bg-[#FCE7F3] text-[#A81D5B] border-[#FBCFE8]",
+    solid: "bg-[#EC4899]",
+    text: "text-[#A81D5B]",
   },
   PROPOSITION_ENVOYEE: {
     label: "Proposition envoyée",
