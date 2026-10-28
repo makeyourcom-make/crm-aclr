@@ -457,11 +457,11 @@ export function ResultsHero({
 
           {money && (
             <HeroTile
-              label={`Commissions du mois · ${mois}`}
+              label={`Commission sur tes signatures · ${mois}`}
               icon={Wallet}
-              sub={`25 % de ce que tu signes (hors budget pub) + ${formatCHFCompact(money.frais)} de frais`}
+              sub="25 % de ce que tu signes, budget pub exclu"
             >
-              <HeroChf value={money.commissions + money.frais} />
+              <HeroChf value={money.commissions} />
             </HeroTile>
           )}
 

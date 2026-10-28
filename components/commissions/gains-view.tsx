@@ -307,6 +307,7 @@ export function GainsView({ gains: g, stats }: { gains: GainsData; stats: Player
         <GainsHero
           window={w}
           monthTotal={monthTotal}
+          monthGenere={g.month.genere}
           monthAcquis={g.month.acquis}
           headline={headline}
           coach={coach.join(" ")}

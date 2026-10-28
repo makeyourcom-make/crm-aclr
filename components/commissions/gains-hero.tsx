@@ -39,6 +39,7 @@ export interface HeroGaugeData {
 export interface GainsHeroProps {
   window: MonthWindow;
   monthTotal: number;
+  monthGenere: number;
   monthAcquis: number;
   /** Troisième ligne du titre (« · encore 2 contrats pour l'objectif »). */
   headline: ReactNode;
@@ -52,6 +53,7 @@ export interface GainsHeroProps {
 export function GainsHero({
   window: w,
   monthTotal,
+  monthGenere,
   monthAcquis,
   headline,
   coach,
@@ -80,10 +82,10 @@ export function GainsHero({
 
           <h2 id="gains-hero-titre" className="flex flex-col gap-1">
             <span className="text-xs font-bold tracking-[0.08em] text-navy-200 uppercase">
-              Ce mois tu as gagné
+              Commission sur tes signatures de {w.monthName}
             </span>
             <span className="score-number text-[48px] text-white sm:text-[64px]">
-              {formatAmountShort(monthTotal)}{" "}
+              {formatAmountShort(monthGenere)}{" "}
               <span className="text-[26px] text-navy-200 sm:text-[32px]">CHF</span>
             </span>
             <span className="font-display text-xl leading-snug font-bold tracking-[-0.02em] text-white sm:text-2xl">

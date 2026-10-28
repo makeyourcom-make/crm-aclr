@@ -77,6 +77,10 @@ export interface GainsData {
     aVenir: number;
     signature: number;
     recurrent: number;
+    /** Commission générée sur les signatures du mois (total, part signature, part étalée). */
+    genere: number;
+    genereSignature: number;
+    genereEtale: number;
     lines: MonthLine[];
     prev: TimelineMonth | null;
     next: TimelineMonth | null;
@@ -267,6 +271,23 @@ export async function getGainsData(user: SessionUser): Promise<GainsData> {
 
   const monthTotal = current ? current.signature + current.recurrent : 0;
 
+  // Commission GÉNÉRÉE sur les contrats signés CE mois (25 % de la valeur signée,
+  // budget pub exclu) : part1 = versée à la signature, part2 = étalée sur 11 mois.
+  // C'est le chiffre du dashboard (« commission sur tes signatures du mois »).
+  const genereAgg = await prisma.commission.aggregate({
+    where: {
+      userId: user.id,
+      contract: {
+        statut: { in: [...SIGNED_STATUTS] },
+        dateSignature: { gte: w.start, lte: w.end },
+      },
+    },
+    _sum: { montantTotal: true, montantPart1: true, montantPart2: true },
+  });
+  const genereMois = Number(genereAgg._sum.montantTotal ?? 0);
+  const genereSignature = Number(genereAgg._sum.montantPart1 ?? 0);
+  const genereEtale = Number(genereAgg._sum.montantPart2 ?? 0);
+
   // ---- Objectif du mois ----
   const objective = objectives.get(user.id) ?? null;
   const realisedOrNull = await soft<MonthRealised | null>(
@@ -299,6 +320,9 @@ export async function getGainsData(user: SessionUser): Promise<GainsData> {
     timeline,
     month: {
       total: monthTotal,
+      genere: genereMois,
+      genereSignature,
+      genereEtale,
       acquis: current?.acquis ?? 0,
       aVenir: current?.aVenir ?? 0,
       signature: current?.signature ?? 0,

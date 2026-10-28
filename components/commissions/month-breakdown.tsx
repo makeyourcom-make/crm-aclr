@@ -63,10 +63,10 @@ export function MonthBreakdown({
 
   return (
     <SectionCard
-      title={`D'où viennent tes ${formatAmountShort(total)} CHF`}
+      title={`Versements prévus en ${monthName}`}
       icon={Percent}
       tone="navy"
-      description={`Commissions de ${monthName}, contrat par contrat`}
+      description="Ce qui doit t'être versé ce mois, contrat par contrat"
       className={className}
       contentClassName="flex flex-1 flex-col gap-4"
     >
