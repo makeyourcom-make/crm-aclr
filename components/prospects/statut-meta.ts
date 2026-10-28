@@ -5,7 +5,7 @@
  * Couleurs (charte §2, texte foncé sur fond clair, contraste ≥ 4.5:1) :
  * Nouveau navy · À attaquer coral pointillé · Contacté bleu · Qualifié teal ·
  * RDV pris violet · Proposition or · Signé vert · Perdu gris ·
- * Numéro invalide or pointillé · Ne pas rappeler rouge.
+ * Numéro invalide or pointillé · Ne pas rappeler gris.
  */
 import type { ProspectStatut } from "@prisma/client";
 
@@ -101,10 +101,10 @@ export const STATUT_META: Record<ProspectStatut, StatutMeta> = {
   NE_PAS_RAPPELER: {
     label: "Ne pas rappeler",
     short: "Ne pas rappeler",
-    tone: "red",
-    pill: "bg-alert-50 text-alert-700 border-alert-50",
-    solid: "bg-alert-500",
-    text: "text-alert-700",
+    tone: "navy",
+    pill: "bg-muted text-muted-foreground border-border-strong",
+    solid: "bg-subtle",
+    text: "text-muted-foreground",
   },
 };
 
