@@ -93,6 +93,7 @@ export function GainsHero({
             </span>
           </h2>
           <p className="max-w-[560px] text-[15px] leading-normal text-navy-200">
+            <strong className="text-white">Moitié à la signature, moitié étalée sur les mois restants du contrat.</strong>{" "}
             {monthAcquis > 0 && (
               <>
                 Dont <strong className="text-white">{formatCHF(monthAcquis)}</strong> déjà acquis.{" "}

@@ -173,7 +173,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           <MoneyStat
             label={`Commission sur tes signatures · ${calendar.mois}`}
             amount={data.commissionsEstimeesMois}
-            sub="25 % de ce que tu signes, budget pub exclu"
+            sub="25 % de ce que tu signes, budget pub exclu · moitié à la signature, moitié étalée sur les mois restants du contrat"
             icon={Wallet}
             tone="green"
           />
