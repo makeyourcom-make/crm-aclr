@@ -147,6 +147,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               ? null
               : {
                   commissions: data.commissionsEstimeesMois,
+                  frais: data.forfaitFraisMois,
                   versees: data.commissionsAcquisesMois,
                   salairePrevu: data.salairePrevuMois,
                   garantieActive: data.garantieActiveMois,
@@ -171,8 +172,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           />
           <MoneyStat
             label={`Commissions du mois · ${calendar.mois}`}
-            amount={data.commissionsEstimeesMois}
-            sub={`25 % de ce que tu signes · ${formatCHFCompact(data.commissionsAcquisesMois)} déjà versées`}
+            amount={data.commissionsEstimeesMois + data.forfaitFraisMois}
+            sub={`25 % de ce que tu signes (hors budget pub) + ${formatCHFCompact(data.forfaitFraisMois)} de frais`}
             icon={Wallet}
             tone="green"
           />

@@ -41,8 +41,10 @@ import type { Role } from "@prisma/client";
 export const DEVISE = "Chaque appel compte. Chaque RDV est une chance. Chaque signature rapporte.";
 
 export interface HeroMoney {
-  /** Commissions générées sur les contrats signés ce mois (25 % de la valeur 1re année). */
+  /** Commissions générées ce mois (25 % de ce qui est signé, hors budget pub). */
   commissions: number;
+  /** Forfait de frais mensuel (ex. 250 CHF). */
+  frais: number;
   /** Déjà versées ce mois. */
   versees: number;
   salairePrevu: number;
@@ -455,9 +457,9 @@ export function ResultsHero({
             <HeroTile
               label={`Commissions du mois · ${mois}`}
               icon={Wallet}
-              sub={`25 % de ce que tu signes · ${formatCHFCompact(money.versees)} déjà versées`}
+              sub={`25 % de ce que tu signes (hors budget pub) + ${formatCHFCompact(money.frais)} de frais`}
             >
-              <HeroChf value={money.commissions} />
+              <HeroChf value={money.commissions + money.frais} />
             </HeroTile>
           )}
 

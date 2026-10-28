@@ -33,8 +33,10 @@ export interface DashboardData {
   // KPI du mois
   signaturesMois: { count: number; montant: number };
   commissionsAcquisesMois: number;
-  /** Commissions générées sur les contrats signés ce mois (25 % de la valeur 1re année). */
+  /** Commissions générées sur les contrats signés ce mois (25 % de la valeur signée, hors budget pub). */
   commissionsEstimeesMois: number;
+  /** Forfait de frais mensuel (ex. 250 CHF), à ajouter aux commissions. */
+  forfaitFraisMois: number;
   /** = MAX(commissions du mois, garantie) + frais */
   salairePrevuMois: number;
   garantieActiveMois: boolean;
@@ -493,6 +495,7 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     },
     commissionsAcquisesMois: comMois,
     commissionsEstimeesMois,
+    forfaitFraisMois: forfaitFrais,
     salairePrevuMois,
     garantieActiveMois,
     monthlyProgress,
