@@ -271,7 +271,7 @@ export function ResultsHero({
               {isAdmin ? "Admin · Pilotage" : "Commerciale"}
             </span>
           </div>
-          <p className="max-w-[560px] text-sm leading-snug font-bold text-coral-100 sm:text-[15px]">
+          <p className="text-xs leading-snug font-bold text-coral-100 sm:whitespace-nowrap sm:text-sm">
             {DEVISE}
           </p>
           <h2
