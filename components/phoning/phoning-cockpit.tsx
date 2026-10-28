@@ -45,7 +45,6 @@ import type {
   PhoningQueue,
 } from "@/lib/queries/phoning";
 
-import { CallScript } from "./call-script";
 import { adresseLine, contactName } from "./phoning-labels";
 import {
   endPhoningSession,
@@ -349,10 +348,6 @@ export function PhoningCockpit({
               onCancelled={() => setHangup(null)}
             />
           </div>
-
-          {current && (
-            <CallScript contact={contactName(current)} myFirstName={myFirstName} />
-          )}
         </div>
 
         <aside aria-label="File et statistiques de session" className="flex min-w-0 flex-col gap-5">

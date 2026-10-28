@@ -1,6 +1,5 @@
 /**
- * Pilules de la barre du haut : « Aujourd'hui : N appels · N RDV » (avec
- * l'objectif d'appels du jour) + « série » (flamme coral). Un seul lien vers
+ * Pilules de la barre du haut : « Aujourd'hui : N RDV pris (objectif) · N appels » + « série » (flamme coral). Un seul lien vers
  * l'écran du jour (Ma journée pour la commerciale, Dashboard pour l'admin).
  *
  * Compactes sur téléphone (chiffres seuls, libellés lus par les lecteurs
@@ -24,14 +23,14 @@ export function ScorePills({ player, role }: { player: PlayerHeader; role: Role 
   const href = role === "COMMERCIAL" ? "/aujourd-hui" : "/";
   const appels = safe(player.today.appels);
   const rdv = safe(player.today.rdvPris);
-  const target = safe(player.dailyTargets.appels);
+  const target = safe(player.dailyTargets.rdvPris);
   const streak = safe(player.streak);
 
   return (
     <Link
       href={href}
       className="group flex shrink-0 items-center gap-1.5 rounded-full sm:gap-2"
-      title={`Aujourd'hui : ${formatInt(appels)} appel${appels >= 2 ? "s" : ""} sur ${formatInt(target)} · ${formatInt(rdv)} RDV pris · série en cours`}
+      title={`Aujourd'hui : ${formatInt(rdv)} RDV pris sur ${formatInt(target)} · ${formatInt(appels)} appel${appels >= 2 ? "s" : ""} · série en cours`}
     >
       <span className={PILL}>
         <span className="sr-only">Aujourd&apos;hui : </span>
@@ -41,10 +40,6 @@ export function ScorePills({ player, role }: { player: PlayerHeader; role: Role 
         <span className="flex items-center gap-1 text-sm font-extrabold tabular-nums sm:text-[15px]">
           <Phone aria-hidden="true" className="size-4 text-coral-500 sm:size-[17px]" />
           {formatInt(appels)}
-          <span className="hidden font-semibold text-muted-foreground lg:inline">
-            {" "}
-            / {formatInt(target)}
-          </span>
           <span className="sr-only lg:not-sr-only lg:font-semibold lg:text-muted-foreground">
             {" "}
             appel{appels >= 2 ? "s" : ""}
@@ -56,6 +51,10 @@ export function ScorePills({ player, role }: { player: PlayerHeader; role: Role 
         <span className="flex items-center gap-1 text-sm font-extrabold tabular-nums sm:text-[15px]">
           <CalendarCheck aria-hidden="true" className="size-4 text-gold-700 sm:size-[17px]" />
           {formatInt(rdv)}
+          <span className="hidden font-semibold text-muted-foreground lg:inline">
+            {" "}
+            / {formatInt(target)}
+          </span>
           <span className="sr-only lg:not-sr-only lg:font-semibold lg:text-muted-foreground"> RDV</span>
         </span>
       </span>

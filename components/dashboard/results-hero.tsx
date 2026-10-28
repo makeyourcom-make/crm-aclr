@@ -149,6 +149,8 @@ export function ResultsHero({
   const isAdmin = role === "ADMIN";
   const appelsTarget = stats.dailyTargets.appels || stats.dailyCallTarget;
   const appelsLeft = Math.max(0, appelsTarget - stats.today.appels);
+  const rdvJourTarget = stats.dailyTargets.rdvPris;
+  const rdvJourLeft = Math.max(0, rdvJourTarget - stats.today.rdvPris);
 
   const month = stats.month;
   const targets = stats.monthTargets;
@@ -193,10 +195,10 @@ export function ResultsHero({
   } else {
     if (!isWorkingDay && stats.today.appels === 0) {
       coach.push(<>Jour de repos : la série reprend au prochain jour ouvré.</>);
-    } else if (appelsLeft > 0) {
-      coach.push(<>Encore {strong(plural(appelsLeft, "appel"))} pour ton objectif du jour.</>);
+    } else if (rdvJourLeft > 0) {
+      coach.push(<>Encore {strong(plural(rdvJourLeft, "RDV", "RDV"))} à décrocher pour ton objectif du jour.</>);
     } else {
-      coach.push(<>Objectif d&apos;appels du jour atteint.</>);
+      coach.push(<>Objectif de RDV du jour atteint, bravo.</>);
     }
     if (bestRdv > 0 && stats.today.rdvPris > 0 && stats.today.rdvPris >= bestRdv) {
       coach.push(
@@ -318,9 +320,9 @@ export function ResultsHero({
           </Link>
           <p className="text-center text-[13px] font-semibold text-navy-200">
             <span className="tabular-nums">
-              {formatInt(stats.today.appels)} / {formatInt(appelsTarget)}
+              {formatInt(stats.today.rdvPris)} / {formatInt(rdvJourTarget)}
             </span>{" "}
-            appels aujourd&apos;hui · {plural(stats.today.rdvPris, "RDV pris", "RDV pris")}
+            RDV pris aujourd&apos;hui · {plural(stats.today.appels, "appel")}
           </p>
           {isAdmin ? (
             <Link
