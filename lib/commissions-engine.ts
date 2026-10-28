@@ -19,7 +19,7 @@
  *   Quand chaque mensualité est encaissée → le CommissionPayment
  *   RENOUVELLEMENT correspondant passe à PAYE.
  */
-import { addMonthsKeepEndOfMonth, chfToCents } from "@/lib/commissions";
+import { addMonthsKeepEndOfMonth, assietteMensuelleRecurrenteCents, centsToChf, chfToCents } from "@/lib/commissions";
 import {
   FACTURE_CLIENT_ECHEANCE_JOURS_DEFAULT,
   PREFIX_FACTURE_CLIENT,
@@ -425,10 +425,8 @@ async function renewContractForYear(
       });
       if (!contract || contract.commissions.length === 0) return null;
 
-      const commissionId = contract.commissions[0].id;
       const taux = Number(contract.assigneA.tauxCommissionRenouvellement);
       const commissionMensuelle = Number(contract.montantMensuel) * taux;
-      const mensuelCents = chfToCents(Number(contract.montantMensuel));
 
       // 1. Renewal record
       await tx.renewal.create({
@@ -497,33 +495,132 @@ async function renewContractForYear(
         invoicesCreated++;
       }
 
-      // 3. 12 CommissionPayment RENOUVELLEMENT en PREVU
-      let commissionsCreated = 0;
-      for (let m = 0; m < 12; m++) {
-        const dateVersementPrevue = addMonthsKeepEndOfMonth(anniversaryDate, m);
-        await tx.commissionPayment.create({
-          data: {
-            commissionId,
-            typePart: "RENOUVELLEMENT",
-            numeroMois: m + 1,
-            montant: commissionMensuelle,
-            dateVersementPrevue,
-            statut: "PREVU",
-          },
-        });
-        commissionsCreated++;
-      }
-
+      // La commission RENOUVELLEMENT (10 %) n'est PLUS générée ici : elle est
+      // gérée par syncRecurringCommissions(), qui démarre au mois (durée + 1)
+      // et applique la règle ADS (30 % du budget). On ne garde ici que la
+      // facturation client (renouvellement de l'abonnement).
       return {
         contractId,
         numero: contract.numero,
         yearIndex,
         invoicesCreated,
-        commissionsCreated,
+        commissionsCreated: 0,
       };
     },
     { timeout: 30_000 },
   );
+}
+
+// ===========================================================================
+// RECURRENT COMMISSION (10 %) — démarre au mois (durée + 1)
+// ===========================================================================
+//
+// Règle Arthur (28.10.2026) : après le terme initial du contrat (durée mois),
+// le commercial touche 10 % du mensuel commissionnable (base ADS = 30 % du
+// budget ; non-ADS = 100 %) CHAQUE mois, tant que le contrat est ACTIF.
+//   - 6 mois → 1er versement récurrent au mois 7 ;
+//   - 12 mois → au mois 13 ; etc.
+// On génère les CommissionPayment RENOUVELLEMENT (PREVU) du terme jusqu'au
+// mois courant inclus, idempotent (on saute un mois déjà présent).
+
+interface SyncRecurringResult {
+  contractNumero: string;
+  created: number;
+}
+
+function mensuelEffectif(m: Record<string, unknown>): number {
+  const base = Number(m.prixMensuelOriginal ?? 0);
+  if (m.offert && (m.offertCible ?? "DEUX") !== "ONESHOT") return 0;
+  const r = Number(m.remiseValeur ?? 0);
+  if (m.remiseType && r > 0 && (m.remiseCible ?? "DEUX") !== "ONESHOT") {
+    return m.remiseType === "POURCENT"
+      ? base * Math.max(0, 1 - r / 100)
+      : Math.max(0, base - r);
+  }
+  return base;
+}
+
+export async function syncRecurringCommissions(): Promise<SyncRecurringResult[]> {
+  const now = new Date();
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  const results: SyncRecurringResult[] = [];
+
+  const contracts = await prisma.contract.findMany({
+    where: { statut: "ACTIF", montantMensuel: { gt: 0 } },
+    select: {
+      id: true,
+      numero: true,
+      dateDebut: true,
+      dureeMois: true,
+      lignesMeta: true,
+      assigneA: { select: { tauxCommissionRenouvellement: true } },
+      products: { select: { id: true, categorie: true, categorieCode: true } },
+      commissions: {
+        select: {
+          id: true,
+          payments: {
+            where: { typePart: "RENOUVELLEMENT" },
+            select: { dateVersementPrevue: true },
+          },
+        },
+      },
+    },
+  });
+
+  for (const c of contracts) {
+    if (c.commissions.length === 0) continue;
+    const metas = Array.isArray(c.lignesMeta)
+      ? (c.lignesMeta as Record<string, unknown>[])
+      : [];
+    if (metas.length === 0) continue;
+
+    const prodCat = new Map(
+      c.products.map((p) => [p.id, p.categorieCode ?? p.categorie] as const),
+    );
+    const lines = metas.map((m) => ({
+      oneShotCents: 0,
+      mensuelCents: chfToCents(mensuelEffectif(m) * Number(m.quantite ?? 1)),
+      categorie: String(prodCat.get(String(m.productId)) ?? "AUTRE"),
+    }));
+    const baseCents = assietteMensuelleRecurrenteCents(lines);
+    const taux = Number(c.assigneA.tauxCommissionRenouvellement);
+    const montantCents = Math.round(baseCents * taux);
+    if (montantCents <= 0) continue;
+
+    // Mois déjà couverts (clé AAAA-MM).
+    const seen = new Set(
+      c.commissions[0].payments.map(
+        (p) =>
+          `${p.dateVersementPrevue.getFullYear()}-${p.dateVersementPrevue.getMonth()}`,
+      ),
+    );
+
+    const first = addMonthsKeepEndOfMonth(c.dateDebut, c.dureeMois); // mois (durée + 1)
+    let created = 0;
+    let m = 0;
+    while (true) {
+      const date = addMonthsKeepEndOfMonth(first, m);
+      if (date > endOfMonth) break;
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      if (!seen.has(key)) {
+        await prisma.commissionPayment.create({
+          data: {
+            commissionId: c.commissions[0].id,
+            typePart: "RENOUVELLEMENT",
+            numeroMois: m + 1,
+            montant: centsToChf(montantCents),
+            dateVersementPrevue: date,
+            statut: "PREVU",
+          },
+        });
+        created++;
+      }
+      m++;
+      if (m > 600) break; // garde-fou
+    }
+    if (created > 0) results.push({ contractNumero: c.numero, created });
+  }
+  return results;
 }
 
 // ===========================================================================

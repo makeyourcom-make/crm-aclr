@@ -28,6 +28,7 @@ import {
   processAnnualContractAnniversaries,
   processContractAnniversaries,
   processOverdueEtalements,
+  syncRecurringCommissions,
 } from "@/lib/commissions-engine";
 import { generateMonthlyInvoicesForAll } from "@/lib/invoices-engine";
 import { prisma } from "@/lib/db";
@@ -56,7 +57,9 @@ async function handler(req: Request) {
   try {
     // 1. Anniversaires (contrats mensuels)
     const renewals = await processContractAnniversaries();
+    const recurring = await syncRecurringCommissions();
     results.renewals = renewals.length;
+    results.recurringCommissions = recurring.reduce((n, r) => n + r.created, 0);
     if (renewals.length > 0) {
       results.renewalsDetail = renewals.map((r) => r.numero);
     }

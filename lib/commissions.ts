@@ -457,6 +457,21 @@ export function computeAssietteCommissionContrat(
   return assietteCents;
 }
 
+/**
+ * Assiette MENSUELLE récurrente commissionnable d'un contrat (base du 10 %
+ * renouvellement). Pour une ligne ADS, seul la marge ACLR sur le budget
+ * (30 %) est commissionnée ; pour une ligne non-ADS, 100 % du mensuel.
+ */
+export function assietteMensuelleRecurrenteCents(lines: AssietteLine[]): Cents {
+  let cents = 0;
+  for (const l of lines) {
+    cents += ADS_CATEGORIES.has(l.categorie)
+      ? Math.round(l.mensuelCents * MARGE_ACLR_BUDGET_ADS)
+      : l.mensuelCents;
+  }
+  return cents;
+}
+
 // ===========================================================================
 // HELPERS DATE
 // ===========================================================================
