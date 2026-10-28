@@ -4,8 +4,8 @@
  *
  * Couleurs (charte §2, texte foncé sur fond clair, contraste ≥ 4.5:1) :
  * Nouveau navy · À attaquer coral pointillé · Contacté bleu · Qualifié teal ·
- * RDV pris violet · Proposition or · Signé vert · Perdu gris ·
- * Numéro invalide or pointillé · Ne pas rappeler gris.
+ * RDV pris violet · Proposition or · Signé vert · Perdu gris (point gris) ·
+ * Numéro invalide gris pointillé (point or) · Ne pas rappeler gris (point rouge).
  */
 import type { ProspectStatut } from "@prisma/client";
 
@@ -30,9 +30,9 @@ export const STATUT_META: Record<ProspectStatut, StatutMeta> = {
     label: "Nouveau",
     short: "Nouveau",
     tone: "navy",
-    pill: "bg-navy-50 text-navy-500 border-border-strong",
-    solid: "bg-subtle",
-    text: "text-navy-500",
+    pill: "bg-navy-100 text-navy-700 border-navy-300",
+    solid: "bg-navy-600",
+    text: "text-navy-700",
   },
   VIERGE: {
     label: "À attaquer",
@@ -86,24 +86,24 @@ export const STATUT_META: Record<ProspectStatut, StatutMeta> = {
     label: "Perdu",
     short: "Perdu",
     tone: "navy",
-    pill: "bg-navy-50 text-muted-foreground border-border-strong",
+    pill: "bg-muted text-muted-foreground border-border-strong",
     solid: "bg-subtle",
     text: "text-muted-foreground",
   },
   NUMERO_INVALIDE: {
     label: "Numéro invalide",
     short: "Numéro invalide",
-    tone: "gold",
-    pill: "bg-gold-50 text-gold-700 border-dashed border-gold-500",
+    tone: "navy",
+    pill: "bg-muted text-muted-foreground border-dashed border-border-strong",
     solid: "bg-gold-500",
-    text: "text-gold-700",
+    text: "text-muted-foreground",
   },
   NE_PAS_RAPPELER: {
     label: "Ne pas rappeler",
     short: "Ne pas rappeler",
-    tone: "navy",
+    tone: "red",
     pill: "bg-muted text-muted-foreground border-border-strong",
-    solid: "bg-subtle",
+    solid: "bg-alert-500",
     text: "text-muted-foreground",
   },
 };
