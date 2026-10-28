@@ -19,7 +19,22 @@ import {
   computeMonthlyInvoice,
 } from "@/lib/commissions";
 import { prisma } from "@/lib/db";
-import { PREFIX_FACTURE_SOPHIE } from "@/lib/constants";
+
+/**
+ * Préfixe de référence d'un bulletin de salaire : prénom du collaborateur,
+ * en MAJUSCULES, sans accent ni caractère spécial (ex. « Lucille Bouin » →
+ * « LUCILLE »). Repli « SALAIRE » si le prénom est vide.
+ */
+function salaryRefPrefix(name: string): string {
+  const first = (name ?? "").trim().split(/\s+/)[0] ?? "";
+  const ascii = first
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .toUpperCase();
+  return ascii || "SALAIRE";
+}
+
 
 type PrismaLike =
   | PrismaClient
@@ -60,6 +75,7 @@ export async function generateMonthlyInvoice(
     where: { id: userId },
     select: {
       id: true,
+      name: true,
       isActive: true,
       garantieMensuelle: true,
       forfaitFrais: true,
@@ -108,13 +124,15 @@ export async function generateMonthlyInvoice(
     forfaitFraisCents: chfToCents(Number(user.forfaitFrais)),
   });
 
-  // 7. Counter SOPHIE-{YYYY}-{NN} séquentiel par année
+  // 7. Référence {PRENOM}-{YYYY}-{NN} : préfixe = prénom du collaborateur,
+  //    séquence propre à chaque collaborateur et par année.
+  const prefix = salaryRefPrefix(user.name);
   const counter = await db.counter.upsert({
-    where: { scope_year: { scope: "sophie_invoice", year: annee } },
-    create: { scope: "sophie_invoice", year: annee, value: 1 },
+    where: { scope_year: { scope: `salaire:${userId}`, year: annee } },
+    create: { scope: `salaire:${userId}`, year: annee, value: 1 },
     update: { value: { increment: 1 } },
   });
-  const referenceFacture = `${PREFIX_FACTURE_SOPHIE}-${annee}-${String(counter.value).padStart(2, "0")}`;
+  const referenceFacture = `${prefix}-${annee}-${String(counter.value).padStart(2, "0")}`;
 
   // 8. Création de l'Invoice + liens vers les CommissionPayment couverts
   const created = await db.invoice.create({
