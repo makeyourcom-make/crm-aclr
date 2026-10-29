@@ -4,7 +4,7 @@
  * données viennent de `loadProspectsPage` (lib/queries/prospects-pages.ts).
  * Server-safe.
  */
-import { Building2, FileSpreadsheet, Plus, Sparkles, Upload } from "lucide-react";
+import { Building2, FileSpreadsheet, GitMerge, Plus, Sparkles, Upload } from "lucide-react";
 import Link from "next/link";
 
 import { formatInt } from "@/components/arena";
@@ -37,7 +37,14 @@ const SORT_LABEL: Record<string, string> = {
   contratDebutLe: "début de contrat",
 };
 
-export function ProspectsListView({ data }: { data: ProspectsPageData }) {
+export function ProspectsListView({
+  data,
+  pendingMergeCount = 0,
+}: {
+  data: ProspectsPageData;
+  /** Nombre de demandes de fusion EN_ATTENTE (admin) : lien affiché si > 0. */
+  pendingMergeCount?: number;
+}) {
   const {
     user,
     raw,
@@ -105,6 +112,15 @@ export function ProspectsListView({ data }: { data: ProspectsPageData }) {
           <>
             {isAdmin && (
               <>
+                {pendingMergeCount > 0 && (
+                  <Link
+                    href="/prospects/fusions"
+                    className={cn(buttonVariants({ variant: "outline" }), "border-gold-500 bg-gold-50 text-gold-700 hover:bg-gold-100")}
+                  >
+                    <GitMerge aria-hidden="true" />
+                    Fusions à valider ({formatInt(pendingMergeCount)})
+                  </Link>
+                )}
                 <Link href="/prospects/tags" className={cn(buttonVariants({ variant: "outline" }))}>
                   <Sparkles aria-hidden="true" />
                   Gérer les tags

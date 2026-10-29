@@ -201,6 +201,7 @@ export function resolvePhoningOwner(user: SessionUser, requested?: string | null
 function eligibleWhere(ownerId: string): Prisma.ProspectWhereInput {
   return {
     assigneAId: ownerId,
+    mergedIntoId: null,
     statut: { notIn: EXCLUDED_STATUTS },
     OR: [
       { AND: [{ telephone: { not: null } }, { telephone: { not: "" } }] },

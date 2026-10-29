@@ -449,6 +449,9 @@ function buildProspectWhere(
   const conditions: Prisma.ProspectWhereInput[] = [];
   const now = extras.now ?? new Date();
 
+  // Fiches fusionnées dans un doublon : masquées de la liste active.
+  conditions.push({ mergedIntoId: null });
+
   // Row-level security
   if (user.role !== "ADMIN") {
     conditions.push({ assigneAId: user.id });

@@ -111,7 +111,7 @@ export async function searchProspects(
 
   // 2) Recherche principale (index trigramme) + mails échangés.
   const n = regexes.length;
-  const scope = opts.isAdmin ? "TRUE" : `p."assigneAId" = $${n + 2}`;
+  const scope = opts.isAdmin ? `p."mergedIntoId" IS NULL` : `p."mergedIntoId" IS NULL AND p."assigneAId" = $${n + 2}`;
   const tokenConds = regexes
     .map((_, i) => `(${FIELDS.map((f) => `${f} ~* $${i + 1}`).join(" OR ")})`)
     .join(" AND ");

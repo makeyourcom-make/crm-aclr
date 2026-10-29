@@ -44,6 +44,7 @@ import {
   type LeadHeat,
 } from "@/components/prospects/lead-heat";
 import { MarkOpenedOnMount } from "@/components/prospects/mark-opened-on-mount";
+import { MergeDialog } from "@/components/prospects/merge-dialog";
 import { PlanRdvDialog } from "@/components/prospects/plan-rdv-dialog";
 import { ProspectStatusStepper } from "@/components/prospects/prospect-status-stepper";
 import { ProspectStatutBadge } from "@/components/prospects/prospect-statut-badge";
@@ -371,6 +372,13 @@ export function ProspectFicheView({
                 <Plus aria-hidden="true" />
                 Nouveau contrat
               </Link>
+              {canEdit && (
+                <MergeDialog
+                  cibleId={prospect.id}
+                  cibleRaisonSociale={prospect.raisonSociale}
+                  isAdmin={isAdmin}
+                />
+              )}
             </div>
           </section>
 

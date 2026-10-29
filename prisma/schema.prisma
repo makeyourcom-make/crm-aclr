@@ -826,6 +826,14 @@ model Prospect {
   dossiers           Dossier[] // dossiers/tâches de suivi rattachés
   planningLignes     PlanningLigne[]
 
+  /// Fusion de doublons : si renseigné, cette fiche a été fusionnée DANS une
+  /// autre (toutes ses données y ont été déplacées). Conservée, jamais supprimée.
+  mergedInto     Prospect?       @relation("ProspectMergedInto", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedIntoId   String?
+  mergedChildren Prospect[]      @relation("ProspectMergedInto")
+  mergesSource   ProspectMerge[] @relation("ProspectMergeSource")
+  mergesCible    ProspectMerge[] @relation("ProspectMergeTarget")
+
   @@index([statut])
   @@index([assigneAId])
   @@index([secteur])
@@ -884,6 +892,40 @@ model ProspectTagAssignment {
   @@id([prospectId, tagId])
   @@index([tagId])
   @@map("prospect_tag_assignments")
+}
+
+// ============================================================================
+// PROSPECT_MERGE — demande de fusion de doublons (commercial demande, admin valide)
+// ============================================================================
+enum MergeStatut {
+  EN_ATTENTE
+  VALIDEE
+  REFUSEE
+}
+
+model ProspectMerge {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Fiche en double, qui sera fusionnée DANS la cible (et conservée, marquée).
+  source   Prospect @relation("ProspectMergeSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  sourceId String
+  /// Fiche maître conservée (reçoit toutes les données de la source).
+  cible    Prospect @relation("ProspectMergeTarget", fields: [cibleId], references: [id], onDelete: Cascade)
+  cibleId  String
+
+  demandeParId String?
+  valideParId  String?
+  valideeLe    DateTime?
+
+  statut MergeStatut @default(EN_ATTENTE)
+  note   String?     @db.Text
+
+  @@index([statut])
+  @@index([sourceId])
+  @@index([cibleId])
+  @@map("prospect_merges")
 }
 
 // ============================================================================

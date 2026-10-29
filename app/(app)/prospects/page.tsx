@@ -1,4 +1,5 @@
 import { ProspectsListView } from "@/components/prospects/prospects-list-view";
+import { prisma } from "@/lib/db";
 import { loadProspectsPage } from "@/lib/queries/prospects-pages";
 import { requireUser } from "@/lib/session";
 
@@ -17,5 +18,10 @@ export default async function ProspectsPage({ searchParams }: PageProps) {
   const user = await requireUser();
   const raw = await searchParams;
   const data = await loadProspectsPage(user, raw);
-  return <ProspectsListView data={data} />;
+  // Compteur des fusions à valider (admin uniquement) pour le lien d'en-tête.
+  const pendingMergeCount =
+    user.role === "ADMIN"
+      ? await prisma.prospectMerge.count({ where: { statut: "EN_ATTENTE" } })
+      : 0;
+  return <ProspectsListView data={data} pendingMergeCount={pendingMergeCount} />;
 }
