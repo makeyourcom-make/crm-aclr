@@ -65,6 +65,8 @@ export interface ResultsHeroProps {
   money?: HeroMoney | null;
   /** Nombre d'actions en attente (contrats, RDV à valider, planning). */
   pendingCount?: number;
+  /** Admin : objectif CA agence du mois (somme des objectifs mensuels) + réalisé. */
+  agencyGoal?: { caObjectif: number | null; caSigne: number; moisPct: number } | null;
 }
 
 const BIG = "score-number text-[28px] text-white min-[400px]:text-[32px] sm:text-[40px]";
@@ -79,6 +81,78 @@ function rankLabel(rank: number): ReactNode {
 }
 
 /** Montant en gros chiffre sur le navy : « 6'831 CHF ». */
+function AgencyGoalGauge({
+  mois,
+  goal,
+}: {
+  mois: string;
+  goal: { caObjectif: number | null; caSigne: number; moisPct: number } | null;
+}) {
+  if (!goal) return null;
+  const { caObjectif, caSigne, moisPct } = goal;
+  if (caObjectif === null) {
+    return (
+      <Link
+        href="/objectifs"
+        className="flex flex-col gap-1 rounded-[16px] border border-white/15 bg-white/[0.08] p-3.5 transition-colors hover:bg-white/[0.12]"
+      >
+        <span className="text-[11px] font-bold tracking-[0.08em] text-navy-200 uppercase">
+          Objectif CA · agence · {mois}
+        </span>
+        <span className="text-xs font-semibold text-navy-100">
+          Aucun objectif CA fixé ce mois. Définis-les dans Objectifs.
+        </span>
+      </Link>
+    );
+  }
+  const pct = Math.min(100, Math.round((caSigne / caObjectif) * 100));
+  const reste = Math.max(0, caObjectif - caSigne);
+  const atteint = caSigne >= caObjectif;
+  const enAvance = pct >= moisPct;
+  return (
+    <div className="flex flex-col gap-2 rounded-[16px] border border-white/15 bg-white/[0.08] p-3.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-bold tracking-[0.08em] text-navy-200 uppercase">
+          Objectif CA · agence · {mois}
+        </span>
+        <span className="font-display text-sm font-extrabold tabular-nums text-white">{pct}%</span>
+      </div>
+      <div className="flex items-baseline gap-1.5">
+        <span className="font-display text-2xl font-extrabold tracking-[-0.01em] text-white tabular-nums">
+          {formatCHFCompact(caSigne)}
+        </span>
+        <span className="text-sm font-semibold text-navy-200">/ {formatCHFCompact(caObjectif)}</span>
+      </div>
+      <div
+        role="img"
+        aria-label={`CA signé ${pct}% de l'objectif du mois`}
+        className="relative h-2.5 w-full overflow-hidden rounded-full bg-white/15"
+      >
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-coral-400 to-gold-500 transition-[width] duration-700 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+        {/* Repère « rythme attendu » (jours écoulés du mois). */}
+        <span
+          aria-hidden="true"
+          className="absolute top-[-3px] h-[17px] w-[2px] rounded bg-white/80"
+          style={{ left: `${Math.min(100, moisPct)}%` }}
+        />
+      </div>
+      <span
+        className={cn(
+          "text-xs font-bold",
+          atteint ? "text-gold-50" : enAvance ? "text-white" : "text-navy-100",
+        )}
+      >
+        {atteint
+          ? "Objectif du mois atteint, bravo."
+          : `Il reste ${formatCHFCompact(reste)} · tu es à ${pct}% (rythme du mois : ${moisPct}%)`}
+      </span>
+    </div>
+  );
+}
+
 function HeroChf({ value }: { value: number }) {
   return (
     <span className="flex items-baseline gap-1.5">
@@ -145,6 +219,7 @@ export function ResultsHero({
   isWorkingDay,
   money,
   pendingCount = 0,
+  agencyGoal = null,
 }: ResultsHeroProps) {
   const isAdmin = role === "ADMIN";
   const appelsTarget = stats.dailyTargets.appels || stats.dailyCallTarget;
@@ -327,6 +402,9 @@ export function ResultsHero({
                 RDV pris aujourd&apos;hui · {plural(stats.today.appels, "appel")}
               </p>
             </>
+          )}
+          {isAdmin && (
+            <AgencyGoalGauge mois={mois} goal={agencyGoal} />
           )}
           {isAdmin ? (
             <Link

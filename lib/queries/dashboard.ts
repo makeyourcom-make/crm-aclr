@@ -32,6 +32,8 @@ export interface MonthlyObjectiveProgress {
 export interface DashboardData {
   // KPI du mois
   signaturesMois: { count: number; montant: number };
+  /** Admin : objectif CA agence du mois (somme des objectifs mensuels des commerciaux) + réalisé. */
+  agencyGoal: { caObjectif: number | null; caSigne: number; moisPct: number } | null;
   commissionsAcquisesMois: number;
   /** Commissions générées sur les contrats signés ce mois (25 % de la valeur signée, hors budget pub). */
   commissionsEstimeesMois: number;
@@ -287,6 +289,28 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
     0,
   );
 
+  // Admin : objectif CA de l'AGENCE pour le mois = somme des objectifs mensuels
+  // (caObjectif) des commerciaux actifs, couvrant le mois en cours. La jauge se
+  // remplit du CA signé agence (signaturesMoisMontant) vers cet objectif.
+  let agencyGoal: DashboardData["agencyGoal"] = null;
+  if (user.role === "ADMIN") {
+    const objs = await prisma.objective.findMany({
+      where: {
+        periode: "MENSUEL",
+        isActif: true,
+        dateDebut: { lte: endMonth },
+        dateFin: { gte: startMonth },
+        caObjectif: { not: null },
+        user: { isActive: true },
+      },
+      select: { caObjectif: true },
+    });
+    const caObjectif = objs.reduce((acc, o) => acc + Number(o.caObjectif ?? 0), 0);
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const moisPct = Math.min(100, Math.round((now.getDate() / daysInMonth) * 100));
+    agencyGoal = { caObjectif: caObjectif > 0 ? caObjectif : null, caSigne: signaturesMoisMontant, moisPct };
+  }
+
   // 3.b Objectif mensuel : fusion des données partielles avec signaturesMoisRaw
   const monthlyProgress: MonthlyObjectiveProgress = {
     ...monthlyProgressPartial,
@@ -493,6 +517,7 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
       count: signaturesMoisCount,
       montant: signaturesMoisMontant,
     },
+    agencyGoal,
     commissionsAcquisesMois: comMois,
     commissionsEstimeesMois,
     forfaitFraisMois: forfaitFrais,
