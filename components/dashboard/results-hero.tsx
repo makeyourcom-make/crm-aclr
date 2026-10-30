@@ -14,6 +14,7 @@
  */
 import {
   ArrowRight,
+  ArrowUpRight,
   BarChart3,
   CalendarCheck,
   Coins,
@@ -169,6 +170,7 @@ function HeroTile({
   children,
   sub,
   progress,
+  href,
 }: {
   label: string;
   icon: LucideIcon;
@@ -176,12 +178,22 @@ function HeroTile({
   sub?: ReactNode;
   /** Jauge vers l'objectif (0-100) avec son libellé accessible. */
   progress?: { pct: number; label: string; reached: boolean } | null;
+  /** Rend la tuile cliquable (ex. vers la liste des contrats de la semaine). */
+  href?: string;
 }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-2 rounded-[16px] border border-white/12 bg-white/7 p-3.5 sm:p-4">
+  const base =
+    "flex min-w-0 flex-col gap-2 rounded-[16px] border border-white/12 bg-white/7 p-3.5 sm:p-4";
+  const inner = (
+    <>
       <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-[0.08em] text-navy-200 uppercase">
         <Icon aria-hidden="true" className="size-3.5 shrink-0" />
-        <span className="min-w-0 truncate">{label}</span>
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {href && (
+          <ArrowUpRight
+            aria-hidden="true"
+            className="size-3.5 shrink-0 text-navy-200 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white"
+          />
+        )}
       </span>
       {children}
       {progress && (
@@ -204,7 +216,17 @@ function HeroTile({
         </div>
       )}
       {sub && <span className="text-xs font-semibold text-navy-200">{sub}</span>}
-    </div>
+    </>
+  );
+  return href ? (
+    <Link
+      href={href}
+      className={cn(base, "group transition-colors hover:border-white/25 hover:bg-white/[0.12]")}
+    >
+      {inner}
+    </Link>
+  ) : (
+    <div className={base}>{inner}</div>
   );
 }
 
@@ -435,6 +457,7 @@ export function ResultsHero({
                 label="CA signé · agence cette semaine"
                 icon={Coins}
                 sub={plural(agenceContrats, "contrat signé", "contrats signés")}
+                href="/contrats?signeSemaine=current"
               >
                 <HeroChf value={agenceCa} />
               </HeroTile>

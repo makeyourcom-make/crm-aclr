@@ -360,6 +360,18 @@ function buildWhere(
     conditions.push({ dateSignature: { gte: start, lte: end } });
   }
 
+  // Filtre « signés cette semaine » : semaine ISO (lundi → dimanche) en cours.
+  if (params.signeSemaine) {
+    const now = new Date();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    monday.setHours(0, 0, 0, 0);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+    conditions.push({ dateSignature: { gte: monday, lte: sunday } });
+  }
+
   if (params.q) {
     conditions.push({
       OR: [

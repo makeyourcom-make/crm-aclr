@@ -94,6 +94,12 @@ export const ContractListParamsSchema = z.object({
    * des objectifs vers la liste des contrats signés du mois.
    */
   signeMois: stringOptional,
+  /**
+   * Filtre « signés cette semaine » : "current" (semaine ISO lundi→dimanche en
+   * cours). Restreint par dateSignature. Utilisé par la tuile « CA signé ·
+   * agence cette semaine » du dashboard.
+   */
+  signeSemaine: stringOptional,
   sortBy: ContractSortFieldSchema.default("dateSignature"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
   page: z.coerce.number().int().min(1).default(1),
