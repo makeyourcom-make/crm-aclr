@@ -77,9 +77,11 @@ export async function generateMonthlyInvoice(
     return { ok: false, error: "Utilisateur introuvable." };
   }
 
-  // 2. Bornes du mois facturé
-  const startMonth = new Date(annee, mois - 1, 1);
-  const endMonth = new Date(annee, mois, 0, 23, 59, 59);
+  // 2. Bornes du mois facturé (en UTC, pour un libellé de mois stable quel que
+  //    soit le fuseau du serveur/appelant — sinon le 1er du mois en heure locale
+  //    bascule au mois précédent une fois converti en UTC).
+  const startMonth = new Date(Date.UTC(annee, mois - 1, 1, 0, 0, 0));
+  const endMonth = new Date(Date.UTC(annee, mois, 0, 23, 59, 59, 999));
   const moisDate = startMonth;
 
   // 3. Vérifier qu'on n'a pas déjà une facture pour ce user/mois

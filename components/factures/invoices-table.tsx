@@ -22,8 +22,11 @@ interface InvoicesTableProps {
 }
 
 function monthLabel(d: Date): string {
+  // Le mois facturé est stocké au 1er du mois en UTC : on formate en UTC pour
+  // éviter tout décalage de fuseau (sinon « octobre » peut s'afficher en
+  // « septembre » selon le fuseau du serveur).
   return d
-    .toLocaleDateString("fr-CH", { month: "long", year: "numeric" })
+    .toLocaleDateString("fr-CH", { month: "long", year: "numeric", timeZone: "UTC" })
     .replace(/^(.)/, (m) => m.toUpperCase());
 }
 
