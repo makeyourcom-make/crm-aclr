@@ -166,6 +166,13 @@ export function ProspectFicheView({
   const hasOpenDeal = deals.some((d) =>
     (OPEN_DEAL_STAGES as readonly string[]).includes(d.stage),
   );
+
+  // Un deal converti en contrat (le contrat porte son dealId) n'est plus affiché
+  // à part : on ne garde que le contrat signé, pour ne pas le voir en double.
+  const contractDealIds = new Set(
+    contracts.map((c) => c.dealId).filter((x): x is string => !!x),
+  );
+  const dealsAffiches = deals.filter((d) => !contractDealIds.has(d.id));
   const heat = computeLeadHeat(
     {
       statut: prospect.statut,
@@ -677,7 +684,7 @@ export function ProspectFicheView({
             title="Deals & contrats"
             icon={SquareKanban}
             tone="violet"
-            description={`${formatInt(deals.length)} deal${deals.length > 1 ? "s" : ""} · ${formatInt(contracts.length)} contrat${contracts.length > 1 ? "s" : ""}`}
+            description={`${formatInt(dealsAffiches.length)} deal${dealsAffiches.length > 1 ? "s" : ""} · ${formatInt(contracts.length)} contrat${contracts.length > 1 ? "s" : ""}`}
             action={
               <>
                 <Link
@@ -697,14 +704,14 @@ export function ProspectFicheView({
               </>
             }
           >
-            {deals.length === 0 && contracts.length === 0 ? (
+            {dealsAffiches.length === 0 && contracts.length === 0 ? (
               <p className="rounded-[14px] border border-dashed border-border-strong px-4 py-3 text-[13px] leading-relaxed font-semibold text-muted-foreground">
                 Pas encore de deal ni de contrat. Qualifie le besoin puis lance ton premier deal :
                 proposition envoyée, puis signature. Chaque signature rapporte.
               </p>
             ) : (
               <div className="flex flex-col gap-2.5">
-                {deals.map((d) => (
+                {dealsAffiches.map((d) => (
                   <Link
                     key={d.id}
                     href={`/pipeline/${d.id}/modifier`}

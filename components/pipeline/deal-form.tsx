@@ -15,7 +15,7 @@ import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { createCustomProduct } from "@/app/(app)/catalogue/actions";
-import { createDeal, updateDeal } from "@/app/(app)/pipeline/actions";
+import { createDeal, deleteDeal, updateDeal } from "@/app/(app)/pipeline/actions";
 import { Icon } from "@/components/icon";
 import { ProspectCombobox } from "@/components/prospects/prospect-combobox";
 import { Button } from "@/components/ui/button";
@@ -88,6 +88,26 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const isEdit = !!initial;
+
+  const handleDelete = () => {
+    if (!initial) return;
+    if (
+      !confirm(
+        "Supprimer ce deal ? Cette action est définitive. (Un deal qui a généré un contrat ne peut pas être supprimé.)",
+      )
+    )
+      return;
+    startTransition(async () => {
+      const res = await deleteDeal(initial.id);
+      if (!res.ok) {
+        toast.error(res.error ?? "Suppression impossible.");
+        return;
+      }
+      toast.success("Deal supprimé.");
+      router.push(initial.prospectId ? `/prospects/${initial.prospectId}` : "/pipeline");
+      router.refresh();
+    });
+  };
 
   const [prospectId, setProspectId] = useState(
     initial?.prospectId ?? searchParams.get("prospectId") ?? "",
@@ -556,7 +576,21 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          {isEdit && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleDelete}
+              disabled={pending}
+              className="text-red-600 hover:bg-red-50 hover:text-red-700"
+            >
+              Supprimer ce deal
+            </Button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
         <Button
           type="button"
           variant="outline"
@@ -585,6 +619,7 @@ export function DealForm({ prospects, products, initial }: DealFormProps) {
               : "Créer + faire le contrat (devise, modalités…)"}
           </Button>
         )}
+        </div>
       </div>
     </form>
   );

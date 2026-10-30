@@ -4,7 +4,6 @@ import type { ProspectStatut } from "@prisma/client";
 
 import type { Tone } from "@/components/arena/tones";
 import { ComposeEmailButton } from "@/components/emails/compose-email-button";
-import { EmailsHero } from "@/components/emails/emails-hero";
 import {
   EmailsPerformance,
   type SpamOverview,
@@ -151,7 +150,6 @@ export default async function EmailsPage() {
     if (e.prospectId) cur.linked = true;
     byThread.set(e.threadId, cur);
   }
-  const leadsToCapture = [...byThread.values()].filter((t) => t.inbound && !t.linked).length;
 
   const spam: SpamOverview = {
     active: spamAgg.find((g) => g.actif)?._count._all ?? 0,
@@ -174,15 +172,13 @@ export default async function EmailsPage() {
         title="Emails"
         description={`Ta boîte privée · ${unread} non lu${unread > 1 ? "s" : ""} à traiter${sentLine}`}
         actions={
-          stats ? undefined : (
-            <>
-              <Link href="/emails/filtres" className={buttonVariants({ variant: "outline" })}>
-                <ShieldCheck aria-hidden="true" />
-                Filtres anti-spam
-              </Link>
-              <ComposeEmailButton />
-            </>
-          )
+          <>
+            <Link href="/emails/filtres" className={buttonVariants({ variant: "outline" })}>
+              <ShieldCheck aria-hidden="true" />
+              Filtres anti-spam
+            </Link>
+            <ComposeEmailButton />
+          </>
         }
       />
 
@@ -197,7 +193,6 @@ export default async function EmailsPage() {
       )}
 
       <div className="flex flex-col gap-6">
-        {stats && <EmailsHero stats={stats} leadsToCapture={leadsToCapture} />}
 
         <InboxView
           emails={serialized}

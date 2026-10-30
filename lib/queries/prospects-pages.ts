@@ -156,6 +156,7 @@ export async function loadProspectFiche(user: SessionUser, id: string) {
         montantOneShot: true,
         montantMensuel: true,
         valeurAn1: true,
+        dealId: true,
       },
       orderBy: { dateDebut: "desc" },
     }),

@@ -171,6 +171,20 @@ export async function moveDealStage(
 export async function deleteDeal(id: string): Promise<DealActionResult> {
   const user = await requireUser();
   await assertCanEditDeal(user, id);
+  // Garde-fou : un deal qui a généré un contrat ne peut pas être supprimé
+  // (on garderait le contrat signé, pas le deal). On supprime surtout les
+  // deals perdus / abandonnés.
+  const withContract = await prisma.deal.findUnique({
+    where: { id },
+    select: { _count: { select: { contracts: true } } },
+  });
+  if (withContract && withContract._count.contracts > 0) {
+    return {
+      ok: false,
+      error:
+        "Ce deal a généré un contrat : on garde le contrat signé. Supprime ou résilie le contrat si besoin.",
+    };
+  }
   try {
     const deleted = await prisma.deal.delete({ where: { id } });
     revalidatePath("/pipeline");
