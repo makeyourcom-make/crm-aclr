@@ -1,4 +1,4 @@
-import { ChevronRight, ReceiptText } from "lucide-react";
+import { ChevronRight, Eye, ReceiptText } from "lucide-react";
 import Link from "next/link";
 
 import { EmptyState } from "@/components/arena/empty-state";
@@ -13,6 +13,7 @@ import {
 } from "@/components/common/arena-table";
 import { InvoiceStatutBadge } from "@/components/factures/invoice-statut-badge";
 import { formatCHF } from "@/lib/format";
+import { computePayslip } from "@/lib/salary-payslip";
 
 import type { InvoiceListItem } from "@/lib/queries/invoices";
 
@@ -51,7 +52,12 @@ export function InvoicesTable({ rows, showCommerciale }: InvoicesTableProps) {
             <Empty />
           </div>
         ) : (
-          rows.map((inv) => (
+          rows.map((inv) => {
+            const pay = computePayslip({
+              baseCommission: Number(inv.montantCommissions),
+              frais: Number(inv.montantFrais),
+            });
+            return (
             <Link
               key={inv.id}
               href={`/factures/${inv.id}`}
@@ -69,7 +75,7 @@ export function InvoicesTable({ rows, showCommerciale }: InvoicesTableProps) {
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <p className="text-[15px] font-extrabold tabular-nums">
-                    {formatCHF(Number(inv.montantTotal))}
+                    {formatCHF(pay.montantVerse)}
                   </p>
                   <ChevronRight aria-hidden="true" className="size-4 text-subtle" />
                 </div>
@@ -79,17 +85,16 @@ export function InvoicesTable({ rows, showCommerciale }: InvoicesTableProps) {
                 <span className="text-muted-foreground">
                   Comm. {formatCHF(Number(inv.montantCommissions))}
                 </span>
-                {Number(inv.montantGarantieAbsorbee) > 0 && (
-                  <span className="font-semibold text-gold-700">
-                    Gar. +{formatCHF(Number(inv.montantGarantieAbsorbee))}
-                  </span>
-                )}
+                <span className="text-alert-700">
+                  Cotis. -{formatCHF(pay.totalDeductions)}
+                </span>
                 <span className="text-muted-foreground">
                   Frais +{formatCHF(Number(inv.montantFrais))}
                 </span>
               </div>
             </Link>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -102,19 +107,25 @@ export function InvoicesTable({ rows, showCommerciale }: InvoicesTableProps) {
               <Th>Mois facturé</Th>
               {showCommerciale && <Th>Commerciale</Th>}
               <Th className="text-right">Commissions</Th>
-              <Th className="text-right">Garantie</Th>
+              <Th className="text-right">Cotisations</Th>
               <Th className="text-right">Frais</Th>
-              <Th className="text-right">Total</Th>
-              <Th className="pr-5">Statut</Th>
+              <Th className="text-right">Net versé</Th>
+              <Th>Statut</Th>
+              <Th className="pr-5">Bulletin</Th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <TableEmptyRow colSpan={showCommerciale ? 8 : 7}>
+              <TableEmptyRow colSpan={showCommerciale ? 9 : 8}>
                 <Empty />
               </TableEmptyRow>
             ) : (
-              rows.map((inv) => (
+              rows.map((inv) => {
+                const pay = computePayslip({
+                  baseCommission: Number(inv.montantCommissions),
+                  frais: Number(inv.montantFrais),
+                });
+                return (
                 <tr key={inv.id} className={TR_CLASS}>
                   <Td className="pl-5 font-mono text-xs whitespace-nowrap">
                     <Link
@@ -133,27 +144,32 @@ export function InvoicesTable({ rows, showCommerciale }: InvoicesTableProps) {
                   <Td className="text-right tabular-nums whitespace-nowrap">
                     {formatCHF(Number(inv.montantCommissions))}
                   </Td>
-                  <Td className="text-right font-semibold text-gold-700 tabular-nums whitespace-nowrap">
-                    {Number(inv.montantGarantieAbsorbee) > 0 ? (
-                      `+ ${formatCHF(Number(inv.montantGarantieAbsorbee))}`
-                    ) : (
-                      <span className="font-normal text-muted-foreground">
-                        <span aria-hidden="true">·</span>
-                        <span className="sr-only">Aucune</span>
-                      </span>
-                    )}
+                  <Td className="text-right text-alert-700 tabular-nums whitespace-nowrap">
+                    - {formatCHF(pay.totalDeductions)}
                   </Td>
                   <Td className="text-right text-muted-foreground tabular-nums whitespace-nowrap">
                     + {formatCHF(Number(inv.montantFrais))}
                   </Td>
                   <Td className="text-right font-extrabold tabular-nums whitespace-nowrap">
-                    {formatCHF(Number(inv.montantTotal))}
+                    {formatCHF(pay.montantVerse)}
                   </Td>
-                  <Td className="pr-5">
+                  <Td>
                     <InvoiceStatutBadge statut={inv.statut} />
                   </Td>
+                  <Td className="pr-5">
+                    <a
+                      href={`/api/factures/${inv.id}/pdf`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-info-700 hover:underline"
+                    >
+                      <Eye aria-hidden="true" className="size-3.5" />
+                      Voir
+                    </a>
+                  </Td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

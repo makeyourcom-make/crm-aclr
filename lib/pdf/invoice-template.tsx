@@ -1,33 +1,35 @@
 /**
- * Template PDF — Facture mensuelle Sophie → Arthur.
+ * Template PDF — Bulletin de salaire commercial (fiche de paye suisse).
  *
- * Utilise @react-pdf/renderer pour générer un PDF côté serveur.
- * Style sobre, A4 portrait, en français.
+ * Aux couleurs Make Your Com, émis au nom de la raison sociale ACLR Sàrl.
+ * Page 1 : bulletin (gains, cotisations, frais, montant versé).
+ * Page 2 : détail du salaire brut (toutes les commissions par contrat, avec la
+ * nature du versement : 1er versement / étalement / renouvellement).
+ *
+ * @react-pdf/renderer, A4 portrait, français.
  */
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 
-import { formatCHF, formatDateLong } from "@/lib/format";
+import { formatCHF } from "@/lib/format";
+import { computePayslip, payslipLineLabel } from "@/lib/salary-payslip";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface InvoicePdfData {
-  /** N° facture (SOPHIE-2026-XX) */
   numero: string;
-  /** Date du mois facturé (1er du mois) */
   mois: Date;
-  /** Date de génération (= createdAt) */
   dateEmission: Date;
 
-  /** Coords commerciale (haut gauche) */
   commerciale: {
     name: string;
     email: string;
     iban?: string;
+    adresse?: string;
+    numeroAVS?: string;
   };
 
-  /** Coords ACLR (haut droite) */
   emetteur: {
     raisonSociale: string;
     adresse?: string;
@@ -38,7 +40,6 @@ export interface InvoicePdfData {
     numeroIDE?: string;
   };
 
-  /** Lignes du détail */
   lignes: Array<{
     contractNumero: string;
     raisonSociale: string;
@@ -47,7 +48,9 @@ export interface InvoicePdfData {
     montant: number;
   }>;
 
-  /** Montants */
+  /** Nombre de contrats distincts (déterminant du salaire de base). */
+  nbContrats: number;
+
   montantCommissions: number;
   montantGarantieAbsorbee: number;
   montantFrais: number;
@@ -56,134 +59,125 @@ export interface InvoicePdfData {
 }
 
 // ---------------------------------------------------------------------------
-// Styles
+// Couleurs Make Your Com
 // ---------------------------------------------------------------------------
 
 const c = {
-  primary: "#0E1936",
+  navy: "#0E1936",
+  navy700: "#1B2A4E",
+  coral: "#E95256",
   border: "#E2E8F0",
   muted: "#64748B",
-  fgDark: "#0F172A",
+  fg: "#0F172A",
+  zebra: "#F8FAFC",
+  headBg: "#F1F5F9",
+  win: "#0B7A3B",
 };
 
 const styles = StyleSheet.create({
   page: {
-    padding: 40,
+    paddingTop: 36,
+    paddingBottom: 56,
+    paddingHorizontal: 40,
     fontFamily: "Helvetica",
     fontSize: 9,
-    color: c.fgDark,
+    color: c.fg,
   },
+  brandBar: { height: 5, backgroundColor: c.navy, marginBottom: 2 },
+  brandAccent: { height: 3, width: 90, backgroundColor: c.coral, marginBottom: 18 },
 
-  // Header bandeau
-  brandBar: {
-    height: 6,
-    backgroundColor: c.primary,
-    marginBottom: 24,
-  },
-
-  // Bloc émetteur / destinataire en 2 colonnes
-  parties: {
+  headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 24,
+    alignItems: "flex-start",
+    marginBottom: 18,
   },
-  partieBlock: { width: "48%" },
-  partieLabel: {
+  employer: { width: "55%" },
+  employerName: { fontSize: 13, fontFamily: "Helvetica-Bold", color: c.navy },
+  brandTag: {
     fontSize: 7,
-    color: c.muted,
+    color: c.coral,
+    fontFamily: "Helvetica-Bold",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginBottom: 3,
+  },
+  line: { marginBottom: 1, color: c.muted },
+  docMeta: { width: "42%", textAlign: "right" },
+  docTitle: { fontSize: 15, fontFamily: "Helvetica-Bold", color: c.navy, marginBottom: 4 },
+  metaSmall: { fontSize: 8, color: c.muted, marginBottom: 1 },
+
+  // Bloc salarié
+  employee: {
+    backgroundColor: c.zebra,
+    borderLeftWidth: 3,
+    borderLeftColor: c.coral,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 16,
+  },
+  employeeName: { fontSize: 11, fontFamily: "Helvetica-Bold", marginBottom: 2 },
+
+  // Tables
+  sectionTitle: {
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    color: c.navy,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+    marginTop: 12,
     marginBottom: 4,
   },
-  partieName: {
-    fontSize: 11,
-    fontFamily: "Helvetica-Bold",
-    marginBottom: 2,
-  },
-  partieLine: { marginBottom: 1 },
-
-  // Titre & méta
-  titreFacture: {
-    fontSize: 18,
-    fontFamily: "Helvetica-Bold",
-    color: c.primary,
-    marginBottom: 4,
-  },
-  metaRow: {
+  thead: {
     flexDirection: "row",
-    marginBottom: 2,
-  },
-  metaLabel: {
-    color: c.muted,
-    width: 110,
-    fontSize: 8,
-  },
-  metaValue: { fontSize: 9 },
-
-  // Table des lignes
-  tableHeader: {
-    flexDirection: "row",
-    backgroundColor: "#F1F5F9",
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    marginTop: 16,
+    backgroundColor: c.headBg,
+    paddingVertical: 5,
+    paddingHorizontal: 5,
     fontFamily: "Helvetica-Bold",
     fontSize: 7,
     color: c.muted,
     textTransform: "uppercase",
   },
-  tableRow: {
+  row: {
     flexDirection: "row",
-    paddingVertical: 5,
-    paddingHorizontal: 4,
+    paddingVertical: 4.5,
+    paddingHorizontal: 5,
     borderBottomWidth: 0.5,
     borderBottomColor: c.border,
   },
-  colContrat: { width: "20%" },
-  colClient: { width: "32%" },
-  colType: { width: "20%" },
-  colMois: { width: "10%", textAlign: "center" },
-  colMontant: { width: "18%", textAlign: "right" },
-
-  // Section totaux
-  totauxBlock: {
-    marginTop: 20,
-    alignSelf: "flex-end",
-    width: "55%",
-    backgroundColor: "#F8FAFC",
-    padding: 12,
-    borderRadius: 4,
-  },
   totalRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 5,
+    backgroundColor: c.zebra,
+    fontFamily: "Helvetica-Bold",
   },
-  totalLabel: { fontSize: 9, color: c.muted },
-  totalValue: { fontSize: 9, fontFamily: "Helvetica-Bold" },
-  totalFinal: {
+  // Colonnes bulletin : GS | Texte | Déterminant | Taux/Qté | Montant
+  cGs: { width: "10%" },
+  cTxt: { width: "44%" },
+  cDet: { width: "18%", textAlign: "right" },
+  cTaux: { width: "12%", textAlign: "right" },
+  cMnt: { width: "16%", textAlign: "right" },
+
+  // Montant versé
+  payBox: {
+    marginTop: 18,
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: c.primary,
+    alignItems: "center",
+    backgroundColor: c.navy,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 4,
   },
-  totalFinalLabel: {
-    fontSize: 11,
-    fontFamily: "Helvetica-Bold",
-    color: c.primary,
-  },
-  totalFinalValue: {
-    fontSize: 13,
-    fontFamily: "Helvetica-Bold",
-    color: c.primary,
-  },
+  payLabel: { color: "#FFFFFF", fontSize: 11, fontFamily: "Helvetica-Bold" },
+  payValue: { color: "#FFFFFF", fontSize: 16, fontFamily: "Helvetica-Bold" },
 
-  // Footer
+  ibanNote: { marginTop: 8, fontSize: 8, color: c.muted },
+
   footer: {
     position: "absolute",
-    bottom: 30,
+    bottom: 28,
     left: 40,
     right: 40,
     fontSize: 7,
@@ -191,178 +185,255 @@ const styles = StyleSheet.create({
     textAlign: "center",
     borderTopWidth: 0.5,
     borderTopColor: c.border,
-    paddingTop: 8,
+    paddingTop: 6,
   },
 
-  // Notes garantie
-  garantieNote: {
-    marginTop: 8,
-    padding: 8,
-    backgroundColor: "#FEF3C7",
-    borderRadius: 4,
-    fontSize: 8,
-    color: "#92400E",
-  },
+  // Page 2
+  cP2Ctr: { width: "16%" },
+  cP2Cli: { width: "34%" },
+  cP2Nat: { width: "35%" },
+  cP2Mnt: { width: "15%", textAlign: "right" },
+
+  bold: { fontFamily: "Helvetica-Bold" },
+  zebraRow: { backgroundColor: c.zebra },
 });
 
-const TYPE_PART_LABEL: Record<string, string> = {
-  SIGNATURE: "Signature",
-  ETALEMENT: "Étalement",
-  RENOUVELLEMENT: "Renouvellement",
-};
+function Cell({
+  style,
+  children,
+  bold,
+}: {
+  style: ReturnType<typeof StyleSheet.create>[string];
+  children: React.ReactNode;
+  bold?: boolean;
+}) {
+  return <Text style={bold ? [style, styles.bold] : style}>{children}</Text>;
+}
 
 // ---------------------------------------------------------------------------
 // Document
 // ---------------------------------------------------------------------------
 
 export function InvoicePdf({ data }: { data: InvoicePdfData }) {
-  const moisLabel = data.mois.toLocaleDateString("fr-CH", {
-    month: "long",
-    year: "numeric",
+  const moisLabel = data.mois
+    .toLocaleDateString("fr-CH", { month: "long", year: "numeric", timeZone: "UTC" })
+    .replace(/^(.)/, (m) => m.toUpperCase());
+
+  const pay = computePayslip({
+    baseCommission: data.montantCommissions,
+    frais: data.montantFrais,
   });
-  const garantieActivee = data.montantGarantieAbsorbee > 0;
+
+  const moisDebut = new Date(
+    Date.UTC(data.mois.getUTCFullYear(), data.mois.getUTCMonth(), 1),
+  );
+  const moisFin = new Date(
+    Date.UTC(data.mois.getUTCFullYear(), data.mois.getUTCMonth() + 1, 0),
+  );
+  const periode = `${moisDebut.toLocaleDateString("fr-CH", { timeZone: "UTC" })} - ${moisFin.toLocaleDateString("fr-CH", { timeZone: "UTC" })}`;
 
   return (
     <Document
-      title={`Facture ${data.numero}`}
-      author={data.commerciale.name}
-      subject={`Facture mensuelle ${moisLabel}`}
+      title={`Bulletin de salaire ${data.numero}`}
+      author={data.emetteur.raisonSociale}
+      subject={`Bulletin de salaire ${moisLabel} - ${data.commerciale.name}`}
     >
+      {/* ---------------- PAGE 1 : BULLETIN ---------------- */}
       <Page size="A4" style={styles.page}>
         <View style={styles.brandBar} />
+        <View style={styles.brandAccent} />
 
-        {/* Parties */}
-        <View style={styles.parties}>
-          {/* De (commerciale) */}
-          <View style={styles.partieBlock}>
-            <Text style={styles.partieLabel}>De</Text>
-            <Text style={styles.partieName}>{data.commerciale.name}</Text>
-            <Text style={styles.partieLine}>{data.commerciale.email}</Text>
-            {data.commerciale.iban && (
-              <Text style={styles.partieLine}>IBAN : {data.commerciale.iban}</Text>
-            )}
-          </View>
-
-          {/* À (ACLR) */}
-          <View style={styles.partieBlock}>
-            <Text style={styles.partieLabel}>Facturé à</Text>
-            <Text style={styles.partieName}>{data.emetteur.raisonSociale}</Text>
-            {data.emetteur.adresse && (
-              <Text style={styles.partieLine}>{data.emetteur.adresse}</Text>
-            )}
-            <Text style={styles.partieLine}>
-              {[data.emetteur.codePostal, data.emetteur.ville]
-                .filter(Boolean)
-                .join(" ")}
+        <View style={styles.headerRow}>
+          <View style={styles.employer}>
+            <Text style={styles.brandTag}>Make Your Com</Text>
+            <Text style={styles.employerName}>{data.emetteur.raisonSociale}</Text>
+            {data.emetteur.adresse && <Text style={styles.line}>{data.emetteur.adresse}</Text>}
+            <Text style={styles.line}>
+              {[data.emetteur.codePostal, data.emetteur.ville].filter(Boolean).join(" ")}
             </Text>
-            {data.emetteur.pays && (
-              <Text style={styles.partieLine}>{data.emetteur.pays}</Text>
-            )}
-            {data.emetteur.numeroIDE && (
-              <Text style={styles.partieLine}>{data.emetteur.numeroIDE}</Text>
-            )}
+            {data.emetteur.pays && <Text style={styles.line}>{data.emetteur.pays}</Text>}
+            {data.emetteur.numeroIDE && <Text style={styles.line}>{data.emetteur.numeroIDE}</Text>}
           </View>
-        </View>
-
-        {/* Titre + méta */}
-        <View style={{ marginBottom: 8 }}>
-          <Text style={styles.titreFacture}>Facture de commissions</Text>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>N° facture :</Text>
-            <Text style={styles.metaValue}>{data.numero}</Text>
-          </View>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Mois facturé :</Text>
-            <Text style={styles.metaValue}>{moisLabel}</Text>
-          </View>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Date d&apos;émission :</Text>
-            <Text style={styles.metaValue}>
-              {formatDateLong(data.dateEmission)}
+          <View style={styles.docMeta}>
+            <Text style={styles.docTitle}>Bulletin de salaire</Text>
+            <Text style={styles.metaSmall}>{moisLabel}</Text>
+            <Text style={styles.metaSmall}>N° {data.numero}</Text>
+            <Text style={styles.metaSmall}>
+              Imprimé le {new Date().toLocaleDateString("fr-CH")} · Page 1 / 2
             </Text>
           </View>
         </View>
 
-        {/* Table des commissions */}
-        <View style={styles.tableHeader}>
-          <Text style={styles.colContrat}>Contrat</Text>
-          <Text style={styles.colClient}>Client</Text>
-          <Text style={styles.colType}>Type</Text>
-          <Text style={styles.colMois}>Mois</Text>
-          <Text style={styles.colMontant}>Montant</Text>
+        {/* Salarié */}
+        <View style={styles.employee}>
+          <Text style={styles.employeeName}>{data.commerciale.name}</Text>
+          {data.commerciale.adresse && <Text style={styles.line}>{data.commerciale.adresse}</Text>}
+          {data.commerciale.numeroAVS && (
+            <Text style={styles.line}>Numéro assurance sociale : {data.commerciale.numeroAVS}</Text>
+          )}
+          <Text style={styles.line}>Période de salaire : {periode}</Text>
         </View>
 
+        {/* Gains */}
+        <View style={styles.thead}>
+          <Cell style={styles.cGs}>GS</Cell>
+          <Cell style={styles.cTxt}>Texte</Cell>
+          <Cell style={styles.cDet}>Déterminant</Cell>
+          <Cell style={styles.cTaux}>Taux/Qté</Cell>
+          <Cell style={styles.cMnt}>Brut</Cell>
+        </View>
+        <View style={styles.row}>
+          <Cell style={styles.cGs}>1000</Cell>
+          <Cell style={styles.cTxt}>Salaire de base (commissions du mois)</Cell>
+          <Cell style={styles.cDet}>{data.nbContrats} contrat{data.nbContrats > 1 ? "s" : ""}</Cell>
+          <Cell style={styles.cTaux}>-</Cell>
+          <Cell style={styles.cMnt}>{formatCHF(pay.base)}</Cell>
+        </View>
+        <View style={styles.row}>
+          <Cell style={styles.cGs}>1200</Cell>
+          <Cell style={styles.cTxt}>Indemnité vacances</Cell>
+          <Cell style={styles.cDet}>{pay.base.toFixed(2)}</Cell>
+          <Cell style={styles.cTaux}>8.33 %</Cell>
+          <Cell style={styles.cMnt}>{formatCHF(pay.indemniteVacances)}</Cell>
+        </View>
+        <View style={styles.row}>
+          <Cell style={styles.cGs}>1210</Cell>
+          <Cell style={styles.cTxt}>Indemnité jours fériés</Cell>
+          <Cell style={styles.cDet}>{pay.base.toFixed(2)}</Cell>
+          <Cell style={styles.cTaux}>3.00 %</Cell>
+          <Cell style={styles.cMnt}>{formatCHF(pay.indemniteFeries)}</Cell>
+        </View>
+        <View style={styles.totalRow}>
+          <Cell style={styles.cGs}> </Cell>
+          <Cell style={styles.cTxt} bold>Total brut</Cell>
+          <Cell style={styles.cDet}> </Cell>
+          <Cell style={styles.cTaux}> </Cell>
+          <Cell style={styles.cMnt} bold>{formatCHF(pay.brut)}</Cell>
+        </View>
+
+        {/* Déductions */}
+        <Text style={styles.sectionTitle}>Déductions</Text>
+        <View style={styles.thead}>
+          <Cell style={styles.cGs}>GS</Cell>
+          <Cell style={styles.cTxt}>Cotisations &amp; retenues</Cell>
+          <Cell style={styles.cDet}>Déterminant</Cell>
+          <Cell style={styles.cTaux}>Taux</Cell>
+          <Cell style={styles.cMnt}>Valeur</Cell>
+        </View>
+        {[
+          { gs: "5010", l: pay.deductions[0] },
+          { gs: "5011", l: pay.deductions[1] },
+          { gs: "5020", l: pay.deductions[2] },
+          { gs: "5060", l: pay.deductions[3] },
+        ].map((d) => (
+          <View key={d.gs} style={styles.row}>
+            <Cell style={styles.cGs}>{d.gs}</Cell>
+            <Cell style={styles.cTxt}>{d.l.label}</Cell>
+            <Cell style={styles.cDet}>{d.l.determinant}</Cell>
+            <Cell style={styles.cTaux}>{d.l.taux} %</Cell>
+            <Cell style={styles.cMnt}>{formatCHF(d.l.montant)}</Cell>
+          </View>
+        ))}
+        <View style={styles.totalRow}>
+          <Cell style={styles.cGs}> </Cell>
+          <Cell style={styles.cTxt} bold>Total déductions</Cell>
+          <Cell style={styles.cDet}> </Cell>
+          <Cell style={styles.cTaux}> </Cell>
+          <Cell style={styles.cMnt} bold>{formatCHF(-pay.totalDeductions)}</Cell>
+        </View>
+
+        {/* Remboursements / frais */}
+        {pay.frais > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Remboursements et frais</Text>
+            <View style={styles.row}>
+              <Cell style={styles.cGs}>5900</Cell>
+              <Cell style={styles.cTxt}>Frais de déplacement (forfait, non soumis aux cotisations)</Cell>
+              <Cell style={styles.cDet}>forfait</Cell>
+              <Cell style={styles.cTaux}>-</Cell>
+              <Cell style={styles.cMnt}>+ {formatCHF(pay.frais)}</Cell>
+            </View>
+          </>
+        )}
+
+        {/* Montant versé */}
+        <View style={styles.payBox}>
+          <Text style={styles.payLabel}>Montant versé</Text>
+          <Text style={styles.payValue}>{formatCHF(pay.montantVerse)}</Text>
+        </View>
+        {data.commerciale.iban && (
+          <Text style={styles.ibanNote}>Versement sur IBAN : {data.commerciale.iban}</Text>
+        )}
+
+        <View style={styles.footer}>
+          <Text>
+            {data.emetteur.raisonSociale} · Bulletin de salaire généré par le CRM Make Your Com ·
+            Salaire de base = commissions dues le mois (détail en page 2).
+          </Text>
+        </View>
+      </Page>
+
+      {/* ---------------- PAGE 2 : DÉTAIL DU SALAIRE BRUT ---------------- */}
+      <Page size="A4" style={styles.page}>
+        <View style={styles.brandBar} />
+        <View style={styles.brandAccent} />
+
+        <View style={styles.headerRow}>
+          <View style={styles.employer}>
+            <Text style={styles.brandTag}>Make Your Com</Text>
+            <Text style={styles.employerName}>{data.emetteur.raisonSociale}</Text>
+          </View>
+          <View style={styles.docMeta}>
+            <Text style={styles.docTitle}>Détail du salaire de base</Text>
+            <Text style={styles.metaSmall}>{data.commerciale.name} · {moisLabel}</Text>
+            <Text style={styles.metaSmall}>N° {data.numero} · Page 2 / 2</Text>
+          </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>
+          Commissions du mois ({data.lignes.length} versement{data.lignes.length > 1 ? "s" : ""} · {data.nbContrats} contrat{data.nbContrats > 1 ? "s" : ""})
+        </Text>
+        <View style={styles.thead}>
+          <Cell style={styles.cP2Ctr}>Contrat</Cell>
+          <Cell style={styles.cP2Cli}>Client</Cell>
+          <Cell style={styles.cP2Nat}>Nature du versement</Cell>
+          <Cell style={styles.cP2Mnt}>Montant</Cell>
+        </View>
         {data.lignes.length === 0 ? (
-          <View style={styles.tableRow}>
+          <View style={styles.row}>
             <Text style={{ width: "100%", textAlign: "center", color: c.muted }}>
-              Aucune commission acquise ce mois.
+              Aucune commission ce mois.
             </Text>
           </View>
         ) : (
           data.lignes.map((l, i) => (
-            <View key={i} style={styles.tableRow}>
-              <Text style={styles.colContrat}>{l.contractNumero}</Text>
-              <Text style={styles.colClient}>{l.raisonSociale}</Text>
-              <Text style={styles.colType}>
-                {TYPE_PART_LABEL[l.typePart] ?? l.typePart}
-              </Text>
-              <Text style={styles.colMois}>{l.numeroMois ?? "-"}</Text>
-              <Text style={styles.colMontant}>{formatCHF(l.montant)}</Text>
+            <View key={i} style={i % 2 === 1 ? [styles.row, styles.zebraRow] : styles.row}>
+              <Cell style={styles.cP2Ctr}>{l.contractNumero}</Cell>
+              <Cell style={styles.cP2Cli}>{l.raisonSociale}</Cell>
+              <Cell style={styles.cP2Nat}>{payslipLineLabel(l.typePart, l.numeroMois)}</Cell>
+              <Cell style={styles.cP2Mnt}>{formatCHF(l.montant)}</Cell>
             </View>
           ))
         )}
-
-        {/* Totaux */}
-        <View style={styles.totauxBlock}>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>
-              Sous-total commissions ({data.lignes.length} versement·s)
-            </Text>
-            <Text style={styles.totalValue}>
-              {formatCHF(data.montantCommissions)}
-            </Text>
-          </View>
-
-          {garantieActivee && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Garantie absorbée</Text>
-              <Text style={styles.totalValue}>
-                + {formatCHF(data.montantGarantieAbsorbee)}
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Forfait frais</Text>
-            <Text style={styles.totalValue}>
-              + {formatCHF(data.montantFrais)}
-            </Text>
-          </View>
-
-          <View style={styles.totalFinal}>
-            <Text style={styles.totalFinalLabel}>Total à verser</Text>
-            <Text style={styles.totalFinalValue}>
-              {formatCHF(data.montantTotal)}
-            </Text>
-          </View>
+        <View style={styles.totalRow}>
+          <Cell style={styles.cP2Ctr}> </Cell>
+          <Cell style={styles.cP2Cli}> </Cell>
+          <Cell style={styles.cP2Nat} bold>Total salaire de base (prime)</Cell>
+          <Cell style={styles.cP2Mnt} bold>{formatCHF(pay.base)}</Cell>
         </View>
 
-        {/* Note garantie si activée */}
-        {garantieActivee && (
-          <View style={styles.garantieNote}>
-            <Text>
-              ⓘ La garantie absorbée ({formatCHF(data.montantGarantieAbsorbee)}) a
-              complété les commissions de ce mois ({formatCHF(data.montantCommissions)})
-              pour atteindre le minimum garanti ({formatCHF(data.garantieMensuelle)}).
-            </Text>
-          </View>
-        )}
+        <View style={{ marginTop: 14, padding: 10, backgroundColor: c.zebra, borderRadius: 4 }}>
+          <Text style={{ fontSize: 8, color: c.muted, lineHeight: 1.5 }}>
+            Rappel des versements : la commission de signature (25 % de la valeur du contrat, budget
+            publicitaire exclu) se verse pour moitié à la signature (« 1er versement »), l&apos;autre
+            moitié étant étalée sur les mois restants du contrat (« étalement »). Après le terme, le
+            renouvellement est rémunéré à 10 % du mensuel récurrent.
+          </Text>
+        </View>
 
-        {/* Footer */}
         <View style={styles.footer}>
           <Text>
-            Facture générée automatiquement par le CRM Make Your Com — Merci de
-            verser le total sur l&apos;IBAN ci-dessus.
+            {data.emetteur.raisonSociale} · Make Your Com · Détail des commissions du bulletin {data.numero}.
           </Text>
         </View>
       </Page>

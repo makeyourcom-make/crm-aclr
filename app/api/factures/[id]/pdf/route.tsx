@@ -33,6 +33,8 @@ export async function GET(
       name: invoice.user.name,
       email: invoice.user.email,
       iban: invoice.user.iban ?? undefined,
+      adresse: invoice.user.adresse ?? undefined,
+      numeroAVS: invoice.user.numeroAVS ?? undefined,
     },
     emetteur: {
       raisonSociale: setting?.raisonSociale ?? "ACLR Sàrl",
@@ -50,6 +52,9 @@ export async function GET(
       numeroMois: p.numeroMois,
       montant: Number(p.montant),
     })),
+    nbContrats: new Set(
+      invoice.commissionPayments.map((p) => p.commission.contract.id),
+    ).size,
     montantCommissions: Number(invoice.montantCommissions),
     montantGarantieAbsorbee: Number(invoice.montantGarantieAbsorbee),
     montantFrais: Number(invoice.montantFrais),

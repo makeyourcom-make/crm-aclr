@@ -19,6 +19,7 @@ import {
   computeMonthlyInvoice,
 } from "@/lib/commissions";
 import { prisma } from "@/lib/db";
+import { computePayslip } from "@/lib/salary-payslip";
 
 /**
  * Préfixe de référence des bulletins de salaire : neutre (nom de l'entreprise),
@@ -137,7 +138,14 @@ export async function generateMonthlyInvoice(
   });
   const referenceFacture = `${SALARY_REF_PREFIX}-${annee}-${String(counter.value).padStart(2, "0")}`;
 
-  // 8. Création de l'Invoice + liens vers les CommissionPayment couverts
+  // 8. Montant VERSÉ = net de la fiche de paye (brut avec indemnités - cotisations
+  //    + frais). Le « salaire de base » = commissions + éventuelle garantie absorbée.
+  const pay = computePayslip({
+    baseCommission: centsToChf(commissionsCents + calc.garantieAbsorbeeCents),
+    frais: centsToChf(calc.fraisCents),
+  });
+
+  // 9. Création de l'Invoice + liens vers les CommissionPayment couverts
   const created = await db.invoice.create({
     data: {
       userId,
@@ -145,7 +153,7 @@ export async function generateMonthlyInvoice(
       montantCommissions: centsToChf(commissionsCents),
       montantGarantieAbsorbee: centsToChf(calc.garantieAbsorbeeCents),
       montantFrais: centsToChf(calc.fraisCents),
-      montantTotal: centsToChf(calc.totalCents),
+      montantTotal: pay.montantVerse,
       statut: "BROUILLON",
       referenceFacture,
       // Lier tous les CommissionPayment du mois pour le détail PDF
@@ -163,7 +171,7 @@ export async function generateMonthlyInvoice(
       montantCommissionsCents: commissionsCents,
       montantGarantieAbsorbeeCents: calc.garantieAbsorbeeCents,
       montantFraisCents: calc.fraisCents,
-      montantTotalCents: calc.totalCents,
+      montantTotalCents: chfToCents(pay.montantVerse),
       nbCommissionPayments: acquisDuMois.length,
     },
   };

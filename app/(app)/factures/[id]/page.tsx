@@ -14,13 +14,13 @@ import {
 } from "@/components/common/arena-table";
 import { BackLink } from "@/components/common/back-link";
 import { Callout } from "@/components/common/callout";
-import { ChfValue } from "@/components/common/chf-value";
 import { PageShell } from "@/components/common/page-shell";
 import { InvoiceStatusButtons } from "@/components/factures/invoice-actions";
 import { InvoiceStatutBadge } from "@/components/factures/invoice-statut-badge";
 import { PageHeader } from "@/components/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { formatCHF, formatDateLong } from "@/lib/format";
+import { computePayslip } from "@/lib/salary-payslip";
 import { getInvoiceById } from "@/lib/queries/invoices";
 import { requireUser } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -53,6 +53,11 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
   if (!invoice) notFound();
 
   const garantieActivee = Number(invoice.montantGarantieAbsorbee) > 0;
+  const pay = computePayslip({
+    baseCommission:
+      Number(invoice.montantCommissions) + Number(invoice.montantGarantieAbsorbee),
+    frais: Number(invoice.montantFrais),
+  });
 
   return (
     <PageShell width="form">
@@ -94,30 +99,33 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
         </span>
       </div>
 
-      {/* Récap montants */}
-      <SectionCard title="Récapitulatif" icon={ReceiptText} tone="navy">
+      {/* Récap montants — décomposition fiche de paye */}
+      <SectionCard title="Récapitulatif de la fiche de paye" icon={ReceiptText} tone="navy">
         <dl className="space-y-2.5 text-sm">
           <Row
-            label={`Sous-total commissions (${invoice.commissionPayments.length} versement·s acquis ce mois)`}
-            value={formatCHF(Number(invoice.montantCommissions))}
+            label={`Salaire de base · commissions (${invoice.commissionPayments.length} versement·s ce mois)`}
+            value={formatCHF(pay.base)}
           />
-          {garantieActivee && (
+          <Row label="Indemnité vacances (8.33 %)" value={`+ ${formatCHF(pay.indemniteVacances)}`} tone="muted" />
+          <Row label="Indemnité jours fériés (3.00 %)" value={`+ ${formatCHF(pay.indemniteFeries)}`} tone="muted" />
+          <Row label="Total brut" value={formatCHF(pay.brut)} />
+          <Row
+            label="Cotisations sociales + impôt à la source"
+            value={`- ${formatCHF(pay.totalDeductions)}`}
+            tone="alert"
+          />
+          {Number(invoice.montantFrais) > 0 && (
             <Row
-              label={`Garantie absorbée : complète jusqu'au minimum (${formatCHF(Number(invoice.user.garantieMensuelle))})`}
-              value={`+ ${formatCHF(Number(invoice.montantGarantieAbsorbee))}`}
-              tone="gold"
+              label="Frais de déplacement (forfait)"
+              value={`+ ${formatCHF(Number(invoice.montantFrais))}`}
+              tone="muted"
             />
           )}
-          <Row
-            label="Forfait frais"
-            value={`+ ${formatCHF(Number(invoice.montantFrais))}`}
-            tone="muted"
-          />
         </dl>
         <div className="mt-4 flex flex-wrap items-end justify-between gap-3 rounded-[14px] bg-ground px-4 py-3.5">
-          <span className="text-sm font-extrabold">Total à verser</span>
+          <span className="text-sm font-extrabold">Montant versé (net)</span>
           <span className="score-number text-[32px] sm:text-[38px]">
-            <ChfValue amount={Number(invoice.montantTotal)} cents />
+            {formatCHF(pay.montantVerse)}
           </span>
         </div>
 
@@ -204,7 +212,7 @@ function Row({
 }: {
   label: string;
   value: string;
-  tone?: "gold" | "muted";
+  tone?: "gold" | "muted" | "alert";
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
@@ -213,6 +221,7 @@ function Row({
           "min-w-0",
           tone === "gold" && "font-semibold text-gold-700",
           tone === "muted" && "text-muted-foreground",
+          tone === "alert" && "text-alert-700",
         )}
       >
         {label}
