@@ -41,9 +41,16 @@ export interface PayslipInput {
   baseCommission: number;
   /** Frais de déplacement forfaitaires (non soumis aux cotisations). */
   frais: number;
+  /**
+   * Taux d'impôt à la source (ratio, ex. 0.05). 0 pour un résident suisse
+   * (aucune retenue à la source, ex. le patron). Défaut : 5 % (frontalier).
+   */
+  impotSourceRate?: number;
 }
 
 export interface PayslipLine {
+  /** Code genre de salaire (ex. "5010"). */
+  gs?: string;
   label: string;
   /** Texte de la colonne « Déterminant » (base de calcul). */
   determinant?: string;
@@ -79,6 +86,7 @@ function pct(r: number): string {
 export function computePayslip({
   baseCommission,
   frais,
+  impotSourceRate = PAYSLIP_RATES.impotSource,
 }: PayslipInput): PayslipResult {
   const base = round2(baseCommission);
   const indemniteVacances = round2(base * PAYSLIP_RATES.vacances);
@@ -88,7 +96,7 @@ export function computePayslip({
   const cotisationAVS = round2(brut * PAYSLIP_RATES.avs);
   const contributionCAF = round2(brut * PAYSLIP_RATES.caf);
   const cotisationAC = round2(brut * PAYSLIP_RATES.ac);
-  const impotSource = round2(brut * PAYSLIP_RATES.impotSource);
+  const impotSource = round2(brut * impotSourceRate);
   const totalDeductions = round2(
     cotisationAVS + contributionCAF + cotisationAC + impotSource,
   );
@@ -115,30 +123,38 @@ export function computePayslip({
 
   const deductions: PayslipLine[] = [
     {
+      gs: "5010",
       label: "Cotisation AVS/AI/APG",
       determinant: brut.toFixed(2),
       taux: pct(PAYSLIP_RATES.avs),
       montant: -cotisationAVS,
     },
     {
+      gs: "5011",
       label: "Contribution CAF",
       determinant: brut.toFixed(2),
       taux: pct(PAYSLIP_RATES.caf),
       montant: -contributionCAF,
     },
     {
+      gs: "5020",
       label: "Cotisation AC (chômage)",
       determinant: brut.toFixed(2),
       taux: pct(PAYSLIP_RATES.ac),
       montant: -cotisationAC,
     },
-    {
+  ];
+  // Impôt à la source : uniquement pour les frontaliers (taux > 0). Le patron
+  // résident suisse (taux 0) n'a pas de retenue à la source.
+  if (impotSourceRate > 0) {
+    deductions.push({
+      gs: "5060",
       label: "Retenue impôt à la source",
       determinant: brut.toFixed(2),
-      taux: pct(PAYSLIP_RATES.impotSource),
+      taux: pct(impotSourceRate),
       montant: -impotSource,
-    },
-  ];
+    });
+  }
 
   return {
     base,

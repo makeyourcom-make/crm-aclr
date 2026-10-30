@@ -60,6 +60,7 @@ export async function GET(
     montantFrais: Number(invoice.montantFrais),
     montantTotal: Number(invoice.montantTotal),
     garantieMensuelle: Number(invoice.user.garantieMensuelle),
+    impotSourceTaux: Number(invoice.impotSourceTaux),
   };
 
   const buffer = await renderToBuffer(<InvoicePdf data={data} />);

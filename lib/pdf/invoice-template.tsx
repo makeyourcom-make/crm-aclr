@@ -56,6 +56,8 @@ export interface InvoicePdfData {
   montantFrais: number;
   montantTotal: number;
   garantieMensuelle: number;
+  /** Taux d'impôt à la source (0 = résident suisse, pas de retenue). */
+  impotSourceTaux: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -220,8 +222,9 @@ export function InvoicePdf({ data }: { data: InvoicePdfData }) {
     .replace(/^(.)/, (m) => m.toUpperCase());
 
   const pay = computePayslip({
-    baseCommission: data.montantCommissions,
+    baseCommission: data.montantCommissions + data.montantGarantieAbsorbee,
     frais: data.montantFrais,
+    impotSourceRate: data.impotSourceTaux,
   });
 
   const moisDebut = new Date(
@@ -320,18 +323,13 @@ export function InvoicePdf({ data }: { data: InvoicePdfData }) {
           <Cell style={styles.cTaux}>Taux</Cell>
           <Cell style={styles.cMnt}>Valeur</Cell>
         </View>
-        {[
-          { gs: "5010", l: pay.deductions[0] },
-          { gs: "5011", l: pay.deductions[1] },
-          { gs: "5020", l: pay.deductions[2] },
-          { gs: "5060", l: pay.deductions[3] },
-        ].map((d) => (
-          <View key={d.gs} style={styles.row}>
-            <Cell style={styles.cGs}>{d.gs}</Cell>
-            <Cell style={styles.cTxt}>{d.l.label}</Cell>
-            <Cell style={styles.cDet}>{d.l.determinant}</Cell>
-            <Cell style={styles.cTaux}>{d.l.taux} %</Cell>
-            <Cell style={styles.cMnt}>{formatCHF(d.l.montant)}</Cell>
+        {pay.deductions.map((l) => (
+          <View key={l.gs} style={styles.row}>
+            <Cell style={styles.cGs}>{l.gs}</Cell>
+            <Cell style={styles.cTxt}>{l.label}</Cell>
+            <Cell style={styles.cDet}>{l.determinant}</Cell>
+            <Cell style={styles.cTaux}>{l.taux} %</Cell>
+            <Cell style={styles.cMnt}>{formatCHF(l.montant)}</Cell>
           </View>
         ))}
         <View style={styles.totalRow}>

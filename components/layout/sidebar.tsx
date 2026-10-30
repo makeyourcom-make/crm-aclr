@@ -121,8 +121,9 @@ export function Sidebar({
         <InstallAppButton />
       </div>
 
-      {/* Carte résultats épinglée en bas */}
-      {player && (
+      {/* Carte résultats épinglée en bas (commerciales uniquement : l'admin
+          n'a pas d'objectif personnel d'appels/RDV, cette carte ne lui sert pas) */}
+      {player && role !== "ADMIN" && (
         <div className="shrink-0 border-t border-white/[0.06] px-3.5 pt-3">
           <PlayerCard player={player} role={role} />
         </div>

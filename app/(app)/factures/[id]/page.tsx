@@ -57,6 +57,7 @@ export default async function InvoiceDetailPage({ params }: PageProps) {
     baseCommission:
       Number(invoice.montantCommissions) + Number(invoice.montantGarantieAbsorbee),
     frais: Number(invoice.montantFrais),
+    impotSourceRate: Number(invoice.impotSourceTaux),
   });
 
   return (

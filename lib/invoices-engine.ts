@@ -72,6 +72,7 @@ export async function generateMonthlyInvoice(
       isActive: true,
       garantieMensuelle: true,
       forfaitFrais: true,
+      impotSourceTaux: true,
     },
   });
   if (!user) {
@@ -140,9 +141,11 @@ export async function generateMonthlyInvoice(
 
   // 8. Montant VERSÉ = net de la fiche de paye (brut avec indemnités - cotisations
   //    + frais). Le « salaire de base » = commissions + éventuelle garantie absorbée.
+  const impotSourceTaux = Number(user.impotSourceTaux);
   const pay = computePayslip({
     baseCommission: centsToChf(commissionsCents + calc.garantieAbsorbeeCents),
     frais: centsToChf(calc.fraisCents),
+    impotSourceRate: impotSourceTaux,
   });
 
   // 9. Création de l'Invoice + liens vers les CommissionPayment couverts
@@ -153,6 +156,7 @@ export async function generateMonthlyInvoice(
       montantCommissions: centsToChf(commissionsCents),
       montantGarantieAbsorbee: centsToChf(calc.garantieAbsorbeeCents),
       montantFrais: centsToChf(calc.fraisCents),
+      impotSourceTaux,
       montantTotal: pay.montantVerse,
       statut: "BROUILLON",
       referenceFacture,

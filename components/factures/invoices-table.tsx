@@ -54,9 +54,10 @@ export function InvoicesTable({ rows, showCommerciale }: InvoicesTableProps) {
         ) : (
           rows.map((inv) => {
             const pay = computePayslip({
-              baseCommission: Number(inv.montantCommissions),
-              frais: Number(inv.montantFrais),
-            });
+                  baseCommission: Number(inv.montantCommissions),
+                  frais: Number(inv.montantFrais),
+                  impotSourceRate: Number(inv.impotSourceTaux),
+                });
             return (
             <Link
               key={inv.id}
@@ -124,6 +125,7 @@ export function InvoicesTable({ rows, showCommerciale }: InvoicesTableProps) {
                 const pay = computePayslip({
                   baseCommission: Number(inv.montantCommissions),
                   frais: Number(inv.montantFrais),
+                  impotSourceRate: Number(inv.impotSourceTaux),
                 });
                 return (
                 <tr key={inv.id} className={TR_CLASS}>
