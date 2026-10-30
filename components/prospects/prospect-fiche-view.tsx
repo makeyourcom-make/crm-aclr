@@ -142,6 +142,7 @@ export function ProspectFicheView({
       dureeMois: c.dureeMois,
       statut: c.statut,
       reconductible: c.reconductible,
+      reconductionAuto: c.reconductionAuto,
     });
     if (r) echeances.push({ date: r, label: `Renouvellement ${c.numero}` });
   }
@@ -750,6 +751,7 @@ export function ProspectFicheView({
                     dureeMois: c.dureeMois,
                     statut: c.statut,
                     reconductible: c.reconductible,
+                    reconductionAuto: c.reconductionAuto,
                   });
                   return (
                     <Link

@@ -724,7 +724,8 @@ export async function getContractWorkQueue(
       take: 60,
     }),
     prisma.contract.findMany({
-      where: { ...scope, statut: "ACTIF", reconductible: true },
+      // reconductionAuto exclus : ils tournent tout seuls, rien à sécuriser.
+      where: { ...scope, statut: "ACTIF", reconductible: true, reconductionAuto: false },
       select: {
         id: true,
         numero: true,

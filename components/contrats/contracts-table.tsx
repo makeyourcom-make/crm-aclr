@@ -53,6 +53,7 @@ function RenewalCell({ c }: { c: ContractListItem }) {
     dureeMois: c.dureeMois,
     statut: c.statut,
     reconductible: c.reconductible,
+    reconductionAuto: c.reconductionAuto,
   });
   if (!renewal) {
     return <span className="text-[13px] text-muted-foreground">-</span>;
@@ -249,6 +250,7 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
               dureeMois: c.dureeMois,
               statut: c.statut,
               reconductible: c.reconductible,
+              reconductionAuto: c.reconductionAuto,
             });
             const palier = palierOf(Number(c.valeurAn1));
             return (

@@ -19,6 +19,12 @@ export interface ContractRenewalInput {
    * est une date "fin de contrat" sans renouvellement.
    */
   reconductible?: boolean;
+  /**
+   * Reconduction AUTOMATIQUE validée (tacite, mois par mois). Si true, il n'y
+   * a plus d'échéance à sécuriser : le contrat continue tout seul et son
+   * mensuel tombe chaque mois → la fonction renvoie null (rien à surveiller).
+   */
+  reconductionAuto?: boolean;
 }
 
 export function getNextRenewalDate(
@@ -27,6 +33,8 @@ export function getNextRenewalDate(
 ): Date | null {
   if (contract.statut !== "ACTIF") return null;
   if (!contract.dateDebut) return null;
+  // Reconduction automatique validée : plus aucune échéance à sécuriser.
+  if (contract.reconductionAuto) return null;
 
   const start = new Date(contract.dateDebut);
   const duration = Math.max(1, contract.dureeMois);

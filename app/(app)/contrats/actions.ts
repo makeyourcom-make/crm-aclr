@@ -730,6 +730,51 @@ export async function resilierContract(
   }
 }
 
+/**
+ * Active / désactive la reconduction automatique (tacite, mois par mois) d'un
+ * contrat actif. Activée : le contrat sort de « renouvellements à sécuriser »,
+ * n'est plus marqué échu et son mensuel est compté comme revenu récurrent
+ * chaque mois (résiliable à tout moment). Décision admin ou commerciale
+ * propriétaire du contrat.
+ */
+export async function setReconductionAuto(
+  input: unknown,
+): Promise<ContractActionResult> {
+  const user = await requireUser();
+  const parsed = z
+    .object({ contractId: z.string().min(1), actif: z.boolean() })
+    .safeParse(input);
+  if (!parsed.success) return zodErrorToResult(parsed.error);
+
+  const c = await prisma.contract.findUnique({
+    where: { id: parsed.data.contractId },
+    select: { assigneAId: true, statut: true, prospectId: true },
+  });
+  if (!c) return { ok: false, error: "Contrat introuvable." };
+  if (user.role !== "ADMIN" && c.assigneAId !== user.id) {
+    return { ok: false, error: "Ce contrat ne t'appartient pas." };
+  }
+  if (c.statut !== "ACTIF") {
+    return {
+      ok: false,
+      error: "La reconduction automatique ne se règle que sur un contrat actif.",
+    };
+  }
+
+  try {
+    await prisma.contract.update({
+      where: { id: parsed.data.contractId },
+      data: { reconductionAuto: parsed.data.actif },
+    });
+    revalidatePath("/contrats");
+    revalidatePath(`/contrats/${parsed.data.contractId}`);
+    revalidatePath(`/prospects/${c.prospectId}`);
+    return { ok: true, contractId: parsed.data.contractId };
+  } catch (err) {
+    return prismaErrorToResult(err);
+  }
+}
+
 // markPaymentEncaisse a été déplacé dans app/(app)/paiements/actions.ts
 // (logique plus complète : marque aussi ClientInvoice PAYEE).
 

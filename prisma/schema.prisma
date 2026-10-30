@@ -1126,6 +1126,12 @@ model Contract {
   /// Reconductible à l'échéance (défaut). false = contrat one-shot / à durée
   /// ferme : aucune date de renouvellement n'est projetée ni affichée.
   reconductible Boolean  @default(true)
+  /// Reconduction AUTOMATIQUE (tacite, mois par mois) validée par l'admin.
+  /// true = le contrat continue automatiquement sans échéance à sécuriser :
+  /// il ne remonte plus dans « renouvellements à sécuriser » ni n'est marqué
+  /// échu, et son mensuel est compté comme revenu récurrent chaque mois
+  /// (résiliable à tout moment par le client ou ACLR).
+  reconductionAuto Boolean @default(false)
 
   statut           ContractStatut   @default(ATTENTE_SIGNATURE_CLIENT)
   modalitePaiement ModalitePaiement

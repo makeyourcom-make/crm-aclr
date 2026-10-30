@@ -152,6 +152,7 @@ export async function loadProspectFiche(user: SessionUser, id: string) {
         dateDebut: true,
         dureeMois: true,
         reconductible: true,
+        reconductionAuto: true,
         devise: true,
         montantOneShot: true,
         montantMensuel: true,

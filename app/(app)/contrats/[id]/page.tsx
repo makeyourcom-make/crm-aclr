@@ -25,6 +25,7 @@ import { DeleteContractButton } from "@/components/common/entity-delete-buttons"
 import { ContractLifecycle, CommissionDots } from "@/components/contrats/contract-lifecycle";
 import { ContractStatutBadge } from "@/components/contrats/contract-statut-badge";
 import { ProjectMarginBox } from "@/components/contrats/project-margin-box";
+import { ReconductionAutoToggle } from "@/components/contrats/reconduction-auto-toggle";
 import { ResilierButton } from "@/components/contrats/resilier-button";
 import { UploadSignedPdfButton } from "@/components/contrats/upload-signed-pdf-button";
 import { ValidateContractButton } from "@/components/contrats/validate-contract-button";
@@ -187,8 +188,10 @@ export default async function ContractDetailPage({ params }: PageProps) {
     dureeMois: contract.dureeMois,
     statut: contract.statut,
     reconductible: contract.reconductible,
+    reconductionAuto: contract.reconductionAuto,
   });
   const renewalRel = renewal ? relativeDays(renewal) : null;
+  const reconductionAuto = contract.reconductionAuto;
 
   // ── Bandeau d'info selon le statut ───────────────────────────────────────
   const valeurAn1 = Number(contract.valeurAn1);
@@ -229,13 +232,19 @@ export default async function ContractDetailPage({ params }: PageProps) {
       };
       break;
     case "ACTIF":
-      if (renewal && renewalRel) {
+      if (reconductionAuto) {
+        info = {
+          tone: "ok",
+          title: "Reconduction automatique active",
+          text: `${formatMoney(Number(contract.montantMensuel), contract.devise)} / mois comptés en revenu récurrent, sans échéance à sécuriser. Résiliable à tout moment.`,
+        };
+      } else if (renewal && renewalRel) {
         info =
           renewalRel.days <= 30
             ? {
                 tone: "amber",
                 title: `Renouvellement le ${formatDate(renewal)} · J-${Math.max(0, renewalRel.days)}`,
-                text: `${formatInt(valeurAn1)} CHF an 1 à sécuriser : cale un point avec le client cette semaine.`,
+                text: `${formatInt(valeurAn1)} CHF an 1 à sécuriser : cale un point avec le client, ou active la reconduction automatique.`,
               }
             : {
                 tone: "ok",
@@ -447,9 +456,18 @@ export default async function ContractDetailPage({ params }: PageProps) {
         <div className="grid gap-3 lg:grid-cols-2">
           <div className={cn("flex items-start gap-2.5 rounded-[14px] px-3.5 py-3", infoTone.box)}>
             <Info aria-hidden="true" className={cn("mt-0.5 size-4 shrink-0", infoTone.title)} />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className={cn("text-[13px] font-extrabold", infoTone.title)}>{info.title}</p>
               <p className="mt-0.5 text-xs text-foreground">{info.text}</p>
+              {contract.statut === "ACTIF" &&
+                (isAdmin || contract.assigneAId === user.id) && (
+                  <div className="mt-2.5">
+                    <ReconductionAutoToggle
+                      contractId={contract.id}
+                      actif={reconductionAuto}
+                    />
+                  </div>
+                )}
             </div>
           </div>
           {commission ? (
@@ -485,7 +503,11 @@ export default async function ContractDetailPage({ params }: PageProps) {
             </Field>
             <Field label="Date de début">{formatDateLong(contract.dateDebut)}</Field>
             <Field label="Prochain renouvellement">
-              {renewal && renewalRel ? (
+              {reconductionAuto ? (
+                <span className="font-bold text-win-700">
+                  Reconduction automatique (mensuelle)
+                </span>
+              ) : renewal && renewalRel ? (
                 <span className={renewalRel.days < 30 ? "font-bold text-gold-700" : ""}>
                   {formatDateLong(renewal)} ({renewalRel.label})
                 </span>
