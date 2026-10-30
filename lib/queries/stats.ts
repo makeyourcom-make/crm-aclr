@@ -638,7 +638,7 @@ export async function getTopRankings(
     select: {
       id: true,
       valeurAn1: true,
-      products: { select: { id: true, nom: true, categorie: true } },
+      products: { select: { id: true, nom: true, categorie: true, categorieCode: true } },
       prospect: { select: { secteur: true, canton: true } },
     },
   });
@@ -657,8 +657,10 @@ export async function getTopRankings(
     const caPerProduct = caContract / nbProds;
     for (const p of c.products) {
       const slot = prodMap.get(p.id) ?? {
+        // Catégorie EFFECTIVE : code personnalisé si défini (ex. « Fiche Google »),
+        // sinon l'enum système. Libellé résolu côté page via les catégories.
         nom: p.nom,
-        categorie: p.categorie,
+        categorie: p.categorieCode ?? p.categorie,
         nbContrats: 0,
         ca: 0,
       };

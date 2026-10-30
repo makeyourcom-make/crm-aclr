@@ -31,6 +31,7 @@ import { ResultsHero } from "@/components/stats/results-hero";
 import { StatsViewSwitcher } from "@/components/stats/stats-view-switcher";
 import { TeamActivityBoard } from "@/components/stats/team-activity-board";
 import { Money, SegmentGroup, segmentClass } from "@/components/stats/ui";
+import { getCategorieLabels } from "@/lib/categories";
 import { prisma } from "@/lib/db";
 import { getPlayerStats } from "@/lib/gamification";
 import { formatCHFCompact, formatPercent } from "@/lib/format";
@@ -110,6 +111,7 @@ export default async function StatsPage({ searchParams }: PageProps) {
     rentaData,
     myStats,
     myMonth,
+    categorieLabels,
   ] = await Promise.all([
     getStats(user, win, viewAsUserId),
     safe("compteurs période précédente", getPeriodCounters(scopeUserId, win.prevStart, win.prevEnd)),
@@ -132,6 +134,7 @@ export default async function StatsPage({ searchParams }: PageProps) {
       : Promise.resolve(null),
     !isAdmin ? safe("résultats commerciale", getPlayerStats(user.id)) : Promise.resolve(null),
     !isAdmin ? safe("mois commerciale", getCommercialMonth(user.id)) : Promise.resolve(null),
+    getCategorieLabels(),
   ]);
 
   // Libellé descriptif de la vue active
@@ -328,7 +331,7 @@ export default async function StatsPage({ searchParams }: PageProps) {
             produits={rankings.produits.map((p) => ({
               key: p.productId,
               label: p.nom,
-              sublabel: p.categorie,
+              sublabel: categorieLabels[p.categorie] ?? p.categorie,
               count: p.nbContrats,
               ca: p.ca,
               pct: p.pct,
