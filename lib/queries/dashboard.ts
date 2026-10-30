@@ -128,6 +128,46 @@ function valeurTotaleContrat(c: {
   return Number(c.montantOneShot) + Number(c.montantMensuel) * c.dureeMois;
 }
 
+/** Mois (1er du mois) d'une date. */
+function moisDebut(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+/**
+ * CA de RECONDUCTION d'une fenêtre : pour chaque contrat récurrent, on compte
+ * le mensuel pour chaque mois écoulé AU-DELÀ de son terme initial et compris
+ * dans la fenêtre (tant que le contrat n'est pas résilié). Sert au « CA 2026 »
+ * (valeur des contrats signés sur leur terme + reconductions réalisées).
+ */
+function reconductionCA(
+  contrats: {
+    dateDebut: Date | null;
+    dureeMois: number;
+    montantMensuel: unknown;
+    dateResiliation: Date | null;
+  }[],
+  winStart: Date,
+  winEnd: Date,
+): number {
+  const startM = moisDebut(winStart);
+  const endM = moisDebut(winEnd);
+  let total = 0;
+  for (const c of contrats) {
+    if (!c.dateDebut) continue;
+    const mensuel = Number(c.montantMensuel ?? 0);
+    if (mensuel <= 0) continue;
+    // 1er mois de reconduction = mois de début + durée du terme.
+    const termEndM = new Date(c.dateDebut.getFullYear(), c.dateDebut.getMonth() + c.dureeMois, 1);
+    const resilM = c.dateResiliation ? moisDebut(c.dateResiliation) : null;
+    let m = termEndM > startM ? termEndM : startM;
+    while (m <= endM) {
+      if (!resilM || m < resilM) total += mensuel;
+      m = new Date(m.getFullYear(), m.getMonth() + 1, 1);
+    }
+  }
+  return total;
+}
+
 export async function getDashboard(user: SessionUser): Promise<DashboardData> {
   const now = new Date();
   const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -412,6 +452,7 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
       annualCourant,
       annualPrecedent,
       contratsAttenteValidation,
+      reconductionRows,
     ] = await Promise.all([
         prisma.commissionPayment.aggregate({
           where: {
@@ -475,16 +516,23 @@ export async function getDashboard(user: SessionUser): Promise<DashboardData> {
           },
           orderBy: { updatedAt: "asc" },
         }),
+        prisma.contract.findMany({
+          where: { statut: { in: [...STATUTS_SIGNES] }, montantMensuel: { gt: 0 } },
+          select: { dateDebut: true, dureeMois: true, montantMensuel: true, dateResiliation: true },
+        }),
       ]);
     // Admin : scopeContract = {} → signaturesMoisMontant = tout le mois = CA agence.
     caAgenceMois = signaturesMoisMontant;
     montantAVerserCommerciales = Number(allComMois._sum.montant ?? 0);
     caRecurrentTotalMensuel = Number(allActiveContracts._sum.montantMensuel ?? 0);
-    const courant = annualCourant.reduce((s, c) => s + valeurTotaleContrat(c), 0);
-    const precedent = annualPrecedent.reduce(
-      (s, c) => s + valeurTotaleContrat(c),
-      0,
-    );
+    // CA 2026 = valeur des contrats signés cette année (sur leur terme) + mois de
+    // reconduction déjà réalisés cette année. Idem l'an dernier pour comparer.
+    const courant =
+      annualCourant.reduce((s, c) => s + valeurTotaleContrat(c), 0) +
+      reconductionCA(reconductionRows, yearStart, now);
+    const precedent =
+      annualPrecedent.reduce((s, c) => s + valeurTotaleContrat(c), 0) +
+      reconductionCA(reconductionRows, prevYearStart, prevYearSameDate);
     caAnnuel = {
       annee: now.getFullYear(),
       courant,

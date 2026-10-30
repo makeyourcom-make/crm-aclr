@@ -5,7 +5,7 @@
  * commerciales, pas pertinent au niveau direction.
  * Server-safe.
  */
-import { FileSignature, Repeat, TrendingDown, TrendingUp } from "lucide-react";
+import { Repeat, TrendingDown, TrendingUp } from "lucide-react";
 
 import { StatusPill } from "@/components/arena/pills";
 import { StatTile } from "@/components/arena/stat-tile";
@@ -42,24 +42,17 @@ export function AgencyKpis({ data }: { data: DashboardData }) {
   );
 
   return (
-    <section aria-label="Chiffres de l'agence" className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-3">
+    <section aria-label="Chiffres de l'agence" className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2">
       <StatTile
-        label="Signatures du mois"
-        value={data.signaturesMois.count}
-        sub="voir les contrats"
-        icon={FileSignature}
-        tone="navy"
+        label="Revenu mensuel récurrent (MRR)"
+        value={<Chf value={data.caRecurrentTotalMensuel ?? 0} suffix="/ mois" />}
+        sub="ce qui rentre automatiquement chaque mois"
+        icon={Repeat}
+        tone="violet"
         href="/contrats"
       />
       <StatTile
-        label="CA récurrent mensuel"
-        value={<Chf value={data.caRecurrentTotalMensuel ?? 0} suffix="/ mois" />}
-        sub="facturé chaque mois"
-        icon={Repeat}
-        tone="violet"
-      />
-      <StatTile
-        label={`CA ${yoy?.annee ?? ""} (annuel)`}
+        label={`CA ${yoy?.annee ?? ""}`}
         value={<Chf value={yoy?.courant ?? 0} />}
         sub={yoySub}
         icon={TrendingUp}
