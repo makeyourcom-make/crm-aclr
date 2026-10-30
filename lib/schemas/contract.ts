@@ -88,6 +88,12 @@ export const ContractListParamsSchema = z.object({
   q: stringOptional,
   statut: z.nativeEnum(ContractStatut).optional(),
   assigneAId: stringOptional,
+  /**
+   * Filtre « signés ce mois » : "current" (mois en cours) ou "YYYY-MM".
+   * Restreint par dateSignature sur le mois. Utilisé par le lien « CA signé »
+   * des objectifs vers la liste des contrats signés du mois.
+   */
+  signeMois: stringOptional,
   sortBy: ContractSortFieldSchema.default("dateSignature"),
   sortDir: z.enum(["asc", "desc"]).default("desc"),
   page: z.coerce.number().int().min(1).default(1),

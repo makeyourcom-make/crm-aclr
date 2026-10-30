@@ -220,7 +220,13 @@ export default async function ObjectifsPage() {
               }
               contentClassName="flex flex-col gap-4"
             >
-              <ObjectiveProgressGrid metrics={r.metrics} window={w} audience="admin" compact />
+              <ObjectiveProgressGrid
+                metrics={r.metrics}
+                window={w}
+                audience="admin"
+                compact
+                caHref={`/contrats?assigneAId=${r.userId}&signeMois=current`}
+              />
               {r.objective?.notes && (
                 <p className="rounded-[12px] bg-ground px-3.5 py-2.5 text-[13px] font-medium text-muted-foreground">
                   {r.objective.notes}

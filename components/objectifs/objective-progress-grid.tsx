@@ -8,6 +8,7 @@
  * d'équipe de l'admin (/objectifs, phrasé neutre). Server-safe.
  */
 import {
+  ArrowUpRight,
   CalendarCheck,
   Coins,
   FileCheck,
@@ -17,6 +18,7 @@ import {
   Trophy,
   type LucideIcon,
 } from "lucide-react";
+import Link from "next/link";
 
 import { StatusPill } from "@/components/arena/pills";
 import { TONE_CLASSES, type Tone } from "@/components/arena/tones";
@@ -47,6 +49,12 @@ export interface ObjectiveProgressGridProps {
   panierMoyen?: number | null;
   /** Cartes plus compactes (tableau d'équipe). */
   compact?: boolean;
+  /**
+   * Lien de la carte « CA signé » vers la liste des contrats signés du mois
+   * (ex. `/contrats?assigneAId=<id>&signeMois=current`). Rend cette carte
+   * cliquable. Les autres cartes restent non cliquables.
+   */
+  caHref?: string;
   className?: string;
 }
 
@@ -56,6 +64,7 @@ export function ObjectiveProgressGrid({
   audience,
   panierMoyen,
   compact = false,
+  caHref,
   className,
 }: ObjectiveProgressGridProps) {
   const markerPct = Math.round(w.timeRatio * 100);
@@ -78,14 +87,15 @@ export function ObjectiveProgressGrid({
         const valueTxt = formatMetricValue(m.value, m.unit);
         const targetTxt = formatMetricValue(m.target, m.unit);
         const projTxt = formatMetricValue(m.projection, m.unit);
-        return (
-          <article
-            key={m.key}
-            className={cn(
-              "flex min-w-0 flex-col gap-2.5 rounded-[14px] border border-border bg-card",
-              compact ? "p-3.5" : "p-4",
-            )}
-          >
+        const clickable = m.key === "ca" && !!caHref;
+        const cardClass = cn(
+          "flex min-w-0 flex-col gap-2.5 rounded-[14px] border border-border bg-card",
+          compact ? "p-3.5" : "p-4",
+          clickable &&
+            "group transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-border-strong hover:shadow-arena",
+        );
+        const body = (
+          <>
             <div className="flex items-center gap-2.5">
               <span
                 aria-hidden="true"
@@ -100,6 +110,12 @@ export function ObjectiveProgressGrid({
               <h3 className="min-w-0 flex-1 text-sm leading-tight font-bold text-foreground">
                 {m.label}
               </h3>
+              {clickable && (
+                <ArrowUpRight
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-subtle transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-foreground"
+                />
+              )}
             </div>
             <StatusPill tone={pace.tone} className="self-start">
               {pace.label}
@@ -142,6 +158,18 @@ export function ObjectiveProgressGrid({
             <p className="text-[13px] leading-snug font-medium text-muted-foreground">
               {metricCoach(m, w, audience, panierMoyen)}
             </p>
+          </>
+        );
+        if (clickable && caHref) {
+          return (
+            <Link key={m.key} href={caHref} className={cardClass}>
+              {body}
+            </Link>
+          );
+        }
+        return (
+          <article key={m.key} className={cardClass}>
+            {body}
           </article>
         );
       })}

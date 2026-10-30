@@ -343,6 +343,23 @@ function buildWhere(
   }
   if (params.assigneAId) conditions.push({ assigneAId: params.assigneAId });
 
+  // Filtre « signés ce mois » : "current" ou "YYYY-MM".
+  if (params.signeMois) {
+    const now = new Date();
+    let y = now.getFullYear();
+    let mo = now.getMonth();
+    if (params.signeMois !== "current") {
+      const match = /^(\d{4})-(\d{2})$/.exec(params.signeMois);
+      if (match) {
+        y = Number(match[1]);
+        mo = Number(match[2]) - 1;
+      }
+    }
+    const start = new Date(y, mo, 1);
+    const end = new Date(y, mo + 1, 0, 23, 59, 59, 999);
+    conditions.push({ dateSignature: { gte: start, lte: end } });
+  }
+
   if (params.q) {
     conditions.push({
       OR: [

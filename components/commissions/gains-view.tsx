@@ -367,6 +367,7 @@ export function GainsView({ gains: g, stats }: { gains: GainsData; stats: Player
                 window={w}
                 audience="me"
                 panierMoyen={g.panierMoyen}
+                caHref="/contrats?signeMois=current"
               />
               <ObjectiveGridLegend window={w} />
               {objective?.notes && (

@@ -32,6 +32,19 @@ function initialsOf(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+/**
+ * Valeur RÉELLE du contrat sur sa durée (one-shot + mensuel × durée).
+ * Définition unique du CA dans tout le CRM (cf. objectifs, dashboard) : on
+ * n'annualise PAS les contrats de moins de 12 mois.
+ */
+function valeurTotaleContrat(c: {
+  montantOneShot: unknown;
+  montantMensuel: unknown;
+  dureeMois: number;
+}): number {
+  return Number(c.montantOneShot) + Number(c.montantMensuel) * c.dureeMois;
+}
+
 /** Palier de valeur an 1 (repère de jeu, données réelles). */
 function palierOf(an1: number): { label: string; tone: Tone } {
   if (an1 >= 10000) return { label: "Diamant", tone: "violet" };
@@ -145,7 +158,7 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
       id: "valeurAn1",
       header: () => (
         <SortableHeader
-          label="Valeur an 1"
+          label="Valeur contrat"
           field="valeurAn1"
           defaultSortBy="dateSignature"
           defaultDir="desc"
@@ -154,14 +167,10 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
       cell: ({ row }) => (
         <div className="flex flex-col">
           <span className="font-display text-[15px] font-extrabold whitespace-nowrap tabular-nums">
-            {formatCHF(Number(row.original.valeurAn1))}
+            {formatCHF(valeurTotaleContrat(row.original))}
           </span>
           <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-            total{" "}
-            {formatCHF(
-              Number(row.original.montantOneShot) +
-                Number(row.original.montantMensuel) * row.original.dureeMois,
-            )}
+            sur {row.original.dureeMois} mois
           </span>
         </div>
       ),
@@ -282,8 +291,9 @@ export function ContractsTable({ rows, showCommerciale }: ContractsTableProps) {
                 <p className="mt-2 truncate text-[13px] font-semibold">{offresOf(c)}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
                   <span className="tabular-nums">
-                    <span className="text-muted-foreground">An 1 </span>
-                    <span className="font-extrabold">{formatCHF(Number(c.valeurAn1))}</span>
+                    <span className="text-muted-foreground">Valeur </span>
+                    <span className="font-extrabold">{formatCHF(valeurTotaleContrat(c))}</span>
+                    <span className="text-muted-foreground"> · {c.dureeMois} m</span>
                   </span>
                   {Number(c.montantMensuel) > 0 && (
                     <span className="font-semibold tabular-nums">
