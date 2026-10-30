@@ -361,7 +361,7 @@ export function ResultsHero({
             Bonjour {stats.firstName || "toi"}
           </h2>
           {coachShown.length > 0 && (
-            <p className="max-w-[560px] text-[15px] leading-normal font-medium text-navy-200 sm:text-base">
+            <p className="text-[15px] leading-normal font-medium text-navy-200 sm:text-base xl:whitespace-nowrap">
               {coachShown.map((c, i) => (
                 <span key={i}>
                   {i > 0 ? " " : ""}
