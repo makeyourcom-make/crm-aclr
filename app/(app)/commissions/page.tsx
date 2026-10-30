@@ -101,8 +101,8 @@ export default async function CommissionsPage({ searchParams }: PageProps) {
               )}
             </div>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3">
-              <HeroTile label="Versées cette année" value={formatCHF(cockpit.acquisYTD)} sub="Total depuis le 1er janvier" />
-              <HeroTile label="À venir" value={formatCHF(cockpit.aVenirTotal)} sub="Versements prévus futurs" />
+              <HeroTile label="Déjà versé cette année" value={formatCHF(cockpit.acquisYTD)} sub="Commissions payées depuis le 1er janvier" />
+              <HeroTile label="À venir · mois suivants" value={formatCHF(cockpit.aVenirTotal)} sub="Versements prévus après ce mois" />
               <HeroTile label="Annulées" value={formatCHF(cockpit.annule)} sub="Résiliations" muted />
             </div>
           </div>

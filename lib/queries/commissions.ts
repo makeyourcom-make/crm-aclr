@@ -302,10 +302,17 @@ export function buildCommissionTimeline(
 // ---------------------------------------------------------------------------
 
 export async function getCommissionsByUser() {
-  const grouped = await prisma.commissionPayment.groupBy({
-    by: ["commissionId", "statut"],
-    // Idem cockpit : uniquement les commissions sur contrats réellement signés
-    // (on exclut les propositions en attente de signature).
+  const now = new Date();
+  const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+  // Versements (avec date) des commissions des collaborateurs ACTIFS sur
+  // contrats réellement signés. On répartit chaque versement NON ANNULÉ dans
+  // trois « seaux » temporels mutuellement exclusifs (somme = total) :
+  //   - dejaVerse : date < ce mois (mois précédents, normalement déjà payés)
+  //   - ceMois    : date dans le mois courant (= le bulletin de salaire du mois)
+  //   - aVenir    : date dans un mois suivant
+  const pays = await prisma.commissionPayment.findMany({
     where: {
       commission: {
         user: { isActive: true },
@@ -316,25 +323,31 @@ export async function getCommissionsByUser() {
         },
       },
     },
-    _sum: { montant: true },
+    select: { commissionId: true, montant: true, statut: true, dateVersementPrevue: true },
   });
 
-  // Somme des paiements par commission et par statut.
   const sumByCommission = new Map<
     string,
-    { acquis: number; aVenir: number; annule: number }
+    { dejaVerse: number; ceMois: number; aVenir: number; annule: number }
   >();
-  for (const g of grouped) {
-    const cur = sumByCommission.get(g.commissionId) ?? {
-      acquis: 0,
+  for (const p of pays) {
+    const cur = sumByCommission.get(p.commissionId) ?? {
+      dejaVerse: 0,
+      ceMois: 0,
       aVenir: 0,
       annule: 0,
     };
-    const m = Number(g._sum.montant ?? 0);
-    if (g.statut === "PAYE") cur.acquis += m;
-    else if (g.statut === "PREVU") cur.aVenir += m;
-    else if (g.statut === "ANNULE") cur.annule += m;
-    sumByCommission.set(g.commissionId, cur);
+    const m = Number(p.montant);
+    if (p.statut === "ANNULE") {
+      cur.annule += m;
+    } else if (p.dateVersementPrevue < startMonth) {
+      cur.dejaVerse += m;
+    } else if (p.dateVersementPrevue <= endMonth) {
+      cur.ceMois += m;
+    } else {
+      cur.aVenir += m;
+    }
+    sumByCommission.set(p.commissionId, cur);
   }
 
   // Commissions sur contrats signés (même filtre que l'agrégat ci-dessus) +
@@ -367,7 +380,8 @@ export async function getCommissionsByUser() {
     contractId: string;
     contractNumero: string;
     clientName: string;
-    acquis: number;
+    dejaVerse: number;
+    ceMois: number;
     aVenir: number;
     annule: number;
   }
@@ -376,7 +390,8 @@ export async function getCommissionsByUser() {
     {
       userId: string;
       userName: string;
-      acquis: number;
+      dejaVerse: number;
+      ceMois: number;
       aVenir: number;
       annule: number;
       details: Detail[];
@@ -384,16 +399,23 @@ export async function getCommissionsByUser() {
   >();
 
   for (const c of commissions) {
-    const s = sumByCommission.get(c.id) ?? { acquis: 0, aVenir: 0, annule: 0 };
+    const s = sumByCommission.get(c.id) ?? {
+      dejaVerse: 0,
+      ceMois: 0,
+      aVenir: 0,
+      annule: 0,
+    };
     const cur = map.get(c.userId) ?? {
       userId: c.userId,
       userName: c.user.name,
-      acquis: 0,
+      dejaVerse: 0,
+      ceMois: 0,
       aVenir: 0,
       annule: 0,
       details: [] as Detail[],
     };
-    cur.acquis += s.acquis;
+    cur.dejaVerse += s.dejaVerse;
+    cur.ceMois += s.ceMois;
     cur.aVenir += s.aVenir;
     cur.annule += s.annule;
     cur.details.push({
@@ -401,7 +423,8 @@ export async function getCommissionsByUser() {
       contractId: c.contract.id,
       contractNumero: c.contract.numero,
       clientName: c.contract.prospect.raisonSociale,
-      acquis: s.acquis,
+      dejaVerse: s.dejaVerse,
+      ceMois: s.ceMois,
       aVenir: s.aVenir,
       annule: s.annule,
     });
@@ -409,8 +432,10 @@ export async function getCommissionsByUser() {
   }
 
   const rows = Array.from(map.values());
+  const total = (x: { dejaVerse: number; ceMois: number; aVenir: number }) =>
+    x.dejaVerse + x.ceMois + x.aVenir;
   for (const r of rows) {
-    r.details.sort((a, b) => b.acquis + b.aVenir - (a.acquis + a.aVenir));
+    r.details.sort((a, b) => total(b) - total(a));
   }
   return rows.sort((a, b) => a.userName.localeCompare(b.userName));
 }

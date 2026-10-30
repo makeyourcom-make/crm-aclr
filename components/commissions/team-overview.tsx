@@ -19,7 +19,8 @@ interface Detail {
   contractId: string;
   contractNumero: string;
   clientName: string;
-  acquis: number;
+  dejaVerse: number;
+  ceMois: number;
   aVenir: number;
   annule: number;
 }
@@ -28,7 +29,8 @@ interface TeamOverviewProps {
   rows: Array<{
     userId: string;
     userName: string;
-    acquis: number;
+    dejaVerse: number;
+    ceMois: number;
     aVenir: number;
     annule: number;
     details: Detail[];
@@ -50,7 +52,7 @@ export function TeamOverview({ rows, activeUserId }: TeamOverviewProps) {
 
   const teamTotal = Math.max(
     1,
-    rows.reduce((s, r) => s + r.acquis + r.aVenir, 0),
+    rows.reduce((s, r) => s + r.dejaVerse + r.ceMois + r.aVenir, 0),
   );
 
   return (
@@ -58,9 +60,9 @@ export function TeamOverview({ rows, activeUserId }: TeamOverviewProps) {
       {rows.map((r) => {
         const isOpen = open === r.userId;
         const details = r.details.filter(
-          (d) => d.acquis !== 0 || d.aVenir !== 0 || d.annule !== 0,
+          (d) => d.dejaVerse !== 0 || d.ceMois !== 0 || d.aVenir !== 0 || d.annule !== 0,
         );
-        const total = r.acquis + r.aVenir;
+        const total = r.dejaVerse + r.ceMois + r.aVenir;
         const share = Math.round((total / teamTotal) * 100);
         const panelId = `team-detail-${r.userId}`;
         return (
@@ -90,11 +92,12 @@ export function TeamOverview({ rows, activeUserId }: TeamOverviewProps) {
                   </div>
                 </div>
               </div>
-              <dl className="grid flex-[2_1_360px] grid-cols-2 gap-3 sm:grid-cols-4">
-                <Amount label="Acquise" value={r.acquis} tone="text-win-700" />
+              <dl className="grid flex-[2_1_420px] grid-cols-2 gap-3 sm:grid-cols-5">
+                <Amount label="Ce mois" value={r.ceMois} tone="text-coral-600" />
                 <Amount label="À venir" value={r.aVenir} />
+                <Amount label="Déjà versé" value={r.dejaVerse} tone="text-win-700" />
                 <Amount label="Annulée" value={r.annule} tone="text-muted-foreground" />
-                <Amount label="Total potentiel" value={total} strong />
+                <Amount label="Total" value={total} strong />
               </dl>
             </div>
             <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-2.5">
@@ -127,12 +130,13 @@ export function TeamOverview({ rows, activeUserId }: TeamOverviewProps) {
                   </p>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[480px] text-xs">
+                    <table className="w-full min-w-[560px] text-xs">
                       <thead>
                         <tr className="text-muted-foreground">
                           <th className="px-2 py-1 text-left font-bold">Contrat · Client</th>
-                          <th className="px-2 py-1 text-right font-bold">Acquise</th>
+                          <th className="px-2 py-1 text-right font-bold">Ce mois</th>
                           <th className="px-2 py-1 text-right font-bold">À venir</th>
+                          <th className="px-2 py-1 text-right font-bold">Déjà versé</th>
                           <th className="px-2 py-1 text-right font-bold">Annulée</th>
                         </tr>
                       </thead>
@@ -145,10 +149,13 @@ export function TeamOverview({ rows, activeUserId }: TeamOverviewProps) {
                                 <span className="text-foreground"> · {d.clientName}</span>
                               </Link>
                             </td>
-                            <td className="px-2 py-1.5 text-right text-win-700 tabular-nums">
-                              {formatCHF(d.acquis)}
+                            <td className="px-2 py-1.5 text-right text-coral-600 tabular-nums">
+                              {formatCHF(d.ceMois)}
                             </td>
                             <td className="px-2 py-1.5 text-right tabular-nums">{formatCHF(d.aVenir)}</td>
+                            <td className="px-2 py-1.5 text-right text-win-700 tabular-nums">
+                              {formatCHF(d.dejaVerse)}
+                            </td>
                             <td className="px-2 py-1.5 text-right text-muted-foreground tabular-nums">
                               {formatCHF(d.annule)}
                             </td>
