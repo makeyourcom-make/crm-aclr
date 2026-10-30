@@ -1,11 +1,11 @@
 /**
- * KPI agence (vue admin) : signatures du mois, CA du mois, CA récurrent
+ * KPI agence (vue admin) : signatures du mois, CA récurrent
  * mensuel, CA annuel vs même période l'an dernier. Pas de « commissions
  * acquises » ni « salaire prévu » ici : c'est la rémunération des
  * commerciales, pas pertinent au niveau direction.
  * Server-safe.
  */
-import { Coins, FileSignature, Repeat, TrendingDown, TrendingUp } from "lucide-react";
+import { FileSignature, Repeat, TrendingDown, TrendingUp } from "lucide-react";
 
 import { StatusPill } from "@/components/arena/pills";
 import { StatTile } from "@/components/arena/stat-tile";
@@ -42,7 +42,7 @@ export function AgencyKpis({ data }: { data: DashboardData }) {
   );
 
   return (
-    <section aria-label="Chiffres de l'agence" className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 xl:grid-cols-4">
+    <section aria-label="Chiffres de l'agence" className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-3">
       <StatTile
         label="Signatures du mois"
         value={data.signaturesMois.count}
@@ -50,13 +50,6 @@ export function AgencyKpis({ data }: { data: DashboardData }) {
         icon={FileSignature}
         tone="navy"
         href="/contrats"
-      />
-      <StatTile
-        label="CA du mois"
-        value={<Chf value={data.caAgenceMois ?? 0} />}
-        sub="valeur totale des contrats signés"
-        icon={Coins}
-        tone="green"
       />
       <StatTile
         label="CA récurrent mensuel"
