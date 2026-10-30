@@ -17,7 +17,11 @@ import { formatInt } from "@/components/arena/format";
 import { ProgressRing } from "@/components/arena/progress-ring";
 import { SectionCard } from "@/components/arena/section-card";
 import { EmptyState } from "@/components/arena/empty-state";
-import { RoleFinanceHero } from "@/components/contrats/finance-hero-presets";
+import {
+  FacturesCashPanel,
+  invoiceTiles,
+  RoleFinanceHero,
+} from "@/components/contrats/finance-hero-presets";
 import { FinanceTabs } from "@/components/contrats/finance-tabs";
 import { ClientInvoiceFilters } from "@/components/factures-clients/client-invoice-filters";
 import {
@@ -180,6 +184,7 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
     awaiting,
     pulse,
     cash,
+    encaisseYtdAgg,
   ] = await Promise.all([
     prisma.clientInvoice.findMany({
       where,
@@ -270,7 +275,20 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
     }),
     getFinancePulse(user),
     getClientCashTrend(),
+    // Total encaissé depuis le 1er janvier (factures payées cette année).
+    prisma.clientInvoice.aggregate({
+      where: {
+        statut: "PAYEE",
+        datePaiement: { gte: new Date(now.getFullYear(), 0, 1) },
+      },
+      _sum: { total: true },
+    }),
   ]);
+
+  // Encaissé depuis janvier + moyenne mensuelle (sur les mois écoulés).
+  const encaisseYtd = Number(encaisseYtdAgg._sum.total ?? 0);
+  const moisEcoules = now.getMonth() + 1;
+  const encaisseMoyenMensuel = moisEcoules > 0 ? Math.round(encaisseYtd / moisEcoules) : 0;
 
   const drafts = draftRows.map((d) => ({
     id: d.id,
@@ -407,6 +425,14 @@ export default async function FacturesClientsPage({ searchParams }: PageProps) {
 
       <RoleFinanceHero
         pulse={pulse}
+        tiles={invoiceTiles(pulse)}
+        rightPanel={
+          <FacturesCashPanel
+            encaisseYtd={encaisseYtd}
+            moyenneMensuelle={encaisseMoyenMensuel}
+            year={now.getFullYear()}
+          />
+        }
         primary={
           draftsCount > 0 ? (
             <SendAllDraftsButton

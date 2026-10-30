@@ -140,6 +140,132 @@ export async function getContractStats(user: SessionUser) {
 }
 
 // ---------------------------------------------------------------------------
+// CHIFFRE D'AFFAIRES RÉEL (sur durée) — mêmes définitions que le dashboard
+// ---------------------------------------------------------------------------
+
+/** Statuts d'un contrat réellement signé (exécutoire ou l'ayant été). */
+const STATUTS_SIGNES_CA: ContractStatut[] = [
+  "ACTIF",
+  "SUSPENDU",
+  "RESILIE",
+  "EXPIRE",
+];
+
+/** Valeur TOTALE sur la durée réelle : one-shot + mensuel × durée. */
+function valeurTotaleContrat(c: {
+  montantOneShot: unknown;
+  montantMensuel: unknown;
+  dureeMois: number;
+}): number {
+  return Number(c.montantOneShot) + Number(c.montantMensuel) * c.dureeMois;
+}
+
+function moisDebut(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+/**
+ * CA de RECONDUCTION d'une fenêtre : pour chaque contrat récurrent, mensuel
+ * compté pour chaque mois écoulé au-delà de son terme initial et compris dans
+ * la fenêtre (tant que non résilié). Identique à lib/queries/dashboard.ts.
+ */
+function reconductionCA(
+  contrats: {
+    dateDebut: Date | null;
+    dureeMois: number;
+    montantMensuel: unknown;
+    dateResiliation: Date | null;
+  }[],
+  winStart: Date,
+  winEnd: Date,
+): number {
+  const startM = moisDebut(winStart);
+  const endM = moisDebut(winEnd);
+  let total = 0;
+  for (const c of contrats) {
+    if (!c.dateDebut) continue;
+    const mensuel = Number(c.montantMensuel ?? 0);
+    if (mensuel <= 0) continue;
+    const termEndM = new Date(
+      c.dateDebut.getFullYear(),
+      c.dateDebut.getMonth() + c.dureeMois,
+      1,
+    );
+    const resilM = c.dateResiliation ? moisDebut(c.dateResiliation) : null;
+    let m = termEndM > startM ? termEndM : startM;
+    while (m <= endM) {
+      if (!resilM || m < resilM) total += mensuel;
+      m = new Date(m.getFullYear(), m.getMonth() + 1, 1);
+    }
+  }
+  return total;
+}
+
+export interface ContractCaStats {
+  /** Contrats réellement signés ce mois (nombre). */
+  signedThisMonthCount: number;
+  /** CA réel signé ce mois = Σ (one-shot + mensuel × durée) des signés du mois. */
+  caSignedThisMonth: number;
+  /** CA réel de l'année = Σ valeur sur terme des signés + reconductions réalisées. */
+  caYear: number;
+  /** Année du CA annuel (ex. 2026). */
+  year: number;
+}
+
+/**
+ * Chiffres de CA RÉEL (valeur sur durée) pour la page Contrats, scoppés au
+ * portefeuille (admin = tout ; commerciale = ses contrats). Aligné sur les
+ * définitions du dashboard (valeurTotaleContrat + reconductionCA).
+ */
+export async function getContractCaStats(
+  user: SessionUser,
+  now: Date = new Date(),
+): Promise<ContractCaStats> {
+  const scope: Prisma.ContractWhereInput =
+    user.role === "ADMIN" ? {} : { assigneAId: user.id };
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+
+  const [signedMonth, signedYear, reconductionRows] = await Promise.all([
+    prisma.contract.findMany({
+      where: {
+        ...scope,
+        statut: { in: STATUTS_SIGNES_CA },
+        dateSignature: { gte: monthStart, lte: monthEnd },
+      },
+      select: { montantOneShot: true, montantMensuel: true, dureeMois: true },
+    }),
+    prisma.contract.findMany({
+      where: {
+        ...scope,
+        statut: { in: STATUTS_SIGNES_CA },
+        dateSignature: { gte: yearStart, lte: now },
+      },
+      select: { montantOneShot: true, montantMensuel: true, dureeMois: true },
+    }),
+    prisma.contract.findMany({
+      where: { ...scope, statut: { in: STATUTS_SIGNES_CA }, montantMensuel: { gt: 0 } },
+      select: {
+        dateDebut: true,
+        dureeMois: true,
+        montantMensuel: true,
+        dateResiliation: true,
+      },
+    }),
+  ]);
+
+  return {
+    signedThisMonthCount: signedMonth.length,
+    caSignedThisMonth: signedMonth.reduce((s, c) => s + valeurTotaleContrat(c), 0),
+    caYear:
+      signedYear.reduce((s, c) => s + valeurTotaleContrat(c), 0) +
+      reconductionCA(reconductionRows, yearStart, now),
+    year: now.getFullYear(),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // DETAIL
 // ---------------------------------------------------------------------------
 

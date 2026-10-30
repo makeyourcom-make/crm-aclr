@@ -1,4 +1,12 @@
-import { CalendarClock, FileText, Plus, Repeat, Wallet } from "lucide-react";
+import {
+  BadgeCheck,
+  CalendarClock,
+  Coins,
+  FileText,
+  Plus,
+  Repeat,
+  TrendingUp,
+} from "lucide-react";
 import Link from "next/link";
 
 import { formatInt } from "@/components/arena/format";
@@ -7,7 +15,6 @@ import { StatTile } from "@/components/arena/stat-tile";
 import { ContractFilters } from "@/components/contrats/contract-filters";
 import { ContractsTable } from "@/components/contrats/contracts-table";
 import { ContractsWorkQueue } from "@/components/contrats/contracts-work-queue";
-import { RoleFinanceHero } from "@/components/contrats/finance-hero-presets";
 import { FinanceTabs } from "@/components/contrats/finance-tabs";
 import { MyMonthCard, SignatureBoard } from "@/components/contrats/signature-board";
 import { buttonVariants } from "@/components/ui/button";
@@ -15,6 +22,7 @@ import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
 import { prisma } from "@/lib/db";
 import {
+  getContractCaStats,
   getContracts,
   getContractStats,
   getContractWorkQueue,
@@ -46,25 +54,41 @@ export default async function ContractsPage({ searchParams }: PageProps) {
   const params = ContractListParamsSchema.parse(raw);
 
   const isAdmin = user.role === "ADMIN";
-  const [{ items, total, page, pageSize, totalPages }, stats, teamUsers, pulse, queue, board] =
-    await Promise.all([
-      getContracts(user, params),
-      getContractStats(user),
-      isAdmin
-        ? prisma.user.findMany({
-            where: { isActive: true },
-            select: { id: true, name: true },
-            orderBy: { name: "asc" },
-          })
-        : Promise.resolve([]),
-      getFinancePulse(user),
-      getContractWorkQueue(user),
-      isAdmin ? getMonthlySignatureBoard() : Promise.resolve([]),
-    ]);
+  const [
+    { items, total, page, pageSize, totalPages },
+    stats,
+    caStats,
+    teamUsers,
+    pulse,
+    queue,
+    board,
+  ] = await Promise.all([
+    getContracts(user, params),
+    getContractStats(user),
+    getContractCaStats(user),
+    isAdmin
+      ? prisma.user.findMany({
+          where: { isActive: true },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
+    getFinancePulse(user),
+    getContractWorkQueue(user),
+    isAdmin ? getMonthlySignatureBoard() : Promise.resolve([]),
+  ]);
 
   const nbActifs = stats.byStatut.ACTIF ?? 0;
-  const renewalsValue = queue.renewals.reduce((s, r) => s + r.valeurAn1, 0);
   const nextRenewal = queue.renewals[0];
+  const nbRenewals = queue.renewals.length;
+  // Renouvellements cliquables : 1 seul → fiche du contrat ; plusieurs → la
+  // file « À traiter » qui les liste tous (ancre #a-traiter).
+  const renewalsHref =
+    nbRenewals === 0
+      ? undefined
+      : nbRenewals === 1
+        ? `/contrats/${nextRenewal.id}`
+        : "#a-traiter";
 
   return (
     <div className="flex flex-col gap-6 [&>div:first-child]:mb-0 px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
@@ -86,8 +110,6 @@ export default async function ContractsPage({ searchParams }: PageProps) {
         }
       />
 
-      <RoleFinanceHero pulse={pulse} />
-
       <FinanceTabs
         active="contrats"
         isAdmin={isAdmin}
@@ -100,13 +122,35 @@ export default async function ContractsPage({ searchParams }: PageProps) {
         }}
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* Chiffres 100 % contrats (aucune info facture : voir l'onglet Factures). */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatTile
-          label="Contrats actifs"
-          value={formatInt(nbActifs)}
-          sub={`sur ${formatInt(stats.total)} contrat${stats.total > 1 ? "s" : ""} au total`}
-          icon={Wallet}
+          label="Contrats"
+          value={formatInt(stats.total)}
+          sub={`dont ${formatInt(nbActifs)} actif${nbActifs > 1 ? "s" : ""}`}
+          icon={FileText}
           tone="navy"
+        />
+        <StatTile
+          label={`Contrats signés · ${pulse.monthLabel}`}
+          value={formatInt(caStats.signedThisMonthCount)}
+          sub={`${formatInt(caStats.caSignedThisMonth)} CHF de CA réel ce mois`}
+          icon={BadgeCheck}
+          tone="coral"
+        />
+        <StatTile
+          label={`CA signé · ${pulse.monthLabel}`}
+          value={<Chf value={caStats.caSignedThisMonth} />}
+          sub="valeur réelle des contrats sur leur durée"
+          icon={Coins}
+          tone="green"
+        />
+        <StatTile
+          label={`CA ${caStats.year}`}
+          value={<Chf value={caStats.caYear} />}
+          sub="signés sur leur terme + reconductions réalisées"
+          icon={TrendingUp}
+          tone="violet"
         />
         <StatTile
           label="Revenu mensuel récurrent (MRR)"
@@ -118,27 +162,28 @@ export default async function ContractsPage({ searchParams }: PageProps) {
           }
           sub="ce qui rentre automatiquement chaque mois"
           icon={Repeat}
-          tone="violet"
+          tone="gold"
         />
         <StatTile
           label="Renouvellements à sécuriser"
           value={
             <>
-              {formatInt(queue.renewals.length)}
+              {formatInt(nbRenewals)}
               <span className="ml-1.5 text-base font-bold text-muted-foreground">dans 30 j</span>
             </>
           }
           sub={
             nextRenewal
-              ? `${formatInt(renewalsValue)} CHF an 1 en jeu · le plus proche J-${Math.max(0, nextRenewal.days)}`
+              ? `le plus proche J-${Math.max(0, nextRenewal.days)} · clique pour ${nbRenewals > 1 ? "les voir" : "l'ouvrir"}`
               : "Aucun renouvellement dans les 30 jours"
           }
           icon={CalendarClock}
-          tone="gold"
+          tone="navy"
+          href={renewalsHref}
         />
       </div>
 
-      <div className="flex flex-wrap items-start gap-6">
+      <div id="a-traiter" className="flex scroll-mt-24 flex-wrap items-start gap-6">
         <ContractsWorkQueue
           queue={queue}
           isAdmin={isAdmin}

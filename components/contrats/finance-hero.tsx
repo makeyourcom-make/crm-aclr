@@ -60,23 +60,28 @@ export function FinanceHero({
   monthLabel,
   mrrCaption = "MRR",
   tiles,
+  rightPanel,
   ariaLabel = "Situation financière",
 }: {
   eyebrow: string;
   title: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;
-  mrr: number;
+  /** Anneau MRR par défaut (ignoré si `rightPanel` est fourni). */
+  mrr?: number;
   /** Mensuel ajouté par les signatures du mois. */
-  mrrAdded: number;
-  monthLabel: string;
+  mrrAdded?: number;
+  monthLabel?: string;
   mrrCaption?: string;
   tiles: HeroTile[];
+  /** Remplace entièrement le panneau de droite (anneau MRR) quand fourni. */
+  rightPanel?: ReactNode;
   ariaLabel?: string;
 }) {
-  const { next, done } = mrrPaliers(mrr);
-  const reste = Math.max(0, next - mrr);
-  const pct = next > 0 ? Math.round((Math.min(mrr, next) / next) * 100) : 0;
+  const mrrValue = mrr ?? 0;
+  const { next, done } = mrrPaliers(mrrValue);
+  const reste = Math.max(0, next - mrrValue);
+  const pct = next > 0 ? Math.round((Math.min(mrrValue, next) / next) * 100) : 0;
 
   return (
     <HeroPanel aria-label={ariaLabel} className="flex flex-col gap-6">
@@ -98,21 +103,22 @@ export function FinanceHero({
           )}
         </div>
 
+        {rightPanel ?? (
         <div className="flex min-w-0 flex-[0_1_auto] flex-wrap items-center gap-5 rounded-[20px] border border-white/12 bg-white/[0.06] p-4 sm:px-[22px] sm:py-[18px]">
           <ProgressRing
-            value={mrr}
+            value={mrrValue}
             max={next}
             size={148}
             stroke={12}
             tone="coral"
             trackColor="#2F4470"
-            label={`${mrrCaption} ${formatInt(mrr)} CHF par mois, ${pct} % du palier ${formatInt(next)} CHF`}
+            label={`${mrrCaption} ${formatInt(mrrValue)} CHF par mois, ${pct} % du palier ${formatInt(next)} CHF`}
           >
             <span className="text-[11px] font-bold tracking-[0.08em] text-navy-200">
               {mrrCaption}
             </span>
             <span className="score-number mt-1 text-[28px] text-white">
-              {formatInt(mrr)}
+              {formatInt(mrrValue)}
             </span>
             <span className="mt-1 text-xs font-semibold text-navy-200">CHF / mois</span>
           </ProgressRing>
@@ -149,6 +155,7 @@ export function FinanceHero({
             </ul>
           </div>
         </div>
+        )}
       </div>
 
       {tiles.length > 0 && (

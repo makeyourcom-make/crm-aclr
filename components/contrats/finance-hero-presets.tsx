@@ -102,44 +102,80 @@ function signedTile(p: FinancePulse): HeroTile {
   };
 }
 
-export function adminHeroTiles(p: FinancePulse): HeroTile[] {
+/** Tuiles 100 % factures (brouillons, retards, encaissé du mois). */
+export function invoiceTiles(p: FinancePulse): HeroTile[] {
   const inv = p.invoices;
-  const tiles: HeroTile[] = [signedTile(p)];
-  if (inv) {
-    tiles.push(
-      {
-        label: "Factures à envoyer aujourd'hui",
-        value: formatInt(inv.draftsCount),
-        unit: inv.draftsCount > 1 ? "brouillons" : "brouillon",
-        tone: "gold",
-        hint:
-          inv.draftsCount > 0
-            ? `${formatInt(inv.draftsTotal)} CHF prêts à partir · émis à ce jour`
-            : `Tout est parti${inv.sentToday > 0 ? ` · ${formatInt(inv.sentToday)} envoyée(s) aujourd'hui` : ""}`,
-        href: "/factures-clients#brouillons",
-      },
-      {
-        label: "Factures en retard",
-        value: formatInt(inv.overdueCount),
-        unit: `${formatInt(inv.overdueTotal)} CHF`,
-        tone: inv.overdueCount > 0 ? "coral" : "green",
-        hint:
-          inv.overdueCount > 0
-            ? `Le plus ancien : ${pl(inv.overdueOldestDays, "jour", "jours")} · relance en 1 clic`
-            : "Zéro retard, la caisse est propre",
-        href: "/factures-clients?statut=EN_RETARD",
-      },
-      {
-        label: `Encaissé · ${p.monthLabel}`,
-        value: formatInt(inv.paidMonthTotal),
-        unit: "CHF",
-        tone: "green",
-        hint: `${pl(inv.paidMonthCount, "facture payée", "factures payées")} ce mois`,
-        href: "/factures-clients?statut=PAYEE",
-      },
-    );
-  }
-  return tiles;
+  if (!inv) return [];
+  return [
+    {
+      label: "Factures à envoyer aujourd'hui",
+      value: formatInt(inv.draftsCount),
+      unit: inv.draftsCount > 1 ? "brouillons" : "brouillon",
+      tone: "gold",
+      hint:
+        inv.draftsCount > 0
+          ? `${formatInt(inv.draftsTotal)} CHF prêts à partir · émis à ce jour`
+          : `Tout est parti${inv.sentToday > 0 ? ` · ${formatInt(inv.sentToday)} envoyée(s) aujourd'hui` : ""}`,
+      href: "/factures-clients#brouillons",
+    },
+    {
+      label: "Factures en retard",
+      value: formatInt(inv.overdueCount),
+      unit: `${formatInt(inv.overdueTotal)} CHF`,
+      tone: inv.overdueCount > 0 ? "coral" : "green",
+      hint:
+        inv.overdueCount > 0
+          ? `Le plus ancien : ${pl(inv.overdueOldestDays, "jour", "jours")} · relance en 1 clic`
+          : "Zéro retard, la caisse est propre",
+      href: "/factures-clients?statut=EN_RETARD",
+    },
+    {
+      label: `Encaissé · ${p.monthLabel}`,
+      value: formatInt(inv.paidMonthTotal),
+      unit: "CHF",
+      tone: "green",
+      hint: `${pl(inv.paidMonthCount, "facture payée", "factures payées")} ce mois`,
+      href: "/factures-clients?statut=PAYEE",
+    },
+  ];
+}
+
+export function adminHeroTiles(p: FinancePulse): HeroTile[] {
+  return [signedTile(p), ...invoiceTiles(p)];
+}
+
+/**
+ * Panneau de droite de la page Factures : total encaissé depuis le début de
+ * l'année + moyenne mensuelle encaissée (remplace l'anneau MRR, qui est une
+ * métrique de contrats).
+ */
+export function FacturesCashPanel({
+  encaisseYtd,
+  moyenneMensuelle,
+  year,
+}: {
+  encaisseYtd: number;
+  moyenneMensuelle: number;
+  year: number;
+}) {
+  return (
+    <div className="flex min-w-0 flex-[0_1_auto] flex-col justify-center gap-2 rounded-[20px] border border-white/12 bg-white/[0.06] px-6 py-5 sm:min-w-[280px]">
+      <p className="text-[11px] font-bold tracking-[0.08em] text-navy-200 uppercase">
+        Factures encaissées depuis janvier {year}
+      </p>
+      <p className="score-number text-[40px] leading-none text-win-50">
+        {formatInt(encaisseYtd)}
+        <span className="ml-1.5 text-lg font-semibold text-navy-200">CHF</span>
+      </p>
+      <p className="text-sm font-semibold text-white">
+        Moyenne{" "}
+        <strong className="font-extrabold text-gold-50">
+          {formatInt(moyenneMensuelle)} CHF
+        </strong>{" "}
+        de factures encaissées / mois
+      </p>
+    </div>
+  );
 }
 
 export function commercialHeroTiles(p: FinancePulse): HeroTile[] {
@@ -233,9 +269,15 @@ export function CommercialHeroActions({ pulse }: { pulse: FinancePulse }) {
 export function RoleFinanceHero({
   pulse,
   primary,
+  rightPanel,
+  tiles,
 }: {
   pulse: FinancePulse;
   primary?: ReactNode;
+  /** Remplace l'anneau MRR (ex. panneau « encaissé » sur /factures-clients). */
+  rightPanel?: ReactNode;
+  /** Remplace les tuiles par défaut (ex. tuiles 100 % factures). */
+  tiles?: HeroTile[];
 }) {
   if (pulse.isAdmin) {
     const copy = adminHeroCopy(pulse);
@@ -249,7 +291,8 @@ export function RoleFinanceHero({
         mrr={pulse.mrr}
         mrrAdded={pulse.signedMensuel}
         monthLabel={pulse.monthLabel}
-        tiles={adminHeroTiles(pulse)}
+        rightPanel={rightPanel}
+        tiles={tiles ?? adminHeroTiles(pulse)}
       />
     );
   }
