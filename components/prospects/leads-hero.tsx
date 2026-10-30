@@ -1,21 +1,20 @@
 /**
  * Héros de la liste Entreprises : « où j'en suis et quoi faire maintenant ».
  * Taille du portefeuille, leads chauds, jamais appelés, CTA Phoning, objectif
- * d'appels du jour (compteurs réels du jour) et trois tuiles :
- * entreprises appelées sur 7 jours, RDV à venir, signés ce mois-ci.
- * Server-safe.
+ * d'appels du jour (compteurs réels du jour) et deux tuiles :
+ * entreprises appelées (fenêtre 7 / 15 / 30 j au choix) et RDV réels à venir
+ * (sous 7 j / 30 j, agenda des commerciaux). Server-safe.
  */
 import { Flame, Phone, Plus } from "lucide-react";
 import Link from "next/link";
 
 import { HeroPanel, ProgressRing, formatInt } from "@/components/arena";
-import { formatCHFCompact } from "@/lib/format";
 import type { DailyGoal } from "@/lib/gamification/rules";
-import { cn } from "@/lib/utils";
 
 import type { LeadsOverview } from "@/lib/queries/prospects";
 
-import { fmtDayMonth, fmtTime, zurichMonthName } from "./zurich-format";
+import { CalledTile } from "./called-tile";
+import { fmtDayMonth, fmtTime } from "./zurich-format";
 
 export interface LeadsHeroProps {
   /** Sur-titre (« Ton territoire », « Toute la base »…). */
@@ -31,7 +30,6 @@ export interface LeadsHeroProps {
   /** Liens vers les vues rapides. */
   hrefChaudes: string;
   hrefJamais: string;
-  nowMs: number;
 }
 
 export function LeadsHero({
@@ -43,12 +41,9 @@ export function LeadsHero({
   goalRdv,
   hrefChaudes,
   hrefJamais,
-  nowMs,
 }: LeadsHeroProps) {
-  const { vues, rdv, called, signed } = overview;
+  const { vues, rdv, called } = overview;
   const restants = goal ? Math.max(0, goal.target - goal.current) : 0;
-  const calledTrend =
-    called.prev7 > 0 ? Math.round(((called.last7 - called.prev7) / called.prev7) * 100) : null;
 
   return (
     <HeroPanel aria-labelledby="leads-hero-titre" className="mb-6">
@@ -165,43 +160,18 @@ export function LeadsHero({
             </div>
           )}
 
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2.5">
-            <HeroTile label="Appelées sur 7 jours" value={formatInt(called.last7)}>
-              {calledTrend !== null && (
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-xs font-bold",
-                    calledTrend > 0
-                      ? "bg-win-50 text-win-700"
-                      : calledTrend < 0
-                        ? "bg-alert-50 text-alert-700"
-                        : "bg-navy-50 text-navy-500",
-                  )}
-                >
-                  {calledTrend > 0 ? "+" : ""}
-                  {calledTrend} % vs 7 j précédents
-                </span>
-              )}
-            </HeroTile>
-            <HeroTile label="RDV à venir" value={formatInt(rdv.count)}>
-              {rdv.tomorrow > 0 ? (
-                <span className="rounded-full bg-gold-50 px-2 py-0.5 text-xs font-bold text-gold-700">
-                  dont {formatInt(rdv.tomorrow)} demain
-                </span>
-              ) : rdv.next ? (
-                <span className="rounded-full bg-gold-50 px-2 py-0.5 text-xs font-bold text-gold-700">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2.5">
+            <CalledTile d7={called.d7} d15={called.d15} d30={called.d30} prev7={called.prev7} />
+            <HeroTile label="RDV à venir" value={formatInt(rdv.d7)}>
+              <span className="text-xs font-bold text-navy-200">sous 7 j</span>
+              <span className="rounded-full bg-gold-50 px-2 py-0.5 text-xs font-bold text-gold-700">
+                {formatInt(rdv.d30)} sous 30 j
+              </span>
+              {rdv.next && (
+                <span className="w-full text-xs text-navy-200">
                   prochain {fmtDayMonth(rdv.next)} · {fmtTime(rdv.next)}
                 </span>
-              ) : null}
-            </HeroTile>
-            <HeroTile
-              label={`Signés en ${zurichMonthName(nowMs)}`}
-              value={formatInt(signed.count)}
-            >
-              <span className="text-xs font-bold text-navy-200">
-                {signed.target ? `/ ${formatInt(signed.target)} · ` : ""}
-                {formatCHFCompact(signed.ca)}
-              </span>
+              )}
             </HeroTile>
           </div>
         </div>

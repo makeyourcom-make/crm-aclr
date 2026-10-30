@@ -26,10 +26,6 @@ import type {
   ProspectFraicheur,
   ProspectVue,
 } from "@/components/prospects/lead-views";
-import {
-  zurichStartOfDay,
-  zurichStartOfMonth,
-} from "@/components/prospects/zurich-format";
 import { prisma } from "@/lib/db";
 import type { ProspectListParams } from "@/lib/schemas/prospect";
 import { type SessionUser } from "@/lib/session";
@@ -230,12 +226,17 @@ export async function getProspectStats(
 export interface LeadsOverview {
   /** Nombre de fiches par vue rapide (périmètre portefeuille). */
   vues: Record<Exclude<ProspectVue, "toutes">, number>;
-  /** RDV planifiés à venir sur le portefeuille. */
-  rdv: { count: number; tomorrow: number; next: Date | null };
-  /** Entreprises appelées (distinctes) sur 7 jours glissants vs les 7 précédents. */
-  called: { last7: number; prev7: number };
-  /** Contrats réellement signés ce mois-ci (mêmes exclusions que stats.ts). */
-  signed: { count: number; ca: number; target: number | null };
+  /**
+   * RDV réels à venir dans l'agenda des commerciaux concernés (propriétaire de
+   * l'activité = Lucille et/ou l'admin), bornés à une fenêtre glissante.
+   * `d7` = sous 7 jours, `d30` = sous 30 jours, `next` = prochain créneau.
+   */
+  rdv: { d7: number; d30: number; next: Date | null };
+  /**
+   * Entreprises appelées (distinctes) sur fenêtres glissantes 7 / 15 / 30 j.
+   * `prev7` = les 7 jours précédant les 7 derniers (pour la tendance).
+   */
+  called: { d7: number; d15: number; d30: number; prev7: number };
 }
 
 /**
@@ -250,26 +251,42 @@ export async function getLeadsOverview(
   const now = opts.now ?? new Date();
   const nowMs = now.getTime();
   const scope = portfolioWhere(user, opts.assigneAId);
-  const scopeUserId =
-    user.role !== "ADMIN" ? user.id : (opts.assigneAId ?? null);
-  const contractScope: Prisma.ContractWhereInput = scopeUserId
-    ? { assigneAId: scopeUserId }
-    : {};
 
   const and = (w: Prisma.ProspectWhereInput): Prisma.ProspectWhereInput =>
     Object.keys(scope).length > 0 ? { AND: [scope, w] } : w;
 
-  const tomorrowStart = zurichStartOfDay(nowMs, 1);
-  const afterTomorrowStart = zurichStartOfDay(nowMs, 2);
-  const monthStart = zurichStartOfMonth(nowMs);
   const since7 = new Date(sinceMs(nowMs, 7));
+  const since15 = new Date(sinceMs(nowMs, 15));
+  const since30 = new Date(sinceMs(nowMs, 30));
   const since14 = new Date(sinceMs(nowMs, 14));
+  const until7 = new Date(nowMs + 7 * 86_400_000);
+  const until30 = new Date(nowMs + 30 * 86_400_000);
+  // Borne haute pour exclure les fausses entrées « RDV » récurrentes datées
+  // très loin dans le futur (provisions, rappels mal typés) : on ne compte
+  // comme agenda réel que les créneaux sous 1 an.
+  const until365 = new Date(nowMs + 365 * 86_400_000);
 
-  const rdvWhere: Prisma.ActivityWhereInput = {
+  // Agenda RÉEL : on se base sur le propriétaire de l'activité (userId), pas
+  // sur le portefeuille du prospect. Admin sans filtre → agenda de tous les
+  // commerciaux actifs ; admin ciblant une commerciale → son agenda ; une
+  // commerciale → le sien.
+  let agendaUserIds: string[];
+  if (user.role !== "ADMIN") {
+    agendaUserIds = [user.id];
+  } else if (opts.assigneAId) {
+    agendaUserIds = [opts.assigneAId];
+  } else {
+    const actifs = await prisma.user.findMany({
+      where: { isActive: true },
+      select: { id: true },
+    });
+    agendaUserIds = actifs.map((u) => u.id);
+  }
+
+  const rdvAgendaWhere: Prisma.ActivityWhereInput = {
     type: { in: ["RDV_PHYSIQUE", "RDV_VISIO", "RDV_TELEPHONIQUE"] },
     statut: { in: ["PLANIFIE", "REPLANIFIE"] },
-    date: { gt: now },
-    prospect: scope,
+    userId: { in: agendaUserIds },
   };
   const callWhere = (gte: Date, lt: Date): Prisma.ActivityWhereInput => ({
     type: "APPEL_SORTANT",
@@ -285,25 +302,27 @@ export async function getLeadsOverview(
     rdvFiches,
     relancer,
     refroidit,
-    rdvCount,
-    rdvTomorrow,
+    rdvD7,
+    rdvD30,
     rdvNext,
-    calledLast,
+    called7,
+    called15,
+    called30,
     calledPrev,
-    signedAgg,
-    objective,
   ] = await Promise.all([
     prisma.prospect.count({ where: and(vueWhere("chaudes", now)!) }),
     prisma.prospect.count({ where: and(vueWhere("jamais", now)!) }),
     prisma.prospect.count({ where: and(vueWhere("rdv", now)!) }),
     prisma.prospect.count({ where: and(vueWhere("relancer", now)!) }),
     prisma.prospect.count({ where: and(vueWhere("refroidit", now)!) }),
-    prisma.activity.count({ where: rdvWhere }),
     prisma.activity.count({
-      where: { ...rdvWhere, date: { gte: tomorrowStart, lt: afterTomorrowStart } },
+      where: { ...rdvAgendaWhere, date: { gt: now, lte: until7 } },
+    }),
+    prisma.activity.count({
+      where: { ...rdvAgendaWhere, date: { gt: now, lte: until30 } },
     }),
     prisma.activity.findFirst({
-      where: rdvWhere,
+      where: { ...rdvAgendaWhere, date: { gt: now, lte: until365 } },
       orderBy: { date: "asc" },
       select: { date: true },
     }),
@@ -313,42 +332,26 @@ export async function getLeadsOverview(
     }),
     prisma.activity.groupBy({
       by: ["prospectId"],
+      where: callWhere(since15, new Date(nowMs + 1)),
+    }),
+    prisma.activity.groupBy({
+      by: ["prospectId"],
+      where: callWhere(since30, new Date(nowMs + 1)),
+    }),
+    prisma.activity.groupBy({
+      by: ["prospectId"],
       where: callWhere(since14, since7),
     }),
-    prisma.contract.aggregate({
-      where: {
-        ...contractScope,
-        statut: {
-          notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"],
-        },
-        dateSignature: { gte: monthStart, lte: now },
-      },
-      _count: true,
-      _sum: { valeurAn1: true },
-    }),
-    scopeUserId
-      ? prisma.objective.findFirst({
-          where: {
-            userId: scopeUserId,
-            periode: "MENSUEL",
-            isActif: true,
-            dateDebut: { lte: now },
-            dateFin: { gte: monthStart },
-          },
-          orderBy: { createdAt: "desc" },
-          select: { nbSignaturesObjectif: true },
-        })
-      : Promise.resolve(null),
   ]);
 
   return {
     vues: { chaudes, jamais, rdv: rdvFiches, relancer, refroidit },
-    rdv: { count: rdvCount, tomorrow: rdvTomorrow, next: rdvNext?.date ?? null },
-    called: { last7: calledLast.length, prev7: calledPrev.length },
-    signed: {
-      count: signedAgg._count,
-      ca: Number(signedAgg._sum.valeurAn1 ?? 0),
-      target: objective?.nbSignaturesObjectif ?? null,
+    rdv: { d7: rdvD7, d30: rdvD30, next: rdvNext?.date ?? null },
+    called: {
+      d7: called7.length,
+      d15: called15.length,
+      d30: called30.length,
+      prev7: calledPrev.length,
     },
   };
 }

@@ -158,7 +158,6 @@ export function ProspectsListView({
           sp.set("vue", "jamais");
           sp.delete("statut");
         })}
-        nowMs={nowMs}
       />
 
       <LeadsFunnel
