@@ -72,10 +72,10 @@ export async function getCommissionsCockpit(
     where: {
       commission: {
         ...(userFilter ? { userId: userFilter } : {}),
-        // On masque les commissions rattachées à un compte ADMIN : ce sont des
-        // contrats signés par le patron lui-même, qui n'a personne à commissionner.
-        // Ces « auto-commissions » fausseraient les totaux (artefact de génération).
-        user: { role: { not: "ADMIN" } },
+        // Collaborateurs ACTIFS uniquement (Arthur reprend le portefeuille des
+        // partants, donc l'admin est bien commissionné ; les ex-collaborateurs
+        // comme Sophie/Lou-Anne, désactivés, ne paraissent plus).
+        user: { isActive: true },
         contract: {
           statut: {
             notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"],
@@ -120,14 +120,24 @@ export async function getCommissionsCockpit(
 
   for (const p of payments) {
     const montant = Number(p.montant);
+    if (p.statut === "ANNULE") {
+      annule += montant;
+      continue;
+    }
+    // « À verser ce mois » = fiche de paye du mois : TOUT versement (signature
+    // 25 %, étalement du 50 %, renouvellement 10 %) dont la date prévue tombe
+    // dans le mois courant, qu'il soit déjà payé ou encore prévu. C'est le vrai
+    // montant dû à la personne pour le mois (cohérent avec le calendrier).
+    if (p.dateVersementPrevue >= startMonth && p.dateVersementPrevue <= endMonth) {
+      acquisMoisCourant += montant;
+    }
     if (p.statut === "PAYE") {
       const ref = p.dateVersement ?? p.dateVersementPrevue;
       if (ref >= startYear) acquisYTD += montant;
-      if (ref >= startMonth && ref <= endMonth) acquisMoisCourant += montant;
     } else if (p.statut === "PREVU") {
-      if (p.dateVersementPrevue >= now) aVenirTotal += montant;
-    } else if (p.statut === "ANNULE") {
-      annule += montant;
+      // « À venir » = versements prévus des mois SUIVANTS (hors mois courant,
+      // déjà compté dans « à verser ce mois »).
+      if (p.dateVersementPrevue > endMonth) aVenirTotal += montant;
     }
   }
 
@@ -298,7 +308,7 @@ export async function getCommissionsByUser() {
     // (on exclut les propositions en attente de signature).
     where: {
       commission: {
-        user: { role: { not: "ADMIN" } },
+        user: { isActive: true },
         contract: {
           statut: {
             notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"],
@@ -331,7 +341,7 @@ export async function getCommissionsByUser() {
   // contexte contrat/client pour le détail dépliable.
   const commissions = await prisma.commission.findMany({
     where: {
-      user: { role: { not: "ADMIN" } },
+      user: { isActive: true },
       contract: {
         statut: {
           notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"],

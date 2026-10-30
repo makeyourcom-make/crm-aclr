@@ -21,19 +21,11 @@ import {
 import { prisma } from "@/lib/db";
 
 /**
- * Préfixe de référence d'un bulletin de salaire : prénom du collaborateur,
- * en MAJUSCULES, sans accent ni caractère spécial (ex. « Lucille Bouin » →
- * « LUCILLE »). Repli « SALAIRE » si le prénom est vide.
+ * Préfixe de référence des bulletins de salaire : neutre (nom de l'entreprise),
+ * JAMAIS le nom d'un collaborateur. Les bulletins sont numérotés en séquence
+ * globale par année → MAKE-2026-01, MAKE-2026-02, …
  */
-function salaryRefPrefix(name: string): string {
-  const first = (name ?? "").trim().split(/\s+/)[0] ?? "";
-  const ascii = first
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^A-Za-z0-9]/g, "")
-    .toUpperCase();
-  return ascii || "SALAIRE";
-}
+const SALARY_REF_PREFIX = "MAKE";
 
 
 type PrismaLike =
@@ -101,12 +93,22 @@ export async function generateMonthlyInvoice(
     };
   }
 
-  // 4. Récupérer tous les CommissionPayment PAYE qui ont été acquis ce mois
+  // 4. Fiche de paye du mois = TOUT versement (signature 25 %, étalement du
+  //    50 %, renouvellement 10 %) dû ce mois (date prévue dans le mois), sur
+  //    un contrat réellement signé, hors annulés. Qu'il soit déjà payé ou
+  //    encore prévu : c'est le montant dû à la personne pour le mois.
   const acquisDuMois = await db.commissionPayment.findMany({
     where: {
-      commission: { userId },
-      statut: "PAYE",
-      dateVersement: { gte: startMonth, lte: endMonth },
+      commission: {
+        userId,
+        contract: {
+          statut: {
+            notIn: ["ATTENTE_SIGNATURE_CLIENT", "ATTENTE_VALIDATION_ADMIN"],
+          },
+        },
+      },
+      statut: { not: "ANNULE" },
+      dateVersementPrevue: { gte: startMonth, lte: endMonth },
     },
     select: { id: true, montant: true, typePart: true },
   });
@@ -124,15 +126,14 @@ export async function generateMonthlyInvoice(
     forfaitFraisCents: chfToCents(Number(user.forfaitFrais)),
   });
 
-  // 7. Référence {PRENOM}-{YYYY}-{NN} : préfixe = prénom du collaborateur,
-  //    séquence propre à chaque collaborateur et par année.
-  const prefix = salaryRefPrefix(user.name);
+  // 7. Référence MAKE-{YYYY}-{NN} : préfixe neutre de l'entreprise (jamais le
+  //    nom d'un collaborateur) + séquence GLOBALE par année (unique).
   const counter = await db.counter.upsert({
-    where: { scope_year: { scope: `salaire:${userId}`, year: annee } },
-    create: { scope: `salaire:${userId}`, year: annee, value: 1 },
+    where: { scope_year: { scope: "salaire", year: annee } },
+    create: { scope: "salaire", year: annee, value: 1 },
     update: { value: { increment: 1 } },
   });
-  const referenceFacture = `${prefix}-${annee}-${String(counter.value).padStart(2, "0")}`;
+  const referenceFacture = `${SALARY_REF_PREFIX}-${annee}-${String(counter.value).padStart(2, "0")}`;
 
   // 8. Création de l'Invoice + liens vers les CommissionPayment couverts
   const created = await db.invoice.create({
