@@ -36,7 +36,7 @@ export type ContractDetail = Prisma.ContractGetPayload<{
         canton: true;
       };
     };
-    assigneA: { select: { id: true; name: true } };
+    assigneA: { select: { id: true; name: true; tauxCommissionSignature: true; tauxCommissionRenouvellement: true } };
     deal: { select: { id: true; titre: true } };
     products: {
       select: { id: true; nom: true; prixOneShot: true; prixMensuel: true };
@@ -164,7 +164,7 @@ export async function getContractById(
           canton: true,
         },
       },
-      assigneA: { select: { id: true, name: true } },
+      assigneA: { select: { id: true, name: true, tauxCommissionSignature: true, tauxCommissionRenouvellement: true } },
       deal: { select: { id: true, titre: true } },
       products: {
         select: {

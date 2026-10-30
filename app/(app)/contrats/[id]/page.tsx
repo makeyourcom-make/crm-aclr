@@ -430,7 +430,7 @@ export default async function ContractDetailPage({ params }: PageProps) {
           <MiniKpi
             label="Valeur an 1"
             value={formatMoney(valeurAn1, contract.devise)}
-            sub="base commission"
+            sub="mensuel × 12 (indicatif)"
           />
           <MiniKpi
             label="One-shot"
@@ -871,9 +871,14 @@ export default async function ContractDetailPage({ params }: PageProps) {
           tone="gold"
           description={
             <>
-              Total {formatCHF(Number(commission.montantTotal))} · « Acquise » =
-              revenu déjà gagné. Le versement effectif a lieu une fois par mois via
-              la facture mensuelle.
+              <strong className="text-foreground">
+                {Math.round(Number(contract.assigneA.tauxCommissionSignature) * 100)} % de la valeur du contrat sur sa
+                durée réelle (budget pub exclu)
+              </strong>{" "}
+              = {formatCHF(Number(commission.montantTotal))}. Versée 50 % à la signature,
+              50 % étalés sur les mois restants ; puis{" "}
+              {Math.round(Number(contract.assigneA.tauxCommissionRenouvellement) * 100)} % du mensuel chaque mois après
+              le terme. « Acquise » = déjà gagné ; le versement a lieu via la facture mensuelle.
             </>
           }
           action={isAdmin ? <RecomputeButton /> : undefined}
