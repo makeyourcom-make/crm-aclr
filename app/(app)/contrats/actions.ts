@@ -2500,8 +2500,15 @@ export async function generateDueClientInvoices(): Promise<{
       // Les contrats à jour fixe (facturationJourMois) sont facturés
       // EXCLUSIVEMENT par generateAnticipatedInvoices (sur le jour configuré) :
       // on les exclut ici pour que le filet ne crée pas le mois courant avant
-      // ce jour-là.
-      where: { statut: "ACTIF", facturationJourMois: null },
+      // ce jour-là. Les contrats à facturation périodique groupée
+      // (facturationPeriodiciteMois, ex. bimestrielle) sont facturés
+      // EXCLUSIVEMENT par generateGroupedPeriodicInvoices : on les exclut aussi
+      // pour que le filet ne crée pas de mensualités mois par mois.
+      where: {
+        statut: "ACTIF",
+        facturationJourMois: null,
+        facturationPeriodiciteMois: null,
+      },
       select: {
         id: true,
         modalitePaiement: true,
@@ -2649,7 +2656,13 @@ export async function generateAnticipatedInvoices(): Promise<{
     const now = new Date();
     const day = now.getUTCDate();
     const contracts = await prisma.contract.findMany({
-      where: { statut: "ACTIF", facturationJourMois: { not: null } },
+      where: {
+        statut: "ACTIF",
+        facturationJourMois: { not: null },
+        // Les contrats à facturation périodique groupée ont leur propre
+        // générateur (generateGroupedPeriodicInvoices) : jamais ici.
+        facturationPeriodiciteMois: null,
+      },
       select: {
         id: true,
         modalitePaiement: true,
@@ -2755,6 +2768,149 @@ export async function generateAnticipatedInvoices(): Promise<{
     return { ok: true, created };
   } catch (e) {
     console.error("[generateAnticipatedInvoices]", e);
+    return {
+      ok: false,
+      created: 0,
+      error: e instanceof Error ? e.message : "Erreur",
+    };
+  }
+}
+
+/**
+ * Générateur des factures PÉRIODIQUES GROUPÉES (ex. bimestrielle, trimestrielle).
+ *
+ * Pour chaque contrat ACTIF ayant `facturationPeriodiciteMois = n` (≥ 2), on
+ * facture UNE fois tous les n mois une facture couvrant n mois =
+ * `montantMensuel × n`. Les mois-frontières sont calés sur `dateDebut` :
+ * on facture quand (mois écoulés depuis dateDebut) est un multiple de n.
+ * Période = [mois courant, mois courant + n − 1]. Émise le 1er du mois,
+ * échéance +30 j. Dédup par mois de début de période (idempotent : un 2e
+ * passage le même mois voit la facture déjà présente → skip). Respecte la
+ * pause de facturation (`facturationReprendLe`). Ces contrats sont exclus des
+ * deux générateurs mensuels, donc aucune mensualité mois par mois n'est créée.
+ */
+export async function generateGroupedPeriodicInvoices(): Promise<{
+  ok: boolean;
+  created: number;
+  error?: string;
+}> {
+  const MOIS_FR = [
+    "janvier", "février", "mars", "avril", "mai", "juin",
+    "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+  ];
+  try {
+    const now = new Date();
+    const floorMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const contracts = await prisma.contract.findMany({
+      where: { statut: "ACTIF", facturationPeriodiciteMois: { not: null } },
+      select: {
+        id: true,
+        dateDebut: true,
+        devise: true,
+        facturationReprendLe: true,
+        facturationPeriodiciteMois: true,
+        montantOneShot: true,
+        montantMensuel: true,
+        lignesMeta: true,
+        products: {
+          select: { id: true, nom: true, prixOneShot: true, prixMensuel: true },
+        },
+        clientInvoices: { select: { periodeMoisDebut: true } },
+      },
+    });
+
+    let created = 0;
+    for (const c of contracts) {
+      const n = c.facturationPeriodiciteMois ?? 1;
+      if (n < 2) continue; // 1 (ou null) = mensuel normal, pas ici
+
+      const billing = reconstructContractBilling(c);
+      if (billing.mensuelCents === 0) continue; // pas de récurrent → rien
+
+      // Mois écoulés depuis le début (composants locaux, cohérent avec le reste
+      // du moteur ; le cron tourne en UTC sur Vercel → local == UTC).
+      const monthsSinceStart =
+        (floorMonth.getFullYear() - c.dateDebut.getFullYear()) * 12 +
+        (floorMonth.getMonth() - c.dateDebut.getMonth());
+      if (monthsSinceStart < 0) continue; // pas encore commencé
+      if (monthsSinceStart % n !== 0) continue; // pas un mois-frontière
+
+      const periodStart = firstOfMonthUTC(floorMonth);
+      const periodeFin = new Date(
+        Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth() + n, 0),
+      );
+      const targetKey = moisKeyLocal(periodStart);
+
+      // Pause de facturation couvrant le mois courant → on saute.
+      if (
+        c.facturationReprendLe &&
+        moisKeyLocal(floorMonth) < moisKeyLocal(c.facturationReprendLe)
+      ) {
+        continue;
+      }
+      // Dédup : facture de cette période déjà présente.
+      const exists = c.clientInvoices.some(
+        (i) => i.periodeMoisDebut && moisKeyLocal(i.periodeMoisDebut) === targetKey,
+      );
+      if (exists) continue;
+
+      // Libellé de période (ex. « novembre à décembre 2026 »).
+      const finMois = new Date(
+        Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth() + n - 1, 1),
+      );
+      const periodeLabel =
+        finMois.getUTCFullYear() === periodStart.getUTCFullYear()
+          ? `${MOIS_FR[periodStart.getUTCMonth()]} à ${MOIS_FR[finMois.getUTCMonth()]} ${finMois.getUTCFullYear()}`
+          : `${MOIS_FR[periodStart.getUTCMonth()]} ${periodStart.getUTCFullYear()} à ${MOIS_FR[finMois.getUTCMonth()]} ${finMois.getUTCFullYear()}`;
+
+      created += await prisma.$transaction(async (tx) => {
+        const emission = periodStart;
+        const echeance = new Date(emission);
+        echeance.setUTCDate(
+          echeance.getUTCDate() + FACTURE_CLIENT_ECHEANCE_JOURS_DEFAULT,
+        );
+        const lignes = billing.lines
+          .filter((l) => l.lineMensuel > 0)
+          .map((l, idx) => ({
+            designation: `${l.nom} - ${periodeLabel} (${n} mois)`,
+            quantite: n,
+            prixUnitaire: centsToChf(l.lineMensuel),
+            montantHT: centsToChf(l.lineMensuel * n),
+            tauxTVA: 0,
+            ordre: idx,
+            productId: l.productId || null,
+          }));
+        const totalCents = billing.mensuelCents * n;
+        const annee = emission.getUTCFullYear();
+        const counter = await tx.counter.upsert({
+          where: { scope_year: { scope: "client_invoice", year: annee } },
+          create: { scope: "client_invoice", year: annee, value: 1 },
+          update: { value: { increment: 1 } },
+        });
+        const facNumero = `${PREFIX_FACTURE_CLIENT}-${annee}-${String(counter.value).padStart(4, "0")}`;
+        await tx.clientInvoice.create({
+          data: {
+            contractId: c.id,
+            numero: facNumero,
+            dateEmission: emission,
+            dateEcheance: echeance,
+            type: "MENSUALITE",
+            periodeMoisDebut: periodStart,
+            periodeMoisFin: periodeFin,
+            devise: c.devise ?? "CHF",
+            sousTotal: centsToChf(totalCents),
+            totalTVA: 0,
+            total: centsToChf(totalCents),
+            statut: "BROUILLON",
+            lignes: { create: lignes },
+          },
+        });
+        return 1;
+      });
+    }
+    return { ok: true, created };
+  } catch (e) {
+    console.error("[generateGroupedPeriodicInvoices]", e);
     return {
       ok: false,
       created: 0,

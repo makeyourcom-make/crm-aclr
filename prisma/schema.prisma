@@ -1193,6 +1193,15 @@ model Contract {
   /// facturationJourMois est NULL.
   facturationAnticipee Boolean @default(true)
 
+  /// Facturation périodique GROUPÉE : nombre de mois couverts par CHAQUE facture
+  /// (ex. 2 = bimestrielle → montantMensuel × 2 par facture, période de 2 mois ;
+  /// 3 = trimestrielle, etc.). NULL = facturation mensuelle normale. Les contrats
+  /// ayant cette valeur sont facturés EXCLUSIVEMENT par
+  /// generateGroupedPeriodicInvoices (sur les mois-frontières calés sur dateDebut)
+  /// et sont exclus des deux générateurs mensuels. Le montantMensuel reste le
+  /// mensuel réel (MRR / CA récurrent inchangés).
+  facturationPeriodiciteMois Int?
+
   // Relations
   products       Product[]        @relation("ContractProducts")
   planningLignes PlanningLigne[]

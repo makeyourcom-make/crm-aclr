@@ -22,6 +22,7 @@ import { NextResponse } from "next/server";
 import {
   generateAnticipatedInvoices,
   generateDueClientInvoices,
+  generateGroupedPeriodicInvoices,
 } from "@/app/(app)/contrats/actions";
 import { sendDueSoonReminders } from "@/app/(app)/factures-clients/actions";
 import {
@@ -86,6 +87,12 @@ async function handler(req: Request) {
     const anticipated = await generateAnticipatedInvoices();
     results.anticipatedInvoicesGenerated = anticipated.created;
     if (!anticipated.ok) results.anticipatedInvoicesError = anticipated.error;
+
+    // Factures périodiques groupées (bimestrielle, trimestrielle, etc. — ex.
+    // ASRO référencement 49/mois facturé tous les 2 mois = 98).
+    const grouped = await generateGroupedPeriodicInvoices();
+    results.groupedPeriodicInvoicesGenerated = grouped.created;
+    if (!grouped.ok) results.groupedPeriodicInvoicesError = grouped.error;
 
     // 1quater. Relances "J+20" : rappel courtois pour les factures dont
     // l'échéance approche (≤ 10 j), avant le cap des 30 j / frais de rappel.
