@@ -44,7 +44,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { AGENDA_COLORS } from "@/lib/agenda-colors";
+import { AGENDA_COLORS, defaultRdvColorForUser } from "@/lib/agenda-colors";
 import { ACTIVITY_TYPE_OPTIONS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
@@ -260,8 +260,13 @@ function ActivityForm({
   // saisi à la main.
   const [autoAdresse, setAutoAdresse] = useState<string | null>(null);
   const [contenu, setContenu] = useState(editActivity?.contenu ?? "");
+  // À la CRÉATION, on pré-remplit la couleur par défaut du collaborateur
+  // (ex. Lucille → Rose). À l'édition, on conserve exactement la couleur
+  // existante (null reste null).
   const [couleur, setCouleur] = useState<string | null>(
-    editActivity?.couleur ?? null,
+    isEdit
+      ? (editActivity?.couleur ?? null)
+      : defaultRdvColorForUser(currentUserId),
   );
 
   // Récurrence (création uniquement). NONE = activité unique.

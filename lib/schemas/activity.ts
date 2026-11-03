@@ -54,7 +54,14 @@ export type ActivityCreateInput = z.infer<typeof ActivityCreateSchema>;
 // UPDATE — patch partiel
 // ---------------------------------------------------------------------------
 
-export const ActivityUpdateSchema = ActivityCreateSchema.partial();
+// IMPORTANT : on NEUTRALISE le `.default("FAIT")` du statut pour l'update.
+// En Zod, `.partial()` conserve le default : un patch sans statut se verrait
+// alors injecter `statut: "FAIT"`, ce qui (1) bloquait l'édition d'un RDV à
+// venir via le garde-fou « pas encore eu lieu » et (2) marquait silencieusement
+// « fait » toute activité éditée. En update, un statut absent = on n'y touche pas.
+export const ActivityUpdateSchema = ActivityCreateSchema.partial().extend({
+  statut: z.nativeEnum(ActivityStatut).optional(),
+});
 export type ActivityUpdateInput = z.infer<typeof ActivityUpdateSchema>;
 
 // ---------------------------------------------------------------------------

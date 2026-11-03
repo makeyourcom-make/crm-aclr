@@ -29,6 +29,24 @@ export const AGENDA_COLORS: AgendaColor[] = [
 
 const COLOR_SET = new Set(AGENDA_COLORS.map((c) => c.value));
 
+/**
+ * Couleur RDV par défaut par collaborateur (préférence perso). Clé = User.id.
+ * Appliquée uniquement à la CRÉATION d'une nouvelle activité (pas à l'édition).
+ * Étendre cette table au besoin ; une valeur absente = pas de couleur par défaut.
+ */
+const DEFAULT_RDV_COLOR_BY_USER: Record<string, string> = {
+  // Lucille Bouin → Rose
+  cmuoinrje0000ji9wpybx6sit: "#ec4899",
+};
+
+/** Couleur RDV par défaut pour un collaborateur (hex de la palette) ou null. */
+export function defaultRdvColorForUser(
+  userId: string | null | undefined,
+): string | null {
+  if (!userId) return null;
+  return DEFAULT_RDV_COLOR_BY_USER[userId] ?? null;
+}
+
 /** Normalise une valeur reçue du formulaire (hex minuscule) ou null. */
 export function normalizeAgendaColor(raw: string | null | undefined): string | null {
   if (!raw) return null;
