@@ -372,7 +372,8 @@ export async function getPeriodCounters(
         ${ctUser}
     ),
     s AS (
-      SELECT COUNT(*)::int AS n, COALESCE(SUM(c."valeurAn1"), 0)::float8 AS ca
+      SELECT COUNT(*)::int AS n,
+        COALESCE(SUM(c."montantOneShot" + c."montantMensuel" * c."dureeMois"), 0)::float8 AS ca
       FROM contracts c
       WHERE c."statut" NOT IN ('ATTENTE_SIGNATURE_CLIENT', 'ATTENTE_VALIDATION_ADMIN')
         AND c."dateSignature" >= ${ts(start)}
@@ -682,8 +683,8 @@ export async function getDirectionDashboard(): Promise<DirectionDashboard> {
   const signedWhere = { statut: { notIn: NON_SIGNES } };
 
   const [
-    moisAgg,
-    anneeAgg,
+    moisRows,
+    anneeRows,
     objMois,
     objAnnee,
     mrrAgg,
@@ -695,14 +696,17 @@ export async function getDirectionDashboard(): Promise<DirectionDashboard> {
     propositionsEnAttente,
     propositionsRecentes,
   ] = await Promise.all([
-    prisma.contract.aggregate({
+    // CA signé = valeur RÉELLE sur la durée (one-shot + mensuel × dureeMois),
+    // définition unique partagée avec le dashboard. On NE somme PAS valeurAn1
+    // (plafonné à 12 mois) qui surcompte les contrats de durée < 12 (ex. un
+    // engagement 3 mois serait compté comme 12).
+    prisma.contract.findMany({
       where: { ...signedWhere, dateSignature: { gte: monthStart, lte: monthEnd } },
-      _count: true,
-      _sum: { valeurAn1: true },
+      select: { montantOneShot: true, montantMensuel: true, dureeMois: true },
     }),
-    prisma.contract.aggregate({
+    prisma.contract.findMany({
       where: { ...signedWhere, dateSignature: { gte: yearStart, lte: yearEnd } },
-      _sum: { valeurAn1: true },
+      select: { montantOneShot: true, montantMensuel: true, dureeMois: true },
     }),
     getObjectiveSum("MENSUEL", monthStart, monthEnd),
     getObjectiveSum("ANNUEL", now, now),
@@ -748,7 +752,11 @@ export async function getDirectionDashboard(): Promise<DirectionDashboard> {
     }),
   ]);
 
-  const caYtd = Number(anneeAgg._sum.valeurAn1 ?? 0);
+  // Valeur réelle sur la durée d'un contrat (one-shot + mensuel × durée).
+  const vtot = (c: { montantOneShot: unknown; montantMensuel: unknown; dureeMois: number }) =>
+    Number(c.montantOneShot) + Number(c.montantMensuel) * c.dureeMois;
+  const caMoisValue = moisRows.reduce((s, c) => s + vtot(c), 0);
+  const caYtd = anneeRows.reduce((s, c) => s + vtot(c), 0);
   const elapsed = Math.min(
     1,
     Math.max(1 / 365, (now.getTime() - yearStart.getTime()) / (yearEnd.getTime() + 1 - yearStart.getTime())),
@@ -772,8 +780,8 @@ export async function getDirectionDashboard(): Promise<DirectionDashboard> {
     year,
     workingDaysLeft: workingDaysBetween(todayKey, lastKey),
     lastWorkingDayLabel: keyLabel(lastWorking, true),
-    contratsMois: { value: moisAgg._count, objectif: objMois.signatures },
-    caMois: { value: Number(moisAgg._sum.valeurAn1 ?? 0), objectif: objMois.ca },
+    contratsMois: { value: moisRows.length, objectif: objMois.signatures },
+    caMois: { value: caMoisValue, objectif: objMois.ca },
     caAnnee: {
       value: caYtd,
       objectif: objAnnee.ca,
@@ -851,7 +859,7 @@ export interface TeamRow {
   initials: string;
   role: string;
   counters: DayCounters;
-  /** CA signé de la période (CHF, valeur 1re année `valeurAn1`, comme /stats). */
+  /** CA signé de la période (CHF, valeur RÉELLE sur la durée du contrat). */
   caSigne: number;
   /** Rang : CA signé, puis RDV pris, puis appels (ex aequo si les trois sont égaux). */
   rank: number;
@@ -873,7 +881,7 @@ export interface TeamPeriod {
 
 export interface TeamBoard {
   periods: Record<TeamPeriodKey, TeamPeriod>;
-  /** CA signé par l'équipe ce mois (valeur 1re année) vs objectif CA mensuel société. */
+  /** CA signé par l'équipe ce mois (valeur réelle sur durée) vs objectif CA mensuel société. */
   caMois: {
     monthName: string;
     total: number;
@@ -1033,7 +1041,7 @@ export async function getTeamBoard(): Promise<TeamBoard> {
         SELECT c."assigneAId" AS uid, ${zDay('c."dateSignature"')} AS d,
           0, 0, 0, 0, 0, 0,
           COUNT(*) AS signatures,
-          SUM(c."valeurAn1") AS ca
+          SUM(c."montantOneShot" + c."montantMensuel" * c."dureeMois") AS ca
         FROM contracts c
         WHERE c."assigneAId" IN (SELECT u.id FROM users u WHERE u."isActive")
           AND c."statut" NOT IN ('ATTENTE_SIGNATURE_CLIENT', 'ATTENTE_VALIDATION_ADMIN')
@@ -1289,8 +1297,9 @@ export async function getMonthlyHistory(nbMonths = 12): Promise<MonthPoint[]> {
         statut: true,
         dateResiliation: true,
         updatedAt: true,
+        montantOneShot: true,
         montantMensuel: true,
-        valeurAn1: true,
+        dureeMois: true,
       },
     }),
     prisma.$queryRaw<Array<{ m: string; ttc: number }>>`
@@ -1328,7 +1337,7 @@ export async function getMonthlyHistory(nbMonths = 12): Promise<MonthPoint[]> {
     for (const c of contracts) {
       const signed = c.dateSignature;
       if (signed >= mStart && signed <= mEnd) {
-        caSigne += Number(c.valeurAn1);
+        caSigne += Number(c.montantOneShot) + Number(c.montantMensuel) * c.dureeMois;
         nbSignatures += 1;
       }
       if (isCurrent) {
