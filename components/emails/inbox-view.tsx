@@ -845,7 +845,8 @@ export function InboxView({
 
   return (
     <div className="space-y-6">
-      {/* ── À traiter en priorité ─────────────────────────────────────── */}
+      {/* ── À traiter en priorité (commerciales uniquement ; masqué pour l'admin) ── */}
+      {!isAdmin && (
       <section aria-labelledby="radar-title" className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2
@@ -884,6 +885,7 @@ export function InboxView({
           </div>
         )}
       </section>
+      )}
 
       {/* ── Boîte mail ────────────────────────────────────────────────── */}
       <section
