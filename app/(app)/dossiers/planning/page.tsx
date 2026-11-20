@@ -70,10 +70,18 @@ export default async function PlanningPage({ searchParams }: PageProps) {
         orderBy: { name: "asc" },
       })
     : Promise.resolve([]);
-  const [data, production, collaborateurs] = await Promise.all([
+  // Tout le monde (y compris les non-admins) peut attribuer une tâche à un·e
+  // collègue actif·ve : liste des personnes assignables.
+  const assignablesP = prisma.user.findMany({
+    where: { isActive: true },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  const [data, production, collaborateurs, assignables] = await Promise.all([
     getPlanningData(owner.id, from, to),
     getProductionStats(owner.id),
     collaborateursP,
+    assignablesP,
   ]);
 
   const isSelf = owner.id === user.id;
@@ -130,6 +138,7 @@ export default async function PlanningPage({ searchParams }: PageProps) {
         lignes={data.lignes}
         taches={data.taches}
         production={production}
+        assignables={assignables}
       />
     </div>
   );

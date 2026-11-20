@@ -33,6 +33,19 @@ export interface TaskHandlers {
   onOpen: (id: string) => void;
 }
 
+/** Puce « attribuée à » : tâche déléguée à une autre personne que le titulaire. */
+function AssigneeTag({ nom }: { nom: string }) {
+  return (
+    <span
+      className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-lvl-50 px-1.5 py-[1px] text-[10px] font-extrabold text-lvl-700 align-middle"
+      title={`Attribuée à ${nom}`}
+    >
+      <span aria-hidden="true">→</span>
+      {nom}
+    </span>
+  );
+}
+
 const CHECK_SIZE = { sm: "size-[30px]", md: "size-9", lg: "size-10" } as const;
 
 export function TaskCheck({
@@ -187,6 +200,7 @@ export function TaskCard({
           </button>
           <p className="text-xs font-semibold text-muted-foreground">
             {client} · {quandTache(t, today)}
+            {t.assigneeLabel && <AssigneeTag nom={t.assigneeLabel} />}
           </p>
         </div>
         <span className={cn("inline-flex h-[26px] items-center gap-1.5 rounded-full px-2.5 text-xs font-bold", svc.pill)}>
@@ -220,7 +234,10 @@ export function TaskCard({
         >
           {t.titre}
         </button>
-        <span className="text-xs font-semibold text-muted-foreground">{client}</span>
+        <span className="text-xs font-semibold text-muted-foreground">
+          {client}
+          {t.assigneeLabel && <AssigneeTag nom={t.assigneeLabel} />}
+        </span>
         <span className="flex flex-wrap items-center gap-1 text-[11px] font-bold">
           <span className="inline-flex items-center gap-1 text-foreground">
             <span aria-hidden="true" className={cn("size-[7px] rounded-full", svc.dot)} />

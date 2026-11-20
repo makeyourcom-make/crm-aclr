@@ -73,6 +73,7 @@ export function PlanningBoard({
   lignes,
   taches,
   production,
+  assignables,
 }: {
   vue: Vue;
   from: string;
@@ -85,6 +86,8 @@ export function PlanningBoard({
   lignes: PlanningLigneDTO[];
   taches: PlanningTacheDTO[];
   production: ProductionData;
+  /** Collègues actifs à qui attribuer une tâche. */
+  assignables: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -552,6 +555,7 @@ export function PlanningBoard({
           key={ligneOuverte.id}
           ligne={ligneOuverte}
           today={today}
+          assignables={assignables}
           servicesClient={lignes.filter((l) => l.prospectId === ligneOuverte.prospectId).map((l) => l.service)}
           onClose={() => setOpenLigne(null)}
         />

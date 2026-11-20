@@ -433,7 +433,8 @@ model User {
   dossiersAssignes   Dossier[]           @relation("DossierAssignee")
   dossiersCrees      Dossier[]           @relation("DossierCreateur")
   planningLignes     PlanningLigne[]
-  planningTaches     PlanningTache[]
+  planningTaches     PlanningTache[]     @relation("TacheOwner")
+  planningTachesAssignees PlanningTache[] @relation("TacheAssignee")
   dossierUpdates     DossierUpdate[]
   documents          Document[]
 
@@ -2075,8 +2076,14 @@ model PlanningTache {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  /// Propriétaire du planning où vit la tâche (portefeuille client).
+  owner   User   @relation("TacheOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   ownerId String
+
+  /// Personne chargée de faire la tâche (null = le propriétaire lui-même).
+  /// Permet à un·e collaborateur·rice d'attribuer une tâche à un·e autre.
+  assignee   User?   @relation("TacheAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assigneeId String?
 
   ligne   PlanningLigne @relation(fields: [ligneId], references: [id], onDelete: Cascade)
   ligneId String
@@ -2098,6 +2105,7 @@ model PlanningTache {
 
   @@unique([regleId, cle])
   @@index([ownerId, date])
+  @@index([assigneeId, date])
   @@index([ligneId, date])
   @@map("planning_taches")
 }

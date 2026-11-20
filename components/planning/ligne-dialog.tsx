@@ -99,11 +99,14 @@ const SELECT_CLS = "h-10 rounded-[12px] border border-border-strong bg-card px-2
 export function LigneDialog({
   ligne,
   today,
+  assignables = [],
   servicesClient = [],
   onClose,
 }: {
   ligne: PlanningLigneDTO;
   today: string;
+  /** Collègues actifs à qui attribuer une tâche ponctuelle. */
+  assignables?: { id: string; name: string }[];
   /** Services actifs du même client (explique les règles désactivées par dédoublonnage). */
   servicesClient?: string[];
   onClose: () => void;
@@ -111,7 +114,7 @@ export function LigneDialog({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [ajout, setAjout] = useState<Draft | null>(null);
-  const [tache, setTache] = useState<{ titre: string; date: string; duree: string } | null>(null);
+  const [tache, setTache] = useState<{ titre: string; date: string; duree: string; assignee: string } | null>(null);
   const label = ligne.libelle ?? serviceLabelOf(ligne.service);
   const st = serviceStyle(ligne.service);
   const actives = ligne.regles.filter((r) => r.actif).length;
@@ -251,6 +254,26 @@ export function LigneDialog({
                 title="Durée en minutes"
               />
             </div>
+            {assignables.length > 1 && (
+              <label className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                Pour
+                <select
+                  aria-label="Attribuer la tâche à"
+                  value={tache.assignee}
+                  onChange={(e) => setTache({ ...tache, assignee: e.target.value })}
+                  className={SELECT_CLS}
+                >
+                  {assignables.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.id === ligne.ownerId ? `${u.name.split(" ")[0]} (titulaire)` : u.name.split(" ")[0]}
+                    </option>
+                  ))}
+                </select>
+                <span className="font-normal text-muted-foreground">
+                  la tâche apparaît dans le planning de la personne choisie.
+                </span>
+              </label>
+            )}
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setTache(null)}>
                 Annuler
@@ -266,6 +289,7 @@ export function LigneDialog({
                         titre: tache.titre.trim(),
                         date: tache.date,
                         dureeMin: Math.max(5, Number(tache.duree) || 30),
+                        assigneeId: tache.assignee,
                       }),
                     "Tâche ajoutée.",
                     () => setTache(null),
@@ -292,7 +316,7 @@ export function LigneDialog({
             <Button
               variant="outline"
               disabled={!!tache}
-              onClick={() => setTache({ titre: "", date: today, duree: "30" })}
+              onClick={() => setTache({ titre: "", date: today, duree: "30", assignee: ligne.ownerId })}
             >
               <CalendarPlus aria-hidden="true" />
               Tâche ponctuelle

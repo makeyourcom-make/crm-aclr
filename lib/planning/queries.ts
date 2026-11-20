@@ -21,6 +21,8 @@ export interface PlanningRegleDTO {
 export interface PlanningLigneDTO {
   id: string;
   prospectId: string;
+  /** Propriétaire du planning où vit la ligne (portefeuille client). */
+  ownerId: string;
   client: string;
   /** Localité du client (affichage « Vevey · ACLR-2026-0034 »). */
   ville: string | null;
@@ -43,6 +45,8 @@ export interface PlanningTacheDTO {
   dureeMin: number;
   statut: "A_FAIRE" | "EN_COURS" | "ATTENTE_CLIENT" | "FAIT" | "ABANDONNEE";
   notes: string | null;
+  /** Prénom de la personne assignée si ≠ propriétaire de la ligne, sinon null. */
+  assigneeLabel: string | null;
 }
 
 export interface PlanningData {
@@ -58,9 +62,18 @@ export async function getPlanningData(ownerId: string, from: Date, to: Date): Pr
   const today = todayZurich();
   const [lignes, taches] = await Promise.all([
     prisma.planningLigne.findMany({
-      where: { ownerId, actif: true },
+      // Les lignes du portefeuille du propriétaire + toute ligne portant une
+      // tâche qui lui est attribuée (délégation), pour qu'elle s'affiche.
+      where: {
+        actif: true,
+        OR: [
+          { ownerId },
+          { taches: { some: { assigneeId: ownerId, statut: { not: "ABANDONNEE" } } } },
+        ],
+      },
       select: {
         id: true,
+        ownerId: true,
         prospectId: true,
         service: true,
         libelle: true,
@@ -80,17 +93,24 @@ export async function getPlanningData(ownerId: string, from: Date, to: Date): Pr
     }),
     prisma.planningTache.findMany({
       where: {
-        ownerId,
         ligne: { actif: true },
-        OR: [
-          { date: { gte: from, lt: to } },
-          { date: { lt: today }, statut: { in: ["A_FAIRE", "EN_COURS", "ATTENTE_CLIENT"] } },
+        AND: [
+          // Tâches de mon portefeuille OU qui me sont attribuées (délégation).
+          { OR: [{ ownerId }, { assigneeId: ownerId }] },
+          {
+            OR: [
+              { date: { gte: from, lt: to } },
+              { date: { lt: today }, statut: { in: ["A_FAIRE", "EN_COURS", "ATTENTE_CLIENT"] } },
+            ],
+          },
         ],
       },
       select: {
         id: true, ligneId: true, regleId: true, titre: true, date: true,
-        dureeMin: true, statut: true, notes: true,
+        dureeMin: true, statut: true, notes: true, assigneeId: true,
         regle: { select: { code: true } },
+        assignee: { select: { name: true } },
+        ligne: { select: { ownerId: true } },
       },
       orderBy: { date: "asc" },
     }),
@@ -100,6 +120,7 @@ export async function getPlanningData(ownerId: string, from: Date, to: Date): Pr
     lignes: lignes
       .map((l) => ({
         id: l.id,
+        ownerId: l.ownerId,
         prospectId: l.prospectId,
         client: l.prospect.raisonSociale,
         ville: l.prospect.ville,
@@ -121,6 +142,10 @@ export async function getPlanningData(ownerId: string, from: Date, to: Date): Pr
       dureeMin: t.dureeMin,
       statut: t.statut,
       notes: t.notes,
+      assigneeLabel:
+        t.assigneeId && t.assigneeId !== t.ligne.ownerId
+          ? (t.assignee?.name.split(" ")[0] ?? null)
+          : null,
     })),
   };
 }

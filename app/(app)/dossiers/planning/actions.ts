@@ -31,6 +31,12 @@ async function canAccess(ownerId: string): Promise<boolean> {
   return user.role === "ADMIN" || user.id === ownerId;
 }
 
+/** Peut agir sur une tâche : admin, propriétaire du planning, ou personne assignée. */
+async function canTache(t: { ownerId: string; assigneeId: string | null }): Promise<boolean> {
+  const user = await requireUser();
+  return user.role === "ADMIN" || user.id === t.ownerId || user.id === t.assigneeId;
+}
+
 function done() {
   revalidatePath("/dossiers/planning");
   revalidatePath("/");
@@ -52,8 +58,8 @@ const toDate = (s: string) => new Date(`${s}T00:00:00.000Z`);
 
 export async function setTacheStatut(id: string, statut: (typeof STATUTS)[number]): Promise<Result> {
   if (!STATUTS.includes(statut)) return { ok: false, error: "Statut invalide." };
-  const t = await prisma.planningTache.findUnique({ where: { id }, select: { ownerId: true } });
-  if (!t || !(await canAccess(t.ownerId))) return { ok: false, error: "Accès refusé." };
+  const t = await prisma.planningTache.findUnique({ where: { id }, select: { ownerId: true, assigneeId: true } });
+  if (!t || !(await canTache(t))) return { ok: false, error: "Accès refusé." };
   await prisma.planningTache.update({
     where: { id },
     data: { statut, faitLe: statut === "FAIT" ? new Date() : null },
@@ -73,8 +79,8 @@ const UpdateTache = z.object({
 export async function updateTache(input: unknown): Promise<Result> {
   const p = UpdateTache.safeParse(input);
   if (!p.success) return { ok: false, error: "Formulaire invalide." };
-  const t = await prisma.planningTache.findUnique({ where: { id: p.data.id }, select: { ownerId: true } });
-  if (!t || !(await canAccess(t.ownerId))) return { ok: false, error: "Accès refusé." };
+  const t = await prisma.planningTache.findUnique({ where: { id: p.data.id }, select: { ownerId: true, assigneeId: true } });
+  if (!t || !(await canTache(t))) return { ok: false, error: "Accès refusé." };
   await prisma.planningTache.update({
     where: { id: p.data.id },
     data: {
@@ -90,8 +96,8 @@ export async function updateTache(input: unknown): Promise<Result> {
 
 /** Tâche manuelle : supprimée. Tâche récurrente : abandonnée (sinon elle reviendrait). */
 export async function deleteTache(id: string): Promise<Result> {
-  const t = await prisma.planningTache.findUnique({ where: { id }, select: { ownerId: true, regleId: true } });
-  if (!t || !(await canAccess(t.ownerId))) return { ok: false, error: "Accès refusé." };
+  const t = await prisma.planningTache.findUnique({ where: { id }, select: { ownerId: true, assigneeId: true, regleId: true } });
+  if (!t || !(await canTache(t))) return { ok: false, error: "Accès refusé." };
   if (t.regleId) {
     await prisma.planningTache.update({ where: { id }, data: { statut: "ABANDONNEE", faitLe: null } });
   } else {
@@ -106,6 +112,8 @@ const CreateTache = z.object({
   titre: z.string().trim().min(1).max(200),
   date: ymd,
   dureeMin: z.number().int().min(5).max(600),
+  /** Personne à qui la tâche est attribuée (défaut : propriétaire de la ligne). */
+  assigneeId: z.string().min(1).optional(),
 });
 
 export async function createTacheManuelle(input: unknown): Promise<Result> {
@@ -113,9 +121,23 @@ export async function createTacheManuelle(input: unknown): Promise<Result> {
   if (!p.success) return { ok: false, error: "Formulaire invalide." };
   const l = await prisma.planningLigne.findUnique({ where: { id: p.data.ligneId }, select: { ownerId: true } });
   if (!l || !(await canAccess(l.ownerId))) return { ok: false, error: "Accès refusé." };
+
+  // Assignation : n'importe quel·le collaborateur·rice actif·ve. La tâche
+  // apparaîtra alors dans SON planning. null = le propriétaire de la ligne.
+  let assigneeId: string | null = null;
+  if (p.data.assigneeId && p.data.assigneeId !== l.ownerId) {
+    const u = await prisma.user.findFirst({
+      where: { id: p.data.assigneeId, isActive: true },
+      select: { id: true },
+    });
+    if (!u) return { ok: false, error: "Personne assignée introuvable." };
+    assigneeId = u.id;
+  }
+
   await prisma.planningTache.create({
     data: {
       ownerId: l.ownerId,
+      assigneeId,
       ligneId: p.data.ligneId,
       titre: p.data.titre,
       date: toDate(p.data.date),
