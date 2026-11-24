@@ -133,6 +133,7 @@ export default async function EditContractPage({ params }: PageProps) {
     remiseType?: "POURCENT" | "MONTANT" | null;
     remiseValeur?: number | null;
     remiseCible?: "ONESHOT" | "RECURRENT" | "DEUX" | null;
+    remiseDureeMois?: number | null;
   };
   const metaArr: LigneMeta[] = Array.isArray(contract.lignesMeta)
     ? (contract.lignesMeta as unknown as LigneMeta[])
@@ -164,6 +165,10 @@ export default async function EditContractPage({ params }: PageProps) {
       remiseType: (meta?.remiseType ?? "") as "" | "POURCENT" | "MONTANT",
       remiseValeur: meta?.remiseValeur != null ? String(meta.remiseValeur) : "",
       remiseCible: meta?.remiseCible ?? undefined,
+      remiseDureeMois:
+        meta?.remiseDureeMois != null && meta.remiseDureeMois > 0
+          ? String(meta.remiseDureeMois)
+          : "",
     };
   });
 

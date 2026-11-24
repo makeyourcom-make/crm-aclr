@@ -106,6 +106,7 @@ export async function GET(
     remiseType?: "POURCENT" | "MONTANT" | null;
     remiseValeur?: number | null;
     remiseCible?: Cible;
+    remiseDureeMois?: number | null;
   };
   const metaArr: LigneMeta[] = Array.isArray(contract.lignesMeta)
     ? (contract.lignesMeta as unknown as LigneMeta[])
@@ -130,9 +131,13 @@ export async function GET(
     const r = m.remiseValeur ?? 0;
     if (m.remiseType && r > 0) {
       const c = m.remiseCible ?? "DEUX";
+      // Remise récurrente BORNÉE = promo temporaire : le mensuel affiché reste
+      // au plein tarif (le rabais est appliqué sur les factures des N premiers
+      // mois, pas sur le prix contractuel).
+      const borne = (m.remiseDureeMois ?? 0) > 0;
       const applies =
         (part === "ONESHOT" && c !== "RECURRENT") ||
-        (part === "RECURRENT" && c !== "ONESHOT");
+        (part === "RECURRENT" && c !== "ONESHOT" && !borne);
       if (!applies) return base;
       if (m.remiseType === "POURCENT") return base * Math.max(0, 1 - r / 100);
       return Math.max(0, base - r);

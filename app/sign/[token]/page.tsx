@@ -79,6 +79,7 @@ export default async function SignPage({ params }: PageProps) {
     remiseType?: "POURCENT" | "MONTANT" | null;
     remiseValeur?: number | null;
     remiseCible?: Cible;
+    remiseDureeMois?: number | null;
   };
   const metaArr: LigneMeta[] = Array.isArray(sig.contract.lignesMeta)
     ? (sig.contract.lignesMeta as unknown as LigneMeta[])
@@ -100,9 +101,11 @@ export default async function SignPage({ params }: PageProps) {
     const r = m.remiseValeur ?? 0;
     if (m.remiseType && r > 0) {
       const c = m.remiseCible ?? "DEUX";
+      // Remise récurrente bornée (promo) : mensuel plein affiché.
+      const borne = (m.remiseDureeMois ?? 0) > 0;
       const applies =
         (part === "ONESHOT" && c !== "RECURRENT") ||
-        (part === "RECURRENT" && c !== "ONESHOT");
+        (part === "RECURRENT" && c !== "ONESHOT" && !borne);
       if (!applies) return base;
       if (m.remiseType === "POURCENT") return base * Math.max(0, 1 - r / 100);
       return Math.max(0, base - r);

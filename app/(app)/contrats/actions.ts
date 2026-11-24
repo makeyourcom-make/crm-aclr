@@ -128,6 +128,10 @@ function effectiveUnitPrices(
     remiseType?: "POURCENT" | "MONTANT";
     remiseValeur?: number;
     remiseCible?: "ONESHOT" | "RECURRENT" | "DEUX";
+    /** > 0 = remise récurrente BORNÉE (promo temporaire) : elle ne réduit PAS
+     *  le mensuel pérenne (c'est un rabais sur les N premiers mois, cf.
+     *  promoMensuelUnit / buildPromoScheduleCents). 0 / absent = remise pérenne. */
+    remiseDureeMois?: number;
   },
 ): { oneShot: number; mensuel: number } {
   let oneShot = baseOneShot;
@@ -144,7 +148,10 @@ function effectiveUnitPrices(
   if (line.remiseType && r > 0) {
     const c = line.remiseCible ?? "DEUX";
     const onOneShot = c !== "RECURRENT";
-    const onMensuel = c !== "ONESHOT";
+    // Remise récurrente bornée = promo temporaire → le mensuel reste au plein
+    // tarif ici ; le rabais est porté par l'échéancier de promo, pas par le MRR.
+    const borne = (line.remiseDureeMois ?? 0) > 0;
+    const onMensuel = c !== "ONESHOT" && !borne;
     if (line.remiseType === "POURCENT") {
       const f = Math.max(0, 1 - r / 100);
       if (onOneShot) oneShot = baseOneShot * f;
@@ -155,6 +162,64 @@ function effectiveUnitPrices(
     }
   }
   return { oneShot, mensuel };
+}
+
+/**
+ * Réduction mensuelle UNITAIRE d'une remise récurrente BORNÉE (promo). 0 si la
+ * ligne n'a pas de remise bornée sur le récurrent. Sert à construire
+ * l'échéancier de promo (rabais appliqué aux N premiers mois).
+ */
+function promoMensuelUnit(
+  baseMensuel: number,
+  line: {
+    offert?: boolean;
+    remiseType?: "POURCENT" | "MONTANT";
+    remiseValeur?: number;
+    remiseCible?: "ONESHOT" | "RECURRENT" | "DEUX";
+    remiseDureeMois?: number;
+  },
+): number {
+  if (line.offert) return 0;
+  const n = line.remiseDureeMois ?? 0;
+  const r = line.remiseValeur ?? 0;
+  if (!line.remiseType || r <= 0 || n <= 0) return 0;
+  if ((line.remiseCible ?? "DEUX") === "ONESHOT") return 0; // remise one-shot seule
+  const discounted =
+    line.remiseType === "POURCENT"
+      ? baseMensuel * Math.max(0, 1 - r / 100)
+      : Math.max(0, baseMensuel - r);
+  return Math.max(0, baseMensuel - discounted);
+}
+
+/**
+ * Échéancier de promo : réduction (en cents) par mois, index 0 = 1er mois. La
+ * somme à chaque mois cumule toutes les lignes dont la remise récurrente est
+ * bornée. Borné à la durée du contrat.
+ */
+function buildPromoScheduleCents(
+  lines: Array<{
+    baseMensuel: number;
+    quantite: number;
+    offert?: boolean;
+    remiseType?: "POURCENT" | "MONTANT";
+    remiseValeur?: number;
+    remiseCible?: "ONESHOT" | "RECURRENT" | "DEUX";
+    remiseDureeMois?: number;
+  }>,
+  dureeMois: number,
+): number[] {
+  const maxN = dureeMois > 0 ? dureeMois : 12;
+  const sched: number[] = [];
+  for (const l of lines) {
+    const n = Math.min(l.remiseDureeMois ?? 0, maxN);
+    if (n <= 0) continue;
+    const redUnit = promoMensuelUnit(l.baseMensuel, l);
+    if (redUnit <= 0) continue;
+    const redCents = chfToCents(redUnit * l.quantite);
+    if (redCents <= 0) continue;
+    for (let i = 0; i < n; i++) sched[i] = (sched[i] ?? 0) + redCents;
+  }
+  return sched;
 }
 
 // ===========================================================================
@@ -279,6 +344,7 @@ export async function createContractFromDeal(
       remiseType: line.remiseType ?? null,
       remiseValeur: line.remiseValeur ?? 0,
       remiseCible: line.remiseCible ?? null,
+      remiseDureeMois: line.remiseDureeMois ?? 0,
       lineOneShot,
       lineMensuel,
     };
@@ -296,6 +362,7 @@ export async function createContractFromDeal(
     remiseType: l.remiseType,
     remiseValeur: l.remiseValeur,
     remiseCible: l.remiseCible,
+    remiseDureeMois: l.remiseDureeMois,
   }));
 
   // "valeurAn1" du contrat (colonne DB, affichage compta) = formule
@@ -568,6 +635,7 @@ export async function updateContract(
         remiseType: line.remiseType ?? null,
         remiseValeur: line.remiseValeur ?? 0,
         remiseCible: line.remiseCible ?? null,
+        remiseDureeMois: line.remiseDureeMois ?? 0,
         lineOneShot,
         lineMensuel,
       };
@@ -583,6 +651,7 @@ export async function updateContract(
       remiseType: l.remiseType,
       remiseValeur: l.remiseValeur,
       remiseCible: l.remiseCible,
+      remiseDureeMois: l.remiseDureeMois,
     }));
 
     const valeurAn1Cents = computeValeurAn1({ oneShotCents, mensuelCents });
@@ -1688,34 +1757,70 @@ function buildClientInvoicesForContract(params: {
     lineOneShot: number;
     lineMensuel: number;
   }>;
+  /** Rabais promo (cents) par mois, index 0 = 1er mois récurrent. Appliqué aux
+   *  mensualités des N premiers mois (remise récurrente bornée). */
+  promoScheduleCents?: number[];
 }): InvoiceDraft[] {
   const invoices: InvoiceDraft[] = [];
   const echeance = (from: Date) =>
     addDays(from, FACTURE_CLIENT_ECHEANCE_JOURS_DEFAULT);
+  const promo = params.promoScheduleCents ?? [];
+  const promoAt = (monthIndex: number) =>
+    monthIndex >= 0 && monthIndex < promo.length ? promo[monthIndex]! : 0;
+  /** Applique le rabais promo du mois `i` à une mensualité (réduit le sous-total
+   *  et ajoute une ligne « Remise promotionnelle » négative). */
+  const applyPromo = (
+    i: number,
+    sousTotalCents: number,
+    lines: InvoiceLineDraft[],
+  ): number => {
+    const red = Math.min(promoAt(i), sousTotalCents);
+    if (red <= 0) return sousTotalCents;
+    lines.push({
+      designation: "Remise promotionnelle",
+      quantite: 1,
+      prixUnitaire: -centsToChf(red),
+      montantHT: -centsToChf(red),
+      productId: null,
+    });
+    return sousTotalCents - red;
+  };
+  /** Total du rabais promo sur toute sa durée (pour la facture unique). */
+  const promoTotalCents = promo.reduce((s, v) => s + (v || 0), 0);
 
   if (params.modalite === "CENT_AU_SIGNING") {
     // « 100 % à la signature » = TOUT le contrat, donc sur sa durée réelle.
     // C'était figé à × 12 : un contrat de 6 mois à 59/mois facturait 708 CHF
     // au client au lieu de 354 — surfacturation (corrigé le 22.07.2026).
     const mois = params.dureeMois > 0 ? params.dureeMois : 12;
-    const totalCents = params.oneShotCents + params.mensuelCents * mois;
+    const brutCents = params.oneShotCents + params.mensuelCents * mois;
+    const lumpLines: InvoiceLineDraft[] = params.lines
+      .filter((l) => l.lineOneShot > 0 || l.lineMensuel > 0)
+      .map((l) => ({
+        designation: l.lineMensuel > 0 ? `${l.nom} - ${mois} mois` : l.nom,
+        quantite: l.quantite,
+        prixUnitaire: l.oneShotUnit + l.mensuelUnit * mois,
+        montantHT: centsToChf(l.lineOneShot + l.lineMensuel * mois),
+        productId: l.productId,
+      }));
+    // Le contrat étant facturé en une fois, la promo (rabais des N premiers
+    // mois) est déduite en bloc de ce total unique.
+    const redCents = Math.min(promoTotalCents, brutCents);
+    if (redCents > 0) {
+      lumpLines.push({
+        designation: "Remise promotionnelle",
+        quantite: 1,
+        prixUnitaire: -centsToChf(redCents),
+        montantHT: -centsToChf(redCents),
+        productId: null,
+      });
+    }
     invoices.push({
       dateEmission: params.dateSignature,
       dateEcheance: echeance(params.dateSignature),
       type: "PONCTUELLE",
-      sousTotalCents: totalCents,
-      lines: params.lines
-        .filter((l) => l.lineOneShot > 0 || l.lineMensuel > 0)
-        .map((l) => ({
-          designation:
-            l.lineMensuel > 0
-              ? `${l.nom} - ${mois} mois`
-              : l.nom,
-          quantite: l.quantite,
-          prixUnitaire: l.oneShotUnit + l.mensuelUnit * mois,
-          montantHT: centsToChf(l.lineOneShot + l.lineMensuel * mois),
-          productId: l.productId,
-        })),
+      sousTotalCents: brutCents - Math.max(0, redCents),
+      lines: lumpLines,
     });
   } else if (params.modalite === "CINQUANTE_CINQUANTE") {
     // Acompte 50% du oneShot à la signature
@@ -1761,22 +1866,24 @@ function buildClientInvoicesForContract(params: {
         const periodeFin = new Date(dateEmission);
         periodeFin.setMonth(periodeFin.getMonth() + 1);
         periodeFin.setDate(periodeFin.getDate() - 1);
+        const monthLines: InvoiceLineDraft[] = params.lines
+          .filter((l) => l.lineMensuel > 0)
+          .map((l) => ({
+            designation: `${l.nom} ${moisFacturationLabel(dateEmission)}`,
+            quantite: l.quantite,
+            prixUnitaire: l.mensuelUnit,
+            montantHT: centsToChf(l.lineMensuel),
+            productId: l.productId,
+          }));
+        const sous = applyPromo(i, params.mensuelCents, monthLines);
         invoices.push({
           dateEmission,
           dateEcheance: echeance(dateEmission),
           type: "MENSUALITE",
           periodeMoisDebut: dateEmission,
           periodeMoisFin: periodeFin,
-          sousTotalCents: params.mensuelCents,
-          lines: params.lines
-            .filter((l) => l.lineMensuel > 0)
-            .map((l) => ({
-              designation: `${l.nom} ${moisFacturationLabel(dateEmission)}`,
-              quantite: l.quantite,
-              prixUnitaire: l.mensuelUnit,
-              montantHT: centsToChf(l.lineMensuel),
-              productId: l.productId,
-            })),
+          sousTotalCents: sous,
+          lines: monthLines,
         });
       }
     }
@@ -1807,22 +1914,24 @@ function buildClientInvoicesForContract(params: {
         const periodeFin = new Date(dateEmission);
         periodeFin.setMonth(periodeFin.getMonth() + 1);
         periodeFin.setDate(periodeFin.getDate() - 1);
+        const monthLines: InvoiceLineDraft[] = params.lines
+          .filter((l) => l.lineMensuel > 0)
+          .map((l) => ({
+            designation: `${l.nom} ${moisFacturationLabel(dateEmission)}`,
+            quantite: l.quantite,
+            prixUnitaire: l.mensuelUnit,
+            montantHT: centsToChf(l.lineMensuel),
+            productId: l.productId,
+          }));
+        const sous = applyPromo(i, params.mensuelCents, monthLines);
         invoices.push({
           dateEmission,
           dateEcheance: echeance(dateEmission),
           type: "MENSUALITE",
           periodeMoisDebut: dateEmission,
           periodeMoisFin: periodeFin,
-          sousTotalCents: params.mensuelCents,
-          lines: params.lines
-            .filter((l) => l.lineMensuel > 0)
-            .map((l) => ({
-              designation: `${l.nom} ${moisFacturationLabel(dateEmission)}`,
-              quantite: l.quantite,
-              prixUnitaire: l.mensuelUnit,
-              montantHT: centsToChf(l.lineMensuel),
-              productId: l.productId,
-            })),
+          sousTotalCents: sous,
+          lines: monthLines,
         });
       }
     }
@@ -1891,13 +2000,14 @@ function buildClientInvoicesForContract(params: {
         setupParCents +
         (isLastMonth ? setupReste : 0);
 
+      const sous = applyPromo(i, monthCents, lineMonth);
       invoices.push({
         dateEmission,
         dateEcheance: echeance(dateEmission),
         type: "MENSUALITE",
         periodeMoisDebut: dateEmission,
         periodeMoisFin: periodeFin,
-        sousTotalCents: monthCents,
+        sousTotalCents: sous,
         lines: lineMonth,
       });
     }
@@ -2206,6 +2316,8 @@ function reconstructContractBilling(c: {
   montantOneShot: Prisma.Decimal | number;
   montantMensuel: Prisma.Decimal | number;
   lignesMeta: Prisma.JsonValue | null;
+  /** Durée du contrat, pour borner l'échéancier de promo. Défaut sûr : 60. */
+  dureeMois?: number;
   products: Array<{
     id: string;
     nom: string;
@@ -2216,6 +2328,8 @@ function reconstructContractBilling(c: {
   oneShotCents: number;
   mensuelCents: number;
   lines: Parameters<typeof buildClientInvoicesForContract>[0]["lines"];
+  /** Rabais promo (cents) par mois, index 0 = 1er mois. [] = aucune promo. */
+  promoScheduleCents: number[];
 } {
   const meta = Array.isArray(c.lignesMeta)
     ? (c.lignesMeta as Array<Record<string, unknown>>)
@@ -2225,6 +2339,7 @@ function reconstructContractBilling(c: {
   let mensuelCents = 0;
   const lines: Parameters<typeof buildClientInvoicesForContract>[0]["lines"] =
     [];
+  const promoInputs: Parameters<typeof buildPromoScheduleCents>[0] = [];
 
   if (meta.length > 0) {
     // Chemin normal : reconstruction ligne par ligne depuis lignesMeta.
@@ -2239,14 +2354,25 @@ function reconstructContractBilling(c: {
         m.prixMensuelOriginal ??
           (prod.prixMensuel ? Number(prod.prixMensuel) : 0),
       );
+      const remiseDureeMois = Number(m.remiseDureeMois ?? 0);
       const eff = effectiveUnitPrices(baseOneShot, baseMensuel, {
         offert: Boolean(m.offert),
         offertCible: (m.offertCible as never) ?? null,
         remiseType: (m.remiseType as never) ?? null,
         remiseValeur: Number(m.remiseValeur ?? 0),
         remiseCible: (m.remiseCible as never) ?? null,
+        remiseDureeMois,
       });
       const qte = Number(m.quantite ?? 1);
+      promoInputs.push({
+        baseMensuel,
+        quantite: qte,
+        offert: Boolean(m.offert),
+        remiseType: (m.remiseType as never) ?? undefined,
+        remiseValeur: Number(m.remiseValeur ?? 0),
+        remiseCible: (m.remiseCible as never) ?? undefined,
+        remiseDureeMois,
+      });
       const lineOneShot = chfToCents(eff.oneShot * qte);
       const lineMensuel = chfToCents(eff.mensuel * qte);
       oneShotCents += lineOneShot;
@@ -2280,7 +2406,11 @@ function reconstructContractBilling(c: {
       lineMensuel: mensuelCents,
     });
   }
-  return { oneShotCents, mensuelCents, lines };
+  const promoScheduleCents = buildPromoScheduleCents(
+    promoInputs,
+    c.dureeMois ?? 60,
+  );
+  return { oneShotCents, mensuelCents, lines, promoScheduleCents };
 }
 
 /**
@@ -2312,6 +2442,7 @@ async function createDueInvoicesForContract(
     oneShotCents: number;
     mensuelCents: number;
     lines: Parameters<typeof buildClientInvoicesForContract>[0]["lines"];
+    promoScheduleCents?: number[];
   },
   opts: { includeOneShot: boolean; floorMonth: Date | null; cutoff: Date },
 ): Promise<number> {
@@ -2323,6 +2454,7 @@ async function createDueInvoicesForContract(
     oneShotCents: billing.oneShotCents,
     mensuelCents: billing.mensuelCents,
     lines: billing.lines,
+    promoScheduleCents: billing.promoScheduleCents,
   });
 
   const existingPeriods = new Set(
@@ -2880,7 +3012,26 @@ export async function generateGroupedPeriodicInvoices(): Promise<{
             ordre: idx,
             productId: l.productId || null,
           }));
-        const totalCents = billing.mensuelCents * n;
+        let totalCents = billing.mensuelCents * n;
+        // Promo (remise récurrente bornée) : déduire le rabais des mois couverts
+        // par cette période groupée (index = mois depuis le début).
+        let promoCouvert = 0;
+        for (let k = 0; k < n; k++) {
+          promoCouvert += billing.promoScheduleCents[monthsSinceStart + k] ?? 0;
+        }
+        promoCouvert = Math.min(promoCouvert, totalCents);
+        if (promoCouvert > 0) {
+          lignes.push({
+            designation: "Remise promotionnelle",
+            quantite: 1,
+            prixUnitaire: -centsToChf(promoCouvert),
+            montantHT: -centsToChf(promoCouvert),
+            tauxTVA: 0,
+            ordre: lignes.length,
+            productId: null,
+          });
+          totalCents -= promoCouvert;
+        }
         const annee = emission.getUTCFullYear();
         const counter = await tx.counter.upsert({
           where: { scope_year: { scope: "client_invoice", year: annee } },

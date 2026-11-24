@@ -48,6 +48,19 @@ export const ContractLineSchema = z.object({
     .optional(),
   /** Sur quoi porte la remise : one-shot, récurrent, ou les deux. */
   remiseCible: z.enum(["ONESHOT", "RECURRENT", "DEUX"]).optional(),
+  /**
+   * Durée (en mois) sur laquelle s'applique la remise RÉCURRENTE. 0 / absent =
+   * toute la durée du contrat (remise pérenne, repliée dans le mensuel). > 0 =
+   * promo temporaire : la remise porte UNIQUEMENT sur les N premiers mois ; le
+   * mensuel plein est conservé (MRR / valeur / commissions inchangés) et le
+   * rabais est déduit seulement sur les factures des N premiers mois.
+   */
+  remiseDureeMois: z
+    .preprocess(
+      (v) => (v === "" || v === undefined || v === null ? undefined : Number(v)),
+      z.number().int().min(0).max(60),
+    )
+    .optional(),
 });
 export type ContractLineInput = z.infer<typeof ContractLineSchema>;
 

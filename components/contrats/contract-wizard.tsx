@@ -120,15 +120,31 @@ interface LineState {
   remiseValeur?: string;
   /** Cible de la remise : one-shot, récurrent, ou les deux. */
   remiseCible?: "ONESHOT" | "RECURRENT" | "DEUX";
+  /** Durée (mois) de la remise RÉCURRENTE : "" = toute la durée (pérenne) ;
+   *  "1".."N" = promo temporaire sur les N premiers mois. */
+  remiseDureeMois?: string;
 }
 
-/** Prix unitaire effectif après offert / remise + cible (miroir du backend). */
+/** Nombre de mois de promo (0 = pérenne / toute la durée). */
+function remiseDuree(l: Pick<LineState, "remiseDureeMois">): number {
+  const n = l.remiseDureeMois ? Number(l.remiseDureeMois) : 0;
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+/** Prix unitaire effectif après offert / remise + cible (miroir du backend).
+ *  Une remise récurrente BORNÉE (durée > 0) ne réduit PAS le mensuel pérenne :
+ *  c'est une promo temporaire, portée par l'échéancier, pas par le MRR. */
 function effectiveUnit(
   baseOneShot: number,
   baseMensuel: number,
   l: Pick<
     LineState,
-    "offert" | "offertCible" | "remiseType" | "remiseValeur" | "remiseCible"
+    | "offert"
+    | "offertCible"
+    | "remiseType"
+    | "remiseValeur"
+    | "remiseCible"
+    | "remiseDureeMois"
   >,
 ): { oneShot: number; mensuel: number } {
   let oneShot = baseOneShot;
@@ -143,7 +159,7 @@ function effectiveUnit(
   if (l.remiseType && r > 0) {
     const c = l.remiseCible ?? "DEUX";
     const onOne = c !== "RECURRENT";
-    const onMens = c !== "ONESHOT";
+    const onMens = c !== "ONESHOT" && remiseDuree(l) === 0; // bornée → mensuel plein
     if (l.remiseType === "POURCENT") {
       const f = Math.max(0, 1 - r / 100);
       if (onOne) oneShot = baseOneShot * f;
@@ -154,6 +170,23 @@ function effectiveUnit(
     }
   }
   return { oneShot, mensuel };
+}
+
+/** Réduction mensuelle unitaire d'une promo bornée (0 sinon). Pour l'aperçu. */
+function promoMensuelUnitUI(
+  baseMensuel: number,
+  l: Pick<LineState, "offert" | "remiseType" | "remiseValeur" | "remiseCible" | "remiseDureeMois">,
+): number {
+  if (l.offert) return 0;
+  const n = remiseDuree(l);
+  const r = l.remiseValeur ? Number(l.remiseValeur) : 0;
+  if (!l.remiseType || r <= 0 || n <= 0) return 0;
+  if ((l.remiseCible ?? "DEUX") === "ONESHOT") return 0;
+  const discounted =
+    l.remiseType === "POURCENT"
+      ? baseMensuel * Math.max(0, 1 - r / 100)
+      : Math.max(0, baseMensuel - r);
+  return Math.max(0, baseMensuel - discounted);
 }
 
 function uid() {
@@ -460,6 +493,13 @@ export function ContractWizard({
         remiseValeur:
           l.remiseType && l.remiseValeur ? Number(l.remiseValeur) : undefined,
         remiseCible: l.remiseType ? l.remiseCible ?? "DEUX" : undefined,
+        // Durée de la remise récurrente : seulement si remise sur le récurrent.
+        remiseDureeMois:
+          l.remiseType &&
+          (l.remiseCible ?? "DEUX") !== "ONESHOT" &&
+          remiseDuree(l) > 0
+            ? remiseDuree(l)
+            : undefined,
       })),
     };
     startTransition(async () => {
@@ -611,6 +651,7 @@ export function ContractWizard({
                   key={line.id}
                   line={line}
                   products={allProducts}
+                  dureeMois={Number(dureeMois) || 12}
                   onChange={(patch) => updateLine(line.id, patch)}
                   onRemove={() => removeLine(line.id)}
                 />
@@ -1224,11 +1265,14 @@ function CibleSelect({
 function LineRow({
   line,
   products,
+  dureeMois,
   onChange,
   onRemove,
 }: {
   line: LineState;
   products: ProductOption[];
+  /** Durée du contrat, pour borner les options de durée de remise. */
+  dureeMois: number;
   onChange: (patch: Partial<LineState>) => void;
   onRemove: () => void;
 }) {
@@ -1242,6 +1286,9 @@ function LineRow({
   const baseMensuel =
     line.prixMensuel !== "" ? Number(line.prixMensuel) : defaultMensuel;
   const eff = effectiveUnit(baseOneShot, baseMensuel, line);
+  // Promo récurrente bornée : réduction mensuelle + nombre de mois (aperçu).
+  const promoUnit = promoMensuelUnitUI(baseMensuel, line);
+  const promoN = remiseDuree(line);
   const adjusted =
     !!line.offert ||
     (!!line.remiseType && Number(line.remiseValeur ?? 0) > 0);
@@ -1398,6 +1445,28 @@ function LineRow({
                 onChange={(v) => onChange({ remiseCible: v })}
               />
             )}
+            {line.remiseType &&
+              baseMensuel > 0 &&
+              (line.remiseCible ?? "DEUX") !== "ONESHOT" && (
+                <label className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">sur</span>
+                  <select
+                    value={line.remiseDureeMois ?? ""}
+                    onChange={(e) => onChange({ remiseDureeMois: e.target.value })}
+                    className="h-7 rounded-md border border-input bg-background px-1.5 text-xs"
+                    title="Durée d'application de la remise récurrente"
+                  >
+                    <option value="">toute la durée</option>
+                    {[1, 2, 3, 6, 12]
+                      .filter((m) => m <= dureeMois)
+                      .map((m) => (
+                        <option key={m} value={String(m)}>
+                          {m} mois
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              )}
           </div>
         )}
 
@@ -1443,6 +1512,15 @@ function LineRow({
                   {compactPrice(baseMensuel)}.-/mois
                 </span>
               ))}
+          </span>
+        )}
+        {promoUnit > 0 && promoN > 0 && (
+          <span className="ml-auto whitespace-nowrap text-[11px] font-semibold text-emerald-700">
+            Promo : −{compactPrice(promoUnit * line.quantite)}.-/mois les {promoN}{" "}
+            premier{promoN > 1 ? "s" : ""} mois{" "}
+            <span className="font-normal text-muted-foreground">
+              (puis plein tarif · MRR inchangé)
+            </span>
           </span>
         )}
       </div>
