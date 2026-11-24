@@ -113,6 +113,26 @@ export default async function SignPage({ params }: PageProps) {
     return base;
   };
 
+  /** Libellé promo (remise récurrente bornée) : « 1er mois offert », « −20 % les
+   *  3 premiers mois », « −30.- / mois les 2 premiers mois »… null sinon. */
+  const promoLabelOf = (m: LigneMeta | undefined, baseMens: number): string | null => {
+    if (!m?.remiseType) return null;
+    const n = m.remiseDureeMois ?? 0;
+    const r = m.remiseValeur ?? 0;
+    if (n <= 0 || r <= 0) return null;
+    if ((m.remiseCible ?? "DEUX") === "ONESHOT") return null;
+    const mois = n === 1 ? "le 1er mois" : `les ${n} premiers mois`;
+    const red =
+      m.remiseType === "POURCENT"
+        ? baseMens * Math.min(1, r / 100)
+        : Math.min(baseMens, r);
+    if (red >= baseMens - 0.001)
+      return n === 1 ? "1er mois offert" : `${n} premiers mois offerts`;
+    return m.remiseType === "POURCENT"
+      ? `−${r} % ${mois}`
+      : `−${money(r)} / mois ${mois}`;
+  };
+
   const prestations = sig.contract.products.map((p) => {
     const meta = metaByProduct.get(p.id);
     const qte = meta?.quantite ?? 1;
@@ -132,6 +152,7 @@ export default async function SignPage({ params }: PageProps) {
       origTotal: number;
       effTotal: number;
       badge: string | null;
+      promo?: string | null;
     }> = [];
     if (baseOne > 0) {
       const eff = effectivePart(baseOne, "ONESHOT", meta);
@@ -153,6 +174,7 @@ export default async function SignPage({ params }: PageProps) {
         origTotal: baseMens,
         effTotal: eff,
         badge: eff === 0 ? "OFFERT" : eff < baseMens ? remiseLabel : null,
+        promo: promoLabelOf(meta, baseMens),
       });
     }
     return {
@@ -235,41 +257,45 @@ export default async function SignPage({ params }: PageProps) {
                     )}
                     <div className="mt-2 space-y-1">
                       {p.lines.map((l, j) => (
-                        <div
-                          key={j}
-                          className="flex items-baseline justify-between gap-2 text-sm"
-                        >
-                          <span className="text-slate-600">
-                            {l.label}
-                            {l.qte > 1 ? (
-                              <span className="text-muted-foreground">
-                                {" "}
-                                × {l.qte}
-                              </span>
-                            ) : null}
-                          </span>
-                          <span className="flex items-baseline gap-1.5 tabular-nums">
-                            {l.badge && (
-                              <span
-                                className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                                  l.badge === "OFFERT"
-                                    ? "bg-emerald-100 text-emerald-700"
-                                    : "bg-amber-100 text-amber-700"
-                                }`}
-                              >
-                                {l.badge}
-                              </span>
-                            )}
-                            {l.origTotal !== l.effTotal && (
-                              <span className="text-xs text-muted-foreground line-through">
-                                {money(l.origTotal)}
-                              </span>
-                            )}
-                            <span className="font-medium">
-                              {money(l.effTotal)}
-                              {l.suffix}
+                        <div key={j}>
+                          <div className="flex items-baseline justify-between gap-2 text-sm">
+                            <span className="text-slate-600">
+                              {l.label}
+                              {l.qte > 1 ? (
+                                <span className="text-muted-foreground">
+                                  {" "}
+                                  × {l.qte}
+                                </span>
+                              ) : null}
                             </span>
-                          </span>
+                            <span className="flex items-baseline gap-1.5 tabular-nums">
+                              {l.badge && (
+                                <span
+                                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                    l.badge === "OFFERT"
+                                      ? "bg-emerald-100 text-emerald-700"
+                                      : "bg-amber-100 text-amber-700"
+                                  }`}
+                                >
+                                  {l.badge}
+                                </span>
+                              )}
+                              {l.origTotal !== l.effTotal && (
+                                <span className="text-xs text-muted-foreground line-through">
+                                  {money(l.origTotal)}
+                                </span>
+                              )}
+                              <span className="font-medium">
+                                {money(l.effTotal)}
+                                {l.suffix}
+                              </span>
+                            </span>
+                          </div>
+                          {l.promo && (
+                            <p className="mt-0.5 text-xs font-medium text-emerald-700">
+                              🎁 Offre de lancement : {l.promo}
+                            </p>
+                          )}
                         </div>
                       ))}
                     </div>

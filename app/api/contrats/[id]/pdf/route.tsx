@@ -145,6 +145,31 @@ export async function GET(
     return base;
   };
 
+  // Libellé promo (remise récurrente bornée) affiché en toutes lettres.
+  const devise = contract.devise ?? "CHF";
+  const promoLabelOf = (
+    m: LigneMeta | undefined,
+    baseMens: number,
+  ): string | null => {
+    if (!m?.remiseType) return null;
+    const n = m.remiseDureeMois ?? 0;
+    const r = m.remiseValeur ?? 0;
+    if (n <= 0 || r <= 0) return null;
+    if ((m.remiseCible ?? "DEUX") === "ONESHOT") return null;
+    const mois = n === 1 ? "le 1er mois" : `les ${n} premiers mois`;
+    const red =
+      m.remiseType === "POURCENT"
+        ? baseMens * Math.min(1, r / 100)
+        : Math.min(baseMens, r);
+    if (red >= baseMens - 0.001)
+      return n === 1 ? "1er mois offert" : `${n} premiers mois offerts`;
+    const val =
+      m.remiseType === "POURCENT"
+        ? `${r} %`
+        : `${r.toLocaleString("fr-CH", { maximumFractionDigits: 2 })} ${devise}`;
+    return `−${val} / mois ${mois}`;
+  };
+
   const data: ContractPdfData = {
     numero: contract.numero,
     devise: contract.devise ?? "CHF",
@@ -202,6 +227,7 @@ export async function GET(
         offert: meta?.offert ?? false,
         remiseType: meta?.remiseType ?? null,
         remiseValeur: meta?.remiseValeur ?? null,
+        promo: promoLabelOf(meta, baseMens ?? 0),
       };
     }),
     signature: latestSignature

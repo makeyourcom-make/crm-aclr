@@ -80,6 +80,8 @@ export interface ContractPdfData {
     offert?: boolean;
     remiseType?: "POURCENT" | "MONTANT" | null;
     remiseValeur?: number | null;
+    /** Libellé promo en toutes lettres (remise récurrente bornée dans le temps). */
+    promo?: string | null;
   }>;
   signature?: {
     nomClient?: string | null;
@@ -630,6 +632,18 @@ export function ContractPdf({ data }: { data: ContractPdfData }) {
                   <Text style={styles.colTotal}>{fmt(part.eff * part.rowQte)}</Text>
                 </View>
               ))}
+              {p.promo ? (
+                <Text
+                  style={{
+                    fontSize: 8.5,
+                    color: "#047857",
+                    fontWeight: 700,
+                    marginTop: 2,
+                  }}
+                >
+                  Offre de lancement : {p.promo} (puis plein tarif).
+                </Text>
+              ) : null}
             </View>
           );
         })}
