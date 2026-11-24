@@ -89,8 +89,14 @@ export function ComposeEmailButton({
   const [results, setResults] = useState<ProspectOption[]>([]);
   const [searching, setSearching] = useState(false);
 
-  // Étape 1 (mode freeform) : email libre
+  // Étape 1 (mode freeform) : email libre.
   const [freeEmail, setFreeEmail] = useState("");
+  // Confirmation explicite de l'adresse libre (Entrée / « Continuer »). Sans
+  // elle, l'étape 1 passerait à l'étape 2 dès que l'adresse paraît valide, soit
+  // au tout premier caractère après le point (« jean@gmail.c ») — impossible de
+  // finir de taper le TLD. On attend donc une validation volontaire.
+  const [freeLocked, setFreeLocked] = useState(false);
+  const freeEmailValid = /^\S+@\S+\.\S+$/.test(freeEmail.trim());
 
   // Étape 2 : rédaction (le corps est du HTML riche via l'éditeur).
   const [objet, setObjet] = useState("");
@@ -111,6 +117,7 @@ export function ComposeEmailButton({
     setQuery("");
     setResults([]);
     setFreeEmail("");
+    setFreeLocked(false);
     setObjet("");
     setContenuHtml("");
     setAttachments([]);
@@ -122,7 +129,7 @@ export function ComposeEmailButton({
 
   /** Vrai si l'utilisateur a fini l'étape 1 (a un destinataire valide). */
   const hasRecipient =
-    mode === "client" ? selected !== null : /^\S+@\S+\.\S+$/.test(freeEmail.trim());
+    mode === "client" ? selected !== null : freeLocked && freeEmailValid;
 
   // Recherche « live » : attend 250 ms après la dernière frappe, et ignore les
   // réponses périmées (une requête lente pour « C » ne doit pas écraser celle
@@ -316,7 +323,7 @@ export function ComposeEmailButton({
                   type="button"
                   onClick={() => {
                     setSelected(null);
-                    setFreeEmail("");
+                    setFreeLocked(false);
                   }}
                   className="rounded-[8px] px-1.5 py-1 text-[13px] font-bold text-info-700 underline underline-offset-2 hover:bg-info-50"
                 >
@@ -340,7 +347,10 @@ export function ComposeEmailButton({
             >
               <button
                 type="button"
-                onClick={() => setMode("client")}
+                onClick={() => {
+                  setMode("client");
+                  setFreeLocked(false);
+                }}
                 aria-pressed={mode === "client"}
                 className={cn(
                   "inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[10px] px-3 text-[13px] font-bold text-foreground transition-colors",
@@ -465,18 +475,34 @@ export function ComposeEmailButton({
                     *
                   </span>
                 </Label>
-                <input
-                  id="freeform-email"
-                  type="email"
-                  autoFocus
-                  value={freeEmail}
-                  onChange={(e) => setFreeEmail(e.target.value)}
-                  placeholder="prenom.nom@entreprise.ch"
-                  disabled={pending}
-                  required
-                  className={FIELD_CLASS}
-                />
+                <div className="flex gap-2">
+                  <input
+                    id="freeform-email"
+                    type="email"
+                    autoFocus
+                    value={freeEmail}
+                    onChange={(e) => setFreeEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && freeEmailValid) {
+                        e.preventDefault();
+                        setFreeLocked(true);
+                      }
+                    }}
+                    placeholder="prenom.nom@entreprise.ch"
+                    disabled={pending}
+                    required
+                    className={cn(FIELD_CLASS, "flex-1")}
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => setFreeLocked(true)}
+                    disabled={!freeEmailValid || pending}
+                  >
+                    Continuer
+                  </Button>
+                </div>
                 <p className="text-xs text-muted-foreground">
+                  Tape l&apos;adresse complète puis valide avec Entrée ou « Continuer ».
                   Rattachement automatique si l&apos;adresse correspond à une de tes
                   entreprises. Sinon le mail ne comptera pas dans tes stats : pense à
                   créer le client.
