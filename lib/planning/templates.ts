@@ -70,6 +70,8 @@ export interface RegleTemplate {
   fixe?: boolean;
   /** Jour imposé (règles fixes). */
   jour?: number;
+  /** Jour de la semaine (1=lundi…5=vendredi) pour les règles HEBDO. */
+  jourSemaine?: number;
   fenetreDebut: number;
   fenetreFin: number;
   dureeMin: number;
@@ -85,12 +87,14 @@ export const TEMPLATES: Record<string, RegleTemplate[]> = {
     { code: "SEO_GBP", titre: "Post Google Business", court: "Post Google", frequence: "MENSUELLE", fenetreDebut: 1, fenetreFin: 22, dureeMin: 15 },
   ],
   RS: [
-    { code: "RS_PROG_S3", titre: "Programmer la semaine 3 du mois", court: "Prog. S3", frequence: "MENSUELLE", fenetreDebut: 1, fenetreFin: 7, dureeMin: 60 },
+    // Programmation HEBDOMADAIRE : une seule tâche « Programmer la semaine
+    // suivante » chaque semaine (remplace les anciennes « semaine 1/2/3/4 du
+    // mois »). Jour par défaut lundi ; on répartit le jour par client pour
+    // équilibrer la charge du planning.
+    { code: "RS_PROG_HEBDO", titre: "Programmer la semaine suivante", court: "Prog. semaine", frequence: "HEBDO", jourSemaine: 1, fenetreDebut: 1, fenetreFin: 7, dureeMin: 120 },
     { code: "RS_STATS", titre: "Statistiques Metricool (réseaux, site, Google) + ajuster la stratégie", court: "Stats", frequence: "MENSUELLE", fenetreDebut: 10, fenetreFin: 12, dureeMin: 30 },
-    { code: "RS_PROG_S4", titre: "Programmer la semaine 4 du mois", court: "Prog. S4", frequence: "MENSUELLE", fenetreDebut: 8, fenetreFin: 14, dureeMin: 60 },
     { code: "RS_CALENDRIER", titre: "Envoyer le calendrier éditorial du mois suivant (scripts + posts, Google Business inclus)", court: "Calendrier", frequence: "MENSUELLE", fixe: true, jour: 15, fenetreDebut: 13, fenetreFin: 15, dureeMin: 60 },
     { code: "RS_CONTENU", titre: "Récupérer le contenu client du mois suivant", court: "Contenu client", frequence: "MENSUELLE", fixe: true, jour: 25, fenetreDebut: 23, fenetreFin: 25, dureeMin: 15, statutInitial: "ATTENTE_CLIENT" },
-    { code: "RS_PROG_S12", titre: "Programmer les semaines 1 et 2 du mois suivant", court: "Prog. S1-S2", frequence: "MENSUELLE", fenetreDebut: 25, fenetreFin: 31, dureeMin: 120 },
   ],
   ADS: [
     { code: "ADS_OPTIM", titre: "Optimisation des campagnes", court: "Optimisation", frequence: "BIMENSUELLE", fenetreDebut: 1, fenetreFin: 28, dureeMin: 30 },

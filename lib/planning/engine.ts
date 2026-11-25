@@ -161,6 +161,7 @@ export async function createLigne(
           fixe: t.fixe ?? false,
           fenetreDebut: t.fenetreDebut,
           fenetreFin: t.fenetreFin,
+          jourSemaine: t.frequence === "HEBDO" ? t.jourSemaine ?? 1 : null,
           jours: t.fixe && t.jour ? [t.jour] : [],
           moisAncre:
             t.frequence === "BIMESTRIELLE"
